@@ -108,6 +108,8 @@ async function installRoutes(ctx, origin, state) {
 async function openCalendar(browser, origin, state, device) {
   const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, device));
   const page = await ctx.newPage();
+  // FRAME_NOTES_CPU_THROTTLE=N: a slow runner (CDP CPU throttling, N times slower). Proof knob only.
+  if (process.env.FRAME_NOTES_CPU_THROTTLE) { const cdp = await ctx.newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.FRAME_NOTES_CPU_THROTTLE) }); }
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 200)));
   await seedStaffGate(page);
@@ -121,22 +123,38 @@ async function openCalendar(browser, origin, state, device) {
   await sleep(800);
   return { page, ctx, pageErrors };
 }
-// Opens a card's Notes and records every change of the list: did a stand-in row ever show, and how many frameio-view
-// requests had been sent by the time the dialog painted?
+// Opens a card's Notes and records, inside the page, every change of the list (did a stand-in row ever show?) and
+// the frame each frameio-view request was sent in, counted from the opening. Frame 1's callback runs before the
+// dialog's first paint, so a request sent in frame 2 or later was sent after the dialog had painted. Counted in the
+// page, not sampled from here: a busy test process cannot make a late request look early, or an early one late.
 async function openNotes(page, state, pid) {
   const before = state.calls.length;
   await page.evaluate(id => {
-    window.__fn = { skel: false };
-    const look = () => { const f = document.getElementById('calCommentsFeed'); if (f && f.querySelector('.cal-cm-skeleton, .cal-cm-fio-skeleton')) window.__fn.skel = true; };
+    const st = window.__fn = { skel: false, frames: 0, fetchFrames: [] };
+    if (!window.__fnFetchWrapped) {
+      window.__fnFetchWrapped = true;
+      const real = window.fetch;
+      window.fetch = function (input) {
+        try { if (/\/functions\/v1\/frameio-view/.test(String(input && input.url || input)) && window.__fn) window.__fn.fetchFrames.push(window.__fn.frames); } catch (e) {}
+        return real.apply(this, arguments);
+      };
+    }
+    const tick = () => { if (window.__fn !== st) return; st.frames++; if (st.frames < 600) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    const look = () => { const f = document.getElementById('calCommentsFeed'); if (f && f.querySelector('.cal-cm-skeleton, .cal-cm-fio-skeleton')) st.skel = true; };
     const mo = new MutationObserver(look);
     mo.observe(document.body, { childList: true, subtree: true });
-    window.__fn.stop = () => mo.disconnect();
+    st.stop = () => mo.disconnect();
     openCalComments(id);
     look();
   }, pid);
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r())));
-  return { callsAtPaint: state.calls.length - before, before };
+  // FRAME_NOTES_SAMPLE_LAG=ms: the test process busy before it looks (a loaded runner). Proof knob only.
+  if (process.env.FRAME_NOTES_SAMPLE_LAG) await sleep(Number(process.env.FRAME_NOTES_SAMPLE_LAG));
+  return { before };
 }
+// The frame the first frameio-view request of this opening was sent in (null: none within 3 s).
+const firstFetchFrame = page => page.waitForFunction(() => window.__fn.fetchFrames.length > 0, null, { timeout: 3000 })
+  .then(() => page.evaluate(() => window.__fn.fetchFrames[0]), () => null);
 const stopWatch = page => page.evaluate(() => { window.__fn.stop(); return window.__fn.skel; });
 const fioRows = page => page.evaluate(() => Array.from(document.querySelectorAll('#calCommentsFeed .cal-cm-row.is-frameio')).map(r => ({
   label: (r.querySelector('.cal-cm-src-label') || {}).textContent || '', reply: r.classList.contains('is-reply'),
@@ -161,7 +179,8 @@ async function runOn(browser, origin, label, device) {
   const a = await openNotes(page, state, 'v1');
   const shell = await page.evaluate(() => !!document.getElementById('calNotesShell').hasAttribute('data-video'));
   expect(!shell, `${label}: the card's client has no player (frame_viewer_clients does not list it)`);
-  expect(a.callsAtPaint === 0, `${label}: opening Notes sends no Frame.io request before the dialog has painted (${a.callsAtPaint})`);
+  const sentIn = await firstFetchFrame(page);
+  expect(sentIn != null && sentIn >= 2, `${label}: opening Notes sends no Frame.io request before the dialog has painted (sent in frame ${sentIn} after the opening; 2 or later is after the first paint)`);
   const came = await waitFio(page);
   expect(came, `${label}: the Frame.io comments arrive in Notes without the player`);
   expect(!(await stopWatch(page)), `${label}: Notes shows no stand-in rows while they load (it paints as it always did)`);

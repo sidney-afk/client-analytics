@@ -34549,3 +34549,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **The product was checked and is right.** Both day-line paths group by the viewer's own calendar day: `_svuDayLabel` (327) and `_msgLocalDay` / `_msgDayLabel` (326) use `getFullYear/getMonth/getDate`, local time, not UTC. No real user saw a wrong day line from this.
 - **The change (test only).** The fixture and the page now share one clock: `fixtureNow` defaults to noon UTC today, the messages are stamped from it, and the browser's clock is installed at the same moment (`ctx.clock.install`), with the browser zone set to UTC. New section M pins the clock near midnight and checks the day lines: 23:59:59 UTC held still reads Today; 00:00:01 UTC reads Yesterday; 00:22 UTC reads Yesterday, Today; 00:22 local in Los Angeles reads Yesterday, Today; 17:22 local in Los Angeles (UTC already on the next day) reads Today, which would fail if the page grouped by UTC day. Nothing was skipped or weakened; the H check still asks for "Today" only.
 - **Way back:** revert the pull request.
+
+## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
+
+- **What went red.** On main 577e593, Calendar unit tests > entry-links-boot (1) failed in `test/frame-comments-in-notes-browser.js` (entry 512): `FAIL phone: opening Notes sends no Frame.io request before the dialog has painted (1)`. Everything else passed, including the desktop version of the same check, and it had passed on #2347's own CI.
+- **Cause: the test, not the page.**
+  - The page sends the Frame.io comments read two animation frames after Notes draws, then one task later (`raf(raf(setTimeout))` in 187). It never sends it earlier.
+  - The test opened Notes in one page call, then made a second page call that waited one frame, and only then counted the requests its route stand-in had seen. The time between those two calls belongs to the test process, not the page. On a runner busy with three lanes, that time can exceed two frames, so the read the page sent correctly after its first paint was counted as "before paint".
+  - Reproduced: with a 120 ms pause in the test process between the two calls (`FRAME_NOTES_SAMPLE_LAG=120`), desktop and phone both fail on main. CPU throttling alone (`FRAME_NOTES_CPU_THROTTLE=6` or `12`) does not reproduce it, because it slows the page and its frames equally.
+- **Fix (test only, no page change).** The page now counts its own frames from the moment Notes opens: a frame counter starts in the same task as `openCalComments`. Every `frameio-view` request records the frame it was sent in. The check is that the first request goes out in frame 2 or later. Frame 1's callback runs before the first paint, so frame 2 is after it. Nothing is sampled from the test process any more.
+  - It still catches the fault it is for: with the page changed to send the read at once (a temporary mutant), both checks fail, sent in frame 0.
+  - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
+  - The two proof knobs stay in the test, documented, and are off by default.
+- **Way back:** revert the pull request.

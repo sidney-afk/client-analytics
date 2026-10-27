@@ -1773,7 +1773,7 @@
         .cal-link-post .trl-sw-slot:hover, .cal-link-post .trl-chev:hover, .cal-link-post .trl-state-ico:hover { background: var(--sv-slot-video-bg-hover); }
         .cal-link-post.trl-main .cal-link-pill-open { flex: 0 1 auto; }
         .cal-link-post .trl-sw { position: relative; display: block; width: 22px; height: 12px; border-radius: 999px; background: color-mix(in srgb, currentColor 22%, transparent); }
-        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-bg-fff); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
+        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
         .cal-link-post .trl-sw-slot.on .trl-sw { background: color-mix(in srgb, currentColor 40%, transparent); }
         .cal-link-post .trl-sw-slot.on .trl-sw::after { left: 12px; }
         .cal-link-post .trl-sw-slot:not(.on) { opacity: .45; }

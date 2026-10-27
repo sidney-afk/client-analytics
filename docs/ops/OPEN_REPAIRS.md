@@ -34581,3 +34581,19 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-production-browser.js` (19 checks, light and dark), the Deno function test (36), the logic test (71), trial-reels-card-browser (46), prod-write-gateway-browser, lost-work-drafts-browser, prod-boot-budget, write-path-refusal-coverage, check-modules, check-lazy-safety and the unit suite compared with origin/main.
 
 **Way back:** revert the PR; with the switch off nothing shows anyway.
+## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
+
+- **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
+- **Fix (`189`, build 2):** the pick (and Undo) reads the versions now and stops if a winner is already picked or the version is no longer on trial. If the function still refuses after the attach (a read that raced the other pick), the put-back:
+  - goes to the function's own main version (`main_url`, new in the staff read: the winner's stored link, else Video A's), never to the page's old view;
+  - is a compare-and-swap on the sub-issue: it carries the clock the page's own attach answered, so a link someone else attached since stands (write_conflict).
+- **Proven:** `node test/trial-reels-race-browser.js` (Probe's race test, now three races, 15 checks; races 2 and 3 fail without the fix), the card test (52), the logic test (76) and the Deno function test (34).
+
+**Way back:** revert the commit.
+
+## 523. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the card's switch knob was dark in dark mode (Probe E8, session Trials)
+
+- **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.

@@ -2159,6 +2159,11 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels in Production's Assets behind trial_reels_pages: today's single Deliverable file row for an unlisted client and on the graphics sub-issue, one Deliverable file row per version on the card's video sub-issue (the one on the card is today's row), each version's state in Production's words, aligned columns, label contrast, Edit saving a version's link through the function and refusing a link off the providers, and the winner's rows, at desktop and 390 pixel width.",
       "reproduce": "node test/trial-reels-production-browser.js (after repository Playwright/Chromium setup)",
+      "file": "trial-reels-race-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages on one trial card pick a winner at once (Probe, bug 9): a pick after another one stops before it writes, a pick whose read raced the other puts the card back on the winner's own link, and a link someone else attached before the put-back stands.",
+      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

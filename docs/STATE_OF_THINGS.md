@@ -24,6 +24,7 @@ line is older than a week, re-check it before relying on it.
 - **Leads CRM:** migration applied (owner, SQL editor), merge lane released `crm-leads` (run 40415271211), answers 401 without a key.
 - **Trial reels:** `studio_trial_versions` applied live (connector). The studio follow-up (#2354) is merged. SyncView's build is a stack of unmerged PRs (#2356 function and migration, #2357 card, #2359 Production Assets, #2361 review page), behind `trial_reels_pages` for the test client. **The owner holds every trial reels merge.** Plan: #2352 (OPEN_REPAIRS 513).
 - **Midnight test fix (#2360, OPEN_REPAIRS 517):** the unread-badges test is pinned to one clock. No user ever saw a wrong day line.
+- **Staff switches take `{"all": true}` (OPEN_REPAIRS 539, PR open, not merged):** every `{"staff": [...]}` switch read in 188 also takes `"all": true`, meaning every signed-in staff member and never the client link. After the merge the supervisor writes `{"all": true, "staff": [...]}` into the five switches the owner turned on for everybody.
 - **Open, main red:** `test/frame-comments-in-notes-browser.js` phone check "no Frame.io request before the dialog has painted" failed once on main 577e593 after passing on its PR. Session Framenotes is root-causing it.
 - **New client onboarding:** one standard-funnel client (form 26 Oct) is being onboarded through Create client and the 27-step checklist (session Onboard).
 

@@ -173,7 +173,7 @@ write the stops and completions it found. It never sends. `log_send
 records the result as an event (and marks the step sent on `sent`), even if the
 enrolment stopped in between, so nothing a sender did goes unlogged.
 
-**Who may call what.** `due` and `log_send` take only the server key: header
+**Who may call what.** `due`, `log_send` and `ingest` take only the server key: header
 `X-Crm-Sender-Key` equal to the `CRM_SENDER_KEY` secret (24 characters or
 more; unset means off), or `Authorization: Bearer <service role key>`. They
 refuse a staff key, and the page never calls them. Every other action takes
@@ -211,7 +211,7 @@ characters, each email signs off Kasper, and only known placeholders appear.
   from the data) and the n8n automations in
   `supabase/functions/_shared/crm-automations.mjs`. For each: trigger, who gets
   it, channel, who it comes from, timing, and whether it is logged in the
-  Leads timeline yet (n8n ones are not, until they call `log_send`). **To
+  Leads timeline yet (n8n ones are not, until they call `ingest` or `log_send`). **To
   change that list, edit that one file**; describe senders by role only (no
   phone numbers, addresses or ids: the repo is public).
 - The **person panel** also lists their sequences (pause/resume, skip the next
@@ -221,6 +221,82 @@ A staff sign-out or a change of staff member clears everything Leads holds in
 memory (people, notes, drafts, sequences) and ignores any read still in
 flight (`_crmPurgeSensitiveState`, `_crmOnIdentity`, called from
 `100-onboarding-staff-controls`).
+
+## Ingest: n8n logs lead activity
+
+`ingest` is a server-key action (same key rules as `due`) that n8n calls once
+per fact: a form, a booking, a cancel, a send, a reply. No migration was
+needed: each event maps onto a `crm_events` kind the table already allows,
+and the n8n event name is kept in `detail.event`.
+
+Request (POST `/functions/v1/crm-leads`, header
+`Authorization: Bearer <service role key>` or `X-Crm-Sender-Key`):
+
+```json
+{
+  "action": "ingest",
+  "event": "booked",
+  "idempotency_key": "iclosed:booking:<booking id>:booked",
+  "occurred_at": "2026-11-01T14:03:00Z",
+  "call_at": "2026-11-03T16:00:00Z",
+  "person": { "name": "First Last", "email": "a@example.com", "phone": "+1 555 010 0000", "instagram": "@handle", "timezone": "America/Chicago" },
+  "source": { "name": "doctors-ad", "kind": "ad" },
+  "channel": "call",
+  "actor": "n8n:Booking Handler",
+  "detail": { "utm_source": "facebook", "utm_campaign": "c1", "provider_id": "abc" }
+}
+```
+
+- `event`, `idempotency_key` (1-200 chars) and at least one of email, phone
+  or instagram are required. `call_at` is required for `booked` and
+  `rescheduled`. `source.kind` is one of `csv_import`, `quiz`, `ad`,
+  `referral`, `manual`, `other` (anything else becomes `other`). `channel`
+  overrides the default below. `actor` defaults to `n8n`.
+- `detail` is flat: strings (cut to 300), numbers, booleans; at most 30 keys.
+  Keys like `body`, `text`, `html`, `message`, `content`, `transcript` and
+  anything token-, secret-, password- or key-shaped are dropped. **Never send
+  message bodies**: send a provider id or template name instead.
+- `occurred_at` is stored in `detail.occurred_at` (the row's own time is when
+  it was logged).
+
+| event | kind written | default channel | person change |
+|---|---|---|---|
+| `form_capture`, `form_submit` | `imported` | system | none |
+| `booked` | `booked` | call | stage to Call 1 booked if it was To contact, Contacted, Replied or No-show; sets `call_at` |
+| `cancelled` | `call` | call | clears `call_at` (old slot kept in detail); stage unchanged |
+| `rescheduled` | `call` | call | sets `call_at` |
+| `no_show_marked` | `call` | call | none (staff mark the outcome in Today) |
+| `sms_sent`, `recovery_sms_sent` | `message_sent` | sms | none |
+| `email_sent`, `recovery_email_sent`, `confirmation_sent`, `nurture_sent` | `message_sent` | email | none |
+| `sms_reply` | `reply` | sms | stage to Replied if To contact or Contacted; **stops every active sequence** (reason `replied`) |
+
+A `booked` row also stops sequences at the next `due` run (the stop rule
+reads `booked` and `reply` rows). Every stage or `call_at` change also writes
+its `stage_changed` / `call_at_set` row.
+
+The person is found by normalised email, then phone, then handle. A new one
+is created as `ad_lead` at To contact with a `created` row; an existing one
+only has blanks filled (name, email, phone, handle, timezone, source), never
+with a value another person holds. The source is created if missing.
+
+**Dedupe.** The key is stored in `detail.idempotency_key`. The key check runs
+after reading the person's version and the row is written by
+`crm_apply_change` on that version, so a parallel retry loses the
+compare-and-swap, re-reads and answers `{ ok: true, duplicate: true }`. Use a
+key that is stable per real fact (provider id + event).
+
+**Test leads.** `sidney.laruel+anything@gmail.com` or `detail.utm_source`
+`test` are accepted and tagged `test` (person tag and `detail.test`).
+
+Answer: `{ ok, person_id, created, stage, stopped_enrolments, test }`, or
+`{ ok, duplicate: true, person_id }`. Errors: 400 `bad_event`,
+`bad_idempotency_key`, `no_contact`, `bad_occurred_at`, `bad_call_at`,
+`call_at_required`, `bad_channel`; 401 without the server key; 409 after four
+lost races. The function logs counts and the event name only, never contact
+details.
+
+Once a workflow calls `ingest`, mark its row `logged: true` in
+`crm-automations.mjs` (Systems tab).
 
 ## Plugging in the sender later (n8n, not built)
 

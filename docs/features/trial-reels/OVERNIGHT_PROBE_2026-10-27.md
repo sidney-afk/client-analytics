@@ -56,7 +56,7 @@ Status at Trials is as of the last retest on build 6.
 | 8 | `version_link_set` lacked Production's attach role rule | **partly fixed** (staffAllows: admin and SMM everything, creative only links, automation read-only; no member-team check, because the shared auth gives the role only) |
 | 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | **fixed on build 4**, verified (it marks the version on stage; stamping the others is left to the owner) |
 | 13 | The review pages offer Approve, a dot and a place in "Approve all N" for a version the server refuses for stage order (no SMM OK yet, for example after a new cut) | **fixed** (every read carries `ready`; "with the team" dashed dot, no Approve, not in Approve all), seen on 66c0a7a |
-| 14 | When the version on screen is already approved by this reviewer, the button still reads "Approve Video A" (today's page shows "Approved" with "Change my mind") | open (sent 05:0x) |
+| 14 | When the version on screen is already approved by this reviewer, the button still reads "Approve Video A" (today's page shows "Approved" with "Change my mind") | **fixed** (OPEN_REPAIRS 537, carried to build 7 at 0760719): it reads "Video A approved", seen in a dark screenshot |
 | E1 | Review page: the bar sits above the player, with the arrows next to the label. The approved mock has the arrows beside the player, and "Video A of 5" and the dots under the video | **fixed on build 4** (7202cd7), seen at 1440 and 390 |
 | E2 | The dots carry no letter (plan and mock: letter dots) | **fixed on build 4**, seen |
 | E3 | Phone: arrows instead of swipe (plan §5, mock "No arrows: swipe"); the bar wraps to 104 px; the current dot's 36 px ring is heavy | **fixed on build 4** (swipe bound, "Swipe for the next version", no arrows at 390) |
@@ -82,6 +82,7 @@ alone with its tooltip, the Undo toast, no Yes/Cancel, and Notes matches `notes-
 - **E12.** After the pick, should "Video C: the one we are posting" sit under the player, as in the mock, rather than above it?
 - **K1.** Kasper's tiles are small (a 28×40 copy of the card's poster, one player below) against the mock's poster-sized tile per version: keep for speed, or match the mock?
 - **E6.** Should every review button name its version ("Approve Video C"), or say "Approve this version" as in the mock?
+- Once a reviewer has approved a version, should they be able to take it back ("Change my mind", as on today's page)? The function takes a change only on a version still waiting, so today they cannot.
 - A second `winner` row written by the studio's log: should SyncView trust `trial_reel_cards.winner_letter` over the rows? (The studio's guard is still with the AI editor lane.)
 
 ## NOT REACHED

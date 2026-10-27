@@ -7,12 +7,14 @@
 //   probe            { }                     -> { ok, client_id, messages_total? , error? }
 //   sent_recipients  { after?, max_messages? } -> { ok, recipients: [{ email, name, count, first, last }] }
 //
-// The mailbox is the CRM_GMAIL_MAILBOX secret, never a request field.
+// The mailbox is fixed (CRM_GMAIL_MAILBOX secret, or the sales mailbox), never a request field.
 
 const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const OWN_DOMAIN = "synchrosocial.com";
 const MAX_MESSAGES = 5000;
+// The sales mailbox; the CRM_GMAIL_MAILBOX secret overrides it.
+const DEFAULT_MAILBOX = "kasper@" + OWN_DOMAIN;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
   const action = clean(body.action);
   const creds = readCreds();
   if (!creds) return json({ ok: false, error: "google_not_configured" }, 503);
-  const mailbox = clean(Deno.env.get("CRM_GMAIL_MAILBOX"));
+  const mailbox = clean(Deno.env.get("CRM_GMAIL_MAILBOX")) || DEFAULT_MAILBOX;
   if (!mailbox) return json({ ok: false, error: "mailbox_not_configured", client_id: creds.clientId }, 503);
   let tok: string;
   try {

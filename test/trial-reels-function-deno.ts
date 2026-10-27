@@ -269,6 +269,20 @@ const p3 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "p3"
 ok(half.status === 409 && half.body.error === "conflict" && !p3("A").smm_ok_at && !p3("B").smm_ok_at && p3("A").updated_at === "2026-10-27T09:00:00.000Z",
   "a row moved mid-write: the rows already written are put back, and the request answers conflict");
 
+// The winner is SyncView's alone (owner, 2026-10-27): a "winner" the studio writes on a row is never read.
+Object.assign(p3("B"), { status: "winner" }); Object.assign(p3("C"), { status: "lost" });
+const studioOnly = await step({ action: "read", post_id: "p3" }, "client-none");
+const soRows = (studioOnly.body.versions || []) as Row[];
+ok(studioOnly.body.ok === true && soRows.length === 3 && !soRows.some((r) => r.status === "winner"), "a studio-written winner with no winner letter on the card: the client still sees every version, none a winner");
+const soUndo = await step({ action: "winner_undo", post_id: "p3" });
+ok(soUndo.status === 400 && soUndo.body.error === "no_winner", "and there is no winner to undo");
+Object.assign(v("A"), { status: "winner" });
+const cardWins = await step({ action: "read" }, "client-none");
+const cwRows = (cardWins.body.versions || []) as Row[];
+ok(cwRows.length === 1 && cwRows[0].letter === "C" && cardWins.body.main_letter === "C", "the studio writing winner on Video A changes nothing: the card's letter (C) is the winner");
+const staffWins = await step({ action: "read" });
+ok(((staffWins.body.versions || []) as Row[]).find((r) => r.letter === "A")?.status === "lost", "staff see Video A as lost, as the card says");
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

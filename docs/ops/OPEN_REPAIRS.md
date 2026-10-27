@@ -34708,3 +34708,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (41 checks; the new check fails without the fix), trial-reels-journey-browser (90), trial-reels-change-naming-browser, review-stage-browser.
 
 **Way back:** revert the commit.
+
+## 538. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the winner is read only from SyncView's card, never from a studio-written row (owner answer 11, session Trials)
+
+- **Why:** the owner ruled on 2026-10-27 that the AI editor must do nothing about the winner, and that `trial_reel_cards.winner_letter` is the only source of truth. That was NOT so before this fix. Every winner read (the version on the card, the client link cut down to the winner, Undo, and the Production and review pages fed by those reads) took `studio_trial_versions.status = 'winner'`. The studio's connector can write any status on that row, so a stray "winner" would have shown that version to the client as the one being posted.
+- **What:** `settleWinner` in `supabase/functions/trial-reels/logic.mjs`, applied to every versions read in the function. With a winner letter on the card, that version is the winner and every other one on trial or decided is lost. With none, a stored "winner" or "lost" reads as on trial. The rows are never written by this rule. The pages only draw what the function answers, so they follow.
+- **Proven:** `node test/trial-reels-logic.js` (91 checks: 6 new, failing without the fix) and the Deno function test (40: 4 new, failing without the fix). The type ratchet adds no new errors. The frameio-view client-link check gets the same rule in build 7.
+
+**Way back:** revert this commit.

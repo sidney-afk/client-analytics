@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-27 night): own test client on Today, CRM live, trial reels building
+
+- **Own test client on Today (#2350, OPEN_REPAIRS 511):** live. A staff member's own roster row brings their test client onto their Today and "My clients"; nobody else sees it. Measured against the live database client list.
+- **Leads CRM:** migration applied (owner, SQL editor), merge lane released `crm-leads` (run 40415271211), answers 401 without a key.
+- **Trial reels:** `studio_trial_versions` applied live (connector). The studio follow-up (#2354) is merged. SyncView's build is a stack of unmerged PRs (#2356 function and migration, #2357 card, #2359 Production Assets, #2361 review page), behind `trial_reels_pages` for the test client. **The owner holds every trial reels merge.** Plan: #2352 (OPEN_REPAIRS 513).
+- **Midnight test fix (#2360, OPEN_REPAIRS 517):** the unread-badges test is pinned to one clock. No user ever saw a wrong day line.
+- **Open, main red:** `test/frame-comments-in-notes-browser.js` phone check "no Frame.io request before the dialog has painted" failed once on main 577e593 after passing on its PR. Session Framenotes is root-causing it.
+- **New client onboarding:** one standard-funnel client (form 26 Oct) is being onboarded through Create client and the 27-step checklist (session Onboard).
+
 ## Latest (SyncView stand-in, 2026-10-26 evening): card saver back on, Samples links fixed, Frame comments in Notes
 
 - **Card saver re-widened** (owner's go, 19:37 UTC): `calendar_card_write_clients` = `{"all": true, ...}` again. Clean

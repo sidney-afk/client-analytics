@@ -65,7 +65,7 @@ says "Video C"); and how the Production/SyncLinear Assets look.
 | R4 | The winner takes the one link slot: the card's Video row reads "Video C" and opens its link, the Production Deliverable file is the winner's link | card, Production, the client page after the pick | built |
 | R5 | With more than one version link, the player has a version switch and the Frame.io comments follow the version on screen | Notes view 1440 (under the player, beside Open in Frame.io) and 390 (a slim bar under the player); the client review already has its letter dots | built; Notes really reloads the version's link |
 | R6 | With the switch off, the card is today's card plus a faint switch in the Video row; on, the switch takes the row's own muted tone, never a bright fill | card 1440 and 390 | built (`card-off-*`) |
-| R7 | Every label the trial adds reads at 4.5:1 or more in both themes; muted labels (waiting, lost) use today's N/A pill, and "dropped" is plain muted text, never a pill (owner, 2026-10-27; shared class `sv-dropped-note`, OPEN_REPAIRS 547) | card and Production, dark and light | built; measured by the script |
+| R7 | Every label the trial adds reads at 4.5:1 or more in both themes; muted labels (waiting, lost) use today's N/A pill, and "dropped" is plain muted text, never a pill (owner, 2026-10-27; shared class `sv-dropped-note`, OPEN_REPAIRS 550) | card and Production, dark and light | built; measured by the script |
 
 **Sweep inventory** (surface × what the rules change):
 - **Staff card, Sheet (1440) and the phone card (390):** Video row "Video · 5" + tiny state ("2/4 approved", "On trial ·

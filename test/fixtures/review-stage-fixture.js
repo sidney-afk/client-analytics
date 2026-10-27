@@ -271,6 +271,8 @@ async function open(browser, origin, opt) {
       // opt.fast: Kasper's fast boot (kasper_fast_boot) for the signed-in staff member, or a given value.
       if (opt.fast && !state.dropFast) values.kasper_fast_boot = opt.fast === true ? { staff: [STAFF.id] } : opt.fast;   // state.dropFast: taken away at run time
       if (opt.help) values.review_help_video_url = { url: opt.help };
+      // opt.samples: saving Samples is on for the fixture client (a test that mocks a sample of its own).
+      if (opt.samples) values.sample_review_ef_clients = { clients: [SLUG] };
       // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
       if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };
       else if (opt.analytics && typeof opt.analytics === 'object') values.analytics_hidden = opt.analytics;

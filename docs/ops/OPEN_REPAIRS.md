@@ -34726,7 +34726,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the pull request.
 
-## 547. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the staff card: every action answers at once, "dropped" is plain text, unboxed row buttons and switch (session Trialpolish)
+## 539. [2026-10-27 UTC, BUILT, NOT MERGED] Kasper could not press "Tweaks are on Frame" (or send any change) on a sample from his Review Session (session Frametweak)
+
+- **Why:** reported by Kasper through the owner on 2026-10-27. Pressing "Tweaks are on Frame" on a sample did nothing, and no refusal reached the write-refusal log. The cause was not the Review Session polish: the review stage wrote his words into `window._sxrKasperState.drafts`, and the Samples module keeps `_sxrKasperState` as a module constant it never puts on `window`. So every change from the stage on a sample threw a TypeError before any save started: "Tweaks are on Frame", a typed "Ask for a change", "Approve after tweaks" and a team note. The saving flag check read the same missing object, so a sample's busy state never showed either. Calendar posts were never affected. It came in with #2317 (2026-10-24). Reproduced offline with the polish on and off.
+- **What:** `195-review-stage` imports `_sxrKasperState` from `290-samples-writes-review` (it was already exported) instead of reading it off `window`. The review-stage fixture gains `opt.samples` (saving Samples on for the fixture client).
+- **Proven:** `node test/review-stage-kasper-sample-frame-browser.js` (new; Kasper in layout 2 presses Tweaks are on Frame, and types a change, on a fictional sample, with unread_badges_v2 on and off; 4 runs, each fails on main with the TypeError and no save, all pass with the fix), added to the calendar unit-test lane. The stopgap of 18:12 UTC (Kasper taken off `unread_badges_v2`) did not help, because the bug did not depend on the polish; he can go back on once this merges.
+
+**Way back:** revert this commit.
+
+## 550. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the staff card: every action answers at once, "dropped" is plain text, unboxed row buttons and switch (session Trialpolish)
 
 - **Owner, 2026-10-27, from the test client's card:** every trial action felt slow (pasting a Frame.io link, dropping a version, the trial switch); "dropped" must not be a pill; a version's name should open its link; the trial switch looked dimmed and sat in a box; the row buttons (open the folder, edit link) should have no box either, with a hover that changes only the icon; and the versions list should open by itself when the switch goes on.
 - **Measured before (live, test client only, from the function's own timing log and the gateway log of the owner's session, plus read-only and refused calls from here):** nothing on the card changed until every call had answered.

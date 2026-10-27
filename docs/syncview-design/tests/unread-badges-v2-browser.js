@@ -34,13 +34,21 @@
  *      with Open card then a plain ×; Notes shows its thread line too.
  *   F. No page error.
  *   G. Only a page the switch is on for asks the inbox for pictures (the Slack lookups are opt-in).
+ *   M. Midnight (OPEN_REPAIRS 517): the fixture and the page share one pinned clock, so a run that starts just after
+ *      midnight UTC no longer sees notes from 20 minutes ago under "Yesterday" and fails H. Day lines follow the
+ *      viewer's own calendar day: pinned a second either side of midnight, half an hour after it in UTC and in
+ *      Los Angeles, and in Los Angeles while UTC is already on the next day.
  */
 const { createEnv, sleep, SLUG } = require('./lost-work-lib');
 
 const CORS = { 'access-control-allow-origin': '*' };
-const ago = min => new Date(Date.now() - min * 60000).toISOString();
+// One clock for the fixture and the page (OPEN_REPAIRS 517). The notes are stamped minutes before `fixtureNow` and the
+// page's clock is pinned to the same moment, so the run cannot straddle a midnight. By default that is noon UTC today.
+const NOON = (() => { const d = new Date(); d.setUTCHours(12, 0, 0, 0); return d.getTime(); })();
+let fixtureNow = NOON;
+const ago = min => new Date(fixtureNow - min * 60000).toISOString();
 const note = o => Object.assign({ parent_id: null, author: 'Casey Client', role: 'client', audience: 'client', is_tweak: false, done: false, round: 1 }, o, { root_id: o.parent_id || o.id, created_at: ago(o.min), updated_at: ago(o.min) });
-const NOTES = [
+const makeNotes = () => [
   note({ id: 'n_change', min: 10, is_tweak: true, body: 'Cut the first two seconds.' }),
   note({ id: 'n_question', min: 20, body: 'Can we post this on Friday?' }),
   // The longest header in this fixture: a long first name, "Waiting for your answer", the time; with its toolbar
@@ -55,8 +63,14 @@ const CLIENT_PIC = 'https://pictures.example.test/client-contact.png';
 let failures = 0;
 const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; console.error('FAIL  ' + m); } };
 
-async function run(flagValue) {
-  const S = await createEnv();
+// opts.now pins the clock (default noon UTC today); opts.fixed stops it there (Date only, timers still run);
+// opts.timezoneId is the browser's zone (default UTC).
+async function run(flagValue, opts = {}) {
+  fixtureNow = opts.now || NOON;
+  const NOTES = makeNotes();
+  const S = await createEnv({ context: { timezoneId: opts.timezoneId || 'UTC' } });
+  if (opts.fixed) await S.ctx.clock.setFixedTime(fixtureNow);
+  else await S.ctx.clock.install({ time: fixtureNow });
   S.cards[0].video_tweaks = JSON.stringify(NOTES);
   const errors = [];
   const inboxCalls = [];
@@ -487,6 +501,29 @@ const cardState = page => page.evaluate(() => {
     ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
   } finally { await h.S.close(); }
+
+  // M. Midnight (OPEN_REPAIRS 517). The top-level messages are 20 to 40 minutes old, so 22 minutes after the viewer's
+  // midnight the older ones are yesterday and the question (20 minutes) is today. A second either side of midnight the
+  // clock is held still, so the page reads exactly that moment.
+  for (const sc of [
+    { name: 'UTC, 23:59:59', now: '2026-10-26T23:59:59Z', tz: 'UTC', fixed: true, want: 'Today' },
+    { name: 'UTC, 00:00:01', now: '2026-10-27T00:00:01Z', tz: 'UTC', fixed: true, want: 'Yesterday' },
+    { name: 'UTC, 00:22', now: '2026-10-27T00:22:00Z', tz: 'UTC', want: 'Yesterday,Today' },
+    { name: 'Los Angeles, 00:22 local', now: '2026-10-27T07:22:00Z', tz: 'America/Los_Angeles', want: 'Yesterday,Today' },
+    { name: 'Los Angeles, 17:22 local (UTC already on the next day)', now: '2026-10-27T00:22:00Z', tz: 'America/Los_Angeles', want: 'Today' },
+  ]) {
+    const m = await run({ staff: ['m1'] }, { now: Date.parse(sc.now), timezoneId: sc.tz, fixed: sc.fixed });
+    try {
+      await m.page.evaluate(() => _msgOpenPage());
+      await m.page.waitForSelector('#msgPage .svu-conv', { timeout: 8000 }).catch(() => {});
+      await m.page.evaluate(() => { _msgSetFilter('all'); _msgOpen('p_t1'); });
+      await m.page.waitForSelector('#msgPage .msg-b[data-msg-id="n_question"]', { timeout: 6000 }).catch(() => {});
+      await sleep(300);
+      const days = await m.page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-day')].map(d => d.textContent.trim()));
+      ok(days.join() === sc.want, `M. ${sc.name}: day lines read ${sc.want}: ` + days.join(', '));
+      ok(m.errors.length === 0, `M. ${sc.name}: no page error` + (m.errors.length ? ' ' + m.errors.join(' | ') : ''));
+    } finally { await m.S.close(); }
+  }
 
   if (failures) { console.error(`unread-badges-v2-browser: ${failures} failed`); process.exit(1); }
   console.log('unread-badges-v2-browser: all passed');

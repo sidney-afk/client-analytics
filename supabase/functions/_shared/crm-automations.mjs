@@ -16,7 +16,8 @@
 //   from      who it appears to come from
 //   timing    when it goes out
 //   logged    true once each send writes a crm_events row; false until the
-//             n8n workflow calls crm-leads log_send (a later step)
+//             n8n workflow calls crm-leads ingest (or log_send for a
+//             sequence step); flip it per workflow once it does
 //   owner     where it runs
 
 export const N8N_AUTOMATIONS = [

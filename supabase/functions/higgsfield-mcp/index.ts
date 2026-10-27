@@ -1516,7 +1516,10 @@ function trialDeps(author: string) {
   return {
     author,
     insert: async (rows: JsonMap[]) => {
-      const { error } = await db().from("studio_trial_versions").insert(rows);
+      let { error } = await db().from("studio_trial_versions").insert(rows);
+      // post_id and deliverable_id arrive with SyncView's migration; either merge order is safe.
+      const noCol = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42703" || e.code === "PGRST204") && /post_id|deliverable_id/.test(String(e.message));
+      if (noCol(error)) ({ error } = await db().from("studio_trial_versions").insert(rows.map(({ post_id: _p, deliverable_id: _d, ...r }) => r)));
       if (gone(error)) return { missing: true };
       if (error && (error as { code?: string }).code === "23505") return { duplicate: true };
       if (error) throw fail("log the trial versions", error);
@@ -1530,6 +1533,18 @@ function trialDeps(author: string) {
       if (gone(error)) return { missing: true };
       if (error) throw fail("read the trial versions", error);
       return data || [];
+    },
+    get: async (id: string) => {
+      const { data, error } = await db().from("studio_trial_versions").select("*").eq("id", id).maybeSingle();
+      if (gone(error)) return { missing: true };
+      if (error) throw fail("read the trial version", error);
+      return data;
+    },
+    find: async (q: { client: string; batch: string; video: string; letter: string }) => {
+      const { data, error } = await db().from("studio_trial_versions").select("*").eq("client", q.client).eq("batch", q.batch).eq("video", q.video).eq("letter", q.letter).maybeSingle();
+      if (gone(error)) return { missing: true };
+      if (error) throw fail("read the trial version", error);
+      return data;
     },
     update: async (id: string, patch: JsonMap) => {
       const { data, error } = await db().from("studio_trial_versions").update(patch).eq("id", id).select("*").maybeSingle();

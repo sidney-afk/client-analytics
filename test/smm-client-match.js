@@ -14,7 +14,7 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '098-smm-
 const body = src.split('\n').filter(l => !/^import /.test(l)).join('\n').split('\nexport {')[0];
 const sandbox = { clientMap: {} };
 vm.createContext(sandbox);
-vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients, svUnownedCurrentClients, svAlsoSeesNames };', sandbox);
+vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svOwnTestClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients, svUnownedCurrentClients, svAlsoSeesNames };', sandbox);
 const api = sandbox.api;
 
 let failed = 0;
@@ -55,6 +55,37 @@ const withTest = api.svCurrentClients(['Jane Fixture', 'Dr Test Fixture', 'Slugg
 ]);
 ok(JSON.stringify([...withTest.values()]) === JSON.stringify(['Jane Fixture']), 'a test client is dropped, matched by display name or slug; a real one stays');
 ok(api.svSmmCurrentClients({ source_clients: ['Test Fixture', 'Jane Fixture'] }, withTest).join() === 'Jane Fixture', "a test client is never in an SMM's own list");
+
+// Rule 4's exception (owner request 2026-10-26): a test client the person's
+// OWN roster row lists shows for them, like a real client, and for no one else.
+const infoNames = ['Jane Fixture', 'Dr Test Fixture', 'Slugged Fixture'];
+const testRows = [
+  { slug: 'x', display_name: 'Test Fixture', kind: 'test' },
+  { slug: 'slugged-fixture', display_name: 'Other Name', kind: 'test' },
+  { slug: 'missing-fixture', display_name: 'Missing Test Fixture', kind: 'test' },
+  { slug: 'jane-fixture', display_name: 'Jane Fixture', kind: 'client' },
+];
+const tester = { name: 'Tess Smm', source_clients: ['Test Fixture', 'Jane Fixture', 'Missing Test Fixture'] };
+const ownT = api.svOwnTestClients(tester, testRows, infoNames);
+ok(JSON.stringify([...ownT.values()]) === JSON.stringify(['Dr Test Fixture']), 'own test clients: the one the roster row lists, as its Clients Info name');
+ok(!ownT.has(api.svClientKey('Missing Test Fixture')), 'rule 1 still holds: an own test client missing from Clients Info never appears');
+ok(api.svOwnTestClients({ source_clients: ['Other Name'] }, testRows, infoNames).has(api.svClientKey('Slugged Fixture')), 'matched by display name or slug, like rule 4');
+const aliasEntry = { source_clients: ['Other Name'] };
+ok(api.svSmmCurrentClients(aliasEntry, withTest, [], api.svOwnTestClients(aliasEntry, testRows, infoNames)).join() === 'Slugged Fixture', 'roster lists the display name, Clients Info the slug-derived name: the own list still carries it');
+ok(api.svOwnTestClients({ source_clients: ['Jane Fixture'] }, testRows, infoNames).size === 0, 'a real client is never an own test client');
+ok(api.svOwnTestClients(null, testRows, infoNames).size === 0, 'no roster entry (not on the roster, or an admin seeing all): no test clients');
+ok(api.svOwnTestClients({ source_clients: [] }, testRows, infoNames).size === 0, 'an SMM who lists no test client gets none');
+const tessMine = api.svSmmCurrentClients(tester, withTest, [], ownT);
+ok(JSON.stringify(tessMine) === JSON.stringify(['Jane Fixture', 'Dr Test Fixture']), 'own list = real clients, then own test client (' + tessMine.join() + ')');
+ok(!withTest.has(api.svClientKey('Test Fixture')), 'the shared current list (admins\' "all", counts) still has no test client');
+const granted = { source_clients: ['Jane Fixture'] };
+ok(api.svSmmCurrentClients(granted, withTest, ['Test Fixture'], api.svOwnTestClients(granted, testRows, infoNames)).join() === 'Jane Fixture', 'an "also sees" grant naming a test client never brings it in');
+ok(api.svSmmCurrentClients(null, withTest, ['Test Fixture', 'Jane Fixture'], ownT).join() === 'Jane Fixture', 'a person off the roster with grants never sees a test client');
+const otherSmm = { source_clients: ['Jane Fixture'] };
+ok(api.svSmmCurrentClients(otherSmm, withTest, [], api.svOwnTestClients(otherSmm, testRows, infoNames)).join() === 'Jane Fixture', "another SMM never sees someone else's test client");
+const managerGrant = api.svAlsoSeesNames([{ viewer_member_id: 'm2', manager_slug: 'tess' }], [Object.assign({ slug: 'tess', active: true }, tester)], 'm2');
+ok(api.svSmmCurrentClients(otherSmm, withTest, managerGrant, api.svOwnTestClients(otherSmm, testRows, infoNames)).join() === 'Jane Fixture', "a manager grant on the test client's owner does not pass the test client on");
+ok(JSON.stringify(api.svUnownedCurrentClients([tester], withTest)) === '[]', 'the admins-only unowned list never names a test client');
 
 // Which clients a person sees (svScopeMode). No switch, nothing saved.
 ok(api.svScopeMode(true, true) === 'mine', 'an admin on the roster sees their own clients');

@@ -280,3 +280,130 @@ export function mergeForImport(existing, incoming) {
   if (tags.size !== (existing.tags || []).length) patch.tags = [...tags];
   return patch;
 }
+
+// ── Ingest (n8n, server key only; crm-leads `ingest`) ───────────────────
+// n8n logs what happened to a lead outside SyncView. One request = one fact.
+// No migration: each event maps onto a crm_events kind the table already
+// allows, and the n8n name is kept in detail.event. The `reply` and `booked`
+// kinds are the ones the sequence stop rule (crm-sequences-core stopReason)
+// already reads.
+export const INGEST_EVENTS = {
+  form_capture: { kind: 'imported', channel: 'system' },
+  form_submit: { kind: 'imported', channel: 'system' },
+  booked: { kind: 'booked', channel: 'call' },
+  cancelled: { kind: 'call', channel: 'call' },
+  rescheduled: { kind: 'call', channel: 'call' },
+  no_show_marked: { kind: 'call', channel: 'call' },
+  sms_sent: { kind: 'message_sent', channel: 'sms' },
+  email_sent: { kind: 'message_sent', channel: 'email' },
+  sms_reply: { kind: 'reply', channel: 'sms' },
+  recovery_email_sent: { kind: 'message_sent', channel: 'email' },
+  recovery_sms_sent: { kind: 'message_sent', channel: 'sms' },
+  confirmation_sent: { kind: 'message_sent', channel: 'email' },
+  nurture_sent: { kind: 'message_sent', channel: 'email' },
+};
+export const SOURCE_KINDS = ['csv_import', 'quiz', 'ad', 'referral', 'manual', 'other'];
+const INGEST_CHANNELS = ['instagram_dm', 'email', 'sms', 'call', 'task', 'system'];
+/** detail keys never stored: message bodies and anything secret-shaped. */
+const DROP_DETAIL = /^(body|text|html|message|content|transcript|password|secret|token|api_?key|key|authorization|auth|cookie|signature)$|token|secret|password/i;
+const TEST_EMAIL = /^sidney\.laruel\+[^@\s]*@gmail\.com$/;
+
+function isoOrNull(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(v) || isNaN(Date.parse(v))) return null;
+  return new Date(v).toISOString();
+}
+
+/** Flat, small, no bodies, no secrets. */
+export function cleanDetail(input) {
+  const out = {};
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+  let n = 0;
+  for (const [k, v] of Object.entries(input)) {
+    if (n >= 30) break;
+    if (!/^[a-z0-9_]{1,40}$/i.test(k) || DROP_DETAIL.test(k)) continue;
+    if (typeof v === 'string') out[k] = v.slice(0, 300);
+    else if (typeof v === 'number' && isFinite(v)) out[k] = v;
+    else if (typeof v === 'boolean' || v === null) out[k] = v;
+    else continue;
+    n++;
+  }
+  return out;
+}
+
+/** Validates an ingest body. Returns { ok, ... } or { ok: false, error }. */
+export function validateIngest(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const event = String(b.event || '');
+  const map = INGEST_EVENTS[event];
+  if (!map) return { ok: false, error: 'bad_event' };
+  const key = typeof b.idempotency_key === 'string' ? b.idempotency_key.trim() : '';
+  if (!key || key.length > 200) return { ok: false, error: 'bad_idempotency_key' };
+  const p = b.person && typeof b.person === 'object' ? b.person : {};
+  const person = {
+    display_name: typeof p.name === 'string' ? p.name.trim().slice(0, 200) : '',
+    email: normalizeEmail(p.email) && String(p.email).trim().length <= 320 ? String(p.email).trim() : null,
+    phone: normalizePhone(p.phone) && String(p.phone).trim().length <= 40 ? String(p.phone).trim() : null,
+    instagram_handle: normalizeHandle(p.instagram) && cleanHandle(p.instagram).length <= 100 ? cleanHandle(p.instagram) : null,
+    timezone: validZone(p.timezone) ? p.timezone : null,
+  };
+  if (!person.email && !person.phone && !person.instagram_handle) return { ok: false, error: 'no_contact' };
+  const s = b.source && typeof b.source === 'object' ? b.source : {};
+  const sourceName = typeof s.name === 'string' ? s.name.trim().slice(0, 120) : '';
+  const source = sourceName ? { name: sourceName, kind: SOURCE_KINDS.includes(s.kind) ? s.kind : 'other' } : null;
+  const occurredAt = b.occurred_at == null || b.occurred_at === '' ? null : isoOrNull(b.occurred_at);
+  if (b.occurred_at != null && b.occurred_at !== '' && !occurredAt) return { ok: false, error: 'bad_occurred_at' };
+  const callAt = b.call_at == null || b.call_at === '' ? null : isoOrNull(b.call_at);
+  if (b.call_at != null && b.call_at !== '' && !callAt) return { ok: false, error: 'bad_call_at' };
+  if ((event === 'booked' || event === 'rescheduled') && !callAt) return { ok: false, error: 'call_at_required' };
+  let channel = map.channel;
+  if (b.channel != null && b.channel !== '') {
+    if (!INGEST_CHANNELS.includes(b.channel)) return { ok: false, error: 'bad_channel' };
+    channel = b.channel;
+  }
+  const actor = typeof b.actor === 'string' && b.actor.trim() ? b.actor.trim().slice(0, 80) : 'n8n';
+  const detail = cleanDetail(b.detail);
+  const isTest = !!(person.email && TEST_EMAIL.test(normalizeEmail(person.email)))
+    || String(detail.utm_source || '').trim().toLowerCase() === 'test';
+  return { ok: true, event, kind: map.kind, channel, key, person, source, occurredAt, callAt, actor, detail, isTest };
+}
+
+/** Stage moves an ingest may make: forward only, from the listed stages. */
+function forwardTo(current, target, from) {
+  return from.includes(current) && current !== target ? target : null;
+}
+
+/** The person-level change one validated ingest makes. Pure.
+ *  Returns { patch, events } for crm_apply_change (events include the ingest
+ *  row itself), and stopEnrolments when active sequences must stop. */
+export function ingestPlan(before, v) {
+  const b = before || {};
+  const patch = {};
+  if (v.event === 'booked') {
+    const to = forwardTo(b.stage, 'call1_booked', ['to_contact', 'contacted', 'replied', 'no_show']);
+    if (to) patch.stage = to;
+    patch.call_at = v.callAt;
+  } else if (v.event === 'rescheduled') {
+    patch.call_at = v.callAt;
+  } else if (v.event === 'cancelled') {
+    patch.call_at = '';
+  } else if (v.event === 'sms_reply') {
+    const to = forwardTo(b.stage, 'replied', ['to_contact', 'contacted']);
+    if (to) patch.stage = to;
+  }
+  if (v.person.timezone && !b.timezone) patch.timezone = v.person.timezone;
+  if (v.isTest) {
+    const tags = Array.isArray(b.tags) ? b.tags : [];
+    if (!tags.includes('test')) patch.tags = [...tags, 'test'];
+  }
+  const eff = effectivePatch(b, patch);
+  const detail = Object.assign({}, v.detail, {
+    event: v.event, idempotency_key: v.key,
+    source: v.source ? v.source.name : null,
+    occurred_at: v.occurredAt,
+    call_at: v.callAt || (v.event === 'cancelled' ? (b.call_at || null) : null),
+    test: v.isTest || undefined,
+  });
+  if (!detail.test) delete detail.test;
+  const events = [{ kind: v.kind, channel: v.channel, detail }, ...changeEvents(b, eff, '')];
+  return { patch: eff, events, stopEnrolments: v.event === 'sms_reply' };
+}

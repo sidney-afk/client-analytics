@@ -128,7 +128,8 @@ async function run(browser, origin, viewport) {
       if (body.action === 'get') {
         return json({ ok: true, person: Object.assign({ email: 'made-up@example.invalid', phone: '555 010 0000', lost_reason: null }, person), source: { id: 's1', name: 'Made-up batch' },
           events: [{ id: 2, kind: 'note', actor: 'QA Staff', detail: { text: 'Newest made-up note' }, occurred_at: '2026-10-21T10:00:00Z' },
-                   { id: 1, kind: 'imported', actor: 'import', detail: {}, occurred_at: '2026-10-20T10:00:00Z' }] });
+                   { id: 1, kind: 'imported', actor: 'import', detail: {}, occurred_at: '2026-10-20T10:00:00Z' },
+                   { id: 0, kind: 'call', actor: 'Kasper', detail: {}, occurred_at: '2026-10-19T15:00:00Z' }] });
       }
       if (body.action === 'update') {
         state.updates.push(body);
@@ -187,12 +188,20 @@ async function run(browser, origin, viewport) {
   if (SHOTS) await shoot(page, 'leads-skeleton-' + label);
   await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
   expect(new URL(page.url()).pathname === '/leads', label + ': the address is /leads');
-  expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': four stage groups with people, the six empty stages in one line');
-  expect(await page.locator('.crm-empty-stages').count() === 1, label + ': empty stages collapse into one quiet line');
+  expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': every stage has a section, four of them open with people');
+  expect(await page.locator('.crm-stage.is-empty').count() === 6 && await page.locator('.crm-stage.is-empty .crm-stage-toggle:disabled').count() === 6, label + ': empty stages stay as folded titles');
+  expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-hint').innerText() === 'We have not reached out yet', label + ': each stage says in plain words what it means');
+  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Owner\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles');
+  await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
+  await page.waitForFunction(() => !document.querySelector('[data-crm-stage="to_contact"] .crm-stage-body'));
+  expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a stage section folds');
+  await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
+  await page.waitForSelector('[data-crm-stage="to_contact"] .crm-stage-body');
   const first = page.locator('[data-crm-card="00000000-0000-4000-8000-000000000001"]');
   const text = await first.innerText();
   expect(/Made-up Studio/.test(text) && /First DM/.test(text) && (viewport.width < 500 || /Fitness/.test(text)), label + ': a lead line shows name, niche and next step');
-  expect(!/Dream 100/.test(await page.locator('#crmBoard').innerText()) && !(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no lead-type badges or chips on the Pipeline');
+  expect(/Dream 100/.test(text) && /Made-up batch/.test(text), label + ': a lead line says where they came from (' + text.replace(/\s+/g, ' ') + ')');
+  expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on the Pipeline');
   expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
   expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
   // Filters behind one View button, with a dot while one is on.
@@ -237,6 +246,7 @@ async function run(browser, origin, viewport) {
   expect(/Sample Coach/.test(panel) && /made-up@example\.invalid/.test(panel) && /Made-up batch/.test(panel), label + ': panel shows details and source');
   const evs = await page.locator('.crm-ev-text').allInnerTexts();
   expect(evs[0] === 'Newest made-up note' && /Imported/.test(evs[1]), label + ': timeline is newest first');
+  expect(/Last touch/.test(panel) && !/No touch yet/.test(panel), label + ': the panel says when we last touched them (a call, message or reply)');
   expect(!(await page.locator('#crmPStep').count()), label + ': the edit fields stay hidden until Edit');
   expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'Timeline' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
   expect(await boxesInBoxes(page) === '', label + ': the person panel has no box inside a box');
@@ -285,8 +295,8 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-tab="sequences"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
   const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
-  expect(/draft/.test(seqText) && /approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
-  expect(/Day 2, 09:00 their time · Email · approved/.test(seqText), label + ': a step reads as one plain line');
+  expect(/Waiting for approval/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
+  expect(/Day 2\s+9am their time\s+Email · Approved/.test(seqText) && /2 messages over 2 days/.test(seqText) && /1 of 2 approved/.test(seqText), label + ': a step reads day, hour, channel and approval in plain words (' + seqText.replace(/\s+/g, ' ').slice(0, 300) + ')');
   expect(!(await page.locator('#crmSeqs .crm-badge, #crmSeqs .crm-chan').count()) && await boxesInBoxes(page) === '', label + ': no step chips and no box inside a box');
   expect(await page.locator('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'false', label + ': a sequence that is off says so');
   if (SHOTS) await shoot(page, 'leads-sequences-' + label, true);
@@ -300,7 +310,7 @@ async function run(browser, origin, viewport) {
   await page.locator('#crmStepEditor button', { hasText: 'Save as draft' }).click();
   await page.waitForSelector('[data-crm-step="st1v2"]');
   expect(state.edits.length === 1 && state.edits[0].fields.template === 'Hi {first_name}, a changed made-up text' && !('subject' in state.edits[0].fields), label + ': saving a text step sends its new wording only');
-  expect(/v2/.test(await page.locator('[data-crm-step="st1v2"]').innerText()), label + ': the edited step shows as a new version');
+  expect(/edited \(v2\)/.test(await page.locator('[data-crm-step="st1v2"]').innerText()), label + ': the edited step shows as a new version');
   await page.locator('[data-crm-step="st1v2"] button', { hasText: 'Approve' }).click();
   await page.waitForFunction(() => !document.querySelector('[data-crm-step="st1v2"] .crm-btn-ok'));
   expect(state.approvals.length === 1 && state.approvals[0].step_id === 'st1v2', label + ': Approve approves that step');
@@ -313,7 +323,9 @@ async function run(browser, origin, viewport) {
   await page.waitForSelector('[data-crm-sys="booking_confirmation"]');
   const sysText = await page.locator('#crmSystems').innerText();
   expect(/Booking confirmation/.test(sysText) && /Not yet/.test(sysText) && /Logged/.test(sysText) && /1 of 2 steps approved/.test(sysText), label + ': Systems lists the sequences and the n8n automations with their logging state');
-  expect(/The person who booked gets an email and a text right after booking, from Made-up sender\. It starts when a call is booked\./.test(sysText) && !(await page.locator('#crmSystems table').count()), label + ': each automation reads as a plain sentence, not a table (' + sysText.slice(sysText.indexOf('n8n automations'), sysText.indexOf('n8n automations') + 300) + ')');
+  const sysRow = await page.locator('[data-crm-sys="booking_confirmation"]').innerText();
+  expect(/The person who booked/.test(sysRow) && /An email and a text/.test(sysRow) && /from Made-up sender/.test(sysRow) && /A call is booked|a call is booked/.test(sysRow) && /Running in n8n/.test(sysRow), label + ': each automation is one row: who, what, when, what starts it, status (' + sysRow.replace(/\s+/g, ' ') + ')');
+  if (viewport.width >= 500) expect(/Automation\s+Who gets it\s+What they get\s+When\s+Starts when\s+Status/i.test(await page.locator('#crmSystems thead').first().innerText()), label + ': the automations table has column titles');
   expect(await boxesInBoxes(page) === '', label + ': Systems has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-systems-' + label, true);
   const sysOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

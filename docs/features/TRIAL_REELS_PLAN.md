@@ -422,3 +422,15 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 - Q10: the SMM always picks one; no "no clear winner" on the SyncView side.
 
 **Next:** the owner has answered the seven decisions in section 0b. No building until he says go.
+
+## 10. Open after the build PRs (2026-10-27)
+
+The build is stacked as #2356 (function and migration), #2357 (staff card), #2359 (Production Assets) and #2361
+(review page), with the Notes player's version switch next. Each item below is known, named in its PR, and not built yet:
+
+1. **A version that is not the card's link opens in a new tab on the client link** (#2361). The client page's player
+   asks `frameio-view` for the card's own video by the card's id, so it cannot play another version in place. Staff
+   pages play every version in place. Fix: let `frameio-view` take a version letter for a trial card and play that
+   version's `frame_url`, with the same client-token rules as today.
+2. **Kasper's second layout with every version side by side** (decision 4) comes as its own PR after #2361. Until then
+   that layout shows the same "Video B of 5" bar and arrows as his first layout and the client page.

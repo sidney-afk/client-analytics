@@ -529,3 +529,6 @@ Why: the panel's unfinished-lead pull matched only `doctor-strategy-call`, so un
 ## 2026-10-27 Booking Handler: "no confirmation text" version actually published (owner's go in the request, Ads lane)
 Why: the 26 Oct edits removing the booking confirmation text were saved but never published; a launch test booking on 27 Oct (execution 679774) still sent the text.
 - Normal Sales, Booking Handler (`ghpbQQJizAnR6p2b`): active version before `811f4f65-855c-4cad-a39f-0d94baf8669b`, after `0c1354cd-26e4-40a9-b37c-ad279e0dbdb4` (published, "No confirmation text for any booking"). This also brings live the 26 Oct educator-only variant `fa5f420b` it was built on. Undo: publish `811f4f65`.
+
+## 2026-10-27 Educator pre-call email 3: wording approved 26 Oct copied in (owner's go in the request, Ads lane)
+- Educators Sales, Pre-Call Nurture (`lU5RlPUBsmlMsFSf`), node "Educator 3 - Results and Speed": before `40ec3b9e-66c4-45b9-80c8-340394ad1a9d`, after `ad970004-3deb-486b-9fbd-6d8f6695d833` (published). Subject and two sentences copied from the approved email Doc (membership numbers reworded; two case-study lines swapped for two public ones from the site's case studies). Rest of the email unchanged. A stray draft with a placeholder body was saved for about a minute and never published. Undo: publish the before version.

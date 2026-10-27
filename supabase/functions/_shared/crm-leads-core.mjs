@@ -364,7 +364,9 @@ export function validateIngest(body) {
   const detail = cleanDetail(b.detail);
   const isTest = !!(person.email && TEST_EMAIL.test(normalizeEmail(person.email)))
     || String(detail.utm_source || '').trim().toLowerCase() === 'test';
-  return { ok: true, event, kind: map.kind, channel, key, person, source, occurredAt, callAt, actor, detail, isTest };
+  // match_only: log only for someone already in the CRM; never create a person.
+  const matchOnly = b.match_only === true;
+  return { ok: true, event, kind: map.kind, channel, key, person, source, occurredAt, callAt, actor, detail, isTest, matchOnly };
 }
 
 /** Stage moves an ingest may make: forward only, from the listed stages. */

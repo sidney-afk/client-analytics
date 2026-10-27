@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -2439,6 +2439,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const trialWord = x.key === 'video' ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
         // A version the SMM has not looked at yet: nothing to answer here (Probe rule-miss 13).
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
+        // A version this reviewer already approved: its approved state, as today's page shows an answered part.
+        if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's

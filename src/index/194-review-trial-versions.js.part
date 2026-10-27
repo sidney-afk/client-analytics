@@ -266,7 +266,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
                 + '<span class="trk-pic">' + poster + '</span><span class="trk-n">Video ' + l + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t">' + vs.length + ' versions</span>'
-            + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all ' + open.length + '</button>' : '')
+            + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
             + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div></div>';
     }
     function svTrialReviewBindTiles(el, m, mode, on) {
@@ -299,9 +299,11 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 
     const TRV_CSS = `
 .trk{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
-.trk-h{display:flex;align-items:center;gap:10px}
+.trk-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .trk-t{font-size:.78rem;font-weight:700;color:var(--text-secondary)}
-.trk-all{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;background:var(--ok-solid-bg);color:var(--ok-solid-fg);font:inherit;font-size:.78rem;font-weight:700;padding:6px 11px;cursor:pointer}
+.trk-all{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);border-radius:10px;background:var(--deck);color:var(--text-primary);font:inherit;font-size:.8rem;font-weight:600;padding:7px 13px;cursor:pointer}
+.trk-all:hover:not([disabled]){background:var(--fill-hover)}
+.ql-r .trv-vn{color:var(--pd-video);font-weight:600;white-space:nowrap}
 .trk-all svg{width:13px;height:13px}
 .trk-all[disabled]{opacity:.6;cursor:default}
 .trk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}

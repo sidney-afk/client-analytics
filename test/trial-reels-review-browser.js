@@ -40,7 +40,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   async function start(mode, flag, versions, extra) {
     // Kasper and the client answer a version only after the SMM (the server holds the order).
     if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
-    const T = { versions, calls: [] };
+    const T = { versions, calls: [], cards: extra && extra.cards };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.T = T;
@@ -60,7 +60,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
         L.readShape(T.versions, { client, mainLink: T.versions[0].frame_url, cardStatus: 'Client Approval' }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
-      if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
+      if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
         const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note }, new Date().toISOString());
@@ -269,12 +269,22 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       return { names: [...r.querySelectorAll('.trk-v .trk-n')].map(n => n.textContent.trim()), bar: !!r.querySelector('.trv'),
         ok: r.querySelectorAll('.trk-v [data-trk-ok]').length, cur: ((r.querySelector('.trk-v.cur .trk-n') || {}).textContent || '').trim(),
         labs: [...r.querySelectorAll('.trk-v')].map(v => ((v.querySelector('.trk-lab') || {}).textContent || '').trim()), hook: /Fictional hook/.test(r.innerHTML),
-        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim() };
+        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim(),
+        // Probe K2, K3, K4, K5: the video part's own Approve and Ask for change give way to the tiles (only Frame
+        // tweaks stays, naming the version on stage); the badge names it; Approve all sits at the top right; the list
+        // says "5 versions" under the card.
+        vidOk: !!r.querySelector('.pn-d[data-pd="video"] [data-ok="video"], .pn-d[data-pd="video"] [data-chg="video"]'),
+        frame: ((r.querySelector('.pn-d[data-pd="video"] [data-frame="video"]') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+        badge: ((r.querySelector('#fvHost > .mpill') || {}).textContent || '').trim(),
+        allRight: (() => { const a = r.querySelector('[data-trk-all]'), h = r.querySelector('.trk-h'); if (!a || !h) return false; return h.getBoundingClientRect().right - a.getBoundingClientRect().right < 2; })(),
+        list: ((r.querySelector('#qlList .ql-r.cur .trv-vn') || {}).textContent || '').trim() };
     });
     if (process.env.TRIAL_REVIEW_SHOTS) { require('fs').mkdirSync(process.env.TRIAL_REVIEW_SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'kasper-layout2.png') }); }
     let k = await tiles();
     ok(k.names.join('|') === 'Video A|Video B|Video C|Video D|Video E' && !k.bar && !k.hook, 'Kasper, second layout: every version side by side, named Video A to E, no bar and no hook text');
-    ok(k.ok === 5 && /Approve all 5/.test(k.all) && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top; Video A is on stage');
+    ok(k.ok === 5 && k.all === 'Approve all' && k.allRight && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top right (Probe K4); Video A is on stage');
+    ok(!k.vidOk && /Video A/.test(k.frame) && k.badge === 'Video A', "the video part's own Approve and Ask for change give way to the tiles; Frame tweaks and the badge name the version on stage (Probe K2, K3: " + k.frame + ' | ' + k.badge + ')');
+    ok(k.list === '5 versions', 'the list says "5 versions" under the trial card (Probe K5: ' + k.list + ')');
     await inS(t.page, '.trk-v [data-trk-go="C"]').click();
     await sleep(1200);
     k = await tiles();
@@ -297,6 +307,18 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       && (t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))),
       'Approve all answers the rest, then today\'s approve sends the video on to the client');
     ok(!t.errors.length, 'Kasper second layout: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // Two trial cards whose tiles look the same (same versions, same poster): the tiles act on the card on screen (Codex
+    // on PR 2366: the drawn tiles kept the first card's handlers).
+    t = await start('kasper', true, fresh(), { layout2: true, cards: ['rs1', 'rs3'] });
+    await inS(t.page, '#qlList [data-id="rs3"]').click();
+    await sleep(1500);
+    if (!(await inS(t.page, '.trk-v [data-trk-ok="B"]').count())) { await t.page.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(1500); }
+    const a0 = t.T.calls.length;
+    await inS(t.page, '.trk-v [data-trk-ok="B"]').click();
+    await waitFor(async () => t.T.calls.slice(a0).some(c => c.action === 'answer'));
+    const asked = t.T.calls.slice(a0).find(c => c.action === 'answer') || {};
+    ok(asked.post_id === 'rs3' && asked.letter === 'B', "a second trial card with the same tiles: its tile's Approve answers that card, not the first (" + asked.post_id + ')');
     await t.ctx.close();
 
     // ---------- Kasper's Review Session ----------

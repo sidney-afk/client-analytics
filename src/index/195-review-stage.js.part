@@ -2429,8 +2429,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const trialWord = x.key === 'video' ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
+        /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's
+           own Approve and Ask for change would say the same thing twice (Probe K2). Only "Tweaks are on Frame" stays
+           here, naming the version on stage. */
+        const tiles = R.l2 && x.key === 'video' && R.mode === 'kasper' && !!svTrialReviewTilesHtml(_rsCur(), R.mode);
+        const on = tiles ? ': Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '';
+        const frame = R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame' + on) + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame' + on, 'Frame tweaks' + (tiles ? ' · Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '')) + '</button>' : '';
+        if (tiles) return frame;
         return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsLblAttr(chg ? 'Change asked' : 'Ask for a change') + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? _rsLbl('Change asked', 'Asked') : _rsLbl('Ask for a change', 'Ask for change')) + '</button>'
-            + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame') + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame', 'Frame tweaks') + '</button>' : '');
+            + frame;
     }
     /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
        Easel, 2026-10-20): what a part answered by someone else reads, who can be pinged, the active part's buttons or
@@ -3600,7 +3607,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const urg = m.sec === 'urgent';
         const head = m.sec === 'tweaks' ? _rsKRowHead(m) : '<span class="cn">' + _re(m.title) + '</span>';
         const meta = m.sec === 'tweaks' ? _rsKRowMeta(m)
-            : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+            : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '')
+                + (m.trial && !m.trial.winner && m.trial.versions.length > 1 ? '<span class="trv-vn">' + m.trial.versions.length + ' versions</span>' : '') + _rsDots(m) + '</span>';
         return '<button class="chipp k ql-r' + (on ? ' cur' : '') + (urg ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" tabindex="' + (on ? '0' : '-1') + '" aria-current="' + !!on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + head + meta + '</span></button>';
     }
     // The bell on a card with the editors: the same urgent ping the held card's "Ping editor" sends (_rsPingHtml), shown
@@ -3861,8 +3869,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const el = _rsQ('l2trv');
         if (!el) return;
         const html = svTrialReviewTilesHtml(m, R.mode);
-        if (el.__trvHtml === html) return;
+        // The handlers hold this post: identical tiles of another card are bound again (Codex on PR 2366).
+        if (el.__trvHtml === html && el.__trvPid === m.id) return;
         el.__trvHtml = html;
+        el.__trvPid = m.id;
         el.innerHTML = html;
         if (!html) return;
         const cur = () => _rsModelById(m.id) || m;

@@ -34664,3 +34664,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-notes-browser.js` (19 checks; the new Drive check fails without the fix), frame-comments-in-notes-browser, frameio-viewer-browser, and the other trial suites.
 
 **Way back:** revert the commit.
+
+## 528. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: tiles bound to the wrong card, and the mock's places (Codex on PR 2366, Probe 10b, K2 to K6, session Trials)
+
+- **Codex P1:** the tiles were drawn again only when their markup changed, so two trial cards with the same versions and poster kept the first card's handlers: Approve, Approve all and Drop could act on a card no longer on screen. The redraw now also follows the card on screen.
+- **Probe 10b:** a change opened on tile C and sent after a press on tile E was Video E's. Fixed by build 4's change box, which remembers the version it opened on. Probe's check is adopted in trial-reels-change-naming-browser.
+- **K2:** on a trial card the video part's own Approve and Ask for change gave way to the tiles. Only "Tweaks are on Frame" stays, naming the version on stage.
+- **K3, K6:** the badge and Finish reviewing follow build 4: "Video A", and versions counted.
+- **K4:** "Approve all" is an outlined button at the top right of the tiles, as in the mock.
+- **K5:** the list on the left says "5 versions" under a trial card.
+- **Kept as built (owner taste):** K1, small tiles with the card's poster and one player below, versus the mock's poster-sized tiles (plan risk 5).
+- **Proven:** `node test/trial-reels-review-browser.js` (47 checks; the P1, K2 and K5 checks fail without the fix), trial-reels-change-naming-browser (6), review-stage-kasper-layout2-browser (188), review-stage-browser, check-modules.
+
+**Way back:** revert the commit.

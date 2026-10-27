@@ -132,7 +132,7 @@ ok(clientRead.body.ok === true && !(clientRead.body.versions as Row[]).some((x) 
 const drop = await step({ action: "version_drop", letter: "D" });
 ok(drop.body.ok === true && v("D").status === "dropped", "the team drops Video D");
 const dropMain = await step({ action: "version_drop", letter: "A" });
-ok(dropMain.status === 400 && dropMain.body.error === "main_version", "the version on the card cannot be dropped");
+ok(dropMain.status === 409 && dropMain.body.error === "attach_first" && v("A").status !== "dropped", "the version on the card is dropped only after today's attach moved the card to the next live version");
 const eLink = await step({ action: "version_link_set", letter: "E", link: "https://f.io/fixture-e" });
 ok(eLink.body.ok === true && v("E").frame_url === "https://f.io/fixture-e", "Video E's link is pasted");
 const kasperEarly = await step({ action: "answer", stage: "kasper", kind: "approve", letter: "B" }, "admin");

@@ -34559,3 +34559,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Held on merge** until the migration is applied (its first line says how to tell). Nothing shows on any page until build PR 2.
 
 **Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).
+
+## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
+
+- **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
+  - "on the card" is the winner, else the live version whose link the card carries, else the first live one;
+  - dropping the version on the card is refused with `attach_first` (409) until today's attach has put the next live version's link on the card (the page does that first). After that, the old one drops like any other;
+  - the last live version cannot be dropped (`last_live_version`);
+  - Undo of a winner puts back the first live version, which is Video A unless A was dropped.
+- **Function:** `trial-reels` logic and index (`dropPatch` takes the card's link). No migration, not a Section 4 function.
+- **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
+
+**Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).

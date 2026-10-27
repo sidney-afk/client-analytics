@@ -57,10 +57,19 @@ export function cleanLink(raw) {
 export const live = (v) => v.status !== STATUS.dropped;
 const okField = (stage) => stage + "_ok_at";
 
-/** The version that is the card's one link: the winner once picked, otherwise A. */
-export function mainLetter(versions) {
+/*
+ * The version that is the card's one link: the winner once picked; else the live version whose link the card carries;
+ * else the first live one (Video A while it is not dropped). The team may drop the version on the card (default (c),
+ * 2026-10-27, awaiting the owner): today's attach first puts the next live version's link on the card, so "on the
+ * card" moves to it, and only then is the old one dropped.
+ */
+export function mainLetter(versions, mainLink) {
   const w = versions.find((v) => v.status === STATUS.winner);
-  return w ? w.letter : "A";
+  if (w) return w.letter;
+  const rest = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter)).filter(live);
+  const link = clean(mainLink, 2048);
+  const carried = link && rest.find((v) => clean(v.frame_url, 2048) === link);
+  return carried ? carried.letter : rest.length ? rest[0].letter : "A";
 }
 
 /** Has every version that is not dropped got this stage's OK? (At least one version must remain.) */
@@ -135,7 +144,7 @@ export function linkPatch(versions, letter, rawLink, mainLink) {
   if (!v) return { error: "version_not_found" };
   const c = cleanLink(rawLink);
   if (c.error) return { error: c.error };
-  if (letter === mainLetter(versions) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
+  if (letter === mainLetter(versions, mainLink) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
   if (c.link === clean(v.frame_url, 2048)) return { patch: null, letter };
   if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
   // One link, one version: the same link on two versions would be the same video reviewed twice.
@@ -165,7 +174,7 @@ function linkChange(v, link) {
 }
 
 /** Only the team drops a version (owner, Q2), and never one that is out on trial or decided. */
-export function dropPatch(versions, letter, restore) {
+export function dropPatch(versions, letter, restore, mainLink) {
   const v = versions.find((x) => x.letter === letter);
   if (!v) return { error: "version_not_found" };
   if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
@@ -175,7 +184,9 @@ export function dropPatch(versions, letter, restore) {
       ? { patch: { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } }
       : { patch: null };
   }
-  if (letter === mainLetter(versions)) return { error: "main_version" };
+  if (!restore && v.status !== STATUS.dropped && !versions.some((x) => x.letter !== letter && live(x))) return { error: "last_live_version" };
+  // The version on the card: today's attach first puts the next live version's link on the card (409, attach_first).
+  if (letter === mainLetter(versions, mainLink)) return { error: "attach_first" };
   return v.status === STATUS.dropped ? { patch: null } : { patch: { status: STATUS.dropped } };
 }
 
@@ -220,7 +231,8 @@ export function winnerPatches(versions, letter, mainLink, opts) {
 export function undoWinnerPatches(versions, mainLink, opts) {
   if (!versions.some((v) => v.status === STATUS.winner)) return { error: "no_winner" };
   if (clean((opts || {}).cardStatus, 40) === "Posted") return { error: "card_posted" };
-  const a = versions.find((v) => v.letter === "A");
+  // Back on trial, the card carries the first live version again (Video A unless it was dropped).
+  const a = [...versions].sort((x, y) => LETTERS.indexOf(x.letter) - LETTERS.indexOf(y.letter)).find(live);
   if (!a || clean(mainLink, 2048) !== clean(a.frame_url, 2048)) return { error: "attach_first" };
   return {
     patches: versions.filter((v) => v.status === STATUS.winner || v.status === STATUS.lost).map((v) => ({
@@ -232,7 +244,7 @@ export function undoWinnerPatches(versions, mainLink, opts) {
 /** What a reader gets back. A client link sees no hook family, no notes from the team, and once a winner is picked only the winner (owner, Q8). */
 export function readShape(versions, { client, mainLink, cardStatus }) {
   const sorted = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
-  const main = mainLetter(sorted);
+  const main = mainLetter(sorted, mainLink);
   const winner = sorted.find((v) => v.status === STATUS.winner);
   const rows = (client ? (winner ? [winner] : sorted.filter((v) => live(v) && v.status !== STATUS.lost)) : sorted).map((v) => {
     const isMain = v.letter === main;

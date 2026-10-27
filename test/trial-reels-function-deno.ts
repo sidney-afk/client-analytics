@@ -134,7 +134,7 @@ ok(clientRead.body.ok === true && !(clientRead.body.versions as Row[]).some((x) 
 const drop = await step({ action: "version_drop", letter: "D" });
 ok(drop.body.ok === true && v("D").status === "dropped", "the team drops Video D");
 const dropMain = await step({ action: "version_drop", letter: "A" });
-ok(dropMain.status === 400 && dropMain.body.error === "main_version", "the version on the card cannot be dropped");
+ok(dropMain.status === 409 && dropMain.body.error === "attach_first" && v("A").status !== "dropped", "the version on the card is dropped only after today's attach moved the card to the next live version");
 const eLink = await step({ action: "version_link_set", letter: "E", link: "https://f.io/fixture-e" });
 ok(eLink.body.ok === true && v("E").frame_url === "https://f.io/fixture-e", "Video E's link is pasted");
 const kasperEarly = await step({ action: "answer", stage: "kasper", kind: "approve", letter: "B" }, "admin");
@@ -249,6 +249,14 @@ ok(winnerRow().frame_url === "https://f.io/fixture-c3", "nothing is copied while
   console.log = q;
   ok(r.status === 400 && ((await r.json()) as Row).error === "invalid body", "a body of null is refused cleanly, not a crash");
 }
+// Default (b): an editor says the new cut of a version asked to change is ready (same Frame.io link).
+const eRev = Number(v("E").revision) || 0;
+Object.assign(v("E"), { status: "change asked", smm_ok_at: "2026-10-27T08:00:00.000Z", kasper_ok_at: "2026-10-27T08:00:00.000Z", change_note: "Fixture note", change_by: "kasper" });
+const newCut = await step({ action: "version_new_cut", letter: "E" }, "creative");
+ok(newCut.body.ok === true && v("E").status === "waiting" && v("E").revision === eRev + 1 && !v("E").smm_ok_at && !v("E").kasper_ok_at && !v("E").change_note,
+  "an editor's New cut ready puts Video E back to waiting, every OK cleared, for the SMM and Kasper again (" + newCut.status + " " + newCut.body.error + ")");
+const newCutAgain = await step({ action: "version_new_cut", letter: "E" }, "creative");
+ok(newCutAgain.status === 400 && newCutAgain.body.error === "version_not_change_asked", "New cut ready only on a version with a change asked");
 const creativeDrop = await step({ action: "version_drop", letter: "B" }, "creative");
 ok(creativeDrop.status === 403 && creativeDrop.body.error === "role_not_allowed", "an editor's key cannot drop a version, pick or start the trial");
 // All or nothing: a row the studio touched mid-write puts back the rows already written.

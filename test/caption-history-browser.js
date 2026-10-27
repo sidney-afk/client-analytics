@@ -331,7 +331,7 @@ async function run(browser, origin, label, device, theme) {
     console.log('--- the switch ---');
     await runOff(browser, origin, 'switch missing', null, true);
     await runOff(browser, origin, 'switch names someone else', { staff: ['someone-else'] }, true);
-    await runOff(browser, origin, 'switch with the wrong shape', { all: 'true', staff: 'm1' }, true);   // { all: true } means every staff member since OPEN_REPAIRS 539
+    await runOff(browser, origin, 'switch with the wrong shape', { all: 'true', staff: 'm1' }, true);   // { all: true } means every staff member since OPEN_REPAIRS 544
     await runOff(browser, origin, 'migration not applied', { staff: ['m1'] }, false);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'desktop', desktop, theme);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'phone', phone, theme);

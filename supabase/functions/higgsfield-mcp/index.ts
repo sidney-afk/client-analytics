@@ -1546,6 +1546,14 @@ function trialDeps(author: string) {
       if (error) throw fail("read the trial version", error);
       return data;
     },
+    findByPost: async (q: { post_id: string; letter: string }) => {
+      const { data, error } = await db().from("studio_trial_versions").select("*").eq("post_id", q.post_id).eq("letter", q.letter).order("created_at").limit(1);
+      if (gone(error)) return { missing: true };
+      // No post_id column yet means no card has seeded a row.
+      if (error && (error.code === "42703" || /post_id/.test(String(error.message)))) return null;
+      if (error) throw fail("read the trial version", error);
+      return (data && data[0]) || null;
+    },
     update: async (id: string, patch: JsonMap) => {
       const { data, error } = await db().from("studio_trial_versions").update(patch).eq("id", id).select("*").maybeSingle();
       if (gone(error)) return { missing: true };

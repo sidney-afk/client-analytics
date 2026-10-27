@@ -2,8 +2,12 @@
 /* crm-leads-browser.js -- the Leads page (/leads) in a real browser, fully
  * offline: every crm-leads answer is local and made up (example.invalid).
  *
- * Checks: the Pipeline paints stage columns with cards (name, handle, lead type,
- * niche, next step, overdue in red); a drag moves a card and sends one update
+ * Checks: a shimmer skeleton (never "Loading" text) shows before the list
+ * lands; the Pipeline paints stage groups with each lead as one flat line
+ * (name, niche, next step, overdue in red; no lead-type badge), empty stages
+ * in one quiet line; no bordered box sits inside another bordered box on any
+ * view; the filters sit behind one View button with a dot when one is on;
+ * a drag moves a lead and sends one update
  * with the version it had; a refused save is reported to the write-refusal log
  * and the card goes back; the person panel opens with details and the timeline
  * newest first, closes with Escape and returns focus; a lost race shows the
@@ -71,6 +75,33 @@ function people() {
 let checks = 0; const failures = [];
 function expect(v, m) { checks++; if (!v) { failures.push(m); console.error('FAIL  ' + m); } else console.log('  ok  ' + m); }
 
+/* A bordered box (all four sides) with a bordered box around it, inside the
+   Leads page or the person panel: '' when there is none. */
+async function boxesInBoxes(page) {
+  return page.evaluate(() => {
+    const boxed = n => { const c = getComputedStyle(n); return ['Top', 'Right', 'Bottom', 'Left'].every(k => parseFloat(c['border' + k + 'Width']) > 0 && c['border' + k + 'Style'] !== 'none'); };
+    const out = [];
+    for (const root of [document.querySelector('.crm-page'), document.getElementById('crmPanel')]) {
+      if (!root || root.hidden) continue;
+      for (const n of root.querySelectorAll('*')) {
+        if (!n.getClientRects().length || !boxed(n)) continue;
+        for (let a = n.parentElement; a && a !== root.parentElement; a = a.parentElement) if (boxed(a)) { out.push((n.className || n.tagName) + ' in ' + (a.className || a.tagName)); break; }
+      }
+    }
+    return out.slice(0, 3).join('; ');
+  });
+}
+/* Light and dark screenshots of what is on screen. */
+async function shoot(page, name, full) {
+  await page.evaluate(() => { const a = document.activeElement; if (a && a.blur && !/^(INPUT|TEXTAREA)$/.test(a.tagName)) a.blur(); });
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+    await page.waitForTimeout(120);
+    await page.screenshot({ path: path.join(SHOTS, name + '-' + theme + '.png'), fullPage: !!full });
+  }
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+}
+
 async function run(browser, origin, viewport) {
   const label = viewport.width + 'px';
   const ctx = await browser.newContext({ viewport, serviceWorkers: 'block', hasTouch: viewport.width < 500 });
@@ -78,7 +109,7 @@ async function run(browser, origin, viewport) {
   page.setDefaultTimeout(8000);
   const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
   await seedStaffIdentity(page, STAFF_GATE_MEMBER);
-  const state = { people: people(), updates: [], refuse: '', beacons: 0, seqs: sequences(), outcomes: [], edits: [], approvals: [], toggles: [], actions: [] };
+  const state = { listDelay: SHOTS ? 2500 : 700, people: people(), updates: [], refuse: '', beacons: 0, seqs: sequences(), outcomes: [], edits: [], approvals: [], toggles: [], actions: [] };
   await page.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -91,6 +122,7 @@ async function run(browser, origin, viewport) {
       const body = JSON.parse(r.postData() || '{}');
       const hdr = r.headers();
       if (!hdr['x-syncview-key']) return json({ ok: false, error: 'unauthorized' }, 401);
+      if (body.action === 'list' && state.listDelay) { const ms = state.listDelay; state.listDelay = 0; await new Promise(res => setTimeout(res, ms)); }
       if (body.action === 'list') return json({ ok: true, people: state.people, sources: [{ id: 's1', name: 'Made-up batch', kind: 'csv_import' }], truncated: false });
       const person = state.people.find(x => x.id === body.id);
       if (body.action === 'get') {
@@ -148,25 +180,47 @@ async function run(browser, origin, viewport) {
   });
 
   await page.goto(origin + '/?sv_path=%2Fleads', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.crm-card', { timeout: 30000 });
+  await page.waitForSelector('#crmBoard .crm-skel, .crm-lead[data-crm-card]', { timeout: 30000 });
+  const skel = await page.evaluate(() => ({ skel: !!document.querySelector('#crmBoard .crm-skel .sv-skeleton'), rows: !!document.querySelector('.crm-lead[data-crm-card]'), text: (document.getElementById('crmPage') || document.body).innerText }));
+  expect(skel.skel && !skel.rows, label + ': a shimmer skeleton shows before the list lands');
+  expect(!/Loading/.test(skel.text), label + ': no "Loading" text while it loads');
+  if (SHOTS) await shoot(page, 'leads-skeleton-' + label);
+  await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
   expect(new URL(page.url()).pathname === '/leads', label + ': the address is /leads');
-  expect(await page.locator('.crm-col').count() === 10, label + ': ten stage columns');
+  expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': four stage groups with people, the six empty stages in one line');
+  expect(await page.locator('.crm-empty-stages').count() === 1, label + ': empty stages collapse into one quiet line');
   const first = page.locator('[data-crm-card="00000000-0000-4000-8000-000000000001"]');
   const text = await first.innerText();
-  expect(/Made-up Studio/.test(text) && /@madeup\.studio/.test(text) && /Dream 100/.test(text) && /Fitness/.test(text) && /First DM/.test(text), label + ': card shows name, handle, lead type, niche and next step');
+  expect(/Made-up Studio/.test(text) && /First DM/.test(text) && (viewport.width < 500 || /Fitness/.test(text)), label + ': a lead line shows name, niche and next step');
+  expect(!/Dream 100/.test(await page.locator('#crmBoard').innerText()) && !(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no lead-type badges or chips on the Pipeline');
+  expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
+  expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
+  // Filters behind one View button, with a dot while one is on.
+  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 4, label + ': the four filters are tucked behind View');
+  await page.click('#crmViewBtn');
+  await page.waitForSelector('#crmViewMenu:not([hidden])');
+  if (SHOTS) await shoot(page, 'leads-view-menu-' + label);
+  await page.click('#crmFilters .crm-toggle');
+  await page.waitForFunction(() => document.getElementById('crmViewBtn').classList.contains('has-filter'));
+  expect(true, label + ': turning a filter on puts a dot on View');
+  await page.click('#crmFilters .crm-toggle');
+  await page.waitForFunction(() => !document.getElementById('crmViewBtn').classList.contains('has-filter'));
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('crmViewMenu').hidden);
+  await page.waitForSelector('.crm-lead[data-crm-card]');
   expect(await first.evaluate(n => n.classList.contains('is-overdue')) && /Overdue/.test(text), label + ': an overdue next step is marked');
   expect(!(await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').evaluate(n => n.classList.contains('is-overdue'))), label + ': a future step is not overdue');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-pipeline-' + label + '.png'), fullPage: false });
+  if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
 
   if (viewport.width >= 500) {
     // Drag a card to Replied: one update with the version it had.
-    await first.dragTo(page.locator('[data-crm-stage="replied"] .crm-col-body'));
+    await first.dragTo(page.locator('[data-crm-stage="replied"]'));
     await page.waitForFunction(() => document.querySelector('[data-crm-stage="replied"] [data-crm-card="00000000-0000-4000-8000-000000000001"]'));
     expect(state.updates.length === 1 && state.updates[0].patch.stage === 'replied' && state.updates[0].expected_version === 1, label + ': drag sends one stage update with the version it had');
     // A refused drag goes back and is reported.
     state.refuse = 'write_failed';
     const before = state.beacons;
-    await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').dragTo(page.locator('[data-crm-stage="to_contact"] .crm-col-body'));
+    await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').dragTo(page.locator('[data-crm-stage="to_contact"]'));
     await page.waitForFunction(() => document.querySelector('[data-crm-stage="contacted"] [data-crm-card="00000000-0000-4000-8000-000000000002"]'));
     await page.waitForFunction(() => (window.peekWriteUiQueueDiagnostics() || []).some(r => r.surface === 'leads'));
     expect(state.updates.length === 2 && await page.locator('[data-crm-stage="contacted"] [data-crm-card="00000000-0000-4000-8000-000000000002"]').count() === 1, label + ': a refused drag puts the card back');
@@ -183,7 +237,12 @@ async function run(browser, origin, viewport) {
   expect(/Sample Coach/.test(panel) && /made-up@example\.invalid/.test(panel) && /Made-up batch/.test(panel), label + ': panel shows details and source');
   const evs = await page.locator('.crm-ev-text').allInnerTexts();
   expect(evs[0] === 'Newest made-up note' && /Imported/.test(evs[1]), label + ': timeline is newest first');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-person-' + label + '.png'), fullPage: false });
+  expect(!(await page.locator('#crmPStep').count()), label + ': the edit fields stay hidden until Edit');
+  expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'Timeline' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
+  expect(await boxesInBoxes(page) === '', label + ': the person panel has no box inside a box');
+  if (SHOTS) await shoot(page, 'leads-person-' + label);
+  await page.click('#crmPanel [data-crm-edit]');
+  await page.waitForSelector('#crmPStep');
   // A lost race shows the newer copy.
   state.refuse = 'conflict';
   await page.fill('#crmPStep', 'A changed made-up step');
@@ -207,8 +266,11 @@ async function run(browser, origin, viewport) {
   const todayText = await page.locator('#crmToday').innerText();
   expect(/Made Up Owner/.test(todayText) && /Second Made Up/.test(todayText), label + ': Today groups due steps by owner');
   expect(await page.locator('#crmToday .crm-row.is-overdue').count() >= 1, label + ': an overdue step is marked on Today');
+  expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#crmToday .crm-list-label')).map(n => n.id); return ids.join() === 'crmTodayCalls,crmTodayDue,crmTodaySends'; }), label + ': Today is one list: calls, then steps due, then automatic sends');
+  expect(await page.locator('#crmToday .crm-sheet').count() === 1, label + ': Today has no section boxes');
+  expect(await boxesInBoxes(page) === '', label + ': Today has no box inside a box');
   expect(/Sequence is off/.test(todayText) && /No-show on call 1/.test(todayText), label + ': upcoming automatic sends show why they are held');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-today-' + label + '.png'), fullPage: true });
+  if (SHOTS) await shoot(page, 'leads-today-' + label, true);
   const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
   expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
   const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
@@ -223,9 +285,11 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-tab="sequences"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
   const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
-  expect(/Draft/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence card shows steps, channels, badges and people in it');
+  expect(/draft/.test(seqText) && /approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
+  expect(/Day 2, 09:00 their time · Email · approved/.test(seqText), label + ': a step reads as one plain line');
+  expect(!(await page.locator('#crmSeqs .crm-badge, #crmSeqs .crm-chan').count()) && await boxesInBoxes(page) === '', label + ': no step chips and no box inside a box');
   expect(await page.locator('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'false', label + ': a sequence that is off says so');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-sequences-' + label + '.png'), fullPage: true });
+  if (SHOTS) await shoot(page, 'leads-sequences-' + label, true);
   await page.locator('[data-crm-step="st1"] button', { hasText: 'Edit' }).click();
   await page.waitForSelector('#crmStepText');
   await page.fill('#crmStepText', 'Hi {first_name}, a changed made-up text');
@@ -248,18 +312,20 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-tab="systems"]');
   await page.waitForSelector('[data-crm-sys="booking_confirmation"]');
   const sysText = await page.locator('#crmSystems').innerText();
-  expect(/Booking confirmation/.test(sysText) && /Not yet/.test(sysText) && /Logged/.test(sysText) && /1 of 2 approved/.test(sysText), label + ': Systems lists the sequences and the n8n automations with their logging state');
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-systems-' + label + '.png'), fullPage: true });
+  expect(/Booking confirmation/.test(sysText) && /Not yet/.test(sysText) && /Logged/.test(sysText) && /1 of 2 steps approved/.test(sysText), label + ': Systems lists the sequences and the n8n automations with their logging state');
+  expect(/The person who booked gets an email and a text right after booking, from Made-up sender\. It starts when a call is booked\./.test(sysText) && !(await page.locator('#crmSystems table').count()), label + ': each automation reads as a plain sentence, not a table (' + sysText.slice(sysText.indexOf('n8n automations'), sysText.indexOf('n8n automations') + 300) + ')');
+  expect(await boxesInBoxes(page) === '', label + ': Systems has no box inside a box');
+  if (SHOTS) await shoot(page, 'leads-systems-' + label, true);
   const sysOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(sysOverflow <= 1, label + ': Systems has no sideways page overflow (' + sysOverflow + 'px)');
   expect(!state.actions.includes('due') && !state.actions.includes('log_send'), label + ': the page never calls the sender-only actions');
 
   await page.click('[data-crm-tab="pipeline"]');
-  await page.waitForSelector('.crm-card');
+  await page.waitForSelector('.crm-lead[data-crm-card]');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 1, label + ': no sideways page overflow (' + overflow + 'px)');
   // An identity change drops the cached people and re-renders.
-  const purged = await page.evaluate(() => { window._crmPurgeSensitiveState(); return !document.querySelector('.crm-card') && !document.getElementById('crmPage').firstChild; });
+  const purged = await page.evaluate(() => { window._crmPurgeSensitiveState(); return !document.querySelector('.crm-lead') && !document.getElementById('crmPage').firstChild; });
   expect(purged, label + ': an identity change clears the cached people from the page');
   expect(!errors.length, label + ': no page errors' + (errors.length ? ' (' + errors.join(' | ') + ')' : ''));
   await ctx.close();

@@ -34658,7 +34658,26 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert this commit.
 
-## 539. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
+## 541. [2026-10-27 UTC, BUILT, NOT MERGED] The client link's Sheet and Notes get the team's unread badges, behind `review_client_polish` (session Clientbadges)
+
+- **Owner, 2026-10-27:** "Even on my test client, I still see the old badges thing for the notes. The way I experience notes on my account should be the same for the clients, at least on my test client first."
+- **What was missing:** the client review page already had the round-8 badges (498, 500). The client link's Calendar did not: the Sheet's Notes button still showed the old dot and "N open", and Notes the old rows, because 327 ran only for staff on `unread_badges_v2` (`svUnreadBadgesOn()` is false on every client link).
+- **Built (327, browser only, no server change):** 327 now also runs on a client link that `review_client_polish` lists (only the test client today; no new switch, no new row). The Sheet's Notes button gets the team's picture with a corner count for new and the plain number for waiting, the hover lists the lines, and Notes gets the team's rows, "New" tags, quiet "Change request" and no Reply on a change request. Read state is the store the client link already used (`syncview_notes_seen_v1`, this browser, set when Notes opens), so no new browser write privileges.
+- **Differences kept on purpose (client link vs staff), one line each:**
+  - Only the team's notes count: the client's own notes, comments and change requests are the client's, so they are never "new" or "to answer".
+  - "Waiting for your answer" is a read team comment that asks something ("?") and still has the last word in its thread, never a change request: the client review page's rule (500), so the Sheet and the Review page agree.
+  - No count of the client's own change requests not done yet (today's "N open"): they wait on the team, not on the client; Notes still says "Change request" and "Done".
+  - The team is one picture and one name, "Synchro team", with an "S": the client link has never named staff (190 `_calNoteAuthorName`), so no first names, initials or Slack photos.
+  - Kasper's notes count as the team's (no violet "Kasper" bubble), for the same reason; his team-only notes never reach a client link.
+  - The client's own notes read "You", as on the client review page.
+  - No "No reply needed" and no "Mark unread": both are this browser's own lists on the staff side; a client's question waits until they answer.
+  - No Messages button, inbox or inbox read: Messages is the team's.
+  - The phone gets it too (staff phones keep their own phone design; a client's phone shows the same calendar as a wide screen).
+  - Team-only notes and Frame.io staff comments never show or count (unchanged: the client link's Notes never had them).
+- **Caveat for the owner's own test:** `syncview_notes_seen_v1` is one store per browser, so opening a card's Notes as staff marks it read on the test client's link in the same browser too (true before this change).
+- **Proof:** `node test/client-unread-badges-browser.js` (new, offline, in calendar-unit-tests): switch on, the corner count, the plain number, nothing for answered questions or statements or the client's own change request, "Synchro team" only, no staff names, New on open, no "No reply needed", no inbox read, 390 wide; switch off, today's "1 open", dot and Notes; the staff Calendar unchanged. On main's 327, 11 checks fail. Screenshots: `docs/syncview-design/proofs/client-unread-badges/` (1440 and 390, light and dark, on and off).
+
+## 544. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
 
 - **Why:** the owner turned five staff features on for everybody on 2026-10-27 (`unread_badges_v2`, `phone_polish_staff`, `caption_history_staff`, `thumbnail_title_buttons_staff`, `frame_comments_in_notes_staff`). Those switches only took a list of staff ids, and some readers dropped a `"*"` entry, so the supervisor wrote all 14 active staff ids into each row. Anyone added to the roster later would have been off.
 - **What (`188` only):** one helper reads every `{ "staff": [...] }` switch in `188-review-stage-switch.js.part`: the five above, plus `review_stage_kasper_staff`, `review_stage_kasper_layout2`, `kasper_fast_boot` and `workload_calm_staff`. Each now also takes `{ "all": true }`, the form `workload_calm_staff` and `calendar_card_write_clients` already had.

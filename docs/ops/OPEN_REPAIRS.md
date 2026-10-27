@@ -34715,3 +34715,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
   - The two proof knobs stay in the test, documented, and are off by default.
 - **Way back:** revert the pull request.
+
+## 537. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: a version already approved still offered Approve (Probe rule-miss 14, session Trials)
+
+- **What:** on a version this reviewer had already approved, the button still read "Approve Video A", and pressing it only stamped the OK again. The row now shows the approved state ("Video A approved"), as today's page shows an answered part.
+- **Not built:** a "Change my mind" on an approved version (the function only takes a change on a version still waiting). That is the owner's call.
+- **Proven:** `node test/trial-reels-review-browser.js` (41 checks; the new check fails without the fix), trial-reels-journey-browser (90), trial-reels-change-naming-browser, review-stage-browser.
+
+**Way back:** revert the commit.

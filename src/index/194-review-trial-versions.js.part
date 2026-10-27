@@ -89,6 +89,10 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     function svTrialReviewWithTeam(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
     }
+    // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
+    function svTrialReviewAnswered(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
+    }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
     }
@@ -285,5 +289,5 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 export {
   TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml,
   svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost,
-  svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam
+  svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewAnswered
 };

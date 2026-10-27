@@ -94,6 +94,28 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
 
   ok(L.likeExact('fixture_client') === 'fixture\\_client' && L.likeExact('a%b\\c') === 'a\\%b\\\\c' && L.likeExact('plain') === 'plain', 'a client slug is escaped before ILIKE, so `_` and `%` match only themselves');
 
+  // A version link: only the providers today's Production attach takes for a Deliverable file
+  ok(L.cleanLink('https://f.io/x').link === 'https://f.io/x' && L.cleanLink('https://drive.google.com/file/d/abc/view').link && L.cleanLink('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k').link, 'Frame.io, Drive and Dropbox links are taken');
+  ok(L.cleanLink('https://example.com/x').error === 'link_host_unsupported' && L.cleanLink('https://docs.google.com/document/d/x').error === 'link_host_unsupported'
+    && L.cleanLink('https://u:p@f.io/x').error === 'link_host_unsupported' && L.cleanLink('https://f.io/').error === 'link_host_unsupported', 'any other host, a Google Doc, a credential in the address or a bare host is refused (a winner must be able to become the card\'s link)');
+
+  // The sharing check: Production's own rule and words
+  ok(L.probeUrl('https://drive.google.com/file/d/abc_1/view?usp=sharing') === 'https://drive.google.com/uc?export=download&id=abc_1'
+    && /[?&]raw=1/.test(L.probeUrl('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k&dl=0')) && !/dl=0/.test(L.probeUrl('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k&dl=0')), 'a Drive file is checked at its download address and a Dropbox share at its raw one, as Production does');
+  ok(L.probeHostAllowed('https://f.io/x') && L.probeHostAllowed('https://lh3.googleusercontent.com/x') && L.probeHostAllowed('https://dl.dropboxusercontent.com/x')
+    && !L.probeHostAllowed('http://f.io/x') && !L.probeHostAllowed('https://accounts.frame.io/login') && !L.probeHostAllowed('https://127.0.0.1/x') && !L.probeHostAllowed('https://evil.example/f.io'), 'the check opens only the providers and their own file hosts, redirects included');
+  const pv = (o) => L.probeVerdict(Object.assign({ status: 200, contentType: 'text/html', sample: '<html>Frame</html>' }, o));
+  ok(pv({}) === 'available' && pv({ contentType: 'video/mp4', sample: '' }) === 'available' && pv({ contentType: 'text/plain' }) === 'unavailable', 'a live provider page or a media file is available; anything else is not');
+  ok(pv({ status: 403 }) === 'permission_denied' && pv({ status: 404 }) === 'expired' && pv({ status: 500 }) === 'unavailable' && pv({ sample: '<form>Sign in to continue</form>' }) === 'permission_denied' && pv({ sample: '' }) === 'unavailable', 'a sign-in or request-access wall, a gone link and a server error each say so');
+
+  // The copy of the card's one link, caught up after Production's own attach
+  const healed = L.healMainPatch(five(), 'https://f.io/fixture-a2');
+  ok(healed && healed.letter === 'A' && healed.patch.frame_url === 'https://f.io/fixture-a2', "a new Deliverable file saved in Production is copied to the main version's link");
+  ok(L.healMainPatch(five(), A_LINK) === null && L.healMainPatch(five(), '') === null, 'nothing to copy when they agree or the card has no link');
+  ok(L.healMainPatch(five(), 'https://f.io/fixture-c') === null, "never while the card's link is another version's (between today's attach and the winner pick or its Undo)");
+  const heal2 = L.healMainPatch([v('A', { status: 'change asked', change_by: 'client', revision: 1 }), v('B')], 'https://f.io/fixture-a3');
+  ok(heal2.patch.status === 'waiting' && heal2.patch.revision === 2 && heal2.patch.change_by === null, 'a change asked on the main version starts again when its new file lands through Production (Q3)');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');

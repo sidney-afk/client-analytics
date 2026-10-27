@@ -34,13 +34,77 @@ export function flagAllows(value, slug) {
   return list.some((c) => clean(c, 80).toLowerCase() === slug.toLowerCase());
 }
 
-/** A version link: an https address, as the card's Video link takes today (permissive: the server checks the shape only). */
+/*
+ * Where a version's link may point: the providers today's Production attach takes for a Deliverable file (Frame.io,
+ * Google Drive, Dropbox; production-write/policy.mjs assetUrlType), so a version that wins can always become the
+ * card's one link. A Google Doc is a brief, not a video, and stays out, as it does there.
+ */
+export const LINK_HOSTS = ["frame.io", "app.frame.io", "next.frame.io", "f.io", "drive.google.com", "dropbox.com", "www.dropbox.com"];
+// Where the sharing check may follow a redirect: the providers above and their own file hosts (as production-write's probe).
+const PROBE_REDIRECT_HOSTS = ["drive.usercontent.google.com", "dl.dropboxusercontent.com", "storage.googleapis.com"];
+const hostOf = (u) => { try { return new URL(u).hostname.toLowerCase().replace(/\.$/, ""); } catch (_e) { return ""; } };
+
+/** A version link: an https address on one of the providers above, with no credential in it. */
 export function cleanLink(raw) {
   const s = clean(raw, 2049);
   if (!s) return { link: "" };
   if (s.length > 2048) return { error: "link_too_long" };
   if (!/^https:\/\/[^\s<>"']+$/i.test(s)) return { error: "link_not_https" };
+  let u;
+  try { u = new URL(s); } catch (_e) { return { error: "link_not_https" }; }
+  if (u.username || u.password || !LINK_HOSTS.includes(hostOf(s)) || u.pathname === "/") return { error: "link_host_unsupported" };
   return { link: s };
+}
+
+/** May the sharing check open this address (the first request, or a redirect it was sent)? */
+export function probeHostAllowed(url) {
+  if (!/^https:\/\//i.test(String(url || ""))) return false;
+  const h = hostOf(url);
+  return LINK_HOSTS.includes(h) || PROBE_REDIRECT_HOSTS.includes(h) || h.endsWith(".googleusercontent.com");
+}
+
+/** The address the check opens: a Drive file's download URL and a Dropbox share's raw URL, as production-write's assetProbeUrl. */
+export function probeUrl(raw) {
+  const url = new URL(raw);
+  const host = hostOf(raw);
+  if (host === "drive.google.com") {
+    const id = (url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i) || [])[1] || url.searchParams.get("id");
+    if (id) {
+      const p = new URL("https://drive.google.com/uc");
+      p.searchParams.set("export", "download");
+      p.searchParams.set("id", id);
+      const key = url.searchParams.get("resourcekey");
+      if (key) p.searchParams.set("resourcekey", key);
+      return p.toString();
+    }
+  }
+  if (host === "dropbox.com" || host === "www.dropbox.com") {
+    url.searchParams.delete("dl");
+    url.searchParams.set("raw", "1");
+  }
+  return url.toString();
+}
+
+/*
+ * The sharing check's verdict, the same rule as production-write's providerEvidenceState (a copy: that probe lives
+ * inside a Section 4 function and cannot move to _shared without changing it). A live provider page is enough
+ * (owner ruling 2026-08-16: Frame.io never serves the video's bytes at a share link), unless it is a sign-in or
+ * request-access wall. The words are Production's own: available, permission_denied, expired, unavailable.
+ */
+export function probeVerdict({ status, contentType, disposition, sample }) {
+  if (status === 401 || status === 403) return "permission_denied";
+  if (status === 404 || status === 410) return "expired";
+  if (!(status >= 200 && status < 300)) return "unavailable";
+  const type = String(contentType || "").toLowerCase().split(";")[0].trim();
+  if (String(disposition || "").toLowerCase().includes("attachment") || /^(?:image|video|audio)\//.test(type)
+      || /^application\/(?:pdf|octet-stream|zip|vnd[.])/.test(type)) return "available";
+  if (type !== "text/html" && type !== "application/xhtml+xml") return "unavailable";
+  const body = String(sample || "").toLowerCase();
+  if (!body) return "unavailable";
+  if (/accounts[.]google[.]com|servicelogin|request access|access denied|permission denied|not authorized|(?:sign|log)[ -]?in|type\s*=\s*["']password["']/i.test(body)) {
+    return "permission_denied";
+  }
+  return "available";
 }
 
 export const live = (v) => v.status !== STATUS.dropped;
@@ -109,14 +173,35 @@ export function linkPatch(versions, letter, rawLink, mainLink) {
   if (c.error) return { error: c.error };
   if (letter === mainLetter(versions) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
   if (c.link === clean(v.frame_url, 2048)) return { patch: null, letter };
-  const patch = { frame_url: c.link || null };
-  if (v.status === STATUS.change && c.link) {
+  const patch = linkChange(v, c.link);
+  return { patch, letter, restarted: patch.status === STATUS.waiting };
+}
+
+function linkChange(v, link) {
+  const patch = { frame_url: link || null };
+  if (v.status === STATUS.change && link) {
     Object.assign(patch, {
       revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting,
       smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null,
     });
   }
-  return { patch, letter, restarted: patch.status === STATUS.waiting };
+  return patch;
+}
+
+/*
+ * The copy of the card's one link, caught up. Production's own Deliverable file row (today's attach) is how the
+ * version on the card gets a new link from Production, and nothing tells this log; so a staff read copies file_url
+ * into that version's frame_url, with the same restart as a link pasted here (Q3).
+ * Not while the page is moving the card's link between versions: when the card's link is ANOTHER version's link (a
+ * winner pick, or its Undo, between today's attach and winner_set / winner_undo), nothing is copied.
+ */
+export function healMainPatch(versions, mainLink) {
+  const link = clean(mainLink, 2048);
+  const letter = mainLetter(versions);
+  const v = versions.find((x) => x.letter === letter);
+  if (!link || !v || clean(v.frame_url, 2048) === link) return null;
+  if (versions.some((x) => x.letter !== letter && clean(x.frame_url, 2048) === link)) return null;
+  return { id: v.id, letter, from: v.status, patch: linkChange(v, link) };
 }
 
 /** Only the team drops a version (owner, Q2), and never one that is out on trial or decided. */

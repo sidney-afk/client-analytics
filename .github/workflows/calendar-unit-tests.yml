@@ -479,6 +479,7 @@ jobs:
           Calendar card writes route to calendar-card-write only for clients on its switch (calendar-upsert otherwise)|node test/calendar-card-write-routing-browser.js
           Client credentials dialog shows and edits only its own client|node test/credentials-modal-client-switch-browser.js
           Trial reels on the staff card behind its switch: today's height, versions, trophy, winner through today's attach, Undo|node test/trial-reels-card-browser.js
+          Trial reels in Production's Assets: one Deliverable file row per version, its state and its Edit|node test/trial-reels-production-browser.js
           LANES
 
 

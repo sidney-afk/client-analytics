@@ -53,6 +53,7 @@
 220-production-attribution-views.js.part
 230-production-create-comments.js.part
 240-production-description.js.part
+245-production-trial-versions.js.part
 250-production-controls-data.js.part
 255-production-thumbnail-titles.js.part
 260-production-refresh-boot.js.part

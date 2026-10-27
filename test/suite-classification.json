@@ -2154,6 +2154,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-production-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels in Production's Assets behind trial_reels_pages: today's single Deliverable file row for an unlisted client and on the graphics sub-issue, one Deliverable file row per version on the card's video sub-issue (the one on the card is today's row), each version's state in Production's words, aligned columns, label contrast, Edit saving a version's link through the function and refusing a link off the providers, and the winner's rows, at desktop and 390 pixel width.",
+      "reproduce": "node test/trial-reels-production-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

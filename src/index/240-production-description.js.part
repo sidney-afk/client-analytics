@@ -18,6 +18,7 @@ import {
   _prodNextDescriptionRequestToken, _prodSyncBatchDescriptionRow, _prodWriteErrorText,
   _prodWritePending
 } from './230-production-create-comments.js';
+import { svTrialProdRows } from './245-production-trial-versions.js';
 import { _prodRender } from './260-production-refresh-boot.js';
         function _prodSyncDescriptionRow(id, value, updatedAt) {
             const row = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(id || ''));
@@ -2735,14 +2736,25 @@ import { _prodRender } from './260-production-refresh-boot.js';
                                 : 'Add or replace the final file'
                         }) + '>Edit</button>'
                     : '';
-                return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
-                    + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
-                    + '<span class="prod-asset-value">' + value + '</span>'
+                /* Trial reels (245): on the card's video sub-issue with the card's switch on, this row is the version on
+                   the card ("Deliverable file · Video A", then the winner) and every other version gets its own row
+                   around it. Null everywhere else, and this row is exactly today's. */
+                const trial = spec.key === 'deliverable_file' && !graphics
+                    ? svTrialProdRows(issue, {
+                        mainUrl: url, readOnly: !editable, stateLabel: _prodAssetStateLabel, linkLabel: _prodFileLinkLabel,
+                        gateAttrs: editable ? _prodWriteGateAttrs(issue, operation, { tip: 'Add or replace the file of this version' }) : ''
+                    })
+                    : null;
+                return (trial ? trial.before : '')
+                    + '<div class="prod-asset-row' + (trial ? ' trl-prod-v' : '') + '" data-prod-asset-slot="' + _calEscAttr(spec.key) + '"' + (trial ? ' data-trl-slot="' + _calEscAttr(trial.letter) + '"' : '') + '>'
+                    + '<span class="prod-asset-label">' + _calEsc(trial ? trial.label : (graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label)) + '</span>'
+                    + '<span class="prod-asset-value">' + value + (trial ? trial.extra : '') + '</span>'
                     + (pending
                         ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
                         : '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>')
                     + rowEditor + '</div>'
-                    + (state.editing === spec.key ? editorHTML(spec) : '');
+                    + (state.editing === spec.key ? editorHTML(spec) : '')
+                    + (trial ? trial.after : '');
             }).join('');
             /* Attach is no longer graphics-only. The database learned the video
                projection (2026-08-30-artifact-video-projection.sql: file_url

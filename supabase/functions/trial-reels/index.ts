@@ -17,6 +17,9 @@
 // when the page has one and without one when it has none (owner, Q5: the client link works like today), and only for
 // a client that the page switch trial_reels_pages lists (today: the test client only).
 //
+// Production's Assets ask read with probe: true (staff only) for each version link's sharing state, the same check
+// and the same words as its Deliverable file row (see probeLink).
+//
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and the staff role key secrets the shared write auth reads.
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -34,10 +37,14 @@ import {
   dropPatch,
   FLAG_KEY,
   flagAllows,
+  healMainPatch,
   LETTERS,
   ledgerRows,
   likeExact,
   linkPatch,
+  probeHostAllowed,
+  probeUrl,
+  probeVerdict,
   readShape,
   trialPatches,
   undoWinnerPatches,
@@ -116,10 +123,96 @@ async function readVersions(supabase: SupabaseClient, client: string, postId: st
   return ((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)));
 }
 
+/* A staff read catches the main version's copy up with the card's one link (logic.mjs healMainPatch). Best effort: a
+   row that moved meanwhile is left for the next read, and the read answers as if nothing was copied. */
+async function healMain(supabase: SupabaseClient, client: string, postId: string, versions: Version[], link: string, principal: Principal): Promise<void> {
+  const c = healMainPatch(versions, link) as Change | null;
+  if (!c) return;
+  const now = new Date().toISOString();
+  try {
+    await applyChanges(supabase, versions, [c], now);
+  } catch (_e) {
+    return;
+  }
+  Object.assign(versions.find((v) => v.id === c.id)!, c.patch, { updated_at: now });
+  const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, [c], principal, now, "version_link_set"));
+  if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
+}
+
 async function readSwitch(supabase: SupabaseClient, client: string, postId: string): Promise<JsonMap | null> {
   const { data, error } = await supabase.from("trial_reel_cards").select("*").eq("client", client).eq("post_id", postId).maybeSingle();
   if (error) throw new Refusal(503, "switch_row_unreadable");
   return (data || null) as JsonMap | null;
+}
+
+/* EACH VERSION LINK'S SHARING STATE, for Production's "Deliverable file · Video X" rows (plan section 0b). The rule is
+   the Production gateway's (logic.mjs probeVerdict); this copy exists because that probe lives inside a Section 4 function.
+   It is a REPORT, never a gate: no write here depends on it. Only the providers' own hosts are ever opened, redirects
+   included, and a verdict is kept for a few minutes so a page reopened at once does not ask the providers again. */
+const PROBE_TIMEOUT_MS = 6_000;
+const PROBE_MAX_REDIRECTS = 3;
+const PROBE_KEEP_MS = 5 * 60_000;
+const probeKept = new Map<string, { at: number; out: JsonMap }>();
+
+async function probeSample(res: Response, max = 8_192): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < max) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      parts.push(value.slice(0, max - size));
+      size += Math.min(value.length, max - size);
+    }
+  } finally {
+    await reader.cancel().catch(() => null);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const p of parts) { bytes.set(p, at); at += p.length; }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+async function probeLink(raw: string): Promise<JsonMap> {
+  const link = clean(raw, 2048);
+  const checkedAt = new Date().toISOString();
+  if (!link) return { state: "missing", checked_at: checkedAt };
+  if (!probeHostAllowed(link)) return { state: "invalid", checked_at: checkedAt };
+  const kept = probeKept.get(link);
+  if (kept && Date.now() - kept.at < PROBE_KEEP_MS) return kept.out;
+  let out: JsonMap;
+  try {
+    let current = probeUrl(link);
+    out = { state: "unavailable", checked_at: checkedAt };
+    for (let hop = 0; hop <= PROBE_MAX_REDIRECTS; hop++) {
+      if (!probeHostAllowed(current)) throw new Error("redirect_unapproved");
+      const res = await fetch(current, {
+        method: "GET", redirect: "manual", signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+        headers: { accept: "*/*", range: "bytes=0-8191" },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const next = clean(res.headers.get("location"), 4096);
+        await res.body?.cancel().catch(() => null);
+        if (!next || hop === PROBE_MAX_REDIRECTS) throw new Error("redirect_unverified");
+        current = new URL(next, current).toString();
+        continue;
+      }
+      const sample = res.ok ? await probeSample(res) : (await res.body?.cancel().catch(() => null), "");
+      out = {
+        state: probeVerdict({ status: res.status, contentType: res.headers.get("content-type"), disposition: res.headers.get("content-disposition"), sample }),
+        http_status: res.status, checked_at: checkedAt,
+      };
+      break;
+    }
+  } catch (_e) {
+    // No http_status: the check could not look (a private Frame.io project redirects to its sign-in host, which is not
+    // opened). Production paints that "Not checked", not "Unavailable".
+    out = { state: "unavailable", checked_at: checkedAt };
+  }
+  probeKept.set(link, { at: Date.now(), out });
+  return out;
 }
 
 /* Each patch is written only if the row has not changed since it was read (updated_at), so the studio's writes and
@@ -172,6 +265,7 @@ Deno.serve(async (req: Request) => {
         if (!card) continue;
         const versions = await readVersions(supabase, client, id);
         const link = await mainLink(supabase, card);
+        if (principal.kind === "staff") await healMain(supabase, client, id, versions, link, principal);
         cards[id] = { enabled: true, winner_letter: sw.winner_letter || null,
           ...readShape(versions, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) };
       }
@@ -202,11 +296,22 @@ Deno.serve(async (req: Request) => {
     if (!sw || sw.enabled !== true) throw new Refusal(409, "trial_reels_off");
     const versions = await readVersions(supabase, client, postId);
     const link = await mainLink(supabase, card);
+    if (principal.kind === "staff") await healMain(supabase, client, postId, versions, link, principal);
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
 
     if (action === "read") {
+      const out: JsonMap = { ok: true, enabled: true, winner_letter: sw.winner_letter || null, ...shape() };
+      if (principal.kind === "staff") {
+        // Production draws the versions only on the card's own video sub-issue.
+        out.video_deliverable_id = card.video_deliverable_id || null;
+        if (body.probe === true) {
+          const rows = out.versions as JsonMap[];
+          const states = await Promise.all(rows.map((r) => probeLink(clean(r.frame_url, 2048))));
+          out.link_states = Object.fromEntries(rows.map((r, i) => [r.letter, states[i]]));
+        }
+      }
       outcome = "ok";
-      return json({ ok: true, enabled: true, winner_letter: sw.winner_letter || null, ...shape() });
+      return json(out);
     }
 
     const letter = clean(body.letter, 1).toUpperCase();

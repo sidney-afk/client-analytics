@@ -183,6 +183,55 @@ const exact = await step({ action: "read", post_id: "p2" });
 const exactIds = ((exact.body.versions || []) as Row[]).map((r) => r.id);
 ok(exact.body.ok === true && exactIds.length === 1 && exactIds[0] === "mine", "the versions read matches this client exactly (case aside), never a longer slug");
 
+// Production's rows: each version link's sharing state (staff only), from the providers' own answers. No real network:
+// every address that is not the stand-in database is answered here.
+const realFetch = globalThis.fetch;
+const probed: string[] = [];
+globalThis.fetch = ((input: Request | URL | string, init?: RequestInit) => {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.hostname === "127.0.0.1") return realFetch(input, init);
+  probed.push(url.toString());
+  const html = (body: string, status = 200) => Promise.resolve(new Response(body, { status, headers: { "content-type": "text/html" } }));
+  if (url.pathname === "/fixture-a") return html("<html>Frame.io review</html>");
+  if (url.pathname === "/fixture-probe-denied") return html("", 403);
+  if (url.pathname === "/fixture-probe-private") return Promise.resolve(new Response(null, { status: 302, headers: { location: "https://accounts.frame.io/login" } }));
+  return Promise.reject(new Error("unexpected address in the test: " + url));
+}) as typeof fetch;
+tables.studio_trial_versions.push(
+  { ...v("A"), id: "p2b", letter: "B", client: "fixtureclient", post_id: "p2", frame_url: "https://f.io/fixture-probe-denied" },
+  { ...v("A"), id: "p2c", letter: "C", client: "fixtureclient", post_id: "p2", frame_url: "https://f.io/fixture-probe-private" },
+  { ...v("A"), id: "p2d", letter: "D", client: "fixtureclient", post_id: "p2", frame_url: "https://example.com/fixture" },
+  { ...v("A"), id: "p2e", letter: "E", client: "fixtureclient", post_id: "p2", frame_url: null },
+);
+tables.studio_trial_versions.find((r) => r.id === "mine")!.frame_url = "https://f.io/fixture-a";
+const probe = await step({ action: "read", post_id: "p2", probe: true });
+const ls = (probe.body.link_states || {}) as Record<string, Row>;
+ok(ls.A?.state === "available" && ls.A?.http_status === 200 && ls.B?.state === "permission_denied" && ls.E?.state === "missing",
+  "each version's link answers Production's own words: available, permission denied, missing");
+ok(ls.C?.state === "unavailable" && !("http_status" in ls.C) && ls.D?.state === "invalid" && !probed.some((u) => /accounts\.frame\.io|example\.com/.test(u)),
+  "a private Frame.io project's sign-in redirect is never followed (no status, so the page says Not checked), and a link off the providers is never opened");
+const before = probed.length;
+await step({ action: "read", post_id: "p2", probe: true });
+ok(probed.length === before, "a page reopened at once does not ask the providers again");
+const noProbe = await step({ action: "read", post_id: "p2" });
+const clientProbe = await step({ action: "read", post_id: "p2", probe: true }, "client-none");
+ok(!("link_states" in noProbe.body) && !("link_states" in clientProbe.body) && !("video_deliverable_id" in clientProbe.body), "only a staff read that asks gets the states; a client link never does");
+globalThis.fetch = realFetch;
+
+// A new Deliverable file saved through Production's own row is copied to the version on the card by the next staff read.
+const winnerRow = () => tables.studio_trial_versions.find((r) => r.post_id === "p1" && r.letter === "C")!;
+tables.deliverables[0].file_url = "https://f.io/fixture-c3";
+const healRead = await step({ action: "read" });
+ok(healRead.body.video_deliverable_id === "11111111-1111-4111-8111-111111111111" && winnerRow().frame_url === "https://f.io/fixture-c3"
+  && tables.calendar_post_events.some((e) => e.action === "trial_version_link_set" && (e.payload as Row)?.letter === "C"),
+  "Production's new file lands on the winner's own link, with a ledger row, and the read names the card's video sub-issue");
+tables.deliverables[0].file_url = "https://f.io/fixture-c4";
+await step({ action: "read" }, "client-none");
+ok(winnerRow().frame_url === "https://f.io/fixture-c3", "a client read never writes");
+tables.deliverables[0].file_url = "https://f.io/fixture-a";
+await step({ action: "read" });
+ok(winnerRow().frame_url === "https://f.io/fixture-c3", "nothing is copied while the card's link is another version's (mid winner pick or Undo)");
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

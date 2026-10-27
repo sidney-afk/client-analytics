@@ -1794,10 +1794,10 @@
         .trl-v .trl-lab-gap { margin-left: auto; }
         .trl-v .trl-lab { margin-left: auto; flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
-        .trl-v .trl-lab[data-l="approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
-        .trl-v .trl-lab[data-l="change asked"] { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
-        .trl-v .trl-lab[data-l="on trial"] { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
-        .trl-v .trl-lab[data-l="winner"] { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="change asked"] { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="on trial"] { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="winner"] { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }
         .trl-v .trl-ico, .trl-v .trl-pick { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 5px;
@@ -1811,6 +1811,16 @@
             color: var(--sv-slot-video-fg); text-decoration: underline; cursor: pointer; }
         @media (hover: none) { .trl-v .trl-tools { opacity: .8; } }
         @media (max-width: 599px) { .trl-v { min-height: 44px; } .trl-v .trl-ico, .trl-v .trl-pick { width: 32px; height: 32px; } }
+        /* Production Assets (245): one Deliverable file row per version. The state and Edit columns have one width
+           on every version row, so the links, the states and the Edit buttons line up down the list. */
+        .prod-asset-row.trl-prod-v { grid-template-columns: minmax(125px, .8fr) minmax(150px, 1.4fr) 112px auto; }
+        .prod-asset-row.trl-prod-v .prod-asset-state { justify-self: start; }
+        .trl-prod-v .prod-asset-value { display: flex; align-items: center; gap: 8px; }
+        .trl-prod-v .prod-asset-value > a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .trl-prod-v .trl-lab { flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
+            background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
+        .trl-prod-v .trl-oncard { flex: none; font-size: 11px; font-weight: 600; color: var(--prod-strong); }
+        @media (max-width: 600px) { .prod-asset-row.trl-prod-v { grid-template-columns: 1fr 136px auto; } }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }

@@ -40,6 +40,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         main_version: 'The version on the card cannot be dropped.',
         version_on_trial: 'This version is out on trial, so it cannot change now.',
         link_not_https: 'Paste a full https:// Frame.io link.',
+        link_host_unsupported: 'Paste a Frame.io, Google Drive or Dropbox link to the video.',
         nothing_approved: 'No version is approved yet.',
         conflict: 'Someone changed this version a moment ago. It has been reloaded; try again.',
         write_failed: 'The video sub-issue could not be read or saved, so nothing changed. Try again in a moment.',
@@ -56,7 +57,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlStaffOn(post) {
         return !_isClientLink && !!post && !!post.id && svTrialReelsOn(post.client || calState.client);
     }
-    async function _trlCall(body) {
+    async function svTrialCall(body, surface) {
         const resp = await fetch(TRIAL_REELS_EF_URL, {
             method: 'POST', cache: 'no-store',
             headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, TRIAL_REELS_EF_URL),
@@ -68,20 +69,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const err = new Error(String((json && json.error) || ('http_' + resp.status)));
             err.code = String((json && json.error) || 'request_failed');
             // Every refused trial-reels write lands in the write-refusal log, like the Calendar's saves (a read does not).
-            if (body.action !== 'list' && body.action !== 'read') _writeUiRecordFailure('calendar', 'trial_reels_' + body.action, err, { http_status: resp.status });
+            if (body.action !== 'list' && body.action !== 'read') _writeUiRecordFailure(surface || 'calendar', 'trial_reels_' + body.action, err, { http_status: resp.status });
             throw err;
         }
         return json;
     }
-    function _trlSay(e, what) {
+    function svTrialErrorText(e) {
         const code = String((e && e.code) || (e && e.message) || 'request_failed');
-        showNotify(what + ' did not save', TRL_ERRORS[code] || ('The server answered "' + code + '". Nothing was changed.'));
+        return TRL_ERRORS[code] || ('The server answered "' + code + '". Nothing was changed.');
+    }
+    function _trlSay(e, what) {
+        showNotify(what + ' did not save', svTrialErrorText(e));
     }
     /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. */
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
-        e.promise = _trlCall({ action: 'list', client: slug, post_id: '' })
+        e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
             .then(json => { e.cards = (json && json.cards) || {}; e.at = Date.now(); return e; })
             .catch(() => { e.at = Date.now(); return e; })
             .finally(() => { e.promise = null; _trlRepaintAll(slug); });
@@ -128,7 +132,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* No visual noise: a label shows only where it says something the row does not. One every live version shares is
        dropped (the collapsed row already says it), "lost" once there is a winner; "dropped", "winner" and "change
        asked" always stay. */
-    function _trlLabelShown(vs, v) {
+    function svTrialLabelShown(vs, v) {
         if (v.status === 'dropped' || v.status === 'winner' || v.status === 'change asked') return true;
         if (v.status === 'lost') return false;
         return new Set(vs.filter(TRL_LIVE).map(x => x.status)).size > 1;
@@ -183,7 +187,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const link = v.frame_url ? '<a class="trl-go" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">' + TRL_GO + '</a>' : '';
             const name = v.frame_url ? '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span><button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>';
-            const label = _trlLabelShown(vs, v) ? '<span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '<span class="trl-lab-gap"></span>';
+            const label = svTrialLabelShown(vs, v) ? '<span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '<span class="trl-lab-gap"></span>';
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -209,7 +213,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const slug = _trlSlug(post.client || calState.client);
         _trlBusy.add(pid + '|' + key);
         try {
-            const json = await _trlCall(Object.assign({ client: slug, post_id: pid }, body));
+            const json = await svTrialCall(Object.assign({ client: slug, post_id: pid }, body));
             const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
             if (json.versions) e.cards[pid] = Object.assign({}, e.cards[pid] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
             return json;
@@ -332,10 +336,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
         if (json) showToast('Back on trial');
     }
+// Production's Assets (245) read and write the same versions through the same calls and labels.
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         svTrialDrop, svTrialEdit, svTrialLinkKey, svTrialLinkSave, svTrialOpen, svTrialPick, svTrialStart,
         svTrialToggle
     });
-export { svTrialSwitchHtml, svTrialVideoRowHtml };
+export { svTrialCall, svTrialLabelShown, svTrialErrorText, svTrialSwitchHtml, svTrialVideoRowHtml };

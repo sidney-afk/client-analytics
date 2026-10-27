@@ -34548,3 +34548,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-card-browser.js` (46 checks), the Deno function test (28), the logic test (60), prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618 checks), calendar-card-write-routing-browser, review-stage-browser, frame-comments-in-notes-browser, check-modules, check-lazy-safety and the unit suite (the 9 failures are the base's own).
 
 **Way back:** revert the PR; with the switch row absent nothing shows anyway.
+
+## 516. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 3 of 5: the versions in Production's Assets (session Trials)
+
+- **What:** on the card's own video sub-issue, once its card has Trial reels on, today's single Deliverable file row becomes one "Deliverable file · Video X" row per version (owner, decision 6). New fragment `src/index/245-production-trial-versions.js.part` (SyncLinear area), hooked into today's `_prodAssetsPanelHTML`. The Production list rows are unchanged; the graphics sub-issue and every other client keep today's single row.
+- **The version on the card** (Video A, then the winner) IS today's row: its link is file_url, its state is today's check and its Edit is today's attach, untouched. The trial-reels function now copies a new file_url to that version's own link on its next staff read (`healMainPatch`), with Q3's restart for a version with a change asked, and never while the card's link is another version's (between today's attach and a winner pick or its Undo).
+- **Every other version** has its own row with its own Edit (trial-reels `version_link_set`, behind the same Production write gate as today's attach) and its own state in Production's words. The state comes from a copy of the Production sharing check inside trial-reels (`probeLink`, read with `probe: true`, staff only, kept 5 minutes), because the check lives in a Section 4 function. It opens only the providers' own hosts, redirects included.
+- **Version links** are now limited to the providers today's attach takes for a Deliverable file (Frame.io, Drive, Dropbox), so a version that wins can always become the card's link (`link_host_unsupported` otherwise).
+- **Also on this branch:** the versions read escapes the slug before ILIKE (supervisor's note on #2356, also pushed there).
+- **No Section 4 change, no re-pin.** production-write is called as today (attach and asset_access_read), unchanged.
+- **Proven:** `node test/trial-reels-production-browser.js` (19 checks, light and dark), the Deno function test (36), the logic test (71), trial-reels-card-browser (46), prod-write-gateway-browser, lost-work-drafts-browser, prod-boot-budget, write-path-refusal-coverage, check-modules, check-lazy-safety and the unit suite compared with origin/main.
+
+**Way back:** revert the PR; with the switch off nothing shows anyway.

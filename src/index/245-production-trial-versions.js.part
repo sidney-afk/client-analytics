@@ -1,0 +1,155 @@
+import { svBusyHtml } from './040-shared-briefs.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialCall, svTrialErrorText, svTrialLabelShown } from './189-trial-reels-card.js';
+import { _prodCanWrite, _prodIssue, _prodToast, _prodWriteGateText } from './220-production-attribution-views.js';
+import { _prodRender } from './260-production-refresh-boot.js';
+    /* TRIAL REELS IN PRODUCTION'S ASSETS (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
+
+       On the card's own video sub-issue, once its card has Trial reels on, today's single Deliverable file row becomes
+       one row per version, "Deliverable file · Video A" to "· Video E" (owner, decision 6: "more videos, more Frame
+       deliverable rows"). Each has today's Edit and today's availability words (Available, Missing, Not checked…).
+       The Production list rows are unchanged.
+
+       - The version on the card (Video A, then the winner) IS today's row: its link is the sub-issue's file_url, its
+         state is today's check and its Edit is today's attach, untouched. This file only names it "· Video A" and adds
+         its label; the function copies a new file_url to that version's own link on its next staff read.
+       - Every other version is a row drawn here, with the same columns. Its Edit writes that version's link through
+         trial-reels version_link_set (staff key, the same Production write gate as today's attach); its state is the
+         function's copy of the same sharing check.
+       Labels follow the card's rule: only where they say something the row does not (owner: no visual noise), and no
+       "on the card" on the winner's row (its "winner" label already says it). Read once per sub-issue, kept 30 s. */
+    const TRL_PROD_TTL_MS = 30000;
+    const _trlProd = {};   // deliverable id -> { at, shape, promise, editing, draft, saving, error }
+
+    function _trlProdEntry(id) {
+        return _trlProd[id] || (_trlProd[id] = { at: 0, shape: null, promise: null, editing: '', draft: '', saving: false, error: '' });
+    }
+    // The sub-issue's card and client, from its deliverables row (the Production issue keeps it as `raw`).
+    const _trlProdCard = issue => String((issue.raw && issue.raw.card_id) || '').trim();
+    const _trlProdClient = issue => String((issue.raw && issue.raw.client_slug) || '').trim();
+    function _trlProdLoad(issue) {
+        const e = _trlProdEntry(issue.id);
+        if (e.promise) return e.promise;
+        e.client = _trlProdClient(issue);
+        e.postId = _trlProdCard(issue);
+        e.promise = svTrialCall({ action: 'read', client: e.client, post_id: e.postId, probe: true }, 'production')
+            .then(json => { e.shape = json; })
+            // trial_reels_off, a card that is gone, an unreadable switch: today's single row, as before the switch.
+            .catch(() => { e.shape = null; })
+            .finally(() => { e.at = Date.now(); e.promise = null; if (document.getElementById('prodRoot')) _prodRender(); });
+        return e.promise;
+    }
+    function _trlProdState(shape, letter) {
+        const s = shape.link_states && shape.link_states[letter];
+        if (!s) return 'checking';
+        // The same split as today's row: "unavailable" with no answer from the provider means the check could not look.
+        return s.state === 'unavailable' && !Number(s.http_status || 0) ? 'unverified' : String(s.state || 'unavailable');
+    }
+
+    /* The rows for the Deliverable file slot, or null for today's single row. `h` is what the panel already has:
+       { mainUrl, readOnly, gateAttrs, stateLabel, linkLabel }. Answers { letter, label, extra, before, after }: the
+       version on the card (today's row, renamed and given `extra`), and the other versions' rows around it. */
+    function svTrialProdRows(issue, h) {
+        if (!issue || !issue.id || !_trlProdCard(issue) || !svTrialReelsOn(_trlProdClient(issue))) return null;
+        const e = _trlProdEntry(String(issue.id));
+        if (!e.at || (Date.now() - e.at > TRL_PROD_TTL_MS && !e.editing && !e.saving)) _trlProdLoad(issue);
+        const shape = e.shape;
+        if (!shape || !Array.isArray(shape.versions) || !shape.versions.length) return null;
+        // Only on the card's own video sub-issue: any other task of the card keeps today's row.
+        if (String(shape.video_deliverable_id || '') !== String(issue.id)) return null;
+        const vs = shape.versions;
+        const main = vs.find(v => v.on_card) || vs[0];
+        // Today's row just saved a new file: read again, so the version rows and their states follow it.
+        if (h.mainUrl && String(main.frame_url || '') !== h.mainUrl && !e.promise && Date.now() - e.at > 1500) _trlProdLoad(issue);
+        const id = String(issue.id);
+        const labelHtml = v => svTrialLabelShown(vs, v)
+            ? ' <span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '';
+        const rowHtml = v => {
+            const url = String(v.frame_url || '').trim();
+            const state = url ? _trlProdState(shape, v.letter) : 'missing';
+            const value = url
+                ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(h.linkLabel(url)) + '</a>'
+                : '<span>Not provided</span>';
+            const pill = state === 'checking' && url
+                ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
+                : '<span class="prod-asset-state" data-state="' + _calEscAttr(state) + '">' + _calEsc(h.stateLabel(state)) + '</span>';
+            const edit = h.readOnly ? '' : '<button class="prod-assets-action prod-asset-edit" type="button" data-trl-edit="' + _calEscAttr(v.letter) + '"'
+                + ' onclick="return svTrialProdEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(v.letter) + ')"' + h.gateAttrs + '>Edit</button>';
+            const row = '<div class="prod-asset-row trl-prod-v" data-trl-slot="' + _calEscAttr(v.letter) + '">'
+                + '<span class="prod-asset-label">Deliverable file · Video ' + _calEsc(v.letter) + '</span>'
+                + '<span class="prod-asset-value">' + value + labelHtml(v) + '</span>' + pill + edit + '</div>';
+            if (e.editing !== v.letter) return row;
+            return row + '<form class="prod-assets-editor" data-trl-editor="' + _calEscAttr(v.letter) + '" onsubmit="return svTrialProdSave(event,' + _jsAttrArg(id) + ')">'
+                + '<input class="prod-assets-input" data-trl-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false"'
+                + ' placeholder="Paste the Frame.io link of Video ' + _calEscAttr(v.letter) + '" value="' + _calEscAttr(e.draft) + '"'
+                + ' oninput="svTrialProdDraft(' + _jsAttrArg(id) + ',this.value)"' + (e.saving ? ' disabled' : '') + '>'
+                + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return svTrialProdCancel(' + _jsAttrArg(id) + ')"' + (e.saving ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
+                + '<button class="prod-assets-action prod-assets-save" type="submit"' + (e.saving ? ' disabled' : '') + '>' + (e.saving ? svBusyHtml('Saving…') : 'Save Video ' + _calEsc(v.letter)) + '</button></div>'
+                + (e.error ? '<div class="prod-assets-error" role="alert">' + _calEsc(e.error) + '</div>' : '') + '</form>';
+        };
+        const at = vs.indexOf(main);
+        return {
+            letter: main.letter,
+            label: 'Deliverable file · Video ' + main.letter,
+            extra: labelHtml(main) + (main.status === 'winner' ? '' : ' <span class="trl-oncard">on the card</span>'),
+            before: vs.slice(0, at).map(rowHtml).join(''),
+            after: vs.slice(at + 1).map(rowHtml).join(''),
+        };
+    }
+
+    function _trlProdFocus(id) {
+        const input = document.querySelector('[data-trl-input="' + id + '"]');
+        if (input) { input.focus(); input.select(); }
+    }
+    function svTrialProdEdit(id, letter) {
+        // The same gate as today's Deliverable file Edit (one authority, _prodCanWrite).
+        const issue = _prodIssue(id);
+        if (!issue || !_prodCanWrite(issue, 'attachment')) {
+            _prodToast(_prodWriteGateText(issue, 'attachment') || 'This asset cannot be edited here.');
+            return false;
+        }
+        const e = _trlProdEntry(id);
+        const v = e.shape && (e.shape.versions || []).find(x => x.letter === letter);
+        e.editing = letter; e.draft = v ? String(v.frame_url || '') : ''; e.error = '';
+        _prodRender();
+        _trlProdFocus(id);
+        return false;
+    }
+    function svTrialProdDraft(id, value) {
+        _trlProdEntry(id).draft = String(value || '');
+    }
+    function svTrialProdCancel(id) {
+        const e = _trlProdEntry(id);
+        e.editing = ''; e.draft = ''; e.error = '';
+        _prodRender();
+        return false;
+    }
+    async function svTrialProdSave(ev, id) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        const e = _trlProdEntry(id);
+        const shape = e.shape;
+        if (!shape || !e.editing || e.saving) return false;
+        const letter = e.editing;
+        e.saving = true; e.error = '';
+        _prodRender();
+        try {
+            const json = await svTrialCall({ action: 'version_link_set', client: e.client, post_id: e.postId, letter, link: String(e.draft || '').trim() }, 'production');
+            e.shape = Object.assign({}, shape, json, { link_states: shape.link_states, video_deliverable_id: shape.video_deliverable_id });
+            e.editing = ''; e.draft = '';
+            e.at = 0;   // read again for the new link's state
+        } catch (err) {
+            e.error = svTrialErrorText(err);
+        } finally {
+            e.saving = false;
+            _prodRender();
+            if (e.editing) _trlProdFocus(id);
+        }
+        return false;
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svTrialProdCancel, svTrialProdDraft, svTrialProdEdit, svTrialProdSave
+    });
+export { svTrialProdRows };

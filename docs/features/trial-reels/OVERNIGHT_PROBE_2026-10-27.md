@@ -5,7 +5,7 @@ and fixes what is found; this session built nothing in the feature. Everything r
 no live writes. The plan is `docs/features/TRIAL_REELS_PLAN.md` (PR #2352). The tests are on branch
 `test/trial-reels-journey`, draft PR **#2365**, stacked on build 6. **Do not merge it; the owner holds every trial reels merge.**
 
-Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4eaa`, builds 2 to 4 one by one as their fixes landed, build 6 at `797b19b` (04:15 UTC, every fix carried up the stack), and build 7 at `152136d` (the client-link player, 04:25 UTC).
+Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4eaa`, builds 2 to 4 one by one as their fixes landed, build 6 at `797b19b` (04:15 UTC, every fix carried up the stack), build 7 at `152136d` (the client-link player, 04:25 UTC), and build 7 at `66c0a7a` (05:00 UTC).
 
 ## DONE (verified, pushed)
 
@@ -17,7 +17,7 @@ Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4ea
 | One live version (bug 6), on the client review page | `test/trial-reels-one-live-browser.js` | 4 / 4 (2 failed on build 5) |
 | Two staff pick a winner at once (bug 9) | `test/trial-reels-race-browser.js` (adopted by Trials, 3 races) | **15 / 15** on 797b19b |
 | A change belongs to the version it was asked on; Kasper's "Approve after tweaks" (bugs 10, 10b, 11) | `test/trial-reels-change-naming-browser.js` (adopted by Trials) | **6 / 6** on 797b19b |
-| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` (bug 12 and 12b) | **1 / 4: open** on 152136d |
+| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` (bug 12 and 12b; adopted by Trials) | **4 / 4** on 66c0a7a |
 | Each stacked branch (builds 1 to 5) builds with `npm run build:index` | — | all clean |
 | Trials' own suites (card, Production, review, Notes, function) on build 5, in dark and light | — | all pass |
 | The eyes pass. Card, Production, the review page (client, SMM, Kasper, winner) and Notes, at 1440 and 390, dark first, compared with `real/` and `mock-*` | screenshots kept outside the repo (fictional data) | divergences below |
@@ -44,8 +44,8 @@ Status at Trials is as of the last retest on build 6.
 | 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **fixed** (6c87b2b), verified on the whole stack at 797b19b (race 15/15). A regression on builds 3 and 4 between 02:45 and 04:00 (the 2 → 3 merge dropped `_trlCall`, so every pick and Undo failed) was found and is gone. |
 | 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **fixed on build 4** (4818a37), verified (client scenario passes) |
 | 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **fixed**, verified on 797b19b |
-| 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway, and the page says "did not save" | 189 svTrialLinkSave | **half-fixed** on 797b19b: the new rule (on the card = the live version whose link the card carries) keeps the display consistent, but the card still moves (B silently goes on the card) while the page says it did not save; the winner case is unchanged |
-| 12b | Dropping the version on the card (new on 797b19b) attaches the next version first; a refused drop leaves the card moved while the page says "not dropped" | 189 svTrialDrop | **open**, proven in a browser on 152136d (A stays waiting, the card is on B) |
+| 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway, and the page says "did not save" | 189 svTrialLinkSave | **fixed** (3af5c1b: a duplicate or decided link is refused before the attach; any later refusal puts the link back with CAS), verified on 66c0a7a (link-guard 4/4) |
+| 12b | Dropping the version on the card (new on 797b19b) attaches the next version first; a refused drop leaves the card moved while the page says "not dropped" | 189 svTrialDrop | **fixed** (card and Kasper tile), verified on 66c0a7a |
 | E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | **fixed** (ce0ef56: the text ellipsizes, labels stay whole; Trials' test covers it) |
 | E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | **fixed** (ce0ef56), verified: today's row reads "Open link · on the card · Available" |
 
@@ -55,7 +55,8 @@ Status at Trials is as of the last retest on build 6.
 |---|---|---|
 | 8 | `version_link_set` lacked Production's attach role rule | **partly fixed** (staffAllows: admin and SMM everything, creative only links, automation read-only; no member-team check, because the shared auth gives the role only) |
 | 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | **fixed on build 4**, verified (it marks the version on stage; stamping the others is left to the owner) |
-| 13 | The review pages offer Approve, a dot and a place in "Approve all N" for a version the server refuses for stage order (no SMM OK yet, for example after a new cut) | open (traced) |
+| 13 | The review pages offer Approve, a dot and a place in "Approve all N" for a version the server refuses for stage order (no SMM OK yet, for example after a new cut) | **fixed** (every read carries `ready`; "with the team" dashed dot, no Approve, not in Approve all), seen on 66c0a7a |
+| 14 | When the version on screen is already approved by this reviewer, the button still reads "Approve Video A" (today's page shows "Approved" with "Change my mind") | open (sent 05:0x) |
 | E1 | Review page: the bar sits above the player, with the arrows next to the label. The approved mock has the arrows beside the player, and "Video A of 5" and the dots under the video | **fixed on build 4** (7202cd7), seen at 1440 and 390 |
 | E2 | The dots carry no letter (plan and mock: letter dots) | **fixed on build 4**, seen |
 | E3 | Phone: arrows instead of swipe (plan §5, mock "No arrows: swipe"); the bar wraps to 104 px; the current dot's 36 px ring is heavy | **fixed on build 4** (swipe bound, "Swipe for the next version", no arrows at 390) |

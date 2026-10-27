@@ -2157,6 +2157,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-empty-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Starts trial reels on a card with no version rows, as found live on 2026-10-27: switching on opens a place to paste the first link, Video A goes on the card first through today's attach and is then added, Video B is added on its own, a link another version has is refused, and a card that already has a link starts with Video A, at desktop and 390 pixel width.",
+      "reproduce": "node test/trial-reels-empty-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-race-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

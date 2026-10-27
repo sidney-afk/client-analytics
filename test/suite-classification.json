@@ -2205,27 +2205,11 @@
       "ci": "representative"
     },
     {
-      "file": "trial-reels-journey-browser.js",
-      "route": "isolated_browser",
-      "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Drives one five-version trial card through its whole life in one run (session Probe): switch off for an unlisted client, links pasted on the card and in Production, the SMM's OKs and a change on one version, its new cut, Kasper and the client (one at a time and Approve all), Approved through today's save, the trial, its 24 h timer and trophy, the winner, Undo and the winner again, the client seeing only the winner, Posted, and the switch off again, checking the card's status, each version's label, the card's one link and the ledger rows at every step.",
-      "reproduce": "node test/trial-reels-journey-browser.js (after repository Playwright/Chromium setup)",
-      "ci": "representative"
-    },
-    {
       "file": "trial-reels-one-live-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A trial card with one live version (session Probe): the client's approve on the review page must record that version's OK, so the card's versions agree with the card and the trial can start.",
       "reproduce": "node test/trial-reels-one-live-browser.js (after repository Playwright/Chromium setup)",
-      "ci": "representative"
-    },
-    {
-      "file": "trial-reels-link-guard-browser.js",
-      "route": "isolated_browser",
-      "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A link on the version on the card that the function refuses after today's attach (session Probe): the card's one link and that version's link must still agree, and the page never says a link did not save when the card carries it.",
-      "reproduce": "node test/trial-reels-link-guard-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

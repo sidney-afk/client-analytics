@@ -92,6 +92,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       if (collab) {
         expect(typed.some(u => String(u.caption).endsWith(' Typed by a client.')), label + ': the typed caption is saved (' + typed.length + ' save(s))');
         expect(t.state.cards.find(c => c.id === pid).caption.endsWith(' Typed by a client.'), label + ': the card now has the client\'s caption');
+        await cap.click(); await shot(t, 'after-client-sheet-1440-light-collab-typed');
       } else {
         expect(typed.length === 0, label + ': typing in the caption saves nothing');
       }
@@ -366,6 +367,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       }));
       expect(ro.cap.length > 0 && ro.cap.every(r => r === !collab), 'phone, collab ' + (collab ? 'on: the caption is editable' : 'off: the caption is read only'));
       expect(ro.cta, 'phone, collab ' + (collab ? 'on' : 'off') + ': the call to action is read only');
+      if (collab && SHOTS) { const c = t.page.locator('textarea[data-fld="caption"]').first(); await c.scrollIntoViewIfNeeded(); await c.click(); await t.page.keyboard.press('Control+End'); await t.page.keyboard.type(' Typed by a client.'); }
       await shot(t, 'after-client-sheet-390-light' + (collab ? '-collab' : ''));
       await t.ctx.close();
     }

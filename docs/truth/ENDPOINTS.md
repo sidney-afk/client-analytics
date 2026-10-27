@@ -227,7 +227,6 @@ Other:
   matching `workload-plan`'s first release); anonymous GET verified returning `401` after each
   deploy. The browser caller (`index.html`) for `rows`/`summary`/`by_ad`/`leads`/`unfinished_leads`
   is merged and live via #1127/#1131/#1137.
-- `functions/v1/crm-gmail` — Leads CRM Gmail reader, server key only, read only (`docs/features/CRM_LEADS.md`, "Gmail"). POST `{action}`: `probe`, `sent_recipients`. Not called by the page.
 - `functions/v1/crm-leads` — the Leads CRM page (`/leads`, linked from Kasper > More > Pipeline &
   Admin; `src/index/328-crm-leads.js.part`). POST `{action}`: `list`, `get`, `update` (compare-and-swap on
   `state_version`, 409 with the current row on a lost race), `note`, `today`, `call_outcome`, `sequences`,
@@ -476,6 +475,7 @@ secret possession can still export the corpus; retire that fallback behind indiv
   wrong, honors the backend `thumbnail_revision_v2` off/test/on scope, and exposes aggregate counts
   only. `THUMBNAIL_REVISION_SCAN_ENABLED=true` is live; scheduled run `29370658087` completed green
   with 239 checked, 239 unchanged, and 0 failed.
+- `crm-gmail` — Leads CRM Gmail reader, server key only, read only (`docs/features/CRM_LEADS.md`, "Gmail"). POST `{action}`: `probe`, `sent_recipients`. The browser never calls it.
 
 These are documented separately by design. Do not add them to the literal endpoint set checked by
 `test/truth-sync.js` until `index.html` actually calls them.

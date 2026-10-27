@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -32,7 +32,7 @@ export function staffAllows(role, action) {
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
   // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.
-  return r === "creative" && (action === "version_link_set" || action === "version_new_cut");
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
@@ -120,6 +120,42 @@ export function probeVerdict({ status, contentType, disposition, sample }) {
 }
 
 export const live = (v) => v.status !== STATUS.dropped;
+
+/*
+ * One row per letter. Two writers add rows: the AI editor's studio log, keyed by its batch and video number, and
+ * SyncView's version_add, keyed by the card's id and "card". Both key rows by (client, batch, video, letter), so a
+ * card switched on before the studio logged it can end up with two "Video A" rows (Codex on PR 2373). Every read
+ * keeps the earliest written for each letter (then the smaller id), so each letter names one version; the other row
+ * is never read or written here.
+ */
+export function oneRowPerLetter(rows) {
+  const keep = new Map();
+  for (const r of rows || []) {
+    const was = keep.get(r.letter);
+    const key = (x) => String(x.created_at || "9999") + "|" + String(x.id || "");
+    if (!was || key(r) < key(was)) keep.set(r.letter, r);
+  }
+  return [...keep.values()];
+}
+
+/*
+ * A version added from SyncView (2026-10-27, found live): until now a card listed only the rows the AI editor's studio
+ * log writes, so a card it had not logged showed no versions and nowhere to paste a link. The next free letter, A to
+ * G, with its link. The first live version is the one on the card, so its link must already be the card's (the page
+ * saves the card's link first, as it does for Video A). Never once the trial has started.
+ */
+export function addVersion(versions, rawLink, mainLink) {
+  if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { error: "version_on_trial" };
+  const used = new Set(versions.map((v) => v.letter));
+  const letter = LETTERS.find((l) => !used.has(l));
+  if (!letter) return { error: "no_letter_left" };
+  const c = cleanLink(rawLink);
+  if (c.error) return { error: c.error };
+  if (!c.link) return { error: "version_has_no_link" };
+  if (versions.some((x) => clean(x.frame_url, 2048) === c.link)) return { error: "link_used_by_another_version" };
+  if (!versions.some(live) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
+  return { letter, link: c.link };
+}
 
 /*
  * The winner is SyncView's alone (owner, 2026-10-27): trial_reel_cards.winner_letter is the only source of truth, and

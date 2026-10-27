@@ -34542,6 +34542,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
 - **Way back:** delete the switch row, or revert the pull request.
 
+## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, a 24 h trial and the SMM's winner pick (session Trials)
+
+- **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
+- **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. The per-version rows and the 24 h log are one table, `studio_trial_versions` from #2349 (the studio half), with SyncView's columns added; one small new table for the card's switch (`trial_reel_cards`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.
+- **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
+- **Owner answers (2026-10-26):** all ten questions answered and folded in (no numbers typed, the SMM picks the winner, people paste the Frame.io links, the client sees only the winner). The build PR also carries a follow-up migration on `studio_trial_versions` and three small `trialreels.mjs` changes (#2349 merged without them).
+- **Round 2 (owner's look at the card, 2026-10-26):** the versions are collapsed inside today's Video row (the card keeps its exact height, measured), named "Video A"… with no hook text, the winner takes the one link (card and Production Deliverable file, set through `production-write`'s existing `attachment`), and the Notes player gets a version switch. Pictures on the real page in `docs/features/trial-reels/real/`.
+- **Owner answers to round 2 (2026-10-26):** all seven settled; each version is its own "Deliverable file · Video X" row in Production Assets, one store per version (`frame_url`) written from the card or Production, and `file_url` stays the one link of the version on the card, written only through today's `attachment`. The schema is settled (plan, section 3) and handed to the AI editor lane for its `trialreels.mjs` follow-up.
+- **Waiting on:** the owner's go to build.
+
+**Way back:** nothing is built; close the pull request.
+
 ## 517. [2026-10-27 UTC, BUILT, NOT MERGED] The unread-badges browser test went red just after midnight UTC; the fixture and the page now share one pinned clock (session Midnight)
 
 - **What failed.** `calendar-unit-tests` on #2356 (a backend-only PR), job `entry-links-boot (3)`, 00:03:41 UTC on 2026-10-27: `FAIL  H. day lines say "Today": Yesterday` in `docs/syncview-design/tests/unread-badges-v2-browser.js`. Reproduced here at 00:18 UTC on unchanged main: `Yesterday, Today`. Any PR, and main, run in the first ~40 minutes after midnight UTC hit it.
@@ -34665,3 +34677,39 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (91 checks: 6 new, failing without the fix) and the Deno function test (40: 4 new, failing without the fix). The type ratchet adds no new errors. The frameio-view client-link check gets the same rule in build 7.
 
 **Way back:** revert this commit.
+
+## 542. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, found live: a card the AI editor had not logged showed no versions and nowhere to paste a link (session Trials)
+
+- **What happened:** with builds 1 and 2 merged and `trial_reels_pages` listing the test client, the owner switched trial reels on for a card (`trial_reel_cards` row and `trial_on` event, 15:13 UTC). The row then read "Video · 0", "Show the versions" opened nothing, and there was no way to paste a Frame.io link.
+- **Why:** the card listed only the rows the AI editor's studio log writes to `studio_trial_versions`, and SyncView had no way to add one. The test client had none. The card test started from five logged versions, so it never saw an empty card.
+- **Fix:**
+  - New `trial-reels` action `version_add`, for staff keys (admin, SMM and editor). It adds the next free letter, A to G, with its link. It refuses a link another version has, a missing or non-https link, an eighth version, and any addition once the trial has started.
+  - The first live version is the one on the card, so its link must already be the card's (`attach_first`).
+  - The row's key in the studio's table is batch = the card's id and video = `card`. `post_id` is what every read goes by.
+  - Switching a card on with no version starts it with Video A, the link the card already carries.
+  - On the card, the list ends with "Video X · Paste the Frame.io link" until the trial starts, and stands open while there is no version. The first version goes on the card first through today's path, as Video A does, and goes back if the function then refuses.
+- **Proven:**
+  - `node test/trial-reels-empty-card-browser.js` (30 checks, desktop and 390). It starts as the live card did, with no version rows; on main's code it fails at the first look, with nothing to paste into.
+  - The Deno function test (46, with the seed, the add and its refusals). The logic test (96).
+  - Also passing: trial-reels-card-browser (60), race and link-guard browser tests, the type ratchet, prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618), write-path-refusal-coverage, check-lazy-safety.
+
+**Way back:** revert the pull request. Rows already added stay as ordinary version rows.
+
+## 541. [2026-10-27 UTC, BUILT, NOT MERGED] The client link's Sheet and Notes get the team's unread badges, behind `review_client_polish` (session Clientbadges)
+
+- **Owner, 2026-10-27:** "Even on my test client, I still see the old badges thing for the notes. The way I experience notes on my account should be the same for the clients, at least on my test client first."
+- **What was missing:** the client review page already had the round-8 badges (498, 500). The client link's Calendar did not: the Sheet's Notes button still showed the old dot and "N open", and Notes the old rows, because 327 ran only for staff on `unread_badges_v2` (`svUnreadBadgesOn()` is false on every client link).
+- **Built (327, browser only, no server change):** 327 now also runs on a client link that `review_client_polish` lists (only the test client today; no new switch, no new row). The Sheet's Notes button gets the team's picture with a corner count for new and the plain number for waiting, the hover lists the lines, and Notes gets the team's rows, "New" tags, quiet "Change request" and no Reply on a change request. Read state is the store the client link already used (`syncview_notes_seen_v1`, this browser, set when Notes opens), so no new browser write privileges.
+- **Differences kept on purpose (client link vs staff), one line each:**
+  - Only the team's notes count: the client's own notes, comments and change requests are the client's, so they are never "new" or "to answer".
+  - "Waiting for your answer" is a read team comment that asks something ("?") and still has the last word in its thread, never a change request: the client review page's rule (500), so the Sheet and the Review page agree.
+  - No count of the client's own change requests not done yet (today's "N open"): they wait on the team, not on the client; Notes still says "Change request" and "Done".
+  - The team is one picture and one name, "Synchro team", with an "S": the client link has never named staff (190 `_calNoteAuthorName`), so no first names, initials or Slack photos.
+  - Kasper's notes count as the team's (no violet "Kasper" bubble), for the same reason; his team-only notes never reach a client link.
+  - The client's own notes read "You", as on the client review page.
+  - No "No reply needed" and no "Mark unread": both are this browser's own lists on the staff side; a client's question waits until they answer.
+  - No Messages button, inbox or inbox read: Messages is the team's.
+  - The phone gets it too (staff phones keep their own phone design; a client's phone shows the same calendar as a wide screen).
+  - Team-only notes and Frame.io staff comments never show or count (unchanged: the client link's Notes never had them).
+- **Caveat for the owner's own test:** `syncview_notes_seen_v1` is one store per browser, so opening a card's Notes as staff marks it read on the test client's link in the same browser too (true before this change).
+- **Proof:** `node test/client-unread-badges-browser.js` (new, offline, in calendar-unit-tests): switch on, the corner count, the plain number, nothing for answered questions or statements or the client's own change request, "Synchro team" only, no staff names, New on open, no "No reply needed", no inbox read, 390 wide; switch off, today's "1 open", dot and Notes; the staff Calendar unchanged. On main's 327, 11 checks fail. Screenshots: `docs/syncview-design/proofs/client-unread-badges/` (1440 and 390, light and dark, on and off).

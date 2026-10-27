@@ -2,9 +2,10 @@ import { showToast } from './040-shared-briefs.js';
 import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
-import { svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { svRsClientPolishOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calNoteAuthorName, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
 import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _msgState } from './326-core-messages-inbox.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). On only for the
        staff members the runtime switch unread_badges_v2 names (188), on a desktop page; for everyone else nothing here
        runs and every page is exactly as it was. The owner tries it first and tweaks it.
@@ -21,7 +22,18 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
            out like Slack; a client's change request is one line pointing to the card (change requests live there).
        Pictures are Slack profile photos the inbox answer carries (production-comments/pictures.mjs); without one, the
        person's initials. "No reply needed" and the card's "Mark unread" are kept in this browser for now (the server
-       side of both is build step 2 in the audit). The styles are in 020 under html.sv-unread2. */
+       side of both is build step 2 in the audit). The styles are in 020 under html.sv-unread2.
+
+       THE CLIENT LINK (session Clientbadges, 2026-10-27): the same badges and Notes for a client link that
+       review_client_polish lists (the test client today), with the client review page's rules (195 _rsCpBadge), so a
+       client's Sheet and its review page agree:
+         - only the team's notes count; the client's own notes, change requests and comments never do;
+         - new = a team note since this browser last opened that card's Notes (syncview_notes_seen_v1, as before);
+         - waiting (the plain number) = a read team comment that asks something ("?") and still has the last word in its
+           thread; never a change request;
+         - no count of the client's own change requests not done yet (they wait on the team, not on the client);
+         - the team is one person, "Synchro team", as the client link has always named it; no staff names or pictures;
+         - no "No reply needed" or "Mark unread", no Messages, and no inbox read. */
 
     const SVU_LOCAL_KEY = 'sv-unread-v2-local';
     const SVU_PICS_KEY = 'sv-unread-v2-pictures';
@@ -39,9 +51,14 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     var _svuSyncQueued = false;
     // A draw made while this file is still loading (326 can draw Messages first on a slow device) answers no: this
     // file's own state does not exist yet; its first sync, below, redraws.
+    // The client link: review_client_polish for this client (188). Staff: unread_badges_v2, on a desktop page.
+    function _svuWant() {
+        if (_isClientLink) return svRsClientPolishOn(calState.client);
+        return !_msgIsPhone() && svUnreadBadgesOn();
+    }
     function svuActive() {
         try {
-            const want = !_msgIsPhone() && svUnreadBadgesOn();
+            const want = _svuWant();
             if (want !== _svuOn && !_svuSyncQueued) {
                 _svuSyncQueued = true;
                 setTimeout(() => { _svuSyncQueued = false; try { _svuSync(); } catch (e) {} }, 0);
@@ -55,6 +72,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     /* ---------- this browser's "No reply needed" and "Mark unread" ---------- */
     function _svuLocalGet() {
         if (_svuLocal) return _svuLocal;
+        // The client link keeps neither (this browser may also hold a staff member's own list).
+        if (_isClientLink) return (_svuLocal = { noReply: new Set(), unread: new Set() });
         let v = null;
         try { v = JSON.parse(localStorage.getItem(SVU_LOCAL_KEY) || 'null'); } catch (e) { v = null; }
         _svuLocal = {
@@ -64,6 +83,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         return _svuLocal;
     }
     function _svuLocalSave() {
+        if (_isClientLink) return;
         const l = _svuLocalGet();
         try { localStorage.setItem(SVU_LOCAL_KEY, JSON.stringify({ noReply: Array.from(l.noReply).slice(-500), unread: Array.from(l.unread).slice(-200) })); } catch (e) {}
     }
@@ -73,6 +93,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     const _svuIsClient = m => _svuRole(m) === 'client';
     const _svuIsAuto = m => SVU_AUTO_ROLES.has(_svuRole(m)) || (_svuIsClient(m) && SVU_CAPTION_RECORD.test(String(m && m.body || '')));
     function _svuIsMine(m) {
+        // On the client link every client note is the client's own (one client per link).
+        if (_isClientLink) return _svuIsClient(m);
         try {
             const id = String(m && m.author_member_id || '');
             if (id) return id === _msgMyId();
@@ -99,6 +121,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         return out.sort((a, b) => String(a.m.created_at).localeCompare(String(b.m.created_at)));
     }
     function _svuKindOf(n) {
+        // The client link names nobody on the team: every team note is the team's (grey).
+        if (_isClientLink && !_svuIsClient(n.m)) return 'staff';
         if (_svuIsClient(n.m)) return _svuIsTweak(n.root) && !n.root.parent_id && _svuIsClient(n.root) ? 'change' : 'comment';
         return _svuRole(n.m) === 'kasper' ? 'kasper' : 'staff';
     }
@@ -112,6 +136,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             if (_svuIsMine(n.m) || _svuIsAuto(n.m)) continue;
             if (String(n.m.created_at) > seen) { const k = _svuKindOf(n); s[k]++; s.newIds.add(n.m.id); s.items.push({ kind: k, n }); }
         }
+        if (_isClientLink) { _svuClientWaiting(s, notes); s.items.sort((a, b) => String(b.n.m.created_at).localeCompare(String(a.n.m.created_at))); return s; }
         for (const r of notes.filter(n => n.m === n.root)) {
             if (_svuIsAuto(r.m)) continue;
             if (_svuIsTweak(r.m) && !r.m.done) { s.openIds.add(r.m.id); if (!s.newIds.has(r.m.id)) s.open++; }
@@ -124,8 +149,27 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         return s;
     }
 
+    /* The client link's "waiting for your answer" (owner, 2026-10-25, the client review page's rule): a thread waits when
+       its last word is a team comment that asks something and is already read; never a change request's thread. */
+    function _svuClientWaiting(s, notes) {
+        const threads = new Map();
+        for (const n of notes) {
+            if (_svuIsAuto(n.m)) continue;
+            const k = n.root.id;
+            if (!threads.has(k)) threads.set(k, []);
+            threads.get(k).push(n);
+        }
+        threads.forEach(ts => {
+            const root = ts[0].root, last = ts[ts.length - 1];
+            if (_svuIsTweak(root) || _svuIsTweak(last.m) || _svuIsMine(last.m) || s.newIds.has(last.m.id)) return;
+            if (String(last.m.body || '').indexOf('?') < 0) return;
+            s.waiting++; s.waitingIds.add(last.m.id); s.items.push({ kind: 'waiting', n: last });
+        });
+    }
+
     /* ---------- pictures ---------- */
     function _svuPictures() {
+        if (_isClientLink) return {};   // the inbox (and its Slack pictures) is the team's only
         const live = _msgState.pictures;
         if (live && typeof live === 'object') return live;
         try {
@@ -155,11 +199,14 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const url = _svuPictureOf(m, slug);
         if (url) return `<img class="${cls}" src="${_calEscAttr(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
         const name = _svuIsClient(m) ? (_svuClientName(slug) || 'Client') : String(m && m.author || 'Team');
-        const letters = name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
-        const h = _svuIsClient(m) ? 172 : (_svuRole(m) === 'kasper' ? 262 : _svuHue(name));
+        // The client link: one letter, never a staff member's initials ("S" for the team, as the client page draws it).
+        const letters = _isClientLink ? (_svuIsClient(m) ? name : 'Synchro').trim().charAt(0).toUpperCase() || '?'
+            : name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+        const h = _svuIsClient(m) ? 172 : _isClientLink ? 250 : (_svuRole(m) === 'kasper' ? 262 : _svuHue(name));
         return `<span class="${cls} svu-initial" style="background:hsl(${h},52%,46%)" aria-hidden="true">${_calEsc(letters)}</span>`;
     }
     function _svuClientName(slug) {
+        if (_isClientLink) return String(calState.client || '');
         try { const c = _msgState.conversations.find(x => x.client_slug === slug); if (c) return _msgClientName(c); } catch (e) {}
         return '';
     }
@@ -185,6 +232,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
        always relative (the day line or a hover carries the date), and every coloured number says in a hover what
        it counts. */
     function _svuFirst(m) {
+        // The client link: "You" for the client's own notes (as on its review page), the team as "Synchro team".
+        if (_isClientLink) return _svuIsClient(m) ? 'You' : 'Synchro team';
         if (_svuRole(m) === 'kasper') return 'Kasper';
         let name = '';
         try { name = _svuIsClient(m) ? String(m && m.author || '') : String(_calNoteAuthorName(m) || ''); } catch (e) { name = String(m && m.author || ''); }
@@ -223,7 +272,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         comment: n => _svuPlural(n, 'new comment', 'new comments'),
         staff: n => _svuPlural(n, 'new message from the team', 'new messages from the team'),
         kasper: n => _svuPlural(n, 'new message from Kasper', 'new messages from Kasper'),
-        waiting: n => _svuPlural(n, 'comment to answer', 'comments to answer'),   // round 8: never "Waiting for your answer"
+        waiting: n => _isClientLink ? _svuPlural(n, 'message to answer', 'messages to answer') : _svuPlural(n, 'comment to answer', 'comments to answer'),   // round 8: never "Waiting for your answer"
         open: n => _svuPlural(n, 'change request not done yet', 'change requests not done yet'),
     };
     const SVU_X_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
@@ -232,15 +281,16 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     /* ---------- the badge: one bubble per person ---------- */
     function _svuPeopleOf(post, s) {
         const by = new Map();
-        const get = m => { const k = _svuIsClient(m) ? 'client' : String(m.author_member_id || m.author || 'Team'); if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' }); return by.get(k); };
+        const get = m => { const k = _svuIsClient(m) ? 'client' : _isClientLink ? 'team' : String(m.author_member_id || m.author || 'Team'); if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' }); return by.get(k); };
         for (const it of s.items) {
             if (it.kind === 'waiting') continue;
             const g = get(it.n.m); g.nNew++; if (!g.kind || SVU_RANK[it.kind] > SVU_RANK[g.kind]) g.kind = it.kind;
             if (String(it.n.m.created_at) > g.last) g.last = String(it.n.m.created_at);
         }
         for (const n of s.notes) {
-            if (n.m !== n.root || s.newIds.has(n.m.id)) continue;
-            const out = s.waitingIds.has(n.m.id) ? 'waiting' : (s.openIds.has(n.m.id) ? 'open' : '');
+            // Staff: both sets hold thread starts only. The client link's waiting note is a thread's last word.
+            if (s.newIds.has(n.m.id)) continue;
+            const out = s.waitingIds.has(n.m.id) ? 'waiting' : (n.m === n.root && s.openIds.has(n.m.id) ? 'open' : '');
             if (!out) continue;
             const g = get(n.m); g.nOut++; if (!g.outKind || out === 'open') g.outKind = out;
             if (String(n.m.created_at) > g.last) g.last = String(n.m.created_at);
@@ -347,7 +397,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 const full = au.textContent.trim();
                 au.setAttribute('data-svu-full', full);
                 au.title = full;
-                au.textContent = full.split(/\s+/)[0] || full;
+                au.textContent = _isClientLink ? _svuFirst(n.m) : (full.split(/\s+/)[0] || full);
             }
             const tweak = row.querySelector('.cal-cm-type-tag.is-tweak');
             if (tweak && !tweak.hasAttribute('data-svu')) {
@@ -378,7 +428,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             const reply = bar && _svuIsTweak(n.root) && bar.querySelector('.cal-cm-action[onclick^="_calBeginReply"]');
             if (reply) reply.remove();
             const nr = bar && bar.querySelector('.svu-noreply');
-            if (bar && live.waitingIds.has(id) && !nr) {
+            if (bar && live.waitingIds.has(id) && !nr && !_isClientLink) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'cal-cm-action svu-noreply';
@@ -395,6 +445,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             const room = part ? Math.ceil(part.scrollWidth) + 16 + 'px' : '';
             if (headLine && headLine.style.paddingRight !== room) headLine.style.paddingRight = room;
         });
+        // The client link's composer keeps the client's own picture (staff have the audience lock there); the styles
+        // above clear its old filled circle, so it is drawn as the rows' pictures are.
+        const meAv = _isClientLink && modal.querySelector('.cal-cm-composer .cal-cm-avatar');
+        if (meAv && !meAv.querySelector('.svu-slack-av')) meAv.innerHTML = _svuAvatar({ role: 'client' }, 'svu-slack-av', slug);
         _svuFitBars(modal, '.cal-cm-row[data-cm-row]', '.cal-cm-actions', '.cal-cm-body-col');
     }
     /* Round 7 (owner, 2026-10-24): the hover toolbar sits at the bottom right of a note or message. Where the last line
@@ -688,7 +742,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     function svuRefresh() {
         try { (calState.posts || []).forEach(p => _calRefreshCommentsBtn(p.id)); } catch (e) {}
         try { _svuDecorateNotes(); } catch (e) {}
-        if (!_msgState.unavailable) { try { svuPaintCounts(); _msgPaint(); } catch (e) {} }
+        if (!_isClientLink && !_msgState.unavailable) { try { svuPaintCounts(); _msgPaint(); } catch (e) {} }
     }
 
     /* ---------- switching on and off ---------- */
@@ -696,7 +750,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     function _svuSync() {
         let phone = false;
         try { phone = _msgIsPhone(); } catch (e) { phone = false; }
-        const want = !phone && svUnreadBadgesOn();
+        const want = _isClientLink ? _svuWant() : !phone && svUnreadBadgesOn();
         if (want === _svuOn) return;
         _svuOn = want;
         document.documentElement.classList.toggle('sv-unread2', want);
@@ -713,7 +767,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             // The pictures and the Messages counts come with the inbox answer.
             // A list read before the switch was (no pictures) is read again, now asking for them.
             // Same pages as the boot read (326): never on Production, Time off, Linear or the forms.
-            if (_msgBootPageOk()) { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
+            if (!_isClientLink && _msgBootPageOk()) { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
         } else {
             if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
             svuHideHover();

@@ -79,6 +79,19 @@ class Refusal extends Error {
   }
 }
 
+// One client for the life of the worker, so its connections to the database are reused between requests.
+let sbClient: SupabaseClient | null = null;
+function db(): SupabaseClient {
+  return sbClient || (sbClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }));
+}
+// Work that should finish after the answer has gone (the platform keeps the worker for it where it can).
+function keepRunning(p: Promise<unknown>): void {
+  const rt = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  try { rt?.waitUntil?.(p); } catch (_e) { /* the answer is already correct without it */ }
+}
+
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
@@ -124,16 +137,29 @@ async function mainLink(supabase: SupabaseClient, card: JsonMap): Promise<string
   return clean(card.asset_url, 2048);
 }
 
-// Seen through the card's own winner letter (settleWinner): a winner the studio writes on a row is never read.
-async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
+// The card's version rows as stored, one per letter (readVersions settles them against the card's winner).
+async function readVersionRows(supabase: SupabaseClient, client: string, postId: string): Promise<Version[]> {
   const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", likeExact(client));
   if (error) throw new Refusal(503, "versions_unreadable");
-  return settleWinner(oneRowPerLetter(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)))), winnerLetter) as Version[];
+  return oneRowPerLetter(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)))) as Version[];
+}
+// Seen through the card's own winner letter (settleWinner): a winner the studio writes on a row is never read.
+async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
+  return settleWinner(await readVersionRows(supabase, client, postId), winnerLetter) as Version[];
+}
+
+/* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 547): every read a request may need starts at once and each answer
+   is looked at in the old order, so a request is refused for exactly the same reason as before; only the waiting
+   overlaps. A read started and never looked at (a refused request) must not surface as an unhandled rejection. */
+function begun<T>(p: Promise<T>): Promise<T> {
+  p.catch(() => null);
+  return p;
 }
 
 /* A version row SyncView adds itself (addVersion). The studio's table keys a row by (client, batch, video, letter), so a
    row made here takes the card's id as its batch and "card" as its video; post_id is what every read goes by. */
-async function insertVersion(supabase: SupabaseClient, client: string, card: JsonMap, postId: string, letter: string, link: string, principal: Principal, now: string): Promise<void> {
+// Answers once the row is in, with the ledger line still on its way: the caller waits for it alongside its read-back.
+async function insertVersion(supabase: SupabaseClient, client: string, card: JsonMap, postId: string, letter: string, link: string, principal: Principal, now: string): Promise<{ ledger: Promise<void> }> {
   if (postId.length > 80) throw new Refusal(400, "post_id_too_long");
   const { error } = await supabase.from("studio_trial_versions").insert({
     id: crypto.randomUUID(), client, batch: postId, video: "card", letter, post_id: postId,
@@ -142,8 +168,11 @@ async function insertVersion(supabase: SupabaseClient, client: string, card: Jso
   });
   // Two staff adding at once reach the same letter: the table's unique key refuses the second.
   if (error) throw (error as { code?: string }).code === "23505" ? new Refusal(409, "conflict") : new Refusal(500, "write_failed");
-  const { error: ledger } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, [{ id: "", letter, from: "", patch: { status: "waiting" } }], principal, now, "version_add"));
-  if (ledger) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
+  const ledger = (async () => {
+    const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, [{ id: "", letter, from: "", patch: { status: "waiting" } }], principal, now, "version_add"));
+    if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
+  })();
+  return { ledger };
 }
 
 /* A staff read catches the main version's copy up with the card's one link (logic.mjs healMainPatch). Best effort: a
@@ -198,13 +227,23 @@ async function probeSample(res: Response, max = 8_192): Promise<string> {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-async function probeLink(raw: string): Promise<JsonMap> {
+/* A link already being checked is waited on, not checked a second time (a read that stopped waiting leaves its
+   checks running, and the page's next read joins them). */
+const probeInflight = new Map<string, Promise<JsonMap>>();
+function probeLink(raw: string): Promise<JsonMap> {
   const link = clean(raw, 2048);
   const checkedAt = new Date().toISOString();
-  if (!link) return { state: "missing", checked_at: checkedAt };
-  if (!probeHostAllowed(link)) return { state: "invalid", checked_at: checkedAt };
+  if (!link) return Promise.resolve({ state: "missing", checked_at: checkedAt });
+  if (!probeHostAllowed(link)) return Promise.resolve({ state: "invalid", checked_at: checkedAt });
   const kept = probeKept.get(link);
-  if (kept && Date.now() - kept.at < PROBE_KEEP_MS) return kept.out;
+  if (kept && Date.now() - kept.at < PROBE_KEEP_MS) return Promise.resolve(kept.out);
+  const running = probeInflight.get(link);
+  if (running) return running;
+  const p = probeLinkNow(link, checkedAt).finally(() => probeInflight.delete(link));
+  probeInflight.set(link, p);
+  return p;
+}
+async function probeLinkNow(link: string, checkedAt: string): Promise<JsonMap> {
   let out: JsonMap;
   try {
     let current = probeUrl(link);
@@ -243,19 +282,19 @@ async function probeLink(raw: string): Promise<JsonMap> {
    when a row has moved, the rows already written by this request are put back as they were read (each only if still
    as written), and the request answers conflict, so no half-made winner or half-started trial is ever left. */
 async function applyChanges(supabase: SupabaseClient, versions: Version[], changes: Change[], now: string): Promise<void> {
-  const written: Change[] = [];
-  for (const c of changes) {
+  // The rows are different rows, so their writes go out together; the first one (in order) that did not land decides
+  // the answer, as when they went one by one.
+  const results = await Promise.all(changes.map(async (c) => {
     const before = versions.find((v) => v.id === c.id);
     let q = supabase.from("studio_trial_versions").update({ ...c.patch, updated_at: now }).eq("id", c.id);
     if (before && before.updated_at) q = q.eq("updated_at", before.updated_at as string);
     const { data, error } = await q.select("id");
-    const landed = !error && Array.isArray(data) && data.length === 1;
-    if (!landed) {
-      await undoWritten(supabase, versions, written, now);
-      throw error ? new Refusal(500, "write_failed") : new Refusal(409, "conflict");
-    }
-    written.push(c);
-  }
+    return { error: !!error, landed: !error && Array.isArray(data) && data.length === 1 };
+  }));
+  const failed = results.find((r) => !r.landed);
+  if (!failed) return;
+  await undoWritten(supabase, versions, changes.filter((_c, i) => results[i].landed), now);
+  throw failed.error ? new Refusal(500, "write_failed") : new Refusal(409, "conflict");
 }
 
 async function undoWritten(supabase: SupabaseClient, versions: Version[], written: Change[], now: string): Promise<void> {
@@ -284,40 +323,51 @@ Deno.serve(async (req: Request) => {
   const postId = clean(body.post_id, 120);
   let outcome = "error";
   let principal: Principal | null = null;
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const supabase = db();
 
   try {
     if (!ACTIONS.includes(action)) throw new Refusal(400, "unknown_action");
     if (!client) throw new Refusal(400, "invalid_client");
     if (!postId && action !== "list") throw new Refusal(400, "post_id_required");
-    principal = await principalFor(supabase, req, client, action);
+    // Started together, looked at in this order (begun): the key, the page switch, the card, its switch row, its
+    // versions, then the card's one link (which waits only on the card).
+    const principalP = begun(principalFor(supabase, req, client, action));
+    const switchOnP = begun(assertSwitchOn(supabase, client));
+    const one = action !== "list";
+    const cardP = one ? begun(readCard(supabase, client, postId)) : null;
+    const swP = one ? begun(readSwitch(supabase, client, postId)) : null;
+    const rowsP = one ? begun(readVersionRows(supabase, client, postId)) : null;
+    const linkP = cardP ? begun(cardP.then((c) => mainLink(supabase, c))) : null;
+    const listP = one ? null : begun(Promise.resolve(supabase.from("trial_reel_cards").select("*").eq("client", client).eq("enabled", true)));
+    principal = await principalP;
     if (principal.kind === "client" && !CLIENT_ACTIONS.includes(action)) throw new Refusal(403, "staff_only");
     if (principal.kind === "staff" && !staffAllows(principal.role, action)) throw new Refusal(403, "role_not_allowed");
-    await assertSwitchOn(supabase, client);
+    await switchOnP;
 
-    // Every card of this client whose switch is on, in one answer (the Calendar draws them all at once).
+    // Every card of this client whose switch is on, in one answer (the Calendar draws them all at once). The cards
+    // are read side by side; a card that cannot be read is left out, as before.
     if (action === "list") {
-      const { data: rows, error } = await supabase.from("trial_reel_cards").select("*").eq("client", client).eq("enabled", true);
+      const { data: rows, error } = await listP!;
       if (error) throw new Refusal(503, "switch_row_unreadable");
-      const cards: JsonMap = {};
-      for (const sw of (rows || []) as JsonMap[]) {
+      const who = principal;
+      const listed = await Promise.all(((rows || []) as JsonMap[]).map(async (sw) => {
         const id = clean(sw.post_id, 120);
+        const versionsP = begun(readVersions(supabase, client, id, sw.winner_letter));
         const card = await readCard(supabase, client, id).catch(() => null);
-        if (!card) continue;
-        const versions = await readVersions(supabase, client, id, sw.winner_letter);
-        const link = await mainLink(supabase, card);
-        if (principal.kind === "staff") await healMain(supabase, client, id, versions, link, principal);
-        cards[id] = { enabled: true, winner_letter: sw.winner_letter || null,
-          ...readShape(versions, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) };
-      }
+        if (!card) return null;
+        const [versions, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
+        if (who.kind === "staff") await healMain(supabase, client, id, versions, link, who);
+        return [id, { enabled: true, winner_letter: sw.winner_letter || null,
+          ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
+      }));
+      const cards: JsonMap = {};
+      for (const entry of listed) if (entry) cards[entry[0]] = entry[1];
       outcome = "ok";
       return json({ ok: true, cards });
     }
 
-    const card = await readCard(supabase, client, postId);
-    const sw = await readSwitch(supabase, client, postId);
+    const card = await cardP!;
+    const sw = await swP!;
     const now = new Date().toISOString();
 
     if (action === "switch_set") {
@@ -327,37 +377,40 @@ Deno.serve(async (req: Request) => {
         ? await supabase.from("trial_reel_cards").update(row).eq("client", client).eq("post_id", postId)
         : await supabase.from("trial_reel_cards").insert({ ...row, created_at: now });
       if (error) throw new Refusal(500, "write_failed");
-      await supabase.from("calendar_post_events").insert({
+      const event = supabase.from("calendar_post_events").insert({
         client, post_id: postId, ts: now, actor: principal.actor, role: principal.role, action: enabled ? "trial_on" : "trial_off",
         component: "video", source: FN, payload: null,
       });
       // A card switched on with no version yet starts with Video A: the video it already carries (best effort; the
-      // list then offers "Add Video B").
-      if (enabled) {
+      // list then offers "Add Video B"). The versions and the link were read with the card.
+      const who = principal;
+      const seed = async () => {
+        if (!enabled) return;
         try {
-          const had = await readVersions(supabase, client, postId, null);
-          const first = cleanLink(await mainLink(supabase, card)).link;
-          if (!had.length && first) await insertVersion(supabase, client, card, postId, "A", first, principal, now);
+          const had = await rowsP!;
+          const first = cleanLink(await linkP!).link;
+          if (!had.length && first) await (await insertVersion(supabase, client, card, postId, "A", first, who, now)).ledger;
         } catch (_e) {
           console.warn(JSON.stringify({ fn: FN, seed: "skipped", post_id: postId }));
         }
-      }
+      };
+      await Promise.all([event, seed()]);
       outcome = "ok";
       return json({ ok: true, enabled });
     }
 
     // Everything else is about the versions of a card whose switch is on.
     if (!sw || sw.enabled !== true) throw new Refusal(409, "trial_reels_off");
-    const versions = await readVersions(supabase, client, postId, sw.winner_letter);
-    const link = await mainLink(supabase, card);
+    const versions = settleWinner(await rowsP!, sw.winner_letter) as Version[];
+    const link = await linkP!;
     if (principal.kind === "staff") await healMain(supabase, client, postId, versions, link, principal);
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
 
     if (action === "version_add") {
       const r = addVersion(versions, body.link, link);
       if (r.error || !r.letter || !r.link) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error || "version_has_no_link");
-      await insertVersion(supabase, client, card, postId, r.letter, r.link, principal, now);
-      const after = await readVersions(supabase, client, postId, sw.winner_letter);
+      const { ledger } = await insertVersion(supabase, client, card, postId, r.letter, r.link, principal, now);
+      const [after] = await Promise.all([readVersions(supabase, client, postId, sw.winner_letter), ledger]);
       outcome = "ok";
       return json({ ok: true, changed: [r.letter], winner_letter: sw.winner_letter || null,
         ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
@@ -370,8 +423,23 @@ Deno.serve(async (req: Request) => {
         out.video_deliverable_id = card.video_deliverable_id || null;
         if (body.probe === true) {
           const rows = out.versions as JsonMap[];
-          const states = await Promise.all(rows.map((r) => probeLink(clean(r.frame_url, 2048))));
-          out.link_states = Object.fromEntries(rows.map((r, i) => [r.letter, states[i]]));
+          const checks = rows.map((r) => probeLink(clean(r.frame_url, 2048)));
+          // probe_budget_ms (Production's first read): wait that long at most. A link still being checked answers
+          // "checking", its check runs on, and probe_pending tells the page to ask once more without a budget; that
+          // read joins the running checks or finds their verdicts kept. Without it, the read waits for every check.
+          const budget = Math.min(Math.max(Number(body.probe_budget_ms) || 0, 0), PROBE_TIMEOUT_MS);
+          let states: (JsonMap | null)[];
+          if (budget > 0) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const late = new Promise<null>((res) => { timer = setTimeout(() => res(null), budget); });
+            states = await Promise.all(checks.map((c) => Promise.race([c, late])));
+            clearTimeout(timer);
+            if (states.some((x) => !x)) {
+              out.probe_pending = true;
+              keepRunning(Promise.allSettled(checks));
+            }
+          } else states = await Promise.all(checks);
+          out.link_states = Object.fromEntries(rows.map((r, i) => [r.letter, states[i] || { state: "checking" }]));
         }
       }
       outcome = "ok";
@@ -419,19 +487,22 @@ Deno.serve(async (req: Request) => {
     }
 
     await applyChanges(supabase, versions, changes, now);
+    // Read back what the page should now show, while the card's winner and the ledger are written. The ledger still
+    // waits for the card's winner, so a refused winner write leaves no ledger line, as before.
+    const afterP = begun(readVersions(supabase, client, postId,
+      action === "winner_set" ? letter : action === "winner_undo" ? null : sw.winner_letter));
     if (action === "winner_set" || action === "winner_undo") {
       const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: action === "winner_set" ? letter : null, updated_at: now, updated_by: principal.actor })
         .eq("client", client).eq("post_id", postId);
       if (error) throw new Refusal(500, "write_failed");
     }
-    if (changes.length) {
-      const rows = ledgerRows(client, postId, changes, principal, now, action === "answer" ? clean(body.kind, 20).toLowerCase() : action);
+    const ledger = async () => {
+      if (!changes.length) return;
+      const rows = ledgerRows(client, postId, changes, principal!, now, action === "answer" ? clean(body.kind, 20).toLowerCase() : action);
       const { error } = await supabase.from("calendar_post_events").insert(rows);
       if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
-    }
-    // Read back what the page should now show.
-    const after = await readVersions(supabase, client, postId,
-      action === "winner_set" ? letter : action === "winner_undo" ? null : sw.winner_letter);
+    };
+    const [after] = await Promise.all([afterP, ledger()]);
     const fresh = readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status });
     outcome = "ok";
     return json({ ok: true, changed: changes.map((c) => c.letter), ...extra, ...fresh });

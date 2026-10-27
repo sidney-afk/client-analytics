@@ -48,8 +48,11 @@ function matches(row: Row, params: URLSearchParams): boolean {
 }
 
 const moved = { id: "" };
+// Each answer of the stand-in database can be made to take this long (the speed checks at the end).
+const latency = { ms: 0 };
 const realServe = Deno.serve.bind(Deno);
 const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (req) => {
+  if (latency.ms) await new Promise((r) => setTimeout(r, latency.ms));
   const u = new URL(req.url);
   const t = u.pathname.replace(/^\/rest\/v1\//, "");
   const rows = tables[t];
@@ -325,6 +328,61 @@ await step({ action: "switch_set", enabled: true, post_id: "p6" });
 ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66666666-6666-4666-8666-666666666666", "a card with a del_ sub-issue starts with Video A, its sub-issue stored as the uuid");
 const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
 ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
+
+// SPEED (session Swift, OPEN_REPAIRS 547). The owner found every trial action slow: each request waited on about eight
+// database answers one after another, and Production's read on every version link's check (about 2 s live). Here
+// every database answer takes 60 ms, so a request's time counts the answers it waited on in a row. Today: two for a
+// read, four for a write (the card's winner adds one), and a link check never holds a budgeted read past its budget.
+{
+  const RT = 60;
+  tables.calendar_posts.push({ id: "p7", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p7-a", video_deliverable_id: "77777777-7777-4777-8777-777777777777" });
+  tables.deliverables.push({ id: "77777777-7777-4777-8777-777777777777", file_url: "https://f.io/p7-a" });
+  tables.trial_reel_cards.push({ client: "fixtureclient", post_id: "p7", enabled: true, winner_letter: null });
+  ["A", "B", "C"].forEach((l, i) => tables.studio_trial_versions.push({ ...v("A"), id: "p7" + l, letter: l, post_id: "p7", status: "waiting",
+    frame_url: "https://f.io/p7-" + l.toLowerCase(), smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, created_at: "2026-10-27T09:00:0" + i + ".000Z", updated_at: "2026-10-27T09:00:0" + i + ".000Z" }));
+  // The providers answer slowly here (live: about 2 s for a Frame.io link and its redirects).
+  const slowFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = ((input: Request | URL | string, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname === "127.0.0.1") return slowFetch(input, init);
+    providerCalls++;
+    return new Promise<Response>((r) => setTimeout(() => r(new Response("<html>Frame.io review</html>", { status: 200, headers: { "content-type": "text/html" } })), 1500));
+  }) as typeof fetch;
+  latency.ms = RT;
+  const timed = async (body: Row, who: "smm" | "admin" = "admin") => {
+    const t0 = performance.now();
+    const r = await step({ post_id: "p7", ...body }, who);
+    return { ...r, trips: (performance.now() - t0) / RT };
+  };
+  const plan: [string, Row, number][] = [
+    ["read", { action: "read" }, 2.5],
+    ["list", { action: "list", post_id: "" }, 3.5],
+    ["drop", { action: "version_drop", letter: "C" }, 4.5],
+    ["restore", { action: "version_restore", letter: "C" }, 4.5],
+    ["paste a link", { action: "version_link_set", letter: "B", link: "https://f.io/p7-b2" }, 4.5],
+    ["approve", { action: "answer", stage: "smm", kind: "approve", letter: "B" }, 4.5],
+    ["add a version", { action: "version_add", link: "https://f.io/p7-d" }, 4.5],
+    ["switch", { action: "switch_set", enabled: true }, 3.5],
+  ];
+  for (const [name, body, most] of plan) {
+    const r = await timed(body);
+    ok(r.body.ok === true && r.trips <= most, name + ": answers after " + r.trips.toFixed(1) + " database answers in a row (at most " + most + "; " + r.status + " " + (r.body.error || "") + ")");
+  }
+  const first = await timed({ action: "read", probe: true, probe_budget_ms: 250 });
+  const fs = (first.body.link_states || {}) as Record<string, Row>;
+  ok(first.body.ok === true && first.trips * RT < 2 * RT + 250 + 150 && first.body.probe_pending === true && fs.A?.state === "checking",
+    "Production's first read answers within its budget (" + Math.round(first.trips * RT) + " ms), the links it is still checking as \"checking\"");
+  const callsAfterFirst = providerCalls;
+  const second = await timed({ action: "read", probe: true });
+  const ss = (second.body.link_states || {}) as Record<string, Row>;
+  ok(ss.A?.state === "available" && !second.body.probe_pending && providerCalls === callsAfterFirst,
+    "its follow-up read joins the checks already running instead of starting them again, and gets their verdicts");
+  const third = await timed({ action: "read", probe: true, probe_budget_ms: 250 });
+  ok(!third.body.probe_pending && (third.body.link_states as Record<string, Row>).A?.state === "available" && third.trips <= 2.5, "a page reopened at once gets the kept verdicts in the first read");
+  latency.ms = 0;
+  globalThis.fetch = slowFetch;
+}
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

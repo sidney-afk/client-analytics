@@ -192,7 +192,10 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   ok(!/video_status\s*:/.test(code) && !/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'the function never writes the card (no status, no link)');
   ok(!/\.from\("deliverables"\)\s*\.(update|insert|upsert)/.test(code) && !/production-write|production_artifact_write/.test(code), 'the function never writes the sub-issue or calls a Section 4 function');
-  ok((code.match(/await readVersions\(/g) || []).length >= 3 && !/await readVersions\(supabase, client, (postId|id)\)/.test(code) && /return settleWinner\(/.test(code),
+  // Since OPEN_REPAIRS 547 the reads start together, so they are not all awaited where they are made: every one still
+  // names a winner letter, and the rows read with the card are settled against the card's own.
+  ok((code.match(/readVersions\(supabase, client, (postId|id),/g) || []).length >= 3 && !/readVersions\(supabase, client, (postId|id)\)/.test(code)
+    && /return settleWinner\(/.test(code) && /settleWinner\(await rowsP!, sw\.winner_letter\)/.test(code),
     "every versions read passes the card's winner letter through settleWinner");
   ok(/assertSwitchOn\(supabase, client\)/.test(code) && /CLIENT_ACTIONS\.includes\(action\)/.test(code), 'every request checks the switch; a client link may only read and answer');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261027090000_trial_reels.sql'), 'utf8');

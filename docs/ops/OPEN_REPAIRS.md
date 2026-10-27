@@ -34725,3 +34725,29 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The type ratchet adds no errors.
 
 **Way back:** revert the pull request.
+
+## 547. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every action answers in about half the time, and Production's versions draw without waiting on the link checks (session Swift)
+
+- **Owner, 2026-10-27:** every trial action felt slow (paste, drop, switch), and the new Production rows must not slow anything.
+- **Measured live first (read-only, test client only):** #2359 did not slow SyncLinear or Production. First rows took 1785 ms before and 1793 ms after (medians of 5). Production boot made 59-60 requests either way. A task's Assets drew in about 100 ms either way. The one new request is one trial-reels read, on the test client's trial video task only. But that read took about 2 s, and every action was slow on the server itself.
+- **Where the time went (the function's own `ms` log, last 24 h, server time, medians):**
+  - Writes waited on about eight database answers one after another: drop 555 ms, restore 467, paste a link 601, add a version 649, switch 508, approve 375. Before any write it read the page switch, then the card, its switch row, its versions and the card's link, each in turn; then it wrote the versions one by one, then the ledger line, then read the versions back.
+  - `list` read every card in turn: 418 ms with one card, growing with each card.
+  - Production's read with `probe: true` waited on every version link's check at Frame.io and its redirects: 1.5 to 2.9 s.
+  - Not the cold start: the worker boots in 29 ms (median; at most 65). But 205 boots served 249 requests, so the five-minute keep of link verdicts in memory rarely helps.
+- **Fix (`supabase/functions/trial-reels/index.ts`, no rule changed):**
+  - Every read a request may need starts at once. Their answers are looked at in the old order, so every refusal is the same as before, for the same reason.
+  - A set of version writes goes out together. All or nothing is kept: the rows already written are put back on a conflict.
+  - The ledger line and the read-back go out together. The winner's card row still goes before the ledger, so a refused winner write still leaves no ledger line.
+  - `list` reads its cards side by side, and its switch rows with the page switch.
+  - Production's first read waits at most `probe_budget_ms` (250 ms). A link still being checked answers "checking", `probe_pending` is set, and the check runs on. A link already being checked is joined, not checked again.
+  - A read without the budget waits for every check, as before, so an older page is unchanged.
+- **Page (`src/index/245-production-trial-versions.js.part`):** the versions draw from the first read, with a skeleton pill where a state is still being checked. One more read, without a budget, fills the states in. That is one extra request, only when the providers are slow.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts`: every database answer of the stand-in takes 60 ms, so the time of each action counts the answers it waited on in a row. Now: read 2.1, list 3.3, drop, restore, paste, approve and add 4.2, switch 3.2. The budgeted read answers in 378 ms against 1.5 s providers. On main's function the same checks fail 10 times: read 5.3, list 19.8, writes 8.3, switch 7.3, budgeted read 1814 ms.
+  - `test/trial-reels-production-browser.js`: one budgeted read on opening; with slow providers, exactly one more read brings the states.
+  - All of these pass: the card, race, link-guard, empty-card and logic tests, `prod-boot-budget.js`, `prod-write-gateway-browser.js`, and the Deno type ratchet (no new errors).
+- **Expected live:** writes about 280 ms server time (4 answers in a row at the measured ~70 ms each), reads about 150 ms, `list` about 240 ms. To be checked in the function's own `ms` log after the merge lane deploys it. trial-reels is not a Section 4 function.
+- **Still open:** a fresh worker on most requests means the follow-up read usually checks the links again (about 2 s, while the rows are already drawn). Keeping verdicts across workers would need a table.
+
+**Way back:** revert the pull request.

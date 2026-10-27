@@ -41,19 +41,19 @@ Status at Trials is as of the last retest on build 6.
 | 5 | Multi-row writes were not atomic: a studio write mid-winner left A, B, D `lost`, C `winner`, E on trial, no winner letter and no ledger rows | index.ts applyChanges | **fixed** (rows already written are put back on a conflict), verified under Deno |
 | 6 | With one live version the review page skipped the version answer: card Approved, version `waiting`, trial unable to start | 194 svTrialReviewShape | **fixed**, verified in a browser |
 | 7 | A JSON `null` body threw out of the handler (500, no CORS, no log line) | index.ts | **fixed**, verified under Deno |
-| 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **open**, proven by `test/trial-reels-race-browser.js` |
-| 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **open**, proven in a browser |
+| 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **fixed on build 2** (6c87b2b; the race test, adopted by Trials with 3 races, passes 15/15 there). **REGRESSION on builds 3 and 4:** the 2 → 3 merge dropped `_trlCall`, so every winner pick and Undo fails with "the versions could not be read" (race 5/15). Sent to Trials. |
+| 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **fixed on build 4** (4818a37), verified (client scenario passes) |
 | 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **open**, proven in a browser |
 | 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway: card and version disagree (the duplicate case for good, since the heal skips it), and the page says "did not save" | 189 svTrialLinkSave | **open**, proven in a browser |
-| E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | sent |
-| E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | sent |
+| E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | fixed per Trials (ce0ef56); the long-value state not re-measured |
+| E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | **fixed** (ce0ef56), verified: today's row reads "Open link · on the card · Available" |
 
 ### Rule-misses
 
 | # | what | status |
 |---|---|---|
 | 8 | `version_link_set` lacked Production's attach role rule | **partly fixed** (staffAllows: admin and SMM everything, creative only links, automation read-only; no member-team check, because the shared auth gives the role only) |
-| 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | open, proven in a browser |
+| 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | **fixed on build 4**, verified (it marks the version on stage; stamping the others is left to the owner) |
 | 13 | The review pages offer Approve, a dot and a place in "Approve all N" for a version the server refuses for stage order (no SMM OK yet, for example after a new cut) | open (traced) |
 | E1 | Review page: the bar sits above the player, with the arrows next to the label. The approved mock has the arrows beside the player, and "Video A of 5" and the dots under the video | open |
 | E2 | The dots carry no letter (plan and mock: letter dots) | open |
@@ -62,7 +62,7 @@ Status at Trials is as of the last retest on build 6.
 | E5 / K6 | "Finish reviewing" counts parts, not versions (plan §5) | open |
 | E6 | Button words: plan and mock say "Approve this version"; the SMM and Kasper buttons do not name the version they approve | open |
 | E7 / K3 | The player badge reads "Video", not "Video C" (R3) | open |
-| E8 | The card switch knob is dark in dark mode (`var(--sv-bg-fff)` flips); the approved pictures show a light knob | open |
+| E8 | The card switch knob is dark in dark mode (`var(--sv-bg-fff)` flips); the approved pictures show a light knob | **fixed** (126e26f, `--sv-knob`), seen in a dark screenshot |
 | K2 | Kasper layout 2: tile Approves plus the video part's own Approve and Ask for change under the player (two Approves, visual noise) | open |
 | K4, K5 | Kasper layout 2: Approve all's place and style; the "5 versions" line in the left list | open |
 

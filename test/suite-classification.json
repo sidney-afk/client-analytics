@@ -2180,6 +2180,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-journey-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. One trial card through its whole life (session Probe): switch off, links on the card and in Production, the SMM, a change and its new cut, Kasper, the client, the trial, the timer, the trophy, the winner, Undo, Posted and the switch off again, checking the card's one link at every step.",
+      "reproduce": "node test/trial-reels-journey-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-review-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

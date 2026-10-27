@@ -1778,6 +1778,9 @@
         .cal-link-post .trl-sw-slot.on .trl-sw::after { left: 12px; }
         .cal-link-post .trl-sw-slot:not(.on) { opacity: .45; }
         .cal-link-post:hover .trl-sw-slot:not(.on), .cal-link-post .trl-sw-slot:focus-visible { opacity: .9; }
+        /* A card with no Video link yet: the switch sits at the end of today's empty field, in the field's colours. */
+        .cal-link-post:not(.has-link) .trl-sw-slot { background: var(--field-bg); color: var(--text-muted); border-radius: 0 8px 8px 0; }
+        .cal-link-post:not(.has-link):has(.trl-sw-slot) .cal-link-input { border-radius: 8px 0 0 8px; }
         .cal-link-post .trl-chev svg { width: 10px; height: 10px; transition: transform .15s; }
         .cal-link-post.trl-open .trl-chev svg { transform: rotate(180deg); }
         .cal-link-post .trl-state-ico svg { width: 13px; height: 13px; opacity: .85; }

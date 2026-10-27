@@ -322,8 +322,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         try { await _trlSetCardLink(post, v.frame_url); }
         catch (e) { _trlSay(e, 'The winner'); return; }
         const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
-        if (!json) return;
+        // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
+        // so the card and the versions never disagree (the refusal is already on screen).
+        if (!json) { await _trlPutBack(post, before, v.frame_url); return; }
         showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid, before) });
+    }
+    async function _trlPutBack(post, link, now) {
+        if (!link || link === now) return;
+        try { await _trlSetCardLink(post, link); }
+        catch (e) { showNotify("The card's Video link was not put back", 'It now opens another version. Set the Video link by hand, then try again.'); }
+        _trlRepaintField(post.id);
     }
     async function _trlUndoPick(pid, before) {
         const post = _trlPost(pid);
@@ -331,10 +339,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const a = shape && (shape.versions || []).find(x => x.letter === 'A');
         const link = (a && a.frame_url) || before;
         if (!post || !link) return;
+        const winnerLink = post.asset_url;
         try { await _trlSetCardLink(post, link); }
         catch (e) { _trlSay(e, 'Undo'); return; }
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
         if (json) showToast('Back on trial');
+        else await _trlPutBack(post, winnerLink, link);   // the winner stands, so its link does too
     }
 // Production's Assets (245) read and write the same versions through the same calls and labels.
 

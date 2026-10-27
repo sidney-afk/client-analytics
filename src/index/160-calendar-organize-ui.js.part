@@ -3267,7 +3267,7 @@ import { svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.j
                 ${input}
             </div>`;
         }
-        return `<div class="cal-link-field cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">${input}</div>`;
+        return `<div class="cal-link-field cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">${input}${trialSwitch}</div>`;
     }
     function _calOnLinkInput(input) {
         _calOnFieldInput(input);

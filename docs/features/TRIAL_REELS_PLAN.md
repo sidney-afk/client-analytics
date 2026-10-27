@@ -326,7 +326,10 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   back through For SMM Approval and Kasper Approval as today; each stage stops only on the versions that lack that
   reviewer's OK, and the other versions keep their answers.
 - **Dropped** versions are skipped by every stage and by the "every version" count. **Only the team can drop** (Q2); the
-  client page has no drop button.
+  client page has no drop button. **The version on the card can be dropped too** (default awaiting the owner, 2026-10-27,
+  Supervisor's call (c)): today's attach first puts the next live version's link on the card, so "on the card" moves to
+  it (the winner, else the live version whose link the card carries, else the first live one), then the old one drops.
+  The last live version cannot be dropped. One revert puts back "Video A is always on the card".
 - **The stage (195).** On a card with the switch on, for a client the page switch lists, `_rsCompsOf` replaces the
   `video` part with a `versions` part: today's player (`svFrameStageMount`) for the version on stage, arrows on each
   side (and ← → keys), swipe on a phone, "Video B of 5" with a row of letter dots carrying each version's answer

@@ -34789,3 +34789,23 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The type ratchet adds no errors.
 
 **Way back:** revert the pull request.
+
+## 549. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels review page: a trial video did not say it was one, and Approve waited for the server (session Trials)
+
+- **What Sidney asked:**
+  - "It should say that it's a trial video whenever we view it" in the review pages.
+  - "Everything should feel fast."
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - A small muted "TRIAL" now sits over the version's name ("Video A of 5"). It shows on the client link, the SMM's Review tab and both of Kasper's layouts. It is one word and no pill. It does not go on the player's badge, because the page hides that badge on a narrow 9:16 player. On a phone the swipe hint moves under the dots, so the word sits right over the name.
+  - Approve and Approve all now answer at once. The version reads approved and the page moves to the next one before the server answers.
+  - One card's answers go to the server one at a time, in order. Only the latest reply is drawn, so a second Approve right after the first is never undone by the first one's reply.
+  - A refused answer puts the version back, says "Video C was not approved", and reloads the card from the server.
+  - Today's approve on the card still runs only once the server says the stage is done.
+- **Proven:** `test/trial-reels-review-browser.js` (58). Without the fix it failed:
+  - the marker on all four surfaces;
+  - Approve answering in under 600 ms on a 1.5 s line;
+  - two quick Approves both reaching the server in order;
+  - a refused one going back.
+- **Notes player marker:** that comes with build 5 (#2364), the Notes player's version switch.
+
+**Way back:** revert the pull request.

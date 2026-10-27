@@ -2,7 +2,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
-  svAlsoSeesNames, svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
+  svAlsoSeesNames, svClientKey, svCurrentClients, svOwnTestClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
@@ -198,8 +198,11 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         // measured 2026-10-07); _tdyFetch checks again when Clients Info lands
         // and reads again if the two differ. The dropdown never takes this.
         if (!cur.size && fast) {
-            const stand = svCurrentClients((Array.isArray(rows) ? rows : []).filter(c => c && c.active !== false).map(c => c.display_name || c.slug), rows);
-            if (stand.size) { stand.provisional = true; return stand; }
+            const basis = (Array.isArray(rows) ? rows : []).filter(c => c && c.active !== false).map(c => c.display_name || c.slug);
+            const stand = svCurrentClients(basis, rows);
+            // basis: the names the stand-in was built from, so the person's
+            // own test client (svOwnTestClients) is read from the same list.
+            if (stand.size) { stand.provisional = true; stand.basis = basis; return stand; }
         }
         if (!cur.size && _tdyClientsInfo) { try { await _tdyClientsInfo; } catch (e) {} cur = svCurrentClients(undefined, rows); }
         if (!cur.size) throw new Error('clients');
@@ -227,7 +230,8 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const [rows, managers] = await Promise.all([_tdyClients(), _tdyRoster()]);
         const current = await _tdyCurrent(rows);
         if (!managers) throw new Error('roster');
-        return svSmmCurrentClients(await _tdyRosterEntry(me, managers), current, svAlsoSeesNames(_tdyAlsoSees, managers, me.id));
+        const entry = await _tdyRosterEntry(me, managers);
+        return svSmmCurrentClients(entry, current, svAlsoSeesNames(_tdyAlsoSees, managers, me.id), svOwnTestClients(entry, rows));
     }
     /* The current Clients Info clients this person may see: their own roster
        clients, or every one for an admin who is not on the roster (see
@@ -235,19 +239,22 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     async function _tdyVisibleClients(me, rows) {
         const isAdmin = me.role === 'admin';
         const [current, managers] = await Promise.all([_tdyCurrent(rows, true), _tdyRoster()]);
-        const provisional = current.provisional ? [...current.keys()] : null;
         // An admin can always fall back to every client; an SMM cannot guess.
         if (!managers && !isAdmin) throw new Error('roster');
         const entry = managers ? await _tdyRosterEntry(me, managers) : null;
-        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false, provisional, mode: 'all', own: [], also: [] };
+        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false, provisional: current.provisional ? [...current.keys()] : null, mode: 'all', own: [], also: [], ownTest: new Set(), entry: null };
+        // The test clients the person's own roster row lists (rule 4's
+        // exception): theirs only, never anyone else's, never "all".
+        const ownTest = svOwnTestClients(entry, rows, current.basis);
+        const provisional = current.provisional ? [...current.keys(), ...ownTest.keys()] : null;
         const also = managers ? svAlsoSeesNames(_tdyAlsoSees, managers, me.id) : [];
-        const mine = svSmmCurrentClients(entry, current, also);
+        const mine = svSmmCurrentClients(entry, current, also, ownTest);
         // Which of them are the person's own (the roster) and which they only
         // also see (smm_also_sees): the chips under the greeting show both,
         // apart. Same rule, same data; nothing more is read.
-        const own = svSmmCurrentClients(entry, current);
+        const own = svSmmCurrentClients(entry, current, [], ownTest);
         const ownKeys = new Set(own.map(svClientKey));
-        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, provisional, mode: 'mine', own, also: mine.filter(n => !ownKeys.has(svClientKey(n))) };
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, provisional, mode: 'mine', own, also: mine.filter(n => !ownKeys.has(svClientKey(n))), ownTest: new Set(ownTest.keys()), entry };
     }
     /* The signed-in member's own roster clients for the dropdown: { id, names }.
        Anyone on the SMM roster gets their clients, admins included (an admin
@@ -323,8 +330,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             const names = {};
             clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
             const child = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid));
-            const scope = new Set(clients.filter(c => String(c.kind || '').toLowerCase() !== 'test'
-                && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
+            // A test client is in scope only as the person's own (rule 4).
+            const isKey = (set, c) => set.has(svClientKey(c.display_name)) || set.has(svClientKey(c.slug));
+            const scope = new Set(clients.filter(c => (String(c.kind || '').toLowerCase() !== 'test' || isKey(visible.ownTest, c))
+                && isKey(visible.keys, c)).map(c => c.slug));
             const inScope = r => scope.has(r.client_slug || r.client);
             const [open, done, posts, capTweaks] = await reads;
             const openIn = open.filter(r => child(r) && inScope(r) && _tdyFresh(r));
@@ -338,7 +347,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             };
             const chips = list => list.map(bySlug).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
             const mineClients = { mode: visible.mode, own: chips(visible.own), also: chips(visible.also) };
-            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: openIn, upload, done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope), capTweaks: (capTweaks || []).filter(inScope) };
+            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, rosterEntry: visible.provisional ? visible.entry : null, open: openIn, upload, done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope), capTweaks: (capTweaks || []).filter(inScope) };
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
@@ -621,7 +630,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return null;
     }
     function _tdyCacheWrite(who, data) {
-        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ v: TDY_SAVED_V, who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data: { ...data, clientRows: null } })); } catch (e) {}
+        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ v: TDY_SAVED_V, who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data: { ...data, clientRows: null, rosterEntry: null } })); } catch (e) {}
     }
     /* The painted page, for the boot shell's instant paint on a reload. The
        "Updating" mark is left out; the boot shell adds it back, since what it
@@ -894,7 +903,8 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (!_tdyClientsInfo) return;
         _tdyClientsInfo.then(() => {
             if (tdyState.data !== data || tdyState.who !== who) return;
-            const real = [...svCurrentClients(undefined, data.clientRows).keys()].sort().join('|');
+            const cur = svCurrentClients(undefined, data.clientRows);
+            const real = cur.size ? [...cur.keys(), ...svOwnTestClients(data.rosterEntry, data.clientRows).keys()].sort().join('|') : '';
             if (!real || real === [...data.provisional].sort().join('|')) return;
             tdyState.freshAt = 0;
             if (document.getElementById('tdyRoot')) mountTodayView(true);

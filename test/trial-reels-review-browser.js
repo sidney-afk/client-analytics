@@ -16,6 +16,7 @@
  *     "Video C:";
  *   - once a winner is picked the client sees only "Video C: the one we are posting";
  *   - no page errors.
+ * TRIAL_REVIEW_SHOTS=<dir> also writes a screenshot of Kasper's second layout (fictional data only).
  */
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -36,12 +37,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   const fresh = (over) => ['A', 'B', 'C', 'D', 'E'].map(l => Object.assign({ id: 'v' + l, letter: l, status: 'waiting', frame_url: LINK(l), revision: 0, updated_at: '2026-10-27T09:00:00.000Z',
     hook: 'Fictional hook ' + l, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null }, (over || {})[l] || {}));
 
-  async function start(mode, flag, versions) {
+  async function start(mode, flag, versions, extra) {
     // Kasper and the client answer a version only after the SMM (the server holds the order).
     if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
     const T = { versions, calls: [] };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
-      mode !== 'client' ? { staff: STAFF } : {}));
+      mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.T = T;
     T.views = [];
     // The link the player asks the viewer to play (the fixture answers it as usual).
@@ -67,6 +68,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         for (const p of res.patches) Object.assign(T.versions.find(v => v.id === p.id), p.patch);
         return reply(Object.assign({ ok: true }, shape()));
       }
+      if (b.action === 'version_drop') {
+        const res = L.dropPatch(T.versions, b.letter, false);
+        if (res.error) return reply({ ok: false, error: res.error }, 400);
+        if (res.patch) Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+        return reply(Object.assign({ ok: true }, shape()));
+      }
       return reply({ ok: false, error: 'unknown_action' }, 400);
     });
     if (mode === 'client') {
@@ -82,7 +89,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
       await t.page.evaluate(() => onCalViewChange('smmreview'));
     }
-    await waitNew(t);
+    if (extra && extra.layout2) await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
+    else await waitNew(t);
     await sleep(1500);
     return t;
   }
@@ -214,6 +222,43 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.versions.every(v => v.smm_ok_at) && t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), 'SMM: Approve all, then today\'s save moves the video to Kasper Approval');
     ok(!t.errors.length, 'SMM: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+    // ---------- Kasper's second layout: every version side by side (decision 4) ----------
+    t = await start('kasper', true, fresh(), { layout2: true });
+    const tiles = () => t.page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot;
+      return { names: [...r.querySelectorAll('.trk-v .trk-n')].map(n => n.textContent.trim()), bar: !!r.querySelector('.trv'),
+        ok: r.querySelectorAll('.trk-v [data-trk-ok]').length, cur: ((r.querySelector('.trk-v.cur .trk-n') || {}).textContent || '').trim(),
+        labs: [...r.querySelectorAll('.trk-v')].map(v => ((v.querySelector('.trk-lab') || {}).textContent || '').trim()), hook: /Fictional hook/.test(r.innerHTML),
+        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim() };
+    });
+    if (process.env.TRIAL_REVIEW_SHOTS) { require('fs').mkdirSync(process.env.TRIAL_REVIEW_SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'kasper-layout2.png') }); }
+    let k = await tiles();
+    ok(k.names.join('|') === 'Video A|Video B|Video C|Video D|Video E' && !k.bar && !k.hook, 'Kasper, second layout: every version side by side, named Video A to E, no bar and no hook text');
+    ok(k.ok === 5 && /Approve all 5/.test(k.all) && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top; Video A is on stage');
+    await inS(t.page, '.trk-v [data-trk-go="C"]').click();
+    await sleep(1200);
+    k = await tiles();
+    ok(k.cur === 'Video C' && t.T.views.includes(LINK('C')), 'a press on Video C puts it on stage, and only its video loads');
+    n0 = t.state.upserts.length;
+    await inS(t.page, '.trk-v [data-trk-ok="B"]').click();
+    await waitFor(async () => t.T.calls.some(c => c.action === 'answer' && c.letter === 'B'));
+    await sleep(900);
+    k = await tiles();
+    ok(!!t.T.versions[1].kasper_ok_at && k.labs[1] === 'approved' && !t.state.upserts.slice(n0).some(u => u.video_status), "Video B's own Approve stamps his OK there and leaves the card waiting");
+    await inS(t.page, '.trk-v [data-trk-drop="D"]').click();
+    await waitFor(async () => t.T.versions[3].status === 'dropped');
+    await sleep(900);
+    k = await tiles();
+    ok(t.T.versions[3].status === 'dropped' && k.names.length === 4 && !(await inS(t.page, '.trk-v [data-trk-drop="A"]').count()), 'the team drops Video D from its tile; Video A (on the card) has no drop');
+    const gk0 = t.state.gateway.length;
+    await inS(t.page, '[data-trk-all]').click();
+    for (let i = 0; i < 80 && !(t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))); i++) await sleep(100);
+    ok(['A', 'B', 'C', 'E'].every(l => !!t.T.versions.find(v => v.letter === l).kasper_ok_at)
+      && (t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))),
+      'Approve all answers the rest, then today\'s approve sends the video on to the client');
+    ok(!t.errors.length, 'Kasper second layout: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
     // ---------- Kasper's Review Session ----------
     t = await start('kasper', true, fresh());
     b = await bar(t);

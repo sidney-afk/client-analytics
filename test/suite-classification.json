@@ -2085,6 +2085,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-kasper-sample-frame-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus one fictional sample answered by the test), no hosted credentials and no live data. Checks Kasper's Review Session in his second layout on a sample: Tweaks are on Frame and a typed Ask for a change each save the change request and move the video to Tweaks Needed, with the polish (unread_badges_v2) on and off, and no page error (OPEN_REPAIRS 539).",
+      "reproduce": "node test/review-stage-kasper-sample-frame-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

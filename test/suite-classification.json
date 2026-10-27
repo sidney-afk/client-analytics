@@ -2167,6 +2167,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-change-naming-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. On the review page, a change asked on one version and sent after a look at another is recorded on the version it was asked on and named for it; Kasper's Approve after tweaks on a trial card records which version the editor fixes.",
+      "reproduce": "node test/trial-reels-change-naming-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-review-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

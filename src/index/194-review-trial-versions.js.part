@@ -177,8 +177,16 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     function _trvFlush(slug) {
         _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
     }
-    function svTrialReviewChangeText(m, mode, text, frameNote) {
-        const letter = _trvCurOf(m, mode).letter;
+    // The version on screen now ('' when the card has no open trial): a change box remembers it when it opens.
+    function svTrialReviewLetter(m, mode) {
+        return m && m.trial && !m.trial.winner ? _trvCurOf(m, mode).letter : '';
+    }
+    /* `asked` is the version the change was asked on (the box remembers it when it opens, and the client's queue keeps
+       it with each change): a change sent after a look at another version is still about the one it was asked on
+       (Probe bugs 10 and 10b). Without it, the version on screen. */
+    function svTrialReviewChangeText(m, mode, text, frameNote, asked) {
+        const had = asked && m.trial.versions.find(v => v.letter === asked);
+        const letter = had ? had.letter : _trvCurOf(m, mode).letter;
         const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
         _trvPending().push(job); _trvPendingSave();
         job.inFlight = true;
@@ -211,5 +219,5 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 `;
 export {
   TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText,
-  svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape
+  svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape
 };

@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -1165,7 +1165,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
 
     /* ---------- state ---------- */
-    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '' }; }
+    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '', trialLetter: '' }; }
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false, l2: false, cp: false, cpNewFrom: null
@@ -2881,7 +2881,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cc = q('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = q('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
         const rx = q('reX'); if (rx) rx.addEventListener('click', () => { S.note.re = null; _rsRender({ force: true }); _rsFocusTa(); });
-        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; S2.note.trialLetter = b.dataset.pc === 'video' ? svTrialReviewLetter(pm, R.mode) : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
         const mb = q('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = q('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = q('ta');
@@ -3024,9 +3024,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
-        // Trial reels (194): the change is recorded on the version on screen and today's request names it ("Video C: ...").
-        if (comp === 'video' && m.trial && !m.trial.winner && !opts.aat && !opts.trial) {
-            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE);
+        // Trial reels (194): the change is recorded on the version it was asked on (else the one on screen) and today's
+        // request names it ("Video C: ..."). Kasper's "Approve after tweaks" too: it says which version the editor
+        // fixes (Probe rule-miss 11), and then goes on as today.
+        if (comp === 'video' && m.trial && !m.trial.winner && !opts.trial) {
+            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter);
             _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true }));
             return;
         }
@@ -3079,7 +3081,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!sk) return;
         try {
             const all = _rsCpQRead();
-            const items = (q || []).map(n => ({ body: n.body, at: n.created_at }));
+            const items = (q || []).map(n => ({ body: n.body, at: n.created_at, letter: n.letter || '' }));
             if (items.length) all[key] = items; else delete all[key];
             if (Object.keys(all).length) localStorage.setItem(sk, JSON.stringify(all)); else localStorage.removeItem(sk);
         } catch (e) {}
@@ -3097,11 +3099,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsCpQSave(key, []);
         });
     }
-    function _rsCpQueueChange(m, k, text, where) {
+    function _rsCpQueueChange(m, k, text, where, letter) {
         const S = R.S, key = m.id + '|' + k;
         S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
         const q = S.chgQ[key] || (S.chgQ[key] = []);
-        q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString() });
+        // A trial card's change keeps the version it was asked on: it may leave after a look at another one.
+        q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString(), letter: letter || '' });
         _rsCpQSave(m.id + '|' + k, q);
         if (!q.busy) _rsCpDrain(m, k);
         _rsPersistCur();
@@ -3167,7 +3170,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const nx = q.shift();
             _rsCpQSave(key, q);
             delete S.cpBack[key];
-            _rsSendChange(cur, k, nx.body, { where: '', quiet: true });
+            _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '' });
             // The save path can decline before it starts (the part moved on meanwhile): the words go back, never lost.
             if (!_rsSaving(_rsModelById(m.id) || cur, k)) { q.unshift(nx); giveBack('Not sent. Your words are back in the box.'); _rsRender(); return; }
             sent = true;
@@ -3266,6 +3269,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         S.editing = ''; S.menu = '';
         S.note.part = key; S.note.where = where || 'stage'; S.note.aat = !!aat; S.note.re = null;
         const cm = _rsCur(), cx = cm && cm.parts.find(p => p.key === key);
+        // A trial card's change is about the version on screen as the box opens (Probe bugs 10 and 10b).
+        S.note.trialLetter = key === 'video' ? svTrialReviewLetter(cm, R.mode) : '';
         S.note.was = cx ? cx.st : '';
         if (S.step !== key) S.step = key;
         _rsPersistCur();
@@ -3298,6 +3303,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
+        const trialLetter = k === 'video' ? (S.note.trialLetter || svTrialReviewLetter(m, R.mode)) : '';
         const reply = !k && S.note.re && S.note.re.part && m.parts.some(p => p.key === S.note.re.part) ? S.note.re.part : '';
         const replyTo = reply && (R.mode === 'client' || R.cp) ? String(S.note.re.id || '') : '';
         S.saved = null;
@@ -3325,8 +3331,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         // Kasper's "Approve after tweaks" is a decision, not one more change: it goes as it always did.
-        if (k && R.cp && !aat) { _rsCpQueueChange(m, k, t, where); return; }
-        if (k) { _rsSendChange(m, k, t, { where, aat }); return; }
+        if (k && R.cp && !aat) { _rsCpQueueChange(m, k, t, where, trialLetter); return; }
+        if (k) { _rsSendChange(m, k, t, { where, aat, trialLetter }); return; }
         // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
         const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : reply || (m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key);
         _rsSendNoteTo(m, comp, t, vis, comp === reply ? replyTo : '');

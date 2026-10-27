@@ -34618,3 +34618,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-production-browser.js` (24 checks, light and dark; the clipping check fails without the fix).
 
 **Way back:** revert the commit.
+
+## 525. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: a change named for the wrong version, and Approve after tweaks naming none (Probe bug 10, rule-miss 11, session Trials)
+
+- **Bug 10:** a change took the version on screen when it LEFT. A client who asked a change on C, then looked at D before sending (or whose second change waited in the client-polish queue, or in a queue kept over a reload), sent "Video D: …" and marked D. The change box now remembers the version as it opens, the send passes it on, and the client's queue keeps it with each change (also in the copy kept over a reload).
+- **Rule-miss 11:** Kasper's "Approve after tweaks" on a trial card skipped the versions: no version was marked, so nothing said which one the editor fixes. It now goes through the same wrapper as any change: the version is marked "change asked" and today's note starts "Video B: …", then today's Approve after tweaks runs as before. **Owner call:** whether the other versions should get his OK at the same time (not done: he has not looked at them).
+- **Proven:** `node test/trial-reels-change-naming-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-review-browser (29), review-stage-browser, review-stage-client-composer-browser, review-stage-kasper-layout2-browser (188), review-stage-save-browser, check-modules.
+
+**Way back:** revert the commit.

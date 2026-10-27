@@ -36,6 +36,7 @@ import {
   flagAllows,
   LETTERS,
   ledgerRows,
+  staffAllows,
   likeExact,
   linkPatch,
   readShape,
@@ -123,15 +124,33 @@ async function readSwitch(supabase: SupabaseClient, client: string, postId: stri
 }
 
 /* Each patch is written only if the row has not changed since it was read (updated_at), so the studio's writes and
-   ours can never silently undo each other. A row that moved answers conflict and nothing more is written. */
+   ours can never silently undo each other. A set of patches (Approve all, the trial, the winner) is all or nothing:
+   when a row has moved, the rows already written by this request are put back as they were read (each only if still
+   as written), and the request answers conflict, so no half-made winner or half-started trial is ever left. */
 async function applyChanges(supabase: SupabaseClient, versions: Version[], changes: Change[], now: string): Promise<void> {
+  const written: Change[] = [];
   for (const c of changes) {
     const before = versions.find((v) => v.id === c.id);
     let q = supabase.from("studio_trial_versions").update({ ...c.patch, updated_at: now }).eq("id", c.id);
     if (before && before.updated_at) q = q.eq("updated_at", before.updated_at as string);
     const { data, error } = await q.select("id");
-    if (error) throw new Refusal(500, "write_failed");
-    if (!Array.isArray(data) || data.length !== 1) throw new Refusal(409, "conflict");
+    const landed = !error && Array.isArray(data) && data.length === 1;
+    if (!landed) {
+      await undoWritten(supabase, versions, written, now);
+      throw error ? new Refusal(500, "write_failed") : new Refusal(409, "conflict");
+    }
+    written.push(c);
+  }
+}
+
+async function undoWritten(supabase: SupabaseClient, versions: Version[], written: Change[], now: string): Promise<void> {
+  for (const c of written.reverse()) {
+    const before = versions.find((v) => v.id === c.id);
+    if (!before) continue;
+    const back: JsonMap = { updated_at: before.updated_at || null };
+    for (const k of Object.keys(c.patch)) back[k] = (before as JsonMap)[k] ?? null;
+    const { error } = await supabase.from("studio_trial_versions").update(back).eq("id", c.id).eq("updated_at", now);
+    if (error) console.warn(JSON.stringify({ fn: FN, undo: "failed", id: c.id }));
   }
 }
 
@@ -143,6 +162,7 @@ Deno.serve(async (req: Request) => {
   let body: JsonMap;
   try { body = JSON.parse(await req.text()) as JsonMap; }
   catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return json({ ok: false, error: "invalid body" }, 400);
 
   const action = clean(body.action, 40).toLowerCase();
   const client = normalizeBrowserWriteClient(body.client);
@@ -159,6 +179,7 @@ Deno.serve(async (req: Request) => {
     if (!postId) throw new Refusal(400, "post_id_required");
     principal = await principalFor(supabase, req, client, action);
     if (principal.kind === "client" && !CLIENT_ACTIONS.includes(action)) throw new Refusal(403, "staff_only");
+    if (principal.kind === "staff" && !staffAllows(principal.role, action)) throw new Refusal(403, "role_not_allowed");
     await assertSwitchOn(supabase, client);
 
     const card = await readCard(supabase, client, postId);
@@ -217,11 +238,11 @@ Deno.serve(async (req: Request) => {
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "winner_set") {
-      const r = winnerPatches(versions, letter, link);
+      const r = winnerPatches(versions, letter, link, { nowMs: Date.now(), cardStatus: card.video_status });
       if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
       changes = r.patches as Change[];
     } else if (action === "winner_undo") {
-      const r = undoWinnerPatches(versions, link);
+      const r = undoWinnerPatches(versions, link, { cardStatus: card.video_status });
       if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
       changes = r.patches as Change[];
     }

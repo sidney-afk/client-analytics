@@ -1832,6 +1832,8 @@
         .fv-stage-foot.trl-foot { justify-content: space-between; flex-wrap: wrap; }
         .trl-notes-bar { display: flex; justify-content: center; padding: 6px 16px 2px; }
         .trl-notes-bar .cal-cm-aud-btn { min-width: 40px; min-height: 36px; justify-content: center; text-align: center; }
+        .trl-notes-bar { align-items: center; gap: 12px; flex-wrap: wrap; }
+        .trl-notes-open { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }

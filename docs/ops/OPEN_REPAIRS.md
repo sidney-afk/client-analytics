@@ -34648,3 +34648,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (37 checks, now with places, letters, Approve all, the count, the badge, the keys, and a phone with swipe), trial-reels-change-naming-browser, review-stage-browser, review-stage-client-layout-browser, review-stage-kasper-layout2-browser (188), review-stage-finish-browser, check-modules, no-sending-words, no-hardcoded-colors.
 
 **Way back:** revert the commit.
+
+## 527. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Notes: a version with a Google Drive or Dropbox link hid the version switch (Codex on PR 2364, session Trials)
+
+- **What was wrong:** the Notes view's version switch sat in the player's own footer. Picking a version whose link is Google Drive or Dropbox (both accepted for versions) left no player, so the switch went too, and nothing could pick another version again, not even after closing and reopening Notes (the pick is kept).
+- **Fix (`190`):** where the card's own video would play, a version that cannot play keeps the switch in the slim bar under the stage, with "Open this version" beside it. `187` exports `svFrameStageFor` for that check.
+- **Proven:** `node test/trial-reels-notes-browser.js` (19 checks; the new Drive check fails without the fix), frame-comments-in-notes-browser, frameio-viewer-browser, and the other trial suites.
+
+**Way back:** revert the commit.

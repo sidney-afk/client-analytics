@@ -114,6 +114,8 @@ const off = await step({ action: "read" });
 ok(off.status === 409 && off.body.error === "trial_reels_off", "a card whose switch is off answers trial_reels_off");
 const on = await step({ action: "switch_set", enabled: true });
 ok(on.body.ok === true && tables.trial_reel_cards.length === 1, "switch_set turns the card's switch on");
+const listed = await step({ action: "list", post_id: "" });
+ok(listed.body.ok === true && Object.keys(listed.body.cards as Row).join() === "p1" && ((listed.body.cards as Row).p1 as Row).main_letter === "A", "list: every card of the client whose switch is on, in one answer");
 const readStaff = await step({ action: "read" });
 ok(readStaff.body.ok === true && (readStaff.body.versions as Row[]).length === 5 && readStaff.body.main_letter === "A", "staff read: five versions, Video A on the card");
 {
@@ -218,6 +220,20 @@ const half = await step({ action: "answer", stage: "smm", kind: "approve_all", p
 const p3 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "p3" + l)!;
 ok(half.status === 409 && half.body.error === "conflict" && !p3("A").smm_ok_at && !p3("B").smm_ok_at && p3("A").updated_at === "2026-10-27T09:00:00.000Z",
   "a row moved mid-write: the rows already written are put back, and the request answers conflict");
+
+// The winner is SyncView's alone (owner, 2026-10-27): a "winner" the studio writes on a row is never read.
+Object.assign(p3("B"), { status: "winner" }); Object.assign(p3("C"), { status: "lost" });
+const studioOnly = await step({ action: "read", post_id: "p3" }, "client-none");
+const soRows = (studioOnly.body.versions || []) as Row[];
+ok(studioOnly.body.ok === true && soRows.length === 3 && !soRows.some((r) => r.status === "winner"), "a studio-written winner with no winner letter on the card: the client still sees every version, none a winner");
+const soUndo = await step({ action: "winner_undo", post_id: "p3" });
+ok(soUndo.status === 400 && soUndo.body.error === "no_winner", "and there is no winner to undo");
+Object.assign(v("A"), { status: "winner" });
+const cardWins = await step({ action: "read" }, "client-none");
+const cwRows = (cardWins.body.versions || []) as Row[];
+ok(cwRows.length === 1 && cwRows[0].letter === "C" && cardWins.body.main_letter === "C", "the studio writing winner on Video A changes nothing: the card's letter (C) is the winner");
+const staffWins = await step({ action: "read" });
+ok(((staffWins.body.versions || []) as Row[]).find((r) => r.letter === "A")?.status === "lost", "staff see Video A as lost, as the card says");
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

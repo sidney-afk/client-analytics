@@ -209,5 +209,6 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(/detail->>idempotency_key/.test(fnSrc), 'ingest dedupes on the idempotency key');
   ok(!/console\.(log|error|warn)\([^)]*v\.person/.test(fnSrc), 'ingest never logs contact details');
   ok(/if \(v\.matchOnly\) \{[\s\S]{0,200}matched: false/.test(fnSrc), 'match_only never creates a person');
+  ok(/b4_service_role_probe/.test(fnSrc) && /await serverKeyOk\(req\)/.test(fnSrc), 'a newer secret key is checked against the database, not refused');
   console.log('crm-leads: ' + passed + ' checks passed');
 })().catch((e) => { console.error('FAIL ' + e.message); process.exit(1); });

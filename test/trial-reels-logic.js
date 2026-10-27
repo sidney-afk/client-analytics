@@ -131,6 +131,9 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(s2.versions.length === 1 && s2.versions[0].letter === 'C', 'once a winner is picked, a client link sees only the winner (owner, Q8)');
   const s3 = L.readShape([v('A', { frame_url: 'https://f.io/old-a' }), v('B')], { client: false, mainLink: A_LINK, cardStatus: 'Client Approval' });
   ok(s3.versions[0].frame_url === A_LINK && s3.versions[0].on_card && s3.main_copy_behind, "for the version on the card the link shown is the card's own, and a lagging copy is flagged");
+  ok(s3.main_url === 'https://f.io/old-a' && !('main_url' in s1), "staff also learn the main version's own stored link (what a refused pick puts the card back to); a client link does not");
+  const s3w = L.readShape([v('A', { status: 'lost' }), v('C', { status: 'winner', frame_url: 'https://f.io/fixture-c' }), v('D', { status: 'lost', frame_url: 'https://f.io/fixture-d' })], { client: false, mainLink: 'https://f.io/fixture-d', cardStatus: '' });
+  ok(s3w.main_url === 'https://f.io/fixture-c', "a card left on a refused pick's link still names the winner's own link to go back to (Probe bug 9)");
   const s4 = L.readShape([v('A', { status: 'approved' })], { client: false, mainLink: A_LINK, cardStatus: 'Client Approval' });
   ok(s4.card_behind === true, 'every version answered but the card not Approved: card_behind, so the page sends today\'s approve again');
   const rows = L.ledgerRows('fixtureclient', 'p1', [{ id: 'x', letter: 'C', from: 'waiting', patch: { status: 'change asked' } }], { actor: 'staff:smm', role: 'smm' }, NOW, 'change');
@@ -138,11 +141,24 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
 
   ok(L.likeExact('fixture_client') === 'fixture\\_client' && L.likeExact('a%b\\c') === 'a\\%b\\\\c' && L.likeExact('plain') === 'plain', 'a client slug is escaped before ILIKE, so `_` and `%` match only themselves');
 
+  // The winner is SyncView's alone (owner, 2026-10-27): only trial_reel_cards.winner_letter decides it.
+  const studioWin = [v('A', { status: 'on trial' }), v('B', { status: 'winner' }), v('C', { status: 'lost' })];
+  const none = L.settleWinner(studioWin, null);
+  ok(none.every(x => x.status === 'on trial'), 'a "winner" or "lost" the studio wrote, with no winner letter on the card, reads as on trial');
+  ok(!L.readShape(none, { client: true, mainLink: A_LINK, cardStatus: '' }).versions.some(x => x.status === 'winner') && L.readShape(none, { client: true, mainLink: A_LINK, cardStatus: '' }).versions.length === 3,
+    "the client link is not cut down to a studio-written winner");
+  const picked = L.settleWinner(studioWin, 'A');
+  ok(picked.find(x => x.letter === 'A').status === 'winner' && picked.filter(x => x.letter !== 'A').every(x => x.status === 'lost'), "the card's letter makes Video A the winner, whatever the rows say");
+  ok(L.mainLetter(picked, '') === 'A' && L.undoWinnerPatches(L.settleWinner(studioWin, null), A_LINK, {}).error === 'no_winner', 'the version on the card and Undo follow the card\'s letter only');
+  ok(studioWin[1].status === 'winner', 'settleWinner leaves the rows as read (it returns copies)');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   ok(!/video_status\s*:/.test(code) && !/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'the function never writes the card (no status, no link)');
   ok(!/\.from\("deliverables"\)\s*\.(update|insert|upsert)/.test(code) && !/production-write|production_artifact_write/.test(code), 'the function never writes the sub-issue or calls a Section 4 function');
+  ok((code.match(/await readVersions\(/g) || []).length >= 3 && !/await readVersions\(supabase, client, (postId|id)\)/.test(code) && /return settleWinner\(/.test(code),
+    "every versions read passes the card's winner letter through settleWinner");
   ok(/assertSwitchOn\(supabase, client\)/.test(code) && /CLIENT_ACTIONS\.includes\(action\)/.test(code), 'every request checks the switch; a client link may only read and answer');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261027090000_trial_reels.sql'), 'utf8');
   ok(/^-- ef-auto-deploy-applied-when: select to_regclass\('public\.trial_reel_cards'\) is not null/m.test(sql), 'the migration says how to tell it is applied, so the merge lane holds the function until then');

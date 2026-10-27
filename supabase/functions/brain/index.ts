@@ -41,7 +41,8 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
-const FILES = ["identity", "voice", "editing", "relationship"];
+// editor-spec: exact editing values (colours, sizes, sound levels); the team connector skips it.
+const FILES = ["identity", "voice", "editing", "editor-spec", "relationship"];
 const CACHE_MS = 3 * 60 * 1000;
 const cache = new Map<string, { at: number; body: unknown }>();
 let folderCache: { at: number; names: string[] } | null = null;

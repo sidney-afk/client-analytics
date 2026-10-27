@@ -34542,6 +34542,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
 - **Way back:** delete the switch row, or revert the pull request.
 
+## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, a 24 h trial and the SMM's winner pick (session Trials)
+
+- **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
+- **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. The per-version rows and the 24 h log are one table, `studio_trial_versions` from #2349 (the studio half), with SyncView's columns added; one small new table for the card's switch (`trial_reel_cards`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.
+- **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
+- **Owner answers (2026-10-26):** all ten questions answered and folded in (no numbers typed, the SMM picks the winner, people paste the Frame.io links, the client sees only the winner). The build PR also carries a follow-up migration on `studio_trial_versions` and three small `trialreels.mjs` changes (#2349 merged without them).
+- **Round 2 (owner's look at the card, 2026-10-26):** the versions are collapsed inside today's Video row (the card keeps its exact height, measured), named "Video A"… with no hook text, the winner takes the one link (card and Production Deliverable file, set through `production-write`'s existing `attachment`), and the Notes player gets a version switch. Pictures on the real page in `docs/features/trial-reels/real/`.
+- **Owner answers to round 2 (2026-10-26):** all seven settled; each version is its own "Deliverable file · Video X" row in Production Assets, one store per version (`frame_url`) written from the card or Production, and `file_url` stays the one link of the version on the card, written only through today's `attachment`. The schema is settled (plan, section 3) and handed to the AI editor lane for its `trialreels.mjs` follow-up.
+- **Waiting on:** the owner's go to build.
+
+**Way back:** nothing is built; close the pull request.
+
 ## 517. [2026-10-27 UTC, BUILT, NOT MERGED] The unread-badges browser test went red just after midnight UTC; the fixture and the page now share one pinned clock (session Midnight)
 
 - **What failed.** `calendar-unit-tests` on #2356 (a backend-only PR), job `entry-links-boot (3)`, 00:03:41 UTC on 2026-10-27: `FAIL  H. day lines say "Today": Yesterday` in `docs/syncview-design/tests/unread-badges-v2-browser.js`. Reproduced here at 00:18 UTC on unchanged main: `Yesterday, Today`. Any PR, and main, run in the first ~40 minutes after midnight UTC hit it.
@@ -34560,6 +34572,33 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).
 
+## 515. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 2 of 5: the staff card (session Trials)
+
+- **What:** trial reels on the staff Calendar card, per the approved plan (#2352) and the owner's notes of 2026-10-26 (a subtle switch in the Video row, collapsed by default, "Video A" with no hook text, a muted trophy with a tooltip once the 24 h are up, the winner at once with today's Undo toast and no confirm, no visual noise). New fragment `src/index/189-trial-reels-card.js.part`, hooked into today's `_calLinkFieldHtml`; `trial_reels_pages` read with the review-stage switches (188); a `list` action in the trial-reels function so one read loads every trial card of a client.
+- **Card height:** unchanged while the versions are collapsed, in every state (measured by `test/trial-reels-card-browser.js`, desktop and 390).
+- **The card's one link** (Video A, then the winner) is written only through today's paths: Production's attach (production-write `attachment`, unchanged) when the card has a video sub-issue, otherwise today's card link save; the function refuses the version's copy until the card carries it.
+- **Switch off** (any client but the test client): no trial control anywhere, the card exactly as before.
+- **Proven:** `node test/trial-reels-card-browser.js` (46 checks), the Deno function test (28), the logic test (60), prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618 checks), calendar-card-write-routing-browser, review-stage-browser, frame-comments-in-notes-browser, check-modules, check-lazy-safety and the unit suite (the 9 failures are the base's own).
+
+**Way back:** revert the PR; with the switch row absent nothing shows anyway.
+
+## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
+
+- **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
+- **Fix (`189`, build 2):** the pick (and Undo) reads the versions now and stops if a winner is already picked or the version is no longer on trial. If the function still refuses after the attach (a read that raced the other pick), the put-back:
+  - goes to the function's own main version (`main_url`, new in the staff read: the winner's stored link, else Video A's), never to the page's old view;
+  - is a compare-and-swap on the sub-issue: it carries the clock the page's own attach answered, so a link someone else attached since stands (write_conflict).
+- **Proven:** `node test/trial-reels-race-browser.js` (Probe's race test, now three races, 15 checks; races 2 and 3 fail without the fix), the card test (52), the logic test (76) and the Deno function test (34).
+
+**Way back:** revert the commit.
+
+## 523. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the card's switch knob was dark in dark mode (Probe E8, session Trials)
+
+- **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
 ## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
 
 - **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
@@ -34572,6 +34611,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
 
+## 530. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the card: dropping the version on the card (default (c), card side, session Trials)
+
+- **What:** the version on the card now has a Drop when another live version has a link. Pressing it runs today's attach of that next version's link first (so it becomes the one on the card), then drops the old one. With no other linked version the page says so and drops nothing. A refused pick or Undo now puts the card back on the winner's own link, else the first live version's (Video A unless it was dropped); never a fixed Video A.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks, with the drop on the card), trial-reels-race-browser (15).
+
+**Way back:** revert this commit together with 529.
+
 ## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
 
 - **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
@@ -34580,6 +34626,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
 
 **Way back:** revert this commit and the card's.
+
+## 533. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a refused link or drop on the version on the card left the card on another link (Probe bugs 12, 12b, session Trials)
+
+- **What was wrong:** for the version on the card, the page does today's attach FIRST, then asks the function. When the function refused (a link another version has, a decided version, or a refused drop of the version on the card), the card kept the new link while the page said "did not save".
+- **Fix (`189`), one rule: the card's link moves only once the function says yes.**
+  - What the function would refuse anyway is said before anything moves: a link another version has, or a decided version's link.
+  - After any other refusal, the page puts the card's link back to what it was before, as a compare-and-swap on its own attach (a link someone else attached since stands), then reads the versions again and shows the function's state.
+- **Proven:** `node test/trial-reels-link-guard-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-card-browser (58), trial-reels-race-browser (15).
+
+**Way back:** revert the commit.
 
 ## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
 
@@ -34593,6 +34649,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
   - The two proof knobs stay in the test, documented, and are off by default.
 - **Way back:** revert the pull request.
+
+## 538. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the winner is read only from SyncView's card, never from a studio-written row (owner answer 11, session Trials)
+
+- **Why:** the owner ruled on 2026-10-27 that the AI editor must do nothing about the winner, and that `trial_reel_cards.winner_letter` is the only source of truth. That was NOT so before this fix. Every winner read (the version on the card, the client link cut down to the winner, Undo, and the Production and review pages fed by those reads) took `studio_trial_versions.status = 'winner'`. The studio's connector can write any status on that row, so a stray "winner" would have shown that version to the client as the one being posted.
+- **What:** `settleWinner` in `supabase/functions/trial-reels/logic.mjs`, applied to every versions read in the function. With a winner letter on the card, that version is the winner and every other one on trial or decided is lost. With none, a stored "winner" or "lost" reads as on trial. The rows are never written by this rule. The pages only draw what the function answers, so they follow.
+- **Proven:** `node test/trial-reels-logic.js` (91 checks: 6 new, failing without the fix) and the Deno function test (40: 4 new, failing without the fix). The type ratchet adds no new errors. The frameio-view client-link check gets the same rule in build 7.
+
+**Way back:** revert this commit.
 
 ## 540. [2026-10-27 UTC, BUILT, NOT MERGED] A client may type the caption on the Sheet again, in Collaborative mode only (session Capedit)
 

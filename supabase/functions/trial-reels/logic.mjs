@@ -17,9 +17,9 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
-export const CLIENT_ACTIONS = ["read", "answer"];
+export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
 export const clean = (v, max = 200) => String(v == null ? "" : v).trim().slice(0, max);
 
@@ -56,6 +56,25 @@ export function cleanLink(raw) {
 }
 
 export const live = (v) => v.status !== STATUS.dropped;
+
+/*
+ * The winner is SyncView's alone (owner, 2026-10-27): trial_reel_cards.winner_letter is the only source of truth, and
+ * a "winner" or "lost" the studio (the AI editor) writes on a version's row means nothing. Every read and rule sees
+ * the versions through this. With a winner letter, that version is the winner and every other one on trial or
+ * decided is lost; with none, nothing is decided, so a stored "winner" or "lost" reads as on trial (where SyncView's
+ * own Undo puts them).
+ */
+export function settleWinner(versions, winnerLetter) {
+  const w = clean(winnerLetter, 1).toUpperCase();
+  const pick = LETTERS.includes(w) ? w : "";
+  return versions.map((v) => {
+    const decided = v.status === STATUS.winner || v.status === STATUS.lost;
+    if (pick && v.letter === pick) return v.status === STATUS.winner ? v : { ...v, status: STATUS.winner };
+    if (pick && (decided || v.status === STATUS.trial)) return v.status === STATUS.lost ? v : { ...v, status: STATUS.lost };
+    if (!pick && decided) return { ...v, status: STATUS.trial };
+    return v;
+  });
+}
 const okField = (stage) => stage + "_ok_at";
 
 /*
@@ -288,6 +307,9 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
     // The client stage is done but the card has not moved: the page offers today's approve save again.
     out.card_behind = out.card_approvable && !["Approved", "Scheduled", "Posted"].includes(clean(cardStatus, 40));
     out.main_copy_behind = !!(mainRow && clean(mainLink, 2048) && clean(mainRow.frame_url, 2048) !== clean(mainLink, 2048));
+    // The main version's own link as stored (its row above shows the card's link): what a page puts the card back to
+    // when a winner it tried is refused (two staff picking at once, Probe bug 9).
+    out.main_url = (mainRow && clean(mainRow.frame_url, 2048)) || null;
     const ends = sorted.map((v) => v.trial_ends_at).filter(Boolean).sort().pop() || null;
     out.trial_ends_at = ends;
   }

@@ -76,6 +76,7 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "trial-reels-probe-logic.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -2175,6 +2176,22 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels in the Notes view behind trial_reels_pages: today's view for an unlisted client, a Video A to E switch beside Open in Frame.io (a slim bar under the player at 390 pixels), picking a version plays it with its own Frame.io comments, the title and the About the switch naming it, a video note starting with the version's name, and today's player once a winner is picked.",
       "reproduce": "node test/trial-reels-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-journey-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Drives one five-version trial card through its whole life in one run (session Probe): switch off for an unlisted client, links pasted on the card and in Production, the SMM's OKs and a change on one version, its new cut, Kasper and the client (one at a time and Approve all), Approved through today's save, the trial, its 24 h timer and trophy, the winner, Undo and the winner again, the client seeing only the winner, Posted, and the switch off again, checking the card's status, each version's label, the card's one link and the ledger rows at every step.",
+      "reproduce": "node test/trial-reels-journey-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-race-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages pick a trial winner at once (session Probe): the second, stale pick is refused and the card's one link must stay the winner's.",
+      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

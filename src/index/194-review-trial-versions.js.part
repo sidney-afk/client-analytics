@@ -2,7 +2,7 @@ import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reels-card.js';
+import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reels-card.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
        in PR 2352).
 
@@ -55,10 +55,15 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
     }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
     /* This reviewer's answer on one version: ok, chg or wait. */
+    /* This reviewer's answer on one version: ok, chg, wait, or team: Kasper and the client answer a version only after
+       the SMM has looked at it (the function's stage order), so until then it is "with the team": no Approve, a muted
+       dot, not counted in Approve all (Probe rule-miss 13). A read without `ready` (older) counts as ready. */
     function _trvAnswer(v, stage) {
         if (v.status === 'change asked') return 'chg';
-        if (stage === 'client') return ['approved', 'on trial', 'winner', 'lost'].includes(v.status) ? 'ok' : 'wait';
-        return v[stage + '_ok_at'] ? 'ok' : 'wait';
+        const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
+        if (ok) return 'ok';
+        const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
+        return ready ? 'wait' : 'team';
     }
     function _trvCurOf(m, mode) {
         const vs = m.trial.versions;
@@ -79,6 +84,10 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
         // A version with no link yet shows today's "No video yet", never another version's video.
         if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
         return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
+    }
+    // The version on screen is still with the team (the SMM has not looked at it): the page shows that, not Approve.
+    function svTrialReviewWithTeam(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
@@ -102,8 +111,8 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
         if (vs.length === 1) return '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
-            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
@@ -284,15 +293,19 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
     async function svTrialReviewDrop(m, letter) {
         if (_trvBusy.has(m.id)) return;
         _trvBusy.add(m.id); _trvRepaint();
+        const v = m.trial.versions.find(x => x.letter === letter), next = v && v.on_card ? _trvNextLive(m.trial.versions, letter) : null;
+        const before = String((m.post && m.post.asset_url) || '');
+        let mine = null;
         try {
-            const v = m.trial.versions.find(x => x.letter === letter), next = v && v.on_card ? _trvNextLive(m.trial.versions, letter) : null;
-            if (next) await svTrialMoveCard(m.post, next.frame_url);
+            if (next) mine = await svTrialMoveCard(m.post, next.frame_url);
             const json = await svTrialCall({ action: 'version_drop', client: m.trial.slug, post_id: m.id, letter });
             const e = _trv[m.trial.slug];
             if (e && json.versions) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
             if (_trvCur[m.id] === letter) delete _trvCur[m.id];
         } catch (err) {
             showNotify('Video ' + letter + ' was not dropped', svTrialErrorText(err));
+            // The card's link moves only once the function says yes (Probe bug 12b): a refused drop puts it back.
+            if (mine !== null) { try { await svTrialAttachBack(m.post, before, mine, next.frame_url); } catch (e2) {} _trvLoad(m.trial.slug, true); }
         } finally {
             _trvBusy.delete(m.id); _trvRepaint();
         }
@@ -334,6 +347,7 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
 .trv-dot i{display:grid;place-items:center;width:22px;height:22px;box-sizing:border-box;border:1px solid var(--hair);border-radius:50%;color:var(--text-secondary);font-style:normal;font-size:.62rem;font-weight:700}
 .trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
 .trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
+.trv-dot.team i{opacity:.45;border-style:dashed}
 .trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
 .trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
 .trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
@@ -341,8 +355,8 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
 .trv-arr[disabled]{opacity:.35;cursor:default}
 .trv-arr svg{width:14px;height:14px}
 .trv-side{position:absolute;top:50%;transform:translateY(-50%);z-index:5}
-.trv-side.prev{right:calc(100% + 14px)}
-.trv-side.next{left:calc(100% + 14px)}
+.trv-side.prev{left:calc(50% - var(--trv-half,140px) - 58px)}
+.trv-side.next{left:calc(50% + var(--trv-half,140px) + 14px)}
 .trv-all{display:inline-flex;align-items:center;gap:6px}
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
@@ -350,5 +364,5 @@ import { svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reel
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
-  TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml
+  TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
 };

@@ -92,6 +92,7 @@ function buildCal() {
     const _calCurrentAuthor = () => 'Fixture';
     const _calCurrentAuthorId = () => 'm1';
     const _calNextTweakRound = () => 1;
+    const svTrialNotesBody = (post, body) => body;   // trial reels (189): no trial on these cards, the words go as typed
     let n = 0;
     const _calMintCommentId = () => 'c_' + (++n);
     const _noteOutboxPut = e => { env.queued.push(e); return e; };

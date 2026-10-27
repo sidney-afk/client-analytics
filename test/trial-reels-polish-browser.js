@@ -158,6 +158,21 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
       btns, name: name ? { href: name.getAttribute('href'), target: name.getAttribute('target'), text: name.textContent } : null,
     };
   });
+  // The phone card's media strip: which of the placeholder's words, the play button and the tool bar overlap.
+  const thumbOverlap = page => page.evaluate(() => {
+    const t = [...document.querySelectorAll('.cal-card-thumb')].find(n => n.offsetParent && n.querySelector('.sv-phone-card-tools'));
+    if (!t) return null;
+    const box = sel => { const n = t.querySelector(sel); if (!n || !n.offsetParent && getComputedStyle(n).position !== 'fixed') return null; const r = n.getBoundingClientRect(); return r.width && r.height ? r : null; };
+    const parts = { cta: box('.cal-thumb-frame-cta'), host: box('.cal-thumb-frame-host'), badge: box('.cal-thumb-frame-badge'), play: box('.cal-thumb-play'), tools: box('.sv-phone-card-primary') };
+    const names = Object.keys(parts).filter(k => parts[k]);
+    const hits = [];
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+      const a = parts[names[i]], b = parts[names[j]];
+      if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) hits.push(names[i] + '/' + names[j]);
+    }
+    const f = t.querySelector('.cal-thumb-frame');
+    return { hits, parts: names, frameH: f ? Math.round(f.getBoundingClientRect().height) : 0 };
+  });
   // A hover on `sel`: what changes on the element itself vs on the thing it draws (the switch, the icon).
   const hoverDiff = async (page, sel, inner) => {
     const read = () => page.evaluate(([s, i]) => {
@@ -183,6 +198,12 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
         // ---- the switch, on: at once, the list open with its paste row ----
         reset(false);
         let page = await open(w, h, theme);
+        if (label === 'phone') {
+          // The thumbnail is a link here (a Frame.io page, not a picture): on the phone its placeholder's words, the
+          // play button and the tool bar must not sit on each other (found while checking these screenshots).
+          const overlap = await thumbOverlap(page);
+          ok(overlap && !overlap.hits.length && overlap.frameH >= 150, `${tag}: a link thumbnail's placeholder has its own room above the tools, nothing overlaps: ${JSON.stringify(overlap)}`);
+        }
         let L0 = await looks(page);
         ok(L0.sw && L0.sw.op >= 0.99, `${tag}: the off switch is not dimmed (opacity ${L0.sw && L0.sw.op})`);
         ok(L0.sw && L0.sw.clearSw, `${tag}: the off switch sits in no box (${L0.sw && L0.sw.bg})`);
@@ -293,6 +314,15 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
         ok(ms <= FAST, `${tag}: switch off shows in ${ms} ms`);
         await sleep(DELAY + 500);
         ok(!!(await page.$('.cal-link-post.trl-main .trl-sw-slot.on')) && T.enabled && /Trial reels did not save/.test(await notices(page)), `${tag}: a refused switch-off puts the trial row back and says so`);
+        if (label === 'phone' && theme === 'light') {
+          // The same for an image-folder link as the thumbnail (125 live cards).
+          await page.close();
+          reset(false); card.thumbnail_url = 'https://drive.google.com/drive/folders/fixture-polish-folder';
+          page = await open(w, h, theme);
+          const ov = await thumbOverlap(page);
+          ok(ov && !ov.hits.length && ov.frameH >= 150, `${tag}: an image-folder thumbnail: nothing overlaps either: ${JSON.stringify(ov)}`);
+          await shot(page, 'polish-folder-thumb-phone-light');
+        }
         if (page.errors.length) console.log('page errors', tag, page.errors);
         ok(!page.errors.length, `${tag}: no page errors`);
         await page.close();

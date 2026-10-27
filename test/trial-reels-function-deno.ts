@@ -257,6 +257,12 @@ tables.calendar_posts.find((r) => r.id === "p5")!.asset_url = "https://f.io/p5-a
 const addFirst2 = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
 ok(addFirst2.body.ok === true && (addFirst2.body.changed as string[])[0] === "A", "then Video A is added");
 
+// The studio logs this card after SyncView seeded its Video A: still one Video A (Codex on PR 2373).
+tables.studio_trial_versions.push({ ...p4()[0], id: "studio-p4-a", batch: "Fixture batch", video: "9", frame_url: "https://f.io/p4-studio-a", created_at: "2099-01-01T00:00:00.000Z" });
+const afterStudio = await step({ action: "read", post_id: "p4" });
+const asRows = (afterStudio.body.versions || []) as Row[];
+ok(asRows.filter((r) => r.letter === "A").length === 1 && asRows.find((r) => r.letter === "A")!.id !== "studio-p4-a", "a later studio row for the same letter is not a second Video A");
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

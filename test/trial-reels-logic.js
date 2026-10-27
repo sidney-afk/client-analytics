@@ -159,6 +159,9 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.addVersion([v('A')], A_LINK, A_LINK).error === 'link_used_by_another_version' && L.addVersion([v('A')], '', A_LINK).error === 'version_has_no_link' && L.addVersion([v('A')], 'http://f.io/x', A_LINK).error === 'link_not_https', 'a link another version has, no link, or not https: refused');
   ok(L.addVersion(['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(l => v(l, { frame_url: 'https://f.io/' + l })), 'https://f.io/h', A_LINK).error === 'no_letter_left' && L.addVersion([v('A', { status: 'on trial' })], 'https://f.io/n', A_LINK).error === 'version_on_trial', 'seven at most, and none once the trial has started');
 
+  const dupA = L.oneRowPerLetter([v('A', { id: 'studio-a', created_at: '2026-10-27T16:00:00Z' }), v('A', { id: 'card-a', created_at: '2026-10-27T15:13:12Z' }), v('B', { created_at: '2026-10-27T16:00:00Z' })]);
+  ok(dupA.length === 2 && dupA.find(x => x.letter === 'A').id === 'card-a', 'two rows for one letter (SyncView seeded A, then the studio logged its own A): the earliest is the version, the other is never read (Codex on PR 2373)');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');

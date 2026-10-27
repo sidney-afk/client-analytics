@@ -58,6 +58,23 @@ export function cleanLink(raw) {
 export const live = (v) => v.status !== STATUS.dropped;
 
 /*
+ * One row per letter. Two writers add rows: the AI editor's studio log, keyed by its batch and video number, and
+ * SyncView's version_add, keyed by the card's id and "card". Both key rows by (client, batch, video, letter), so a
+ * card switched on before the studio logged it can end up with two "Video A" rows (Codex on PR 2373). Every read
+ * keeps the earliest written for each letter (then the smaller id), so each letter names one version; the other row
+ * is never read or written here.
+ */
+export function oneRowPerLetter(rows) {
+  const keep = new Map();
+  for (const r of rows || []) {
+    const was = keep.get(r.letter);
+    const key = (x) => String(x.created_at || "9999") + "|" + String(x.id || "");
+    if (!was || key(r) < key(was)) keep.set(r.letter, r);
+  }
+  return [...keep.values()];
+}
+
+/*
  * A version added from SyncView (2026-10-27, found live): until now a card listed only the rows the AI editor's studio
  * log writes, so a card it had not logged showed no versions and nowhere to paste a link. The next free letter, A to
  * G, with its link. The first live version is the one on the card, so its link must already be the card's (the page

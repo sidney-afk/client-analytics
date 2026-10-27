@@ -39,6 +39,7 @@ import {
   flagAllows,
   LETTERS,
   ledgerRows,
+  oneRowPerLetter,
   staffAllows,
   likeExact,
   linkPatch,
@@ -119,7 +120,7 @@ async function mainLink(supabase: SupabaseClient, card: JsonMap): Promise<string
 async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
   const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", likeExact(client));
   if (error) throw new Refusal(503, "versions_unreadable");
-  return settleWinner(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter))), winnerLetter) as Version[];
+  return settleWinner(oneRowPerLetter(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)))), winnerLetter) as Version[];
 }
 
 /* A version row SyncView adds itself (addVersion). The studio's table keys a row by (client, batch, video, letter), so a

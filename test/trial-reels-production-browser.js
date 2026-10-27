@@ -66,6 +66,7 @@ async function shot(page, name) {
     T.calls.push(b);
     const reply = (obj, status) => route.fulfill({ status: status || 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) });
     if (!T.enabled) return reply({ ok: false, error: 'trial_reels_off' }, 409);
+    if (T.down && b.action === 'read') return reply({ ok: false, error: 'versions_unreadable' }, 503);
     const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
       L.readShape(T.versions, { client: false, mainLink: mainLink(), cardStatus: card.video_status }));
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
@@ -168,6 +169,26 @@ async function shot(page, name) {
     const rowE = r.find(x => x.label === 'Deliverable file · Video E');
     ok(!(await page.$('[data-trl-editor]')) && /^Open link/.test(rowE.value) && rowE.state === 'Available'
       && await page.evaluate(l => !!document.querySelector('.trl-prod-v[data-trl-slot="E"] a[href="' + l + '"]'), LINK('E')), 'the field closes and the row opens the new link, checked again');
+    await page.close();
+
+    // A read that fails for any reason but "no versions here" never hides the versions: it says so, with Retry.
+    T.down = true;
+    page = await open(1440, 900);
+    r = await rows(page);
+    const errText = await page.evaluate(() => ((document.querySelector('[data-trl-read-error]') || {}).innerText || '').replace(/\s+/g, ' ').trim());
+    ok(/Could not be read/.test(errText) && /Retry/.test(errText) && r.some(x => x.today), 'a failed versions read: today\'s row and "Could not be read" with Retry, never a silent fallback (' + errText + ')');
+    T.down = false;
+    await page.click('[data-trl-read-error] button');
+    await sleep(1500);
+    r = await rows(page);
+    ok(r.filter(x => x.trial && /· Video/.test(x.label)).length === 5 && !(await page.$('[data-trl-read-error]')), 'Retry reads again and draws the five rows');
+    T.down = true;
+    await page.evaluate(() => svTrialProdRetry('del_vid_1'));
+    await sleep(1500);
+    r = await rows(page);
+    ok(r.filter(x => x.trial && /· Video/.test(x.label)).length === 5 && /Could not be refreshed/.test(await page.evaluate(() => ((document.querySelector('[data-trl-read-error]') || {}).innerText || ''))),
+      'a refresh that fails keeps the rows already drawn and says so');
+    T.down = false;
     await page.close();
 
     // The graphics sub-issue of the same card: today's single row.

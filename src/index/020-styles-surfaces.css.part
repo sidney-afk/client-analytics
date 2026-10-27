@@ -1789,7 +1789,7 @@
         .trl-v { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 2px 6px 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
             color: var(--sv-slot-video-fg); background: color-mix(in srgb, var(--sv-slot-video-bg) 55%, transparent); }
         .trl-v .trl-l { flex: none; }
-        .trl-v a.trl-name { color: inherit; text-decoration: none; }
+        .trl-v a.trl-name { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
         .trl-v a.trl-name:hover, .trl-v a.trl-name:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
         /* A dropped version, said as plain muted text, never a pill (owner, 2026-10-27). One shared class: the card,
            Production's version rows and the review pages use it. */

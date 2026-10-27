@@ -40,7 +40,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     ];
     const CRM_LEAD_TYPES = [['dream100', 'Dream 100'], ['ad_lead', 'Ad lead'], ['past_call', 'Past call'], ['email', 'Email list']];
     const CRM_LOST_REASONS = [['price', 'Price'], ['trust', 'Trust'], ['timing', 'Timing'], ['budget', 'Budget'], ['no_show', 'No-show']];
-    const CRM_TABS = [['pipeline', 'Pipeline'], ['today', 'Today'], ['sequences', 'Sequences'], ['systems', 'Systems']];
+    const CRM_TABS = [['pipeline', 'Pipeline'], ['today', 'Today'], ['sequences', 'Sequences'], ['systems', 'Automations']];
     const CRM_CHANNELS = { sms: 'Text', email: 'Email', 'email+sms': 'Email and text', 'sms+email': 'Text and email', telegram: 'Telegram', meta_event: 'Meta event', none: 'None' };
     const CRM_AUDIENCES = { all: '', lost_price: 'If lost on price', lost_trust: 'If lost on trust', lost_other: 'Any other reason' };
     const CRM_HOLD_REASONS = {
@@ -292,11 +292,11 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const type = _svSelectHtml('crmFType', all('All lead types').concat(CRM_LEAD_TYPES.map(t => ({ value: t[0], label: t[1] }))), f.lead_type, 'All lead types');
         const niche = _svSelectHtml('crmFNiche', all('All niches').concat(_crmDistinct('niche').map(n => ({ value: n, label: n }))), f.niche, 'All niches');
         const owner = _svSelectHtml('crmFOwner', all('Anyone').concat(_crmDistinct('owner').map(n => ({ value: n, label: n }))), f.owner, 'Anyone');
-        const batch = _svSelectHtml('crmFBatch', all('All batches').concat(_crmState.sources.map(s => ({ value: s.id, label: s.name }))), f.source_id, 'All batches');
+        const batch = _svSelectHtml('crmFBatch', all('Every list').concat(_crmState.sources.map(s => ({ value: s.id, label: _crmSourceName(s.id) || s.name }))), f.source_id, 'Every list');
         el.innerHTML = '<div class="crm-filter"><span class="crm-filter-label">Type</span>' + type + '</div>'
             + '<div class="crm-filter"><span class="crm-filter-label">Niche</span>' + niche + '</div>'
             + '<div class="crm-filter"><span class="crm-filter-label">Owner</span>' + owner + '</div>'
-            + '<div class="crm-filter"><span class="crm-filter-label">Batch</span>' + batch + '</div>'
+            + '<div class="crm-filter"><span class="crm-filter-label">Where they came from</span>' + batch + '</div>'
             + '<button type="button" class="crm-toggle" role="switch" aria-checked="' + (!!f.due_this_week) + '" onclick="_crmToggleDue()"><span class="crm-switch-track" aria-hidden="true"><span class="crm-switch-knob"></span></span>Only due this week</button>';
         // A filter that is on while the menu is shut must not be forgotten: a quiet dot on View says so.
         const on = Object.keys(f).some(k => f[k]);
@@ -346,14 +346,50 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const overdue = _crmOverdue(p);
         return '<span class="crm-due' + (overdue ? ' is-overdue' : _crmSoon(p) ? ' is-soon' : '') + '">' + (overdue ? 'Overdue · ' : '') + _calEsc(_crmDue(p.next_step_due)) + '</span>';
     }
+    /* Where a lead came from, in plain words: the kind of lead and the list
+       or system that brought them in. */
+    const CRM_STAGE_HINTS = {
+        to_contact: 'We have not reached out yet', contacted: 'We reached out, no answer yet', replied: 'They wrote back',
+        call1_booked: 'First call is on the calendar', no_show: 'Missed their first call', call1_done: 'Had the first call, no second call yet',
+        call2_done: 'Had the second call or got the proposal, not signed', nurture: 'Gone quiet, gets something useful each week',
+        won: 'Signed with us', lost: 'Said no, or not a fit'
+    };
+    const CRM_SOURCE_NAMES = { 'doctors-ad': 'Doctor ads', 'fathom past calls': 'Kasper\'s Fathom calls' };
+    function _crmSourceName(id) {
+        const src = (_crmState.sources || []).find(x => x.id === id);
+        if (!src || !src.name) return '';
+        const raw = String(src.name).trim();
+        return CRM_SOURCE_NAMES[raw.toLowerCase()] || raw.replace(/^dream 100\s*[-–·:]\s*/i, '');
+    }
+    function _crmFromHtml(p) {
+        const type = _crmLabel(CRM_LEAD_TYPES, p.lead_type);
+        const src = _crmSourceName(p.source_id);
+        return '<span class="crm-lead-from" data-crm-type="' + _calEscAttr(p.lead_type || '') + '"><span class="crm-from-type">' + _calEsc(type) + '</span>'
+            + (src ? '<span class="crm-from-src">' + _calEsc(src) + '</span>' : '') + '</span>';
+    }
     function _crmLeadHtml(p) {
         const overdue = _crmOverdue(p);
         return '<div class="crm-lead' + (overdue ? ' is-overdue' : '') + '" role="listitem" draggable="true" tabindex="0" data-crm-card="' + _calEscAttr(p.id) + '" aria-label="' + _calEscAttr(_crmName(p) + ', ' + _crmLabel(CRM_STAGES, p.stage) + (overdue ? ', overdue' : '')) + '">'
             + '<span class="crm-lead-name">' + _calEsc(_crmName(p)) + '</span>'
+            + _crmFromHtml(p)
             + '<span class="crm-lead-niche">' + _calEsc(p.niche || '') + '</span>'
             + '<span class="crm-lead-step' + (p.next_step ? '' : ' is-empty') + '">' + _calEsc(p.next_step || (p.next_step_due ? 'Next step' : 'No next step')) + '</span>'
+            + '<span class="crm-lead-owner' + (p.owner ? '' : ' is-empty') + '">' + _calEsc(p.owner || 'Nobody') + '</span>'
             + _crmDueHtml(p) + '</div>';
     }
+    /* Which stage sections are folded, remembered on this browser only. */
+    function _crmFolded() {
+        if (!_crmState.folded) { try { _crmState.folded = JSON.parse(localStorage.getItem('sv_crm_folded') || '[]'); } catch (e) { _crmState.folded = []; } if (!Array.isArray(_crmState.folded)) _crmState.folded = []; }
+        return _crmState.folded;
+    }
+    function _crmToggleStage(stage) {
+        const f = _crmFolded();
+        const i = f.indexOf(stage);
+        if (i >= 0) f.splice(i, 1); else f.push(stage);
+        try { localStorage.setItem('sv_crm_folded', JSON.stringify(f)); } catch (e) {}
+        _crmPaintBoard();
+    }
+    const CRM_CHEVRON = '<svg class="crm-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>';
     function _crmPaintBoard() {
         const board = document.getElementById('crmBoard');
         const summary = document.getElementById('crmSummary');
@@ -375,19 +411,23 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             return;
         }
         const restore = (() => { const a = document.activeElement; const id = a && a.getAttribute && a.getAttribute('data-crm-card'); return id || ''; })();
-        /* Stages stack down the page: a plain heading with a muted count, the
-           people under it as flat lines. Empty stages share one quiet line at
-           the end; each name in it still takes a dropped lead. */
-        const full = CRM_STAGES.filter(s => people.some(p => p.stage === s[0]));
-        const empty = CRM_STAGES.filter(s => !people.some(p => p.stage === s[0]));
+        /* Stages stack down the page under one row of column titles. Each
+           stage is a section you can fold, with a plain line saying what it
+           means. Empty stages stay as folded titles so a lead can be dropped
+           on them. */
+        const folded = _crmFolded();
         board.innerHTML = '<div class="crm-sheet crm-board' + (_crmState.loading ? ' is-refreshing' : '') + '">'
-            + full.map(s => {
+            + '<div class="crm-cols" aria-hidden="true"><span>Name</span><span>Where they came from</span><span>Niche</span><span>Next step</span><span>Owner</span><span class="crm-cols-due">Due</span></div>'
+            + CRM_STAGES.map(s => {
                 const rows = people.filter(p => p.stage === s[0]);
-                return '<section class="crm-stage" data-crm-stage="' + s[0] + '" aria-label="' + _calEscAttr(s[1] + ', ' + rows.length) + '">'
-                    + '<h2 class="crm-stage-head">' + _calEsc(s[1]) + ' <span class="crm-count">' + rows.length + '</span></h2>'
-                    + '<div class="crm-stage-body" role="list">' + rows.map(_crmLeadHtml).join('') + '</div></section>';
+                const empty = !rows.length;
+                const open = !empty && !folded.includes(s[0]);
+                return '<section class="crm-stage' + (empty ? ' is-empty' : '') + (open ? '' : ' is-folded') + '" data-crm-stage="' + s[0] + '" aria-label="' + _calEscAttr(s[1] + ', ' + rows.length) + '">'
+                    + '<h2 class="crm-stage-head"><button type="button" class="crm-stage-toggle" aria-expanded="' + open + '"' + (empty ? ' disabled' : '') + ' onclick="_crmToggleStage(' + _jsAttrArg(s[0]) + ')">'
+                    + CRM_CHEVRON + '<span class="crm-stage-name">' + _calEsc(s[1]) + '</span><span class="crm-count">' + rows.length + '</span>'
+                    + '<span class="crm-stage-hint">' + _calEsc(CRM_STAGE_HINTS[s[0]] || '') + '</span></button></h2>'
+                    + (open ? '<div class="crm-stage-body" role="list">' + rows.map(_crmLeadHtml).join('') + '</div>' : '') + '</section>';
             }).join('')
-            + (empty.length ? '<p class="crm-empty-stages">Nobody in ' + empty.map(s => '<span class="crm-stage crm-stage-empty" data-crm-stage="' + s[0] + '">' + _calEsc(s[1]) + '</span>').join('<span aria-hidden="true">, </span>') + '</p>' : '')
             + '</div>';
         if (_crmState.error) board.insertAdjacentHTML('afterbegin', '<p class="crm-stale" role="status">' + _calEsc(_crmState.error) + ' Showing the last list.</p>');
         if (restore) { const el = board.querySelector('[data-crm-card="' + CSS.escape(restore) + '"]'); if (el) el.focus({ preventScroll: true }); }
@@ -724,37 +764,44 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
     /* A step reads as one plain line ("Day 2, 09:00 their time · Email ·
        approved") with its message under it. */
+    /* When a step goes out, as two short lines: the day, then the hour. */
+    function _crmStepDay(st) { return st.day_offset ? 'Day ' + st.day_offset : (st.hour_offset ? 'Day 0' : 'Right away'); }
+    function _crmStepHour(st) {
+        if (st.send_hour != null) { const h = Number(st.send_hour); return (h % 12 || 12) + (h < 12 ? 'am' : 'pm') + ' their time'; }
+        if (st.hour_offset) return st.hour_offset + 'h after it starts';
+        return st.day_offset ? 'Same time it started' : 'As soon as it starts';
+    }
     function _crmStepLine(st) {
         const approved = st.approval_state === 'approved';
         const aud = CRM_AUDIENCES[st.audience] || '';
-        return '<p class="crm-step-line"><span class="crm-step-when">' + _calEsc(_crmStepWhen(st)) + '</span>'
-            + ' · ' + _calEsc(CRM_CHANNELS[st.channel] || st.channel)
+        return '<p class="crm-step-line"><span class="crm-step-chan">' + _calEsc(CRM_CHANNELS[st.channel] || st.channel) + '</span>'
             + (aud ? ' · ' + _calEsc(aud.toLowerCase()) : '')
-            + ' · <span class="crm-step-state' + (approved ? '' : ' is-draft') + '">' + (approved ? 'approved' + (st.approved_by ? ' by ' + _calEsc(st.approved_by) : '') : 'draft, needs approving') + '</span>'
-            + (st.version > 1 ? ' · v' + st.version : '') + '</p>';
+            + ' · <span class="crm-step-state' + (approved ? ' is-ok' : ' is-draft') + '">' + (approved ? 'Approved' + (st.approved_by ? ' by ' + _calEsc(st.approved_by) : '') : 'Waiting for approval') + '</span>'
+            + (st.version > 1 ? ' · edited (v' + st.version + ')' : '') + '</p>';
     }
     function _crmStepHtml(st, admin) {
         const editing = _crmState.editStep === st.id;
         const approved = st.approval_state === 'approved';
         if (editing) {
             const dr = _crmState.stepDrafts[st.id] || { subject: st.subject || '', template: st.template };
-            return '<li class="crm-step is-editing" data-crm-step="' + _calEscAttr(st.id) + '">' + _crmStepLine(st)
+            return '<li class="crm-step is-editing" data-crm-step="' + _calEscAttr(st.id) + '">' + _crmStepWhenHtml(st) + '<div class="crm-step-main">' + _crmStepLine(st)
                 + '<div class="crm-step-editor" id="crmStepEditor">'
                 + (st.channel === 'email' ? '<label class="crm-field"><span>Subject</span><input id="crmStepSubject" class="crm-input" maxlength="200" value="' + _calEscAttr(dr.subject) + '"></label>' : '')
                 + '<label class="crm-field"><span>' + (st.channel === 'sms' ? 'Text' : 'Email') + '</span><textarea id="crmStepText" class="crm-input" rows="' + (st.channel === 'sms' ? 4 : 9) + '"' + (st.channel === 'sms' ? ' maxlength="300"' : ' maxlength="4000"') + ' oninput="_crmStepCount()">' + _calEsc(dr.template) + '</textarea></label>'
                 + '<p class="crm-hint"><span id="crmStepCount"></span> Placeholders: {first_name}, {niche}, {rebook_link}, {call2_link}, {case_study_link}, {testimonials_link}, {useful_link}. Saving makes a new draft that needs approving again; texts already sent keep their wording.</p>'
                 + '<div class="crm-step-actions is-always"><button type="button" class="crm-btn" onclick="_crmCloseStepEditor()">Cancel</button><button type="button" class="crm-btn crm-btn-primary" onclick="_crmSaveStep()"' + (_crmState.seqBusy ? ' disabled' : '') + '>Save as draft</button></div>'
-                + '</div></li>';
+                + '</div></div></li>';
         }
-        return '<li class="crm-step" data-crm-step="' + _calEscAttr(st.id) + '">'
+        return '<li class="crm-step" data-crm-step="' + _calEscAttr(st.id) + '">' + _crmStepWhenHtml(st) + '<div class="crm-step-main">'
             + '<div class="crm-step-top">' + _crmStepLine(st)
             + '<span class="crm-step-actions">'
             + '<button type="button" class="crm-btn" onclick="_crmEditStep(' + _jsAttrArg(st.id) + ')">Edit</button>'
             + (!approved && admin ? '<button type="button" class="crm-btn crm-btn-ok" onclick="_crmApproveStep(' + _jsAttrArg(st.id) + ')"' + (_crmState.seqBusy === st.id ? ' disabled' : '') + '>Approve</button>' : '')
             + '</span></div>'
             + (st.subject ? '<p class="crm-step-subject">' + _calEsc(st.subject) + '</p>' : '')
-            + '<p class="crm-step-text">' + _calEsc(st.template) + '</p></li>';
+            + '<p class="crm-step-text">' + _calEsc(st.template) + '</p></div></li>';
     }
+    function _crmStepWhenHtml(st) { return '<div class="crm-step-when"><span class="crm-step-day">' + _calEsc(_crmStepDay(st)) + '</span><span class="crm-step-hour">' + _calEsc(_crmStepHour(st)) + '</span></div>'; }
     function _crmPaintSequences() {
         const el = document.getElementById('crmSeqs');
         _crmPaintRefresh();
@@ -762,13 +809,18 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!_crmState.seqs && _crmLoadingOr(el, true, _crmState.seqError, '_crmLoadSequences(false)', 'sequences')) return;
         const admin = _crmIsAdmin();
         if (!_crmState.seqs.length) { el.innerHTML = '<div class="crm-empty"><p>No sequences yet. They are added with the Leads migration.</p></div>'; return; }
-        el.innerHTML = '<p class="crm-intro">Each sequence follows up with people by text and email. A step only goes out once it is approved and its sequence is on; texts only between 8am and 6pm in the person’s time zone. Sending is set up later; nothing is sent from here.</p>'
-            + '<div class="crm-seqs">' + _crmState.seqs.map(s => {
+        el.innerHTML = '<p class="crm-intro">Automatic follow-ups. Each one sends a set of texts and emails on a schedule after something happens, like a missed call. A message only goes out once it is approved and the switch is on.</p>'
+            + '<div class="crm-seqs">' + _crmState.seqs.map((s, i) => {
                 const approved = s.steps.filter(st => st.approval_state === 'approved').length;
-                return '<article class="crm-sheet crm-seq' + (s.active ? ' is-on' : '') + '" data-crm-seq="' + _calEscAttr(s.key) + '">'
-                    + '<header class="crm-seq-head"><div class="crm-seq-title"><h2>' + _calEsc(s.name) + '</h2><p>' + _calEsc((s.description ? s.description + ' · ' : '') + s.people_now + ' in it now · ' + approved + ' of ' + s.steps.length + ' steps approved') + '</p></div>'
-                    + '<button type="button" class="crm-switch" role="switch" aria-checked="' + (!!s.active) + '" aria-label="' + _calEscAttr(s.name + ' on or off') + '" onclick="_crmToggleSequence(' + _jsAttrArg(s.id) + ')"' + (_crmState.seqBusy === s.id ? ' disabled' : '') + '><span class="crm-switch-label">' + (s.active ? 'On' : 'Off') + '</span><span class="crm-switch-track" aria-hidden="true"><span class="crm-switch-knob"></span></span></button></header>'
-                    + (s.steps.length ? '<ol class="crm-steps">' + s.steps.map(st => _crmStepHtml(st, admin)).join('') + '</ol>' : '<p class="crm-none">No steps yet.</p>') + '</article>';
+                const days = s.steps.reduce((m, st) => Math.max(m, Number(st.day_offset) || 0), 0);
+                const n = s.steps.length;
+                const shape = n ? n + (n === 1 ? ' message' : ' messages') + (days ? ' over ' + days + (days === 1 ? ' day' : ' days') : '') : 'No messages yet';
+                const state = !n ? '' : approved === n ? 'All approved' : approved + ' of ' + n + ' approved';
+                return '<article class="crm-sheet crm-seq' + (s.active ? ' is-on' : '') + '" data-crm-seq="' + _calEscAttr(s.key) + '" data-crm-tone="' + (i % 4) + '">'
+                    + '<header class="crm-seq-head"><div class="crm-seq-title"><h2>' + _calEsc(s.name) + '</h2>' + (s.description ? '<p class="crm-seq-desc">' + _calEsc(s.description) + '</p>' : '')
+                    + '<p class="crm-seq-facts">' + _calEsc(shape) + ' · ' + s.people_now + ' in it now' + (state ? ' · ' + _calEsc(state) : '') + '</p></div>'
+                    + '<button type="button" class="crm-switch" role="switch" aria-checked="' + (!!s.active) + '" aria-label="' + _calEscAttr(s.name + ' on or off') + '" onclick="_crmToggleSequence(' + _jsAttrArg(s.id) + ')"' + (_crmState.seqBusy === s.id ? ' disabled' : '') + '><span class="crm-switch-label">' + (s.active ? 'Sending' : 'Off') + '</span><span class="crm-switch-track" aria-hidden="true"><span class="crm-switch-knob"></span></span></button></header>'
+                    + (n ? '<ol class="crm-steps">' + s.steps.map(st => _crmStepHtml(st, admin)).join('') + '</ol>' : '<p class="crm-none">No steps yet.</p>') + '</article>';
             }).join('') + '</div>';
         _crmStepCount();
     }
@@ -943,21 +995,25 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
        "The person who booked gets an email and a text right after booking,
        from ...". */
     const CRM_CHANNEL_PHRASE = { sms: 'a text', email: 'an email', 'email+sms': 'an email and a text', 'sms+email': 'a text and an email', telegram: 'a Telegram message', meta_event: 'a server event', none: 'nothing yet' };
-    function _crmLower(s) { s = String(s || '').trim(); return /^[A-Z](?![A-Z])/.test(s) ? s[0].toLowerCase() + s.slice(1) : s; }
-    function _crmSysSentence(r) {
-        const who = String(r.audience || 'Someone').trim();
-        const plural = /^(people|everyone in|all)\b/i.test(who) || /s$/.test(who.split(/[\s(]/)[0]);
-        const timing = _crmLower(r.timing);
-        const when = /^day\b/.test(timing) ? 'on ' + timing : timing;
-        return who + ' ' + (plural ? 'get ' : 'gets ') + (CRM_CHANNEL_PHRASE[r.channel] || (CRM_CHANNELS[r.channel] || r.channel || 'a message').toLowerCase()) + (when ? ' ' + when : '') + (r.from ? ', from ' + r.from : '') + '. It starts when ' + _crmLower(r.trigger).replace(/\.$/, '') + '.';
-    }
+    /* Every automation as one row of a table with plain column titles. On a
+       phone each row stacks, each value under its own small title. */
     function _crmSysList(rows) {
-        return '<ul class="crm-sys-list">' + rows.map(r => {
-            const seq = r.owner === 'SyncView sequence';
-            const status = (seq ? (r.active ? 'On' : 'Off') + ' · ' + r.approved + ' of ' + r.steps + ' steps approved · ' : 'Runs in n8n · ')
-                + (r.logged ? 'Logged on each person’s timeline' : 'Not yet logged on the timeline');
-            return '<li class="crm-sys-item" data-crm-sys="' + _calEscAttr(r.id) + '"><p class="crm-sys-name">' + _calEsc(r.name) + '</p><p class="crm-sys-text">' + _calEsc(_crmSysSentence(r)) + '</p><p class="crm-sys-meta">' + _calEsc(status) + '</p></li>';
-        }).join('') + '</ul>';
+        const cell = (label, html, cls) => '<td class="' + cls + '" data-label="' + _calEscAttr(label) + '">' + html + '</td>';
+        return '<table class="crm-sys-table"><thead><tr><th>Automation</th><th>Who gets it</th><th>What they get</th><th>When</th><th>Starts when</th><th>Status</th></tr></thead><tbody>'
+            + rows.map(r => {
+                const seq = r.owner === 'SyncView sequence';
+                const what = (CRM_CHANNEL_PHRASE[r.channel] || (CRM_CHANNELS[r.channel] || r.channel || 'a message').toLowerCase());
+                const status = '<span class="crm-sys-on' + (seq ? (r.active ? ' is-on' : '') : ' is-on') + '">' + (seq ? (r.active ? 'Sending' : 'Off') : 'Running in n8n') + '</span>'
+                    + (seq ? '<span class="crm-sys-meta">' + r.approved + ' of ' + r.steps + ' steps approved</span>' : '')
+                    + '<span class="crm-sys-meta">' + (r.logged ? 'Logged on each person\u2019s timeline' : 'Not yet logged on the timeline') + '</span>';
+                return '<tr class="crm-sys-item" data-crm-sys="' + _calEscAttr(r.id) + '">'
+                    + cell('Automation', '<span class="crm-sys-name">' + _calEsc(r.name) + '</span>', 'crm-sys-c-name')
+                    + cell('Who gets it', _calEsc(String(r.audience || 'Someone').trim()), '')
+                    + cell('What they get', _calEsc(what.charAt(0).toUpperCase() + what.slice(1)) + (r.from ? '<span class="crm-sys-meta">from ' + _calEsc(r.from) + '</span>' : ''), '')
+                    + cell('When', _calEsc(String(r.timing || '').trim() || 'Right away'), '')
+                    + cell('Starts when', _calEsc(String(r.trigger || '').trim().replace(/\.$/, '')), '')
+                    + cell('Status', status, 'crm-sys-c-status') + '</tr>';
+            }).join('') + '</tbody></table>';
     }
     function _crmPaintSystems() {
         const el = document.getElementById('crmSystems');
@@ -965,9 +1021,9 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!el) return;
         const s = _crmState.systems;
         if (!s && _crmLoadingOr(el, true, _crmState.sysError, '_crmLoadSystems()', 'systems')) return;
-        el.innerHTML = '<p class="crm-intro">Everything that messages a lead, or reacts to one, and where it runs. Read only. The n8n list lives in one file in the repo (crm-automations.mjs); the sequences come from the Sequences tab.</p>'
-            + '<section class="crm-sheet" aria-labelledby="crmSysSeq"><h2 class="crm-sheet-title" id="crmSysSeq">Sequences in Leads</h2>' + (s.sequences.length ? _crmSysList(s.sequences) : '<p class="crm-none">No sequences yet.</p>') + '</section>'
-            + '<section class="crm-sheet" aria-labelledby="crmSysN8n"><h2 class="crm-sheet-title" id="crmSysN8n">n8n automations</h2>' + _crmSysList(s.automations) + '</section>';
+        el.innerHTML = '<p class="crm-intro">Everything that messages a lead or reacts to one, in one place. Nothing can be changed here: the follow-ups are edited on the Sequences tab.</p>'
+            + '<section class="crm-sheet" aria-labelledby="crmSysSeq"><h2 class="crm-sheet-title" id="crmSysSeq">Follow-ups in SyncView</h2>' + (s.sequences.length ? _crmSysList(s.sequences) : '<p class="crm-none">No sequences yet.</p>') + '</section>'
+            + '<section class="crm-sheet" aria-labelledby="crmSysN8n"><h2 class="crm-sheet-title" id="crmSysN8n">Automations in n8n</h2>' + _crmSysList(s.automations) + '</section>';
     }
 
     // ── Staff identity changes ───────────────────────────────────────────
@@ -1044,21 +1100,21 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '.crm-sheet.is-refreshing{opacity:.6}'
             + '.crm-sheet-title{margin:4px 6px 6px;font-size:0.82rem;font-weight:700;color:var(--text-primary)}'
             /* Pipeline: stage headings with leads as flat lines under them. */
-            + '.crm-stage{display:block;border-radius:10px;padding:4px 0 6px;transition:background .15s}'
-            + '.crm-stage+.crm-stage{border-top:1px solid var(--crm-hair);border-radius:0;padding-top:10px;margin-top:4px}'
-            + '.crm-stage.drop,.crm-stage+.crm-stage.drop{background:var(--surface-subtle);border-radius:10px}'
-            + '.crm-stage-head{display:flex;align-items:baseline;gap:6px;margin:2px 6px 4px;font-size:0.74rem;font-weight:700;color:var(--text-primary)}'
-            + '.crm-count{font-size:0.7rem;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums}'
-            + '.crm-lead{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr) minmax(0,1.8fr) minmax(88px,auto);align-items:baseline;gap:12px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:0.78rem;line-height:1.35}'
+            + '.crm-stage{display:block;border-radius:10px;padding:2px 0;transition:background .15s}'
+            + '.crm-stage+.crm-stage{border-top:1px solid var(--crm-hair);border-radius:0}'
+            + '.crm-stage.drop,.crm-stage+.crm-stage.drop{background:var(--surface-subtle);border-radius:10px}.crm-stage.is-empty .crm-stage-toggle{color:var(--text-muted);cursor:default}.crm-stage.is-empty .crm-chev{opacity:0}'
+            + '.crm-stage-head{margin:0;font-size:inherit}.crm-stage-toggle{display:flex;align-items:baseline;gap:8px;width:100%;padding:11px 8px;border:0;background:none;font:inherit;text-align:left;color:var(--text-primary);cursor:pointer;border-radius:8px}.crm-stage-toggle:not(:disabled):hover{background:var(--surface-hover)}.crm-chev{width:12px;height:12px;flex-shrink:0;align-self:center;color:var(--text-muted);transition:transform .15s}.crm-stage-toggle[aria-expanded="true"] .crm-chev{transform:rotate(90deg)}.crm-stage-name{font-size:0.86rem;font-weight:700}.crm-stage-hint{font-size:0.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.crm-stage-body{padding:0 0 8px}'
+            + '.crm-count{font-size:0.72rem;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums}.crm-cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.35fr) minmax(0,.8fr) minmax(0,1.4fr) minmax(0,.75fr) 96px;gap:12px;padding:6px 8px 8px 28px;border-bottom:1px solid var(--crm-hair);font-size:0.66rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}.crm-cols-due{text-align:right}'
+            + '.crm-lead{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.35fr) minmax(0,.8fr) minmax(0,1.4fr) minmax(0,.75fr) 96px;align-items:baseline;gap:12px;padding:8px 8px 8px 28px;border-radius:8px;cursor:pointer;font-size:0.78rem;line-height:1.35}.crm-lead-from{display:flex;align-items:baseline;gap:6px;min-width:0;overflow:hidden;white-space:nowrap}.crm-from-type{font-weight:600;color:var(--crm-tone,var(--text-secondary));flex-shrink:0}.crm-from-src{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis}.crm-lead-from[data-crm-type="dream100"]{--crm-tone:var(--brief-look-ink,#5a36e0)}.crm-lead-from[data-crm-type="ad_lead"]{--crm-tone:var(--brief-asks-ink,#a82c73)}.crm-lead-from[data-crm-type="past_call"]{--crm-tone:var(--brief-edit-ink,#1c5fb3)}.crm-lead-from[data-crm-type="email"]{--crm-tone:var(--brief-music-ink,#0a6f63)}.crm-lead-owner{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crm-lead-owner.is-empty{color:var(--text-muted)}'
             + '.crm-lead:hover{background:var(--surface-hover)}.crm-lead.dragging{opacity:.45}'
             + '.crm-lead-name{font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
             + '.crm-lead-niche{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
             + '.crm-lead-step{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crm-lead-step.is-empty{color:var(--text-muted)}'
             + '.crm-due{font-size:0.72rem;font-weight:600;color:var(--text-muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}'
             + '.crm-due.is-overdue{color:var(--crm-red)}.crm-due.is-soon{color:var(--crm-amber)}'
-            + '.crm-empty-stages{margin:6px 6px 0;padding-top:10px;border-top:1px solid var(--crm-hair);font-size:0.72rem;color:var(--text-muted);line-height:1.8}'
-            + '.crm-empty-stages .crm-stage{display:inline;padding:2px 3px;margin:0 -3px;border:0;border-radius:6px}'
-            + '.crm-empty-stages .crm-stage.drop{background:var(--surface-hover);color:var(--text-primary)}'
+            + ''
+            + ''
+            + ''
             + '.crm-empty{text-align:center;padding:44px 16px;color:var(--text-secondary);font-size:0.8rem}'
             + '.crm-stale{font-size:0.72rem;color:var(--crm-red);margin:0 6px 8px}'
             /* Skeletons draw the same shapes as the real rows. */
@@ -1083,20 +1139,21 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '.crm-seqs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:12px;align-items:start}.crm-seqs .crm-sheet{margin-bottom:0;padding:12px 14px 8px}'
             + '.crm-seq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px}.crm-seq-title{min-width:0}'
             + '.crm-seq-title h2{margin:0;font-size:0.86rem;font-weight:700;color:var(--text-primary)}.crm-seq-title p{margin:3px 0 0;font-size:0.72rem;color:var(--text-muted);line-height:1.45}'
+            + '.crm-seq{border-top:3px solid var(--crm-tone,var(--crm-hair))}.crm-seq[data-crm-tone="0"]{--crm-tone:var(--brief-edit-ink,#1c5fb3)}.crm-seq[data-crm-tone="1"]{--crm-tone:var(--brief-asks-ink,#a82c73)}.crm-seq[data-crm-tone="2"]{--crm-tone:var(--brief-music-ink,#0a6f63)}.crm-seq[data-crm-tone="3"]{--crm-tone:var(--brief-look-ink,#5a36e0)}.crm-seq-title h2{color:var(--crm-tone)!important;font-size:0.95rem!important}.crm-seq-desc{margin:4px 0 0!important;font-size:0.76rem!important;color:var(--text-secondary)!important}.crm-seq-facts{margin:4px 0 8px!important}'
             + '.crm-switch,.crm-toggle{-webkit-tap-highlight-color:transparent}'
             + '.crm-switch{display:inline-flex;align-items:center;gap:8px;min-height:36px;border:0;background:transparent;padding:0 2px;font:inherit;font-size:0.72rem;font-weight:600;color:var(--text-muted);cursor:pointer;flex-shrink:0;border-radius:8px}'
             + '.crm-switch-track{position:relative;flex-shrink:0;width:32px;height:18px;border-radius:99px;background:var(--border);transition:background .15s}.crm-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--white);transition:transform .15s}'
             + '.crm-switch[aria-checked="true"] .crm-switch-track,.crm-toggle[aria-checked="true"] .crm-switch-track{background:var(--text-primary)}.crm-switch[aria-checked="true"] .crm-switch-knob,.crm-toggle[aria-checked="true"] .crm-switch-knob{transform:translateX(14px)}.crm-switch[aria-checked="true"]{color:var(--text-primary)}.crm-switch:disabled{cursor:wait}'
             + '.crm-steps{list-style:none;margin:0;padding:0}'
-            + '.crm-step{padding:10px 0 10px;border-top:1px solid var(--crm-hair)}'
+            + '.crm-step{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;padding:12px 0;border-top:1px solid var(--crm-hair)}.crm-step-when{display:flex;flex-direction:column;gap:2px;padding-top:1px}.crm-step-day{font-size:0.8rem;font-weight:700;color:var(--text-primary)}.crm-step-hour{font-size:0.68rem;color:var(--text-muted);line-height:1.35}.crm-step-main{min-width:0}'
             + '.crm-step-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.crm-step-top .crm-step-actions{margin:-9px 0 -9px}'
-            + '.crm-step-line{margin:0;font-size:0.74rem;color:var(--text-muted);line-height:1.5}.crm-step-when{font-weight:600;color:var(--text-primary)}.crm-step-state.is-draft{color:var(--text-secondary);font-weight:600}'
+            + '.crm-step-line{margin:0;font-size:0.72rem;color:var(--text-muted);line-height:1.5}.crm-step-chan{font-weight:700;color:var(--crm-tone,var(--text-primary))}.crm-step-state.is-draft{color:var(--crm-amber);font-weight:600}.crm-step-state.is-ok{color:var(--wl-done,#1f8a4c);font-weight:600}'
             + '.crm-step-subject{margin:5px 0 0;font-size:0.76rem;font-weight:600;color:var(--text-primary)}'
             + '.crm-step-text{margin:4px 0 0;font-size:0.76rem;line-height:1.55;color:var(--text-secondary);white-space:pre-wrap;overflow-wrap:anywhere;max-width:68ch}'
             + '.crm-step-editor{display:flex;flex-direction:column;gap:8px;margin-top:8px}.crm-step-editor .crm-step-actions{margin-top:2px}.crm-hint{margin:0;font-size:0.66rem;color:var(--text-muted);line-height:1.45}'
             /* Systems: sentences. */
-            + '.crm-sys-list{list-style:none;margin:0;padding:0}'
-            + '.crm-sys-item{padding:10px 6px;border-top:1px solid var(--crm-hair)}.crm-sys-item:first-child{border-top:0}'
+            + '.crm-sys-table{width:100%;border-collapse:collapse;font-size:0.76rem;line-height:1.45;table-layout:fixed}.crm-sys-table th{text-align:left;font-size:0.64rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);padding:6px 8px 8px;border-bottom:1px solid var(--crm-hair)}.crm-sys-table td{vertical-align:top;padding:11px 8px;color:var(--text-secondary);border-top:1px solid var(--crm-hair);overflow-wrap:anywhere}.crm-sys-table tbody tr:first-child td{border-top:0}.crm-sys-c-name{width:18%}.crm-sys-on{display:block;font-weight:600;color:var(--text-muted)}.crm-sys-on.is-on{color:var(--wl-done,#1f8a4c)}.crm-sys-table .crm-sys-meta{display:block}'
+            + ''
             + '.crm-sys-name{margin:0;font-size:0.78rem;font-weight:600;color:var(--text-primary)}'
             + '.crm-sys-text{margin:3px 0 0;font-size:0.76rem;line-height:1.5;color:var(--text-secondary);max-width:80ch}'
             + '.crm-sys-meta{margin:3px 0 0;font-size:0.68rem;color:var(--text-muted)}'
@@ -1130,9 +1187,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '.crm-enrol-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:18px}.crm-enrol-add>*:first-child{flex:1;min-width:180px}.crm-gap{margin-bottom:8px}'
             /* Phone. */
             + '@media (max-width:720px){'
-            + '.crm-lead{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name due" "meta meta";row-gap:1px;column-gap:10px;padding:8px}'
-            + '.crm-lead-name{grid-area:name}.crm-due{grid-area:due}.crm-lead-niche,.crm-lead-step{grid-row:2;font-size:0.7rem}'
-            + '.crm-lead-niche{grid-column:1/-1;display:none}.crm-lead-step{grid-column:1/-1}'
+            + '.crm-step{grid-template-columns:1fr;gap:4px}.crm-step-when{flex-direction:row;gap:8px;align-items:baseline}.crm-sys-table,.crm-sys-table tbody,.crm-sys-table tr,.crm-sys-table td{display:block;width:auto}.crm-sys-table thead{display:none}.crm-sys-table tr{padding:10px 4px;border-top:1px solid var(--crm-hair)}.crm-sys-table tbody tr:first-child{border-top:0}.crm-sys-table td{border:0;padding:3px 4px}.crm-sys-table td:not(.crm-sys-c-name)::before{content:attr(data-label);display:block;font-size:0.62rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}'
+            + '.crm-cols{display:none}.crm-lead{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name due" "from from" "step step";row-gap:2px;column-gap:10px;padding:9px 8px}.crm-stage-hint{display:none}'
+            + '.crm-lead-name{grid-area:name}.crm-due{grid-area:due}.crm-lead-from{grid-area:from;font-size:0.7rem}.crm-lead-step{grid-area:step;font-size:0.7rem}'
+            + '.crm-lead-niche,.crm-lead-owner{display:none}'
             + '.crm-sheet{padding:8px 6px 10px}.crm-panel{width:100vw;border-left:0}.crm-form{grid-template-columns:1fr}'
             + '.crm-row{flex-wrap:wrap;padding:0 4px 4px 0}.crm-row-actions.is-always{width:100%;justify-content:flex-start;padding-left:4px}.crm-row-actions .crm-btn{min-height:40px}'
             + '.crm-row>.crm-due{padding-right:4px}.crm-row-actions.is-always{margin-top:-8px}}'

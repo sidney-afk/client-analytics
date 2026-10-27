@@ -34553,3 +34553,55 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Waiting on:** the owner's go to build.
 
 **Way back:** nothing is built; close the pull request.
+
+## 517. [2026-10-27 UTC, BUILT, NOT MERGED] The unread-badges browser test went red just after midnight UTC; the fixture and the page now share one pinned clock (session Midnight)
+
+- **What failed.** `calendar-unit-tests` on #2356 (a backend-only PR), job `entry-links-boot (3)`, 00:03:41 UTC on 2026-10-27: `FAIL  H. day lines say "Today": Yesterday` in `docs/syncview-design/tests/unread-badges-v2-browser.js`. Reproduced here at 00:18 UTC on unchanged main: `Yesterday, Today`. Any PR, and main, run in the first ~40 minutes after midnight UTC hit it.
+- **Root cause: the test, not the product.** The fixture stamps its messages 5 to 40 minutes before the real `Date.now()`, and the H check expects every day line to say "Today". Just after midnight UTC (the runners' zone) the older messages really were sent yesterday, so the page's "Yesterday" was right and the expectation was wrong.
+- **The product was checked and is right.** Both day-line paths group by the viewer's own calendar day: `_svuDayLabel` (327) and `_msgLocalDay` / `_msgDayLabel` (326) use `getFullYear/getMonth/getDate`, local time, not UTC. No real user saw a wrong day line from this.
+- **The change (test only).** The fixture and the page now share one clock: `fixtureNow` defaults to noon UTC today, the messages are stamped from it, and the browser's clock is installed at the same moment (`ctx.clock.install`), with the browser zone set to UTC. New section M pins the clock near midnight and checks the day lines: 23:59:59 UTC held still reads Today; 00:00:01 UTC reads Yesterday; 00:22 UTC reads Yesterday, Today; 00:22 local in Los Angeles reads Yesterday, Today; 17:22 local in Los Angeles (UTC already on the next day) reads Today, which would fail if the page grouped by UTC day. Nothing was skipped or weakened; the H check still asks for "Today" only.
+- **Way back:** revert the pull request.
+
+## 514. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 1 of 5: the trial-reels function and its migration (session Trials)
+
+- **What:** the SyncView half's backend, per the approved plan (#2352, OPEN_REPAIRS 513). One migration (`supabase/migrations/20261027090000_trial_reels.sql`) adds SyncView's settled columns to the studio's `studio_trial_versions` and creates `trial_reel_cards`; one new Edge Function (`trial-reels`) with the actions read, switch_set, version_link_set, version_drop, version_restore, answer, trial_start, winner_set and winner_undo (for the Undo toast).
+- **What it never does:** write the card's status (the page calls today's saves), write the card's one link (`file_url` / `asset_url` stay today's Production attach; for the version on the card the function only copies a link the card already carries), or touch a Section 4 function, the drift robot or the projection triggers.
+- **Switch:** `trial_reels_pages` (test client only), read by the function on every request; missing or the wrong shape is off.
+- **Proven:** `node test/trial-reels-logic.js` (60 checks) and the real function under Deno against an in-memory database, `test/trial-reels-function-deno.ts` (27 checks, run by the Edge Function type ratchet lane); `deno check` clean; the migration revokes all four roles and reads them back.
+- **Held on merge** until the migration is applied (its first line says how to tell). Nothing shows on any page until build PR 2.
+
+**Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).
+
+## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
+
+- **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
+  - "on the card" is the winner, else the live version whose link the card carries, else the first live one;
+  - dropping the version on the card is refused with `attach_first` (409) until today's attach has put the next live version's link on the card (the page does that first). After that, the old one drops like any other;
+  - the last live version cannot be dropped (`last_live_version`);
+  - Undo of a winner puts back the first live version, which is Video A unless A was dropped.
+- **Function:** `trial-reels` logic and index (`dropPatch` takes the card's link). No migration, not a Section 4 function.
+- **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
+
+**Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
+
+## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
+
+- **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
+- **What:** a new `trial-reels` action, `version_new_cut`, only on a version with a change asked and a link. Like a new link, it puts revision up, clears every OK and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). An editor's key may use it, like pasting a link; dropping, the trial and the winner stay the SMM's or an admin's. It is recorded in the card's history as `trial_version_new_cut`.
+- **Where (card, build 2):** in the version row's hover tools, beside the pencil. No new control shows until the row is hovered.
+- **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
+
+**Way back:** revert this commit and the card's.
+
+## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
+
+- **What went red.** On main 577e593, Calendar unit tests > entry-links-boot (1) failed in `test/frame-comments-in-notes-browser.js` (entry 512): `FAIL phone: opening Notes sends no Frame.io request before the dialog has painted (1)`. Everything else passed, including the desktop version of the same check, and it had passed on #2347's own CI.
+- **Cause: the test, not the page.**
+  - The page sends the Frame.io comments read two animation frames after Notes draws, then one task later (`raf(raf(setTimeout))` in 187). It never sends it earlier.
+  - The test opened Notes in one page call, then made a second page call that waited one frame, and only then counted the requests its route stand-in had seen. The time between those two calls belongs to the test process, not the page. On a runner busy with three lanes, that time can exceed two frames, so the read the page sent correctly after its first paint was counted as "before paint".
+  - Reproduced: with a 120 ms pause in the test process between the two calls (`FRAME_NOTES_SAMPLE_LAG=120`), desktop and phone both fail on main. CPU throttling alone (`FRAME_NOTES_CPU_THROTTLE=6` or `12`) does not reproduce it, because it slows the page and its frames equally.
+- **Fix (test only, no page change).** The page now counts its own frames from the moment Notes opens: a frame counter starts in the same task as `openCalComments`. Every `frameio-view` request records the frame it was sent in. The check is that the first request goes out in frame 2 or later. Frame 1's callback runs before the first paint, so frame 2 is after it. Nothing is sampled from the test process any more.
+  - It still catches the fault it is for: with the page changed to send the read at once (a temporary mutant), both checks fail, sent in frame 0.
+  - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
+  - The two proof knobs stay in the test, documented, and are off by default.
+- **Way back:** revert the pull request.

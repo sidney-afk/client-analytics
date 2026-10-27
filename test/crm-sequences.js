@@ -163,7 +163,7 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
 
   // ── function wiring ──
   const ef = read('supabase/functions/crm-leads/index.ts');
-  ok(/SERVER_ACTIONS = \["due", "log_send"\]/.test(ef) && ef.indexOf('serverKeyOk(req)') < ef.indexOf('authorizeStaffKey(key'), 'due and log_send take the server key, checked first');
+  ok(/SERVER_ACTIONS = \["due", "log_send", "ingest"\]/.test(ef) && ef.indexOf('serverKeyOk(req)') < ef.indexOf('authorizeStaffKey(key'), 'due, log_send and ingest take the server key, checked first');
   ok(/sender\.length >= 24/.test(ef) && /timingSafeEqual\(given, sender\)/.test(ef) && /timingSafeEqual\(bearer, service\)/.test(ef), 'server key compared in constant time, short keys refused');
   ok(/const dryRun = body\.dry_run !== false/.test(ef), 'due is a dry run unless asked otherwise');
   ok(!/fetch\(/.test(ef) && !/twilio|sendgrid|smtp|gmail\.googleapis/i.test(ef), 'the function never sends anything');

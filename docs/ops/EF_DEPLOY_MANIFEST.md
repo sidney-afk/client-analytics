@@ -10,8 +10,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 67 |
-| Main-push plus manual-dispatch paths | 62 |
+| Deployable function slugs | 68 |
+| Main-push plus manual-dispatch paths | 63 |
 | Manual-dispatch-only paths | 3 |
 | No CI deploy path | 4 |
 | Deliberate-manual subset of no-CI paths | 6 |
@@ -85,6 +85,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-titles` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/change.mjs`<br>`brain/parse.mjs`<br>`higgsfield-mcp/brainview.mjs`<br>`higgsfield-mcp/clientinfo.ts`<br>`higgsfield-mcp/questions.mjs`<br>`thumbnail-titles/logic.mjs`<br>`thumbnail-titles/manual.mjs`<br>`thumbnail-titles/plan.ts`<br>`thumbnail-titles/runs.ts`<br>`thumbnail-titles/seed.ts` |
 | `tiktok-upload` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/tiktok-queue.mjs` | `tiktok-upload/handler.mjs` |
 | `tiktok-upload-cancel` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | `tiktok-upload-cancel/logic.mjs` |
+| `trial-reels` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml) | main push (auto, in order) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `trial-reels/logic.mjs` |
 | `workload-plan` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard)<br>**Manual release note:** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-plan/native-snapshot.mjs` |
 | `write-diagnostics` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard)<br>**Manual release note:** WR-101 refusal-receipt endpoint is deliberate-manual: the first deploy is an exact-SHA operator release with `--no-verify-jwt` (it accepts unauthenticated browser refusal claims by design; operator actions keep their own runner-key check) and a fingerprint readback. It stays dormant, answering 503, until `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner must be applied first. | `_shared/staff-role-auth.ts`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | `write-diagnostics/browser-detail.mjs` |
 

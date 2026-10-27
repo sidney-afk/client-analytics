@@ -1,20 +1,22 @@
 // crm-gmail: reads who one company mailbox has emailed, for the Leads CRM
 // (docs/features/CRM_LEADS.md, "Gmail"). Read only: Gmail scope is
-// gmail.readonly, through the Google service account with Workspace
+// gmail.metadata (headers only; Google refuses bodies with it), through the Google service account with Workspace
 // domain-wide delegation. Server key only (same check as crm-leads).
 // Never logs an address, a subject or a body; returns headers only.
 //
 //   probe            { }                     -> { ok, client_id, messages_total? , error? }
 //   sent_recipients  { after?, max_messages? } -> { ok, recipients: [{ email, name, count, first, last }] }
 //
-// The mailbox is fixed (CRM_GMAIL_MAILBOX secret, or the sales mailbox), never a request field.
+// The mailbox is the MAILBOX constant only.
 
-const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const SCOPE = "https://www.googleapis.com/auth/gmail.metadata";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const OWN_DOMAIN = "synchrosocial.com";
 const MAX_MESSAGES = 5000;
-// The sales mailbox; the CRM_GMAIL_MAILBOX secret overrides it.
-const DEFAULT_MAILBOX = "kasper@" + OWN_DOMAIN;
+// The one mailbox this function may act as. Domain-wide delegation would let the
+// service account act as anyone in the Workspace, so this is a constant, never
+// a request field or a secret someone could change.
+const MAILBOX = "kasper@" + OWN_DOMAIN;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -110,11 +112,11 @@ export function parseAddresses(header: string): { email: string; name: string }[
 async function sentRecipients(tok: string, body: Record<string, unknown>) {
   const after = /^\d{4}\/\d{2}\/\d{2}$/.test(clean(body.after)) ? clean(body.after) : "";
   const cap = Math.min(MAX_MESSAGES, Math.max(1, Number(body.max_messages) || MAX_MESSAGES));
-  const q = encodeURIComponent("in:sent" + (after ? " after:" + after : ""));
+  const afterMs = after ? Date.parse(after.replace(/\//g, "-") + "T00:00:00Z") : 0;
   const ids: string[] = [];
   let pageToken = "";
   while (ids.length < cap) {
-    const page = await gmail(tok, `/messages?q=${q}&maxResults=500${pageToken ? "&pageToken=" + pageToken : ""}`);
+    const page = await gmail(tok, `/messages?labelIds=SENT&maxResults=500${pageToken ? "&pageToken=" + pageToken : ""}`);
     for (const m of page.messages || []) ids.push(String(m.id));
     pageToken = clean(page.nextPageToken);
     if (!pageToken) break;
@@ -126,6 +128,7 @@ async function sentRecipients(tok: string, body: Record<string, unknown>) {
       gmail(tok, `/messages/${id}?format=metadata&metadataHeaders=To&metadataHeaders=Cc`).catch(() => null)));
     for (const m of batch) {
       if (!m) continue;
+      if (afterMs && (Number(m.internalDate) || 0) < afterMs) continue;
       const when = new Date(Number(m.internalDate) || 0).toISOString();
       const hs: any[] = (m.payload && m.payload.headers) || [];
       for (const h of hs) {
@@ -151,14 +154,13 @@ Deno.serve(async (req) => {
   const action = clean(body.action);
   const creds = readCreds();
   if (!creds) return json({ ok: false, error: "google_not_configured" }, 503);
-  const mailbox = clean(Deno.env.get("CRM_GMAIL_MAILBOX")) || DEFAULT_MAILBOX;
-  if (!mailbox) return json({ ok: false, error: "mailbox_not_configured", client_id: creds.clientId }, 503);
+  const mailbox = MAILBOX;
   let tok: string;
   try {
     tok = await token(creds, mailbox);
   } catch (e) {
     // unauthorized_client here means the Workspace admin has not approved this
-    // client id for the gmail.readonly scope yet.
+    // client id for the gmail.metadata scope yet.
     return json({ ok: false, error: String((e as Error).message), client_id: creds.clientId, scope: SCOPE }, 502);
   }
   try {

@@ -5,11 +5,11 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/crm-gmail/index.ts'), 'utf8');
 let passed = 0;
 function ok(c, m) { if (!c) { console.error('FAIL ' + m); process.exit(1); } passed++; console.log('  ok  ' + m); }
-ok(/const SCOPE = "https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly";/.test(src) && (src.match(/googleapis\.com\/auth\//g) || []).length === 1, 'the only Google scope is gmail.readonly');
+ok(/const SCOPE = "https:\/\/www\.googleapis\.com\/auth\/gmail\.metadata";/.test(src) && (src.match(/googleapis\.com\/auth\//g) || []).length === 1, 'the only Google scope is gmail.metadata (headers only)');
 ok(!/\/send\b|messages\/send|drafts|\/modify|\/trash|method: "(PUT|DELETE|PATCH)"/.test(src), 'no send, draft, modify or delete call');
 ok(/format=metadata&metadataHeaders=To&metadataHeaders=Cc/.test(src) && !/format=full|format=raw/.test(src), 'reads To and Cc headers only, never a body');
 ok(/if \(!\(await serverKeyOk\(req\)\)\) return json\(\{ ok: false, error: "unauthorized" \}, 401\);/.test(src) && src.indexOf('serverKeyOk(req)') < src.indexOf('readCreds()\n') + 1e9, 'server key checked before anything else');
-ok(/Deno\.env\.get\("CRM_GMAIL_MAILBOX"\)/.test(src) && !/body\.mailbox|body\.subject/.test(src), 'the mailbox comes from a secret, never the request');
+ok(/const MAILBOX = "kasper@" \+ OWN_DOMAIN;/.test(src) && /token\(creds, mailbox\)/.test(src) && /const mailbox = MAILBOX;/.test(src) && !/body\.mailbox|CRM_GMAIL_MAILBOX|sub: body/.test(src), 'acts only as the one fixed mailbox, never one from a request or secret');
 ok(!/console\.(log|error|warn)\([^)]*(email|recipients|people|\.name)/.test(src), 'never logs an address or name');
 ok(/endsWith\("@" \+ OWN_DOMAIN\)/.test(src), 'skips our own domain');
 // parseAddresses, run on its own.

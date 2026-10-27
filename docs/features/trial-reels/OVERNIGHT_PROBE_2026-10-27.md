@@ -16,6 +16,8 @@ Builds tested: build 5 at `b76a6e31b` (start of the night), then build 6 at `168
 | Bugs 5 and 7 on the real `index.ts` under Deno | `test/trial-reels-probe-deno.ts` | 7 / 7 (3 failed on build 5) |
 | One live version (bug 6), on the client review page | `test/trial-reels-one-live-browser.js` | 4 / 4 (2 failed on build 5) |
 | Two staff pick a winner at once (bug 9) | `test/trial-reels-race-browser.js` | **2 / 4: still open** |
+| A change belongs to the version it was asked on; Kasper's "Approve after tweaks" (bugs 10, 10b, 11) | `test/trial-reels-change-naming-browser.js` | **1 / 6: open** |
+| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` | **0 / 3: open** |
 | Each stacked branch (builds 1 to 5) builds with `npm run build:index` | — | all clean |
 | Trials' own suites (card, Production, review, Notes, function) on build 5, in dark and light | — | all pass |
 | The eyes pass. Card, Production, the review page (client, SMM, Kasper, winner) and Notes, at 1440 and 390, dark first, compared with `real/` and `mock-*` | screenshots kept outside the repo (fictional data) | divergences below |
@@ -33,15 +35,16 @@ Status at Trials is as of the last retest on build 6.
 | # | what | where | status |
 |---|---|---|---|
 | 1 | The client could approve a version with a change asked (skipping Q3's re-route) | logic.mjs answerPatches | **fixed** (`change_open`), verified |
-| 2 | No stage order on the server (the client before Kasper and the SMM; Kasper before the SMM) | logic.mjs answerPatches | **fixed** (`stage_order`; the client only needs the SMM's OK, so the SMM's "Approve to client" still works), verified |
+| 2 | No stage order on the server (the client before Kasper and the SMM; Kasper before the SMM) | logic.mjs answerPatches | **fixed** (`stage_order`: Kasper and the client both need the SMM's OK; the client does not need Kasper's, so the SMM's "Approve to client" still works), verified |
 | 3 | Approve and Approve all accepted a version with no link | logic.mjs | **fixed** (`version_has_no_link`), verified |
 | 4 | A link replaced after approval kept every OK | logic.mjs linkChange | **fixed** (a replaced link on an answered version restarts it), verified |
 | 5 | Multi-row writes were not atomic: a studio write mid-winner left A, B, D `lost`, C `winner`, E on trial, no winner letter and no ledger rows | index.ts applyChanges | **fixed** (rows already written are put back on a conflict), verified under Deno |
 | 6 | With one live version the review page skipped the version answer: card Approved, version `waiting`, trial unable to start | 194 svTrialReviewShape | **fixed**, verified in a browser |
 | 7 | A JSON `null` body threw out of the handler (500, no CORS, no log line) | index.ts | **fixed**, verified under Deno |
 | 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **open**, proven by `test/trial-reels-race-browser.js` |
-| 10 | Client polish's change queue names the version on screen **when it is sent**, not when it was asked | 195 _rsCpDrain then 194 svTrialReviewChangeText | **open** (traced) |
-| 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **open** (traced) |
+| 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **open**, proven in a browser |
+| 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **open**, proven in a browser |
+| 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway: card and version disagree (the duplicate case for good, since the heal skips it), and the page says "did not save" | 189 svTrialLinkSave | **open**, proven in a browser |
 | E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | sent |
 | E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | sent |
 
@@ -49,8 +52,9 @@ Status at Trials is as of the last retest on build 6.
 
 | # | what | status |
 |---|---|---|
-| 8 | `version_link_set` lacked Production's attach role rule | **fixed** (staffAllows: admin and SMM everything, creative only links, automation read-only) |
-| 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | open |
+| 8 | `version_link_set` lacked Production's attach role rule | **partly fixed** (staffAllows: admin and SMM everything, creative only links, automation read-only; no member-team check, because the shared auth gives the role only) |
+| 11 | Kasper's "Approve after tweaks" on a trial card names no version and records no version answer | open, proven in a browser |
+| 13 | The review pages offer Approve, a dot and a place in "Approve all N" for a version the server refuses for stage order (no SMM OK yet, for example after a new cut) | open (traced) |
 | E1 | Review page: the bar sits above the player, with the arrows next to the label. The approved mock has the arrows beside the player, and "Video A of 5" and the dots under the video | open |
 | E2 | The dots carry no letter (plan and mock: letter dots) | open |
 | E3 | Phone: arrows instead of swipe (plan §5, mock "No arrows: swipe"); the bar wraps to 104 px; the current dot's 36 px ring is heavy | open |
@@ -80,9 +84,8 @@ alone with its tooltip, the Undo toast, no Yes/Cancel, and Notes matches `notes-
 ## NOT REACHED
 
 - A live call. The night was offline by rule; nothing touched the live database or Edge Functions.
-- A browser proof of bugs 10, 10b and 11. They are traced in code only.
 - Kasper's second layout at 390. It needs 1360 px, so it never shows at that width.
-- A dark Notes screenshot (Trials' Notes test draws light only), and the review page with the real web font in the staff harness (lost-work-lib blocks it; the card's text truncation there is the fallback font).
+- The staff card with the real web font (lost-work-lib blocks it; the card's text truncation there is the fallback font). The dark Notes view was taken later, from a scratch copy of Trials' Notes test, and matches `notes-C` at 1440 and 390.
 - Re-checking whatever Trials pushes after build 6.
 
 Pauses: none. No usage or rate limit was hit during the run.

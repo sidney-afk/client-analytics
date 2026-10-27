@@ -34626,3 +34626,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-change-naming-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-review-browser (29), review-stage-browser, review-stage-client-composer-browser, review-stage-kasper-layout2-browser (188), review-stage-save-browser, check-modules.
 
 **Way back:** revert the commit.
+
+## 526. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the review page now follows the approved mock (Probe E1 to E5, E7, session Trials)
+
+- **What changed (194, 195), against mock-c1440 and mock-c390:**
+  - an arrow on each side of the player on desktop; "Video A of 5" and the dots sit under the video (E1);
+  - the dots carry their letter (A B C D E), with the answer as their colour and the one on screen outlined (E2);
+  - on a phone there are no arrows: the video is swiped left or right, "Swipe for the next version" sits under it, and the dots are the mock's small circles inside 44 px tap targets (E3);
+  - "Approve all (4 waiting)" sits at the bottom left, beside Finish reviewing (E4);
+  - Finish reviewing counts versions in place of the video (E5). With a thumbnail and a caption, five versions read "0 of 7". The mock's "of 5" had no thumbnail step and did not count the caption, so this is the plan's rule read literally (owner may say otherwise);
+  - the player's badge names the version ("Video A", E7);
+  - the arrow keys move through the versions first, then on to the next part.
+- **Kept as built (owner taste, for the morning):** the button words (E6), the winner line above the player (E12), and the step still named "Video" (the mock says "Versions").
+- **Proven:** `node test/trial-reels-review-browser.js` (37 checks, now with places, letters, Approve all, the count, the badge, the keys, and a phone with swipe), trial-reels-change-naming-browser, review-stage-browser, review-stage-client-layout-browser, review-stage-kasper-layout2-browser (188), review-stage-finish-browser, check-modules, no-sending-words, no-hardcoded-colors.
+
+**Way back:** revert the commit.

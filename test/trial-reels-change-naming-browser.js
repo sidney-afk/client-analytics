@@ -77,7 +77,7 @@ const OK_AT = '2026-10-27T08:00:00.000Z';
     let n0 = t.state.upserts.length, g0 = t.state.gateway.length;
     await inS(t.page, '[data-chg="video"]').click();
     await inS(t.page, '#ta').fill('Fictional note: a shorter first line.');
-    await inS(t.page, '.trv [data-trv-step="1"]').click();   // a look at the next version before sending
+    await inS(t.page, '.trv-side[data-trv-step="1"]').click();   // a look at the next version before sending
     await sleep(600);
     const onScreen = await t.page.evaluate(() => ((document.getElementById('svReviewStage').shadowRoot.querySelector('.trv-n') || {}).textContent || '').trim());
     if (await inS(t.page, '#sendBtn').count()) await inS(t.page, '#sendBtn').click();

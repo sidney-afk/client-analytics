@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -2197,6 +2197,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             host.hidden = false;
             if (!host.querySelector(':scope > .mpill')) host.insertAdjacentHTML('afterbegin', '<span class="mpill" style="--pc:var(--pd-video)"><i></i>Video</span>');
             _rsFit();
+            _rsTrialMedia(m, host);
         } else {
             _rsStageOff();
             v.classList.add('novid');
@@ -2214,21 +2215,50 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsQ('novidMsg').innerHTML = wait ? '' : /^https?:\/\//i.test(url)
                 ? '<span>This video opens in a new tab.</span><a href="' + _re(url) + '" target="_blank" rel="noopener noreferrer">' + RI.play + 'Watch the video</a>'
                 : '<span>No video yet.</span>';
+            _rsTrialMedia(m, nv);
         }
     }
-    /* Trial reels (194): "Video B of 5", the dots and the arrows, just above the player; gone on every other step and card. */
+    /* Trial reels (194) on the player itself: the badge names the version ("Video C", Probe E7) and an arrow sits on each
+       side (Probe E1). The player's box is drawn again on every mount, so this runs after it. */
+    function _rsTrialMedia(m, box) {
+        const fv = _rsQ('fvHost'), nv = _rsQ('novid');
+        [fv, nv].forEach(el => { if (el && el !== box) el.querySelectorAll(':scope > .trv-side').forEach(b => b.remove()); });
+        const trial = m && m.trial;
+        const label = trial ? 'Video ' + (trial.winner ? trial.winner.letter : svTrialReviewLetter(m, R.mode)) : 'Video';
+        [fv, nv].forEach(el => { const p = el && el.querySelector(':scope > .mpill'); if (p && p.lastChild && p.lastChild.nodeType === 3 && p.lastChild.textContent !== label) p.lastChild.textContent = label; });
+        if (!box) return;
+        const html = trial ? svTrialReviewArrowsHtml(m, R.mode) : '';
+        if (box.__trvArr === html && (!html || box.querySelector(':scope > .trv-side'))) return;
+        box.__trvArr = html;
+        box.querySelectorAll(':scope > .trv-side').forEach(b => b.remove());
+        if (!html) return;
+        box.insertAdjacentHTML('beforeend', html);
+        svTrialReviewBind(box, m, R.mode, () => {});
+    }
+    /* Trial reels (194): above the player only the winner's line; under it "Video B of 5" and the letter dots (Probe E1,
+       E2); gone on every other step and card. A phone swipes the video (E3). */
     function _rsTrialBar(m, v) {
         const html = m && m.trial && v ? svTrialReviewBarHtml(m, R.mode) : '';
         let bar = v && v.previousElementSibling && v.previousElementSibling.classList.contains('trv-host') ? v.previousElementSibling : null;
-        if (!html) { if (bar) bar.remove(); return; }
-        if (!bar) { bar = document.createElement('div'); bar.className = 'trv-host'; v.before(bar); }
-        if (bar.__trvHtml === html) return;
-        bar.__trvHtml = html;
-        bar.innerHTML = html;
-        svTrialReviewBind(bar, m, R.mode, () => {
-            const cur = _rsModelById(m.id) || m;
-            svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true);
-        });
+        if (!html) { if (bar) bar.remove(); }
+        else {
+            if (!bar) { bar = document.createElement('div'); bar.className = 'trv-host'; v.before(bar); }
+            if (bar.__trvHtml !== html) { bar.__trvHtml = html; bar.innerHTML = html; }
+        }
+        const under = m && m.trial && v ? svTrialReviewUnderHtml(m, R.mode) : '';
+        let uh = v && v.nextElementSibling && v.nextElementSibling.classList.contains('trv-under-host') ? v.nextElementSibling : null;
+        if (!under) { if (uh) uh.remove(); return; }
+        if (!uh) { uh = document.createElement('div'); uh.className = 'trv-under-host'; v.after(uh); }
+        if (v) svTrialReviewSwipe(v, () => _rsCur(), () => R.mode);
+        if (uh.__trvHtml === under) return;
+        uh.__trvHtml = under;
+        uh.innerHTML = under;
+        svTrialReviewBind(uh, m, R.mode, () => {});
+    }
+    // "Approve all (4 waiting)": every version this reviewer has not answered, then today's approve (Probe E4).
+    function _rsTrialAll(m) {
+        const cur = _rsModelById(m.id) || m;
+        svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true);
     }
     function _rsMediaThumb(m) {
         const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
@@ -2459,13 +2489,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
-        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? (R.cp ? ' <span class="fc num" id="finishWait">' + _rsSpinner('Saving your answers') + '</span>' : ' <span class="fc num" id="finishWait">' + (R.mode !== 'client' ? svBusyHtml('Saving…') : 'Saving…') + '</span>') : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
+        // A trial card counts its versions in place of the video (plan section 5, Probe E5).
+        const tc = svTrialReviewCount(m, R.mode), vid = parts.find(p => p.key === 'video');
+        const done = (parts.length - left) - (tc && vid && vid.st !== 'wait' ? 1 : 0) + (tc ? tc.done : 0), total = parts.length - (tc && vid ? 1 : 0) + (tc ? tc.total : 0);
+        return (R.l2 ? '' : svTrialReviewAllHtml(m, R.mode))
+            + '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? (R.cp ? ' <span class="fc num" id="finishWait">' + _rsSpinner('Saving your answers') + '</span>' : ' <span class="fc num" id="finishWait">' + (R.mode !== 'client' ? svBusyHtml('Saving…') : 'Saving…') + '</span>') : ' <span class="fc num">' + done + ' of ' + total + '</span>') + '</button>'
             + (R.mode === 'kasper' && !m.gone ? (R.l2
                 ? '<span class="closew"><button class="btn-quiet" type="button" id="closeBtn" aria-describedby="closeTip"' + (sending ? ' disabled' : '') + '>Close card</button><span class="tip" id="closeTip" role="tooltip">' + RS_CLOSE_TIP + '</span></span>'
                 : '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>') : '');
     }
     function _rsBindFinish(m, root) {
         const fb = root.querySelector('#finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
+        root.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => _rsTrialAll(m)));
         const cb = root.querySelector('#closeBtn'); if (cb) cb.addEventListener('click', () => {
             // An explicit close leaves the card; the kept-card rule is only for a background list change.
             const S = R.S;
@@ -3514,6 +3549,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         if (tag === 'textarea' || tag === 'input' || (e.target.closest && e.target.closest('.fv-player'))) return;
         const m = _rsCur(); if (!m) return;
+        // A trial card's video step: the arrow keys move through the versions first, then on to the next part.
+        if (R.S.step === 'video' && m.trial && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && svTrialReviewStep(m, R.mode, e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
         const keys = m.parts.map(x => x.key), i = keys.indexOf(R.S.step);
         if (e.key === 'ArrowRight' && i < keys.length - 1) { _rsSetStep(keys[i + 1]); e.preventDefault(); }
         if (e.key === 'ArrowLeft' && i > 0) { _rsSetStep(keys[i - 1]); e.preventDefault(); }

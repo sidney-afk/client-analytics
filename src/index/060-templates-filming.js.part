@@ -1057,7 +1057,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
        the brain and processed there; nothing on this page edits a fact. */
     // Resolved lazily: CAL_SUPABASE_URL is declared in a later fragment.
     function _tplBrainUrl() { return CAL_SUPABASE_URL + '/functions/v1/brain'; }
-    const TPL_BRAIN_FILES = [['editing', 'Editing'], ['voice', 'Voice'], ['identity', 'Identity'], ['relationship', 'Relationship']];
+    const TPL_BRAIN_FILES = [['editing', 'Editing'], ['editor-spec', 'Editor spec'], ['voice', 'Voice'], ['identity', 'Identity'], ['relationship', 'Relationship']];
     const TPL_BRAIN_NAME_KEY = 'syncview_brain_sender_name';
     const _tplBrain = {};            // client -> { state: 'loading'|'ready'|'error', facts, found, error }
     let _tplBrainTab = 'editing';

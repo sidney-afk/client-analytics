@@ -66,6 +66,8 @@ async function shot(page, name) {
     const b = JSON.parse(r.postData() || '{}');
     T.calls.push(b);
     const reply = (obj, status) => route.fulfill({ status: status || 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) });
+    // One refusal on demand, for the paths where the card's link has already moved.
+    if (T.refuse && b.action === T.refuse) { T.refuse = null; return reply({ ok: false, error: 'trial_reels_off' }, 409); }
     const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
       L.readShape(T.versions, { client: false, mainLink: mainLink(), cardStatus: card.video_status }));
     const apply = changes => { for (const c of changes || []) Object.assign(T.versions.find(v => v.id === c.id), c.patch); };
@@ -122,6 +124,14 @@ async function shot(page, name) {
       ok(!!(await page.$('.cal-link-post .trl-sw-slot[aria-checked="false"]')), `${label}: switch on, card off: a faint switch inside the Video row`);
       await shot(page, label + '-off');
       ok(Math.abs((await heightOf(page)) - todayH) < 0.5, `${label}: the card is today's height (${todayH})`);
+      // A card with no Video link yet offers the switch too, at the end of today's empty field.
+      await page.close();
+      vid.file_url = ''; card.asset_url = '';
+      page = await open(w, h);
+      ok(!!(await page.$('.cal-link-post:not(.has-link) .cal-link-input + .trl-sw-slot[aria-checked="false"]')), `${label}: a card with no Video link yet: the switch at the end of the empty field`);
+      await page.close();
+      vid.file_url = LINK('A'); card.asset_url = LINK('A');
+      page = await open(w, h);
       await page.click('.cal-link-post .trl-sw-slot');
       await sleep(900);
       ok(T.calls.some(c => c.action === 'switch_set' && c.enabled === true && c.post_id === 'p_t1'), `${label}: the switch sends switch_set on`);
@@ -166,6 +176,16 @@ async function shot(page, name) {
       await shot(page, label + '-due-open');
       const trialRows = await page.$$eval('.trl-list .trl-v', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), pick: !!n.querySelector('.trl-pick[title="Make this the winner"]') })));
       ok(trialRows.filter(r => r.pick).length === 4 && trialRows.every(r => !/on trial/.test(r.t)) && /dropped/.test(trialRows[3].t), `${label}: the trophy opens the list: a trophy on each version on trial, no "on trial" labels, "dropped" kept`);
+      // The winner refused after today's attach moved the card's link: the link goes back to Video A.
+      T.refuse = 'winner_set';
+      const r0 = T.attaches.length;
+      await page.click('.trl-list .trl-v:nth-child(3) .trl-pick');
+      await sleep(1500);
+      const back = T.attaches.slice(r0).map(a => a.file_url);
+      ok(back.join('|') === LINK('C') + '|' + LINK('A') && vid.file_url === LINK('A') && card.asset_url === LINK('A') && !T.versions.some(v => v.status === 'winner'),
+        `${label}: a refused winner puts the card's link back on Video A (${back.length} attaches)`);
+      await page.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('active'); });
+      if (!(await page.$('.trl-list .trl-v:nth-child(3) .trl-pick'))) { await page.click('.cal-link-post .trl-chev'); await sleep(300); }
       const n0 = T.attaches.length;
       await page.click('.trl-list .trl-v:nth-child(3) .trl-pick');
       await sleep(1200);
@@ -182,6 +202,15 @@ async function shot(page, name) {
       await page.evaluate(() => { const b = [...document.querySelectorAll('.sv-toast button')].find(x => /Undo/.test(x.textContent)); if (b) b.click(); });
       await sleep(1200);
       ok(vid.file_url === LINK('A') && T.calls.some(c => c.action === 'winner_undo') && T.versions.every(v => v.status !== 'winner'), `${label}: Undo puts Video A back on the card through today's attach, then winner_undo`);
+      // An Undo refused after the card's link went back to A: the winner stands, so the card keeps the winner's link.
+      if (!(await page.$('.trl-list .trl-v:nth-child(3) .trl-pick'))) { await page.click('.cal-link-post .trl-chev'); await sleep(300); }
+      await page.click('.trl-list .trl-v:nth-child(3) .trl-pick');
+      await sleep(1500);
+      T.refuse = 'winner_undo';
+      await page.evaluate(() => { const b = [...document.querySelectorAll('.sv-toast button')].find(x => /Undo/.test(x.textContent)); if (b) b.click(); });
+      await sleep(1500);
+      ok(T.versions[2].status === 'winner' && vid.file_url === LINK('C') && card.asset_url === LINK('C'), `${label}: a refused Undo leaves Video C the winner and puts its link back on the card`);
+      await page.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('active'); });
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

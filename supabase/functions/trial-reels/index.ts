@@ -32,6 +32,7 @@ import {
   answerPatches,
   clean,
   cleanLink,
+  deliverableUuid,
   CLIENT_ACTIONS,
   dropPatch,
   newCutPatch,
@@ -129,7 +130,7 @@ async function insertVersion(supabase: SupabaseClient, client: string, card: Jso
   if (postId.length > 80) throw new Refusal(400, "post_id_too_long");
   const { error } = await supabase.from("studio_trial_versions").insert({
     id: crypto.randomUUID(), client, batch: postId, video: "card", letter, post_id: postId,
-    deliverable_id: clean(card.video_deliverable_id, 80) || null, frame_url: link, status: "waiting", revision: 0,
+    deliverable_id: deliverableUuid(card.video_deliverable_id), frame_url: link, status: "waiting", revision: 0,
     member: clean(principal.actor, 80) || "syncview", created_at: now, updated_at: now,
   });
   // Two staff adding at once reach the same letter: the table's unique key refuses the second.

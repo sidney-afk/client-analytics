@@ -36,6 +36,7 @@ import {
   _prodCaptureListScroll, _prodDeltaRefresh, _prodProjectStatusIcon, _prodRender,
   _prodRowSetComplete, _prodScrollDetailToTop, _prodStartOperationalRefresh
 } from './260-production-refresh-boot.js';
+        // PORT-DELTA: body overlay IDs/classes are namespaced for the embedded Production tab.
         function _prodLayerPop(html, x, y) {
             _prodEnsureOverlays();
             const layer = document.getElementById('prodLayer');

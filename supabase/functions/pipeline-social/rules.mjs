@@ -162,14 +162,24 @@ export function buildRequest(action, body) {
       if (!p.ok) return p;
       return { ok: true, path: site.path, query: { url: str(b.url), ...p.q }, counts: true, site: site.site };
     }
+    case "watch": {
+      // Sidney, 2026-10-28: Gemini watches a reference instead of a paid Sandcastles read. The link's site picks
+      // how the video file is found (YouTube needs no ScrapeCreators call: Gemini opens the link itself).
+      const site = videoSite(b.url);
+      if (!site) return refuse("Give url: the https link of a TikTok, Instagram or YouTube video.");
+      const max = b.max_seconds === undefined || b.max_seconds === null || b.max_seconds === "" ? WATCH_MAX_SECONDS : Number(b.max_seconds);
+      if (!Number.isFinite(max) || max < 5 || max > 600) return refuse("max_seconds must be a number from 5 to 600.");
+      const path = site.site === "instagram" ? "/v1/instagram/post" : site.site === "tiktok" ? "/v2/tiktok/video" : "";
+      return { ok: true, path, query: path ? { url: str(b.url) } : {}, counts: !!path, site: site.site, watch: true, maxSeconds: Math.floor(max) };
+    }
     case "credits":
       return { ok: true, path: "/v1/account/credit-balance", query: {}, counts: false };
     default:
-      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript or credits.`);
+      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript, watch or credits.`);
   }
 }
 
-export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "credits"];
+export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "watch", "credits"];
 
 // The monthly cap from the setting (a number, or text of one); a bad value is the default.
 export function capFrom(value) {
@@ -187,7 +197,7 @@ export function monthStart(now = new Date()) {
 // words or the link host, never the key.
 export function logLine(action, req, body) {
   const b = isObj(body) ? body : {};
-  const what = action === "transcript" ? (req.site || "video") : str(b.query || b.subreddit || b.handle || b.channelId).slice(0, 80);
+  const what = action === "transcript" || action === "watch" ? (req.site || "video") : str(b.query || b.subreddit || b.handle || b.channelId).slice(0, 80);
   return { tool: "scrapecreators." + action, summary: `${action}: ${what}` };
 }
 
@@ -242,4 +252,84 @@ export function slimResult(action, result) {
     return rest;
   }
   return result;
+}
+
+
+// ---- watch: Gemini watches one video (Sidney, 2026-10-28) ----------------------------------------------------------
+// The cheapest Gemini model that reads video. Prices per million tokens (Google's paid tier, read 2026-10-28).
+export const WATCH_MODEL = "gemini-3.5-flash-lite";
+export const WATCH_PRICE_IN = 0.30;
+export const WATCH_PRICE_OUT = 2.50;
+export const WATCH_MAX_SECONDS = 180;
+export const WATCH_MAX_BYTES = 15 * 1024 * 1024;   // Gemini takes a request of up to 20 MB with the video inline
+
+// Every https string under a key, depth first.
+function deepFind(o, test, depth = 0) {
+  if (depth > 8 || o === null || typeof o !== "object") return undefined;
+  for (const [k, v] of Object.entries(o)) {
+    const hit = test(k, v);
+    if (hit !== undefined) return hit;
+  }
+  for (const v of Object.values(o)) {
+    const hit = deepFind(v, test, depth + 1);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+const httpsStr = (v) => (typeof v === "string" && /^https:\/\//.test(v) ? v : undefined);
+
+// The video file's address and its length in seconds, from a ScrapeCreators post answer.
+export function mediaFrom(site, data) {
+  if (site === "instagram") {
+    const url = deepFind(data, (k, v) => (k === "video_url" ? httpsStr(v) : undefined))
+      || deepFind(data, (k, v) => (k === "video_versions" && Array.isArray(v) && v[0] ? httpsStr(v[0].url) : undefined));
+    const secs = deepFind(data, (k, v) => (k === "video_duration" && typeof v === "number" ? v : undefined));
+    return { url: url || "", seconds: typeof secs === "number" ? secs : null };
+  }
+  if (site === "tiktok") {
+    const list = (k, v) => (["play_addr", "download_addr", "play_addr_h264", "play_addr_bytevc1"].includes(k) && v && Array.isArray(v.url_list)
+      ? v.url_list.map(httpsStr).find(Boolean) : undefined);
+    const url = deepFind(data, list);
+    const ms = deepFind(data, (k, v) => (k === "video" && v && typeof v.duration === "number" ? v.duration : undefined));
+    const s = deepFind(data, (k, v) => (k === "duration" && typeof v === "number" ? v : undefined));
+    const seconds = typeof ms === "number" ? (ms > 1000 ? ms / 1000 : ms) : (typeof s === "number" ? (s > 1000 ? s / 1000 : s) : null);
+    return { url: url || "", seconds };
+  }
+  return { url: "", seconds: null };
+}
+
+// What a read costs, in US dollars, from Gemini's own usage count.
+export function watchCost(usage) {
+  const u = isObj(usage) ? usage : {};
+  const inTok = Number(u.promptTokenCount) || 0;
+  const outTok = (Number(u.candidatesTokenCount) || 0) + (Number(u.thoughtsTokenCount) || 0);
+  return Math.round((inTok * WATCH_PRICE_IN + outTok * WATCH_PRICE_OUT) / 1e6 * 1e6) / 1e6;
+}
+
+export const WATCH_PROMPT = "Watch this short video, sound and picture, and describe it exactly as it is. Do not judge it and do not guess " +
+  "beyond what is seen and heard. Answer in JSON with: seconds (its length), language, transcript (every word said, in order; " +
+  "empty if nobody speaks), on_screen (what is shown, in order, one short line per moment, including text on screen), " +
+  "hook (what is said and shown in the first three seconds), build (how the video is made, in a few plain words: for example " +
+  "\"one person talking to camera\", \"skit with two characters\", \"green screen over a screenshot\", \"voiceover over clips\"), " +
+  "people (who appears and whether we see their face), is_ad (true if it sells a product or is sponsored), " +
+  "is_repost (true if it is someone else's clip reposted, a news clip or a clips page), why_people_watch (one or two sentences: " +
+  "what in this video makes people keep watching or share it).";
+
+export const WATCH_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    seconds: { type: "NUMBER" }, language: { type: "STRING" }, transcript: { type: "STRING" },
+    on_screen: { type: "ARRAY", items: { type: "STRING" } }, hook: { type: "STRING" }, build: { type: "STRING" },
+    people: { type: "STRING" }, is_ad: { type: "BOOLEAN" }, is_repost: { type: "BOOLEAN" }, why_people_watch: { type: "STRING" },
+  },
+  required: ["seconds", "transcript", "on_screen", "hook", "build", "is_ad", "is_repost", "why_people_watch"],
+};
+
+// The Gemini request body: the video as a link (YouTube) or inline bytes (base64).
+export function geminiBody(video) {
+  const part = video.fileUri ? { file_data: { file_uri: video.fileUri } } : { inline_data: { mime_type: video.mime || "video/mp4", data: video.base64 } };
+  return {
+    contents: [{ parts: [part, { text: WATCH_PROMPT }] }],
+    generationConfig: { responseMimeType: "application/json", responseSchema: WATCH_SCHEMA, mediaResolution: "MEDIA_RESOLUTION_LOW" },
+  };
 }

@@ -173,5 +173,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/const resp = await fetch\(CAPTION_GENERATE_EF_URL, \{[\s\S]{0,200}_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, CAPTION_GENERATE_EF_URL\)/.test(C180), 'the function call carries the staff headers');
   ok(/job\.route === 'ef' && json\.ok && json\.accepted\) \{\s*job\.confirmed = true;\s*_calCapJobPollNow\(\);\s*return;/.test(C180), 'an accepted function job is left to the poller');
 
+  ok(/contents\/clients\/\$\{folder\}\/dreams\.md/.test(HANDLER) && /Dreamt by the brain \(our read of this client, not facts/.test(HANDLER), 'the caption writer reads dreams.md, labelled as dreamt, not facts');
+  ok(/filter\(\(s\) => \/\^\(audience\|voice\)\/i/.test(HANDLER), 'only the Audience and Voice dream sections reach the caption writer');
+
   console.log(`caption-generate-source: ${checks} checks passed ✅`);
 })().catch((e) => { console.error(e); process.exit(1); });

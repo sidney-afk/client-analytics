@@ -50,6 +50,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
+        carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
         uploads: [],
         queueReadState: 'loading',   // only a successful read proves an empty queue
@@ -504,7 +505,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         igState.kind = kind;
         // A trial is a Reel thing; a carousel never carries one.
         if (kind === 'carousel') igState.trial = false;
-        igState.error = null; igState.notice = null; igState.attempt = null;
+        // Each kind keeps its own retry-safe key: a post whose outcome is unknown must reuse its key when the
+        // SMM comes back to it, or a second press could post it twice.
+        igState.error = null; igState.notice = null;
         _igRenderForm();
     }
 
@@ -872,10 +875,10 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
         const items = igState.items.slice();
         const fp = ['carousel', client, items.map(it => [it.file.name, it.file.size, it.file.lastModified].join(':')).join(','), title, utc].join('|');
-        if (!igState.attempt || igState.attempt.fp !== fp) {
-            igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
+        if (!igState.carouselAttempt || igState.carouselAttempt.fp !== fp) {
+            igState.carouselAttempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
-        const idempotencyKey = igState.attempt.key;
+        const idempotencyKey = igState.carouselAttempt.key;
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         _igAbort = ctrl;
         igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0; igState.phase = 'uploading';
@@ -910,7 +913,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             }, 'instagram_create');
             if (!created.ok) {
                 const final = _igCreateAnswerIsFinal(created);
-                if (final) igState.attempt = null;
+                if (final) igState.carouselAttempt = null;
                 const reason = final ? '' : _igCreateRefusalReason(created);
                 if (reason) {
                     const failedRow = created.json.row;
@@ -919,7 +922,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 }
                 throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
-            igState.attempt = null;
+            igState.carouselAttempt = null;
             const row = created.json.row;
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
@@ -933,7 +936,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             _igAbort = null;
             igState.submitting = false; igState.progress = 0; igState.phase = '';
             const cancelled = !!(e && (e.igCancelled || e.name === 'AbortError')) && !inCreate;
-            if (cancelled) { igState.attempt = null; igState.error = 'Upload cancelled.'; }
+            if (cancelled) { igState.carouselAttempt = null; igState.error = 'Upload cancelled.'; }
             else if (inCreate && !(e && e.igUnknown === false)) igState.error = 'We could not confirm whether Instagram received this post. Press the button again: it will not post twice. You can also check the queue.';
             else igState.error = e && e.message ? e.message : 'The upload failed. Try again.';
             _igRenderForm();

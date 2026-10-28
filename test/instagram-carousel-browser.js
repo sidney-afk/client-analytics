@@ -46,7 +46,7 @@ async function pickSv(page, id, value) {
   const server = await serveStatic();
   const browser = await chromium.launch();
   let checks = 0;
-  const calls = { mints: 0, puts: [], creates: [] };
+  const calls = { mints: 0, puts: [], creates: [], failNextCreate: false };
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
     await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, async route => {
@@ -65,6 +65,8 @@ async function pickSv(page, id, value) {
         if (body.action === 'mint') { const n = ++calls.mints; return ok({ upload_url: `https://storage.fixture.test/put/${n}`, media_url: `https://data.postforme.dev/m/${n}` }); }
         if (body.action === 'create') {
           calls.creates.push(body);
+          // An answer lost on the way back: the outcome is unknown to the page.
+          if (calls.failNextCreate) { calls.failNextCreate = false; return route.fulfill({ status: 502, contentType: 'text/plain', headers: cors, body: 'bad gateway' }); }
           const carousel = body.kind === 'carousel';
           return ok({ id: body.idempotencyKey, status: 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: 'processing', placement: carousel ? 'timeline' : 'reels', kind: carousel ? 'carousel' : 'reel', items: carousel ? body.mediaUrls.length : 1, trial: false, created_at: new Date().toISOString(), error: '', instagram_url: '' } });
         }
@@ -156,6 +158,16 @@ async function pickSv(page, id, value) {
     await page.waitForFunction(() => document.querySelectorAll('#igCarGrid .tk-photo-item').length === 5);
     assert.deepEqual(await page.evaluate(() => igState.items.map(i => i.file.name)), ['three.png', 'two.mp4', 'four.png', 'dropped.png', 'dropped.mp4'], 'dropped files join the end of the carousel'); checks++;
 
+    // --- an unknown outcome keeps its retry-safe key, even across a Reel / Carousel switch (never a second post)
+    calls.failNextCreate = true;
+    await page.click('#igSubmit');
+    await page.waitForFunction(() => /could not confirm whether Instagram received/.test(document.querySelector('#igFormCol')?.innerText || ''), null, { timeout: 15000 });
+    await page.click('label:has(input[name="igKind"][value="reel"])');
+    await page.waitForSelector('#igDrop');
+    await page.click('label:has(input[name="igKind"][value="carousel"])');
+    await page.waitForSelector('#igCarGrid');
+    calls.mints = 0; calls.puts = [];
+
     // --- post: one storage address per item, in carousel order, then one create
     await page.click('#igSubmit');
     await page.waitForFunction(() => /Sent to Instagram/.test(document.querySelector('#igFormCol')?.innerText || ''), null, { timeout: 15000 });
@@ -163,8 +175,9 @@ async function pickSv(page, id, value) {
     assert.deepEqual(calls.puts.map(p => p.url.split('/').pop()), ['1', '2', '3', '4', '5'], 'items go up one after another'); checks++;
     assert.deepEqual(calls.puts.map(p => p.type), ['image/jpeg', 'video/mp4', 'image/jpeg', 'image/jpeg', 'video/mp4'], 'images go up as JPEG (Instagram feed images), videos as they are'); checks++;
     assert.ok(calls.puts.filter(p => p.type === 'image/jpeg').every(p => p.head === 'ffd8ff'), 'the PNGs were redrawn as real JPEGs'); checks++;
-    assert.equal(calls.creates.length, 1, 'one create call'); checks++;
-    let c = calls.creates[0];
+    assert.equal(calls.creates.length, 2, 'one create call for this press'); checks++;
+    assert.equal(calls.creates[1].idempotencyKey, calls.creates[0].idempotencyKey, 'the retry after the lost answer reuses the same key, after switching to Reel and back'); checks++;
+    let c = calls.creates[1];
     assert.equal(c.kind, 'carousel', 'the create says carousel'); checks++;
     assert.deepEqual(c.mediaUrls, [1, 2, 3, 4, 5].map(n => 'https://data.postforme.dev/m/' + n), 'the storage addresses, in carousel order'); checks++;
     assert.ok(!('mediaUrl' in c) && !('coverUrl' in c), 'no single video and no cover ride on a carousel'); checks++;
@@ -185,7 +198,7 @@ async function pickSv(page, id, value) {
     await page.fill('#igTitle', 'Reel caption');
     await page.click('#igSubmit');
     await page.waitForFunction(() => /Sent to Instagram/.test(document.querySelector('#igFormCol')?.innerText || '') && !igState.submitting, null, { timeout: 15000 });
-    c = calls.creates[1];
+    c = calls.creates[2];
     assert.ok(!('kind' in c) && !('mediaUrls' in c), 'a Reel create carries no kind and no list'); checks++;
     assert.equal(c.mediaUrl, 'https://data.postforme.dev/m/6', 'a Reel sends its one video'); checks++;
     assert.match(await page.innerText('#igQueueCol'), /Reel/, 'the Reel row reads Reel'); checks++;

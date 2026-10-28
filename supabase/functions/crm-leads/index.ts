@@ -305,9 +305,9 @@ async function ingest(db: SupabaseClient, body: Record<string, unknown>) {
 async function todayView(db: SupabaseClient) {
   const t = today();
   const nowIso = new Date().toISOString();
-  const duePeople = must(await db.from("crm_people").select(PERSON_COLUMNS).lte("next_step_due", t).not("stage", "in", "(won,lost)")
+  const duePeople = must(await db.from("crm_people").select(PERSON_COLUMNS).not("tags", "cs", "{not-a-lead}").lte("next_step_due", t).not("stage", "in", "(won,lost)")
     .order("next_step_due", { ascending: true }).limit(LIST_MAX)) || [];
-  const calls = must(await db.from("crm_people").select(PERSON_COLUMNS).eq("stage", "call1_booked").lt("call_at", nowIso)
+  const calls = must(await db.from("crm_people").select(PERSON_COLUMNS).not("tags", "cs", "{not-a-lead}").eq("stage", "call1_booked").lt("call_at", nowIso)
     .order("call_at", { ascending: true }).limit(200)) || [];
   const now = Date.now();
   const horizon = now + 86400000;
@@ -476,7 +476,7 @@ const SHOWED_STAGES = ["call1_done", "call2_done", "won"];
 async function reportView(db: SupabaseClient) {
   const people: any[] = [];
   for (let from = 0; from < 20000; from += 1000) {
-    const page = must(await db.from("crm_people").select("id,source_id,lead_type,stage").order("id").range(from, from + 999)) || [];
+    const page = must(await db.from("crm_people").select("id,source_id,lead_type,stage").not("tags", "cs", "{not-a-lead}").order("id").range(from, from + 999)) || [];
     people.push(...page);
     if (page.length < 1000) break;
   }
@@ -495,7 +495,7 @@ async function reportView(db: SupabaseClient) {
   }
   let values: Record<string, number> = {};
   try {
-    const { data, error } = await db.from("crm_people").select("id,deal_value").not("deal_value", "is", null).limit(5000);
+    const { data, error } = await db.from("crm_people").select("id,deal_value").not("tags", "cs", "{not-a-lead}").not("deal_value", "is", null).limit(5000);
     if (!error) for (const r of (data || []) as any[]) values[r.id] = Number(r.deal_value) || 0;
   } catch { values = {}; }
   const sources = must(await db.from("crm_sources").select("id,name,kind").limit(500)) || [];
@@ -522,7 +522,7 @@ function nameKey(v: unknown) {
 async function duplicatesView(db: SupabaseClient) {
   const people: any[] = [];
   for (let from = 0; from < 20000; from += 1000) {
-    const page = must(await db.from("crm_people").select(PERSON_COLUMNS).order("created_at").range(from, from + 999)) || [];
+    const page = must(await db.from("crm_people").select(PERSON_COLUMNS).not("tags", "cs", "{not-a-lead}").order("created_at").range(from, from + 999)) || [];
     people.push(...page);
     if (page.length < 1000) break;
   }
@@ -582,7 +582,7 @@ Deno.serve(async (req: Request) => {
   try {
     if (action === "list") {
       const f = parseListFilters(body.filters) as Record<string, any>;
-      let q = db.from("crm_people").select(PERSON_COLUMNS).order("next_step_due", { ascending: true, nullsFirst: false })
+      let q = db.from("crm_people").select(PERSON_COLUMNS).not("tags", "cs", "{not-a-lead}").order("next_step_due", { ascending: true, nullsFirst: false })
         .order("updated_at", { ascending: false }).limit(LIST_MAX);
       for (const k of ["lead_type", "stage", "niche", "owner", "source_id"]) if (f[k]) q = q.eq(k, f[k]);
       if (f.due) q = q.gte("next_step_due", f.due.from).lte("next_step_due", f.due.to);

@@ -377,3 +377,11 @@ from, matched by workflow name and calendar.
 - **Referral** is a lead type, for clients and past clients who came by word
   of mouth. `external_ids` keeps the HubSpot contact and deal ids for the later
   HubSpot takeover; `deal_value` is what the deal is worth.
+
+## Round 4 (28 Oct 2026)
+
+- People tagged `not-a-lead` (staff, test and made-up rows) are left out of the Pipeline, Today, Report and the duplicate check. They stay in the table with their history.
+- "Nurture" is now called "Gone quiet". Stage names and lead types explain themselves on hover.
+- A lead with no typed next step shows a greyed suggestion from its stage.
+- Sequences are grouped: After the ad form (Doctors, Educators, Other calls), After they book (Booked, Before the call), After the call, After they sign. The last two hold the post-call next steps, the agreement and first invoice, and the onboarding email, read from n8n.
+- The side menu leaves room for the page bottom, so the Leads title and search never get pushed up at the end of the page.

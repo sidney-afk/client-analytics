@@ -151,6 +151,49 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(!L.buildCreate({ ...base, options: { trial_reel_type: 'SS_PERFORMANCE' } }, NOW).ok, "Meta's own performance name is refused too");
   ok(!L.buildCreate({ ...base, options: { trial_reel_type: 'yes' } }, NOW).ok, 'any other value is refused');
 
+  // --- carousels: 2 to 10 items from Post For Me storage, one feed post (placement timeline), never a trial
+  {
+    const urls = (n) => Array.from({ length: n }, (_, i) => 'https://data.postforme.dev/c' + i + (i % 3 === 2 ? '.mp4' : '.jpg'));
+    const car = { clientName: base.clientName, socialAccountId: base.socialAccountId, title: 'Swipe', idempotencyKey: 'car1', kind: 'carousel' };
+    for (const n of [2, 5, 10]) {
+      const c = L.buildCreate({ ...car, mediaUrls: urls(n) }, NOW, 'QA Admin');
+      ok(c.ok, n + ' items build a carousel');
+      eq(c.postBody.media, urls(n).map((url) => ({ url })), n + ' items: every item is sent, in order, images and videos mixed');
+      eq(c.postBody.account_configurations, [{ social_account_id: 'spc_fixtureInstagram01', configuration: { placement: 'timeline' } }], n + ' items: placement timeline (feed), to exactly one account');
+      eq(c.row.options, { kind: 'carousel', placement: 'timeline', items: n, cover: null, cover_timestamp_ms: null, trial_reel_type: null }, n + ' items: the kind and count are kept in the row options');
+      eq([L.publicRow(c.row).kind, L.publicRow(c.row).items, L.publicRow(c.row).trial], ['carousel', n, false], n + ' items: the queue row says Carousel (' + n + ')');
+    }
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(1) }, NOW).ok, 'one item is not a carousel');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(11) }, NOW).ok, 'eleven items are refused (Instagram allows 10)');
+    ok(!L.buildCreate({ ...car, mediaUrls: [] }, NOW).ok, 'no items are refused');
+    ok(!L.buildCreate({ ...car }, NOW).ok, 'a carousel without mediaUrls is refused');
+    ok(!L.buildCreate({ ...car, mediaUrls: 'https://data.postforme.dev/a.jpg' }, NOW).ok, 'mediaUrls must be a list');
+    ok(!L.buildCreate({ ...car, mediaUrls: [urls(2)[0], 'https://evil.example/b.jpg'] }, NOW).ok, 'a foreign item url is refused');
+    ok(!L.buildCreate({ ...car, mediaUrls: [urls(2)[0], 'http://data.postforme.dev/b.jpg'] }, NOW).ok, 'an item over http is refused');
+    ok(!L.buildCreate({ ...car, mediaUrls: [urls(2)[0], urls(2)[0]] }, NOW).ok, 'the same item twice is refused');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), options: { trial_reel_type: 'manual' } }, NOW).ok, 'a trial is refused on a carousel');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), options: '{"trial_reel_type":"manual"}' }, NOW).ok, 'also when options come as a string');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), coverUrl: 'https://data.postforme.dev/cover.jpg' }, NOW).ok, 'a cover image is refused on a carousel');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), options: { cover_timestamp_ms: 2000 } }, NOW).ok, 'a cover frame is refused on a carousel');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), mediaUrl: base.mediaUrl }, NOW).ok, 'a carousel with a Reel video too is refused');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), socialAccountId: 'acct_1' }, NOW).ok, 'a carousel needs an spc_ account id');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), title: ' ' }, NOW).ok, 'a carousel needs a caption');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), clientName: '' }, NOW).ok, 'a carousel needs a client');
+    ok(!L.buildCreate({ ...car, mediaUrls: urls(2), scheduledAtUTC: '2026-09-30T11:00:00.000Z' }, NOW).ok, 'a carousel in the past is refused');
+    const sc = L.buildCreate({ ...car, mediaUrls: urls(3), scheduledAtUTC: '2026-10-01T15:00:00Z' }, NOW);
+    eq([sc.postBody.scheduled_at, sc.row.status], ['2026-10-01T15:00:00.000Z', 'scheduled'], 'a carousel can be scheduled');
+    ok(!L.buildCreate({ ...car, kind: 'story', mediaUrls: urls(2) }, NOW).ok, 'an unknown kind is refused');
+    // A Reel is unchanged: no kind (or kind reel) builds exactly what it did before carousels.
+    const before = L.buildCreate(base, NOW, 'QA Admin');
+    const asReel = L.buildCreate({ ...base, kind: 'reel' }, NOW, 'QA Admin');
+    eq(asReel.postBody, before.postBody, 'kind reel sends the same Post For Me body as before');
+    eq({ ...asReel.row, created_at: 0, updated_at: 0 }, { ...before.row, created_at: 0, updated_at: 0 }, 'and stores the same row');
+    ok(!('kind' in before.row.options), 'a Reel row keeps its old options shape');
+    eq([L.publicRow(before.row).kind, L.publicRow(before.row).items], ['reel', 1], 'a Reel row (and every row from before) reads as a Reel');
+    ok(!L.buildCreate({ ...base, mediaUrls: urls(2) }, NOW).ok, 'a Reel with a list of items is refused, never half-sent');
+    eq(L.buildCreate({ ...base, options: { trial_reel_type: 'manual' } }, NOW).postBody.account_configurations[0].configuration, { placement: 'reels', trial_reel_type: 'manual' }, 'a trial Reel still works');
+  }
+
   // --- Post For Me's answers become statuses
   const row = L.buildCreate(base, NOW).row;
   eq(L.applyCreateResponse(row, { id: 'sp_1', status: 'processing' }, NOWISO).status, 'processing', 'created, in flight');

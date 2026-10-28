@@ -7,6 +7,8 @@
 //   POST { action: "mint" }                          { ok, upload_url, media_url }   one-time Post For Me storage URL
 //   POST { action: "create", clientName, socialAccountId, title, mediaUrl, options?, scheduledAtUTC?, timezone?,
 //          idempotencyKey? }                          { ok, id, status, scheduled_for, error?, row }
+//   POST { action: "create", kind: "carousel", mediaUrls: [2..10], ...same fields, no mediaUrl or cover }
+//                                                    the same answer; one feed post (placement "timeline")
 //   POST { action: "list", client? }                 { ok, rows: [...] }    newest first, refreshed from Post For Me
 //   POST { action: "status", id }                    { ok, row }
 //   POST { action: "cancel", id }                    { ok, row }            only a still-scheduled post

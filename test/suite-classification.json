@@ -1574,6 +1574,14 @@
       "ci": "representative"
     },
     {
+      "file": "instagram-carousel-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Instagram side's Reel / Carousel choice: the carousel picker (pick, drop, reorder, remove, 2 to 10 items, images and videos mixed), no cover or trial on a carousel, one create with the storage addresses in carousel order, and a Reel afterwards sent as before.",
+      "reproduce": "node test/instagram-carousel-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "instagram-platform-switch-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

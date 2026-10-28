@@ -73,10 +73,13 @@ const approvals = (t, n0) => t.state.upserts.slice(n0).filter(u => u.id === 'rs1
       t.state.writeFail = 1;
       const n0 = t.state.upserts.length;
       await inS(t.page, '#capSave').click();
-      await sleep(2500);
+      // Wait for the refused save to come back (the not-saved words), not a fixed time: under three parallel CI
+      // lanes the answer can take longer than 2.5 s, which failed #2385 and #2380 on code they do not touch.
+      const flashFn = (r) => (r.getElementById('flash') || {}).textContent || '';
+      await until(async () => /did not save/.test(await R(t.page, flashFn)), 10000);
       expect((await stepNow(t)) === 'caption', 'refused: still on the caption step');
       expect(approvals(t, n0).length === 0 && !t.state.upserts.slice(n0).some(u => u.caption === NEW_CAPTION), 'refused: nothing saved and nothing approved');
-      const flash = await R(t.page, (r) => (r.getElementById('flash') || {}).textContent || '');
+      const flash = await R(t.page, flashFn);
       expect(/did not save/.test(flash), 'refused: the not-saved words show (' + flash + ')');
       const kept = await R(t.page, (r) => { const e = r.getElementById('capTa'); return e ? e.value : null; });
       expect(kept === NEW_CAPTION, 'refused: the edited text is still in the edit box');

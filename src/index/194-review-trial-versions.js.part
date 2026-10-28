@@ -1,0 +1,343 @@
+import { showNotify, svBusyHtml } from './040-shared-briefs.js';
+import { calClientSlug } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
+    /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
+       in PR 2352).
+
+       On a card whose Trial reels switch is on (behind trial_reels_pages), the video step of the review page (195:
+       the client link, the SMM's Review tab and Kasper's Review Session) shows one version at a time: a bar over the
+       player reads "Video B of 5" with a dot per version carrying this reviewer's answer and an arrow on each side
+       (no hook text, decision 1), and the player plays that version's link.
+         - Approve answers the version on screen (trial-reels "answer"). Only when every version that is not dropped has
+           this reviewer's OK does the page call today's approve on the video part, so the card moves as it does today
+           (SMM to Kasper or the client, Kasper to the client, the client to Approved).
+         - "Approve all" answers every open version at once, then today's approve.
+         - Ask for a change answers that version (change asked, with the note) and sends today's change request on the
+           video part, starting "Video C:", so the card goes to Tweaks Needed and the editor works as today (Q3).
+         - Once a winner is picked the client sees only it: "Video C: the one we are posting" (Q8).
+       A card with one live version, or any read that fails, is today's page. Read once per client, kept 30 s. */
+    const TRV_TTL_MS = 30000;
+    const _trv = {};          // client slug -> { at, cards, promise }
+    const _trvCur = {};       // post id -> letter on screen
+    const _trvBusy = new Set();
+    let _trvRepaint = () => {};
+
+    function svTrialReviewOnChange(fn) { _trvRepaint = typeof fn === 'function' ? fn : () => {}; }
+    function _trvSlug(client) { try { return calClientSlug(String(client || '')); } catch (e) { return ''; } }
+    function _trvLoad(slug, force) {
+        const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
+        if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
+        e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+            .then(json => { e.cards = (json && json.cards) || {}; _trvFlush(slug); })
+            .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
+            .finally(() => { e.at = Date.now(); e.promise = null; _trvRepaint(); });
+        return e.promise;
+    }
+    const _trvLive = v => v.status !== 'dropped';
+
+    /* The trial shape of one card for the review page, or null for today's page. Samples have no trial. */
+    function svTrialReviewShape(post, mode, item) {
+        if (!post || !post.id || (item && item._sxr)) return null;
+        const slug = _trvSlug(post.client || (item && item.client) || '');
+        if (!slug || !svTrialReelsOn(slug)) return null;
+        const e = _trv[slug];
+        if (!e || !e.at) { _trvLoad(slug); return null; }
+        if (Date.now() - e.at > TRV_TTL_MS) _trvLoad(slug);
+        const shape = e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions)) return null;
+        const winner = shape.versions.find(v => v.status === 'winner');
+        if (winner) return mode === 'client' ? { slug, winner, versions: [winner], shape } : null;
+        // One live version still goes through its own answer, so the trial can start once it is approved.
+        const live = shape.versions.filter(_trvLive);
+        return live.length ? { slug, versions: live, shape } : null;
+    }
+    const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
+    /* This reviewer's answer on one version: ok, chg or wait. */
+    /* This reviewer's answer on one version: ok, chg, wait, or team: Kasper and the client answer a version only after
+       the SMM has looked at it (the function's stage order), so until then it is "with the team": no Approve, a muted
+       dot, not counted in Approve all (Probe rule-miss 13). A read without `ready` (older) counts as ready. */
+    function _trvAnswer(v, stage) {
+        if (v.status === 'change asked') return 'chg';
+        const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
+        if (ok) return 'ok';
+        const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
+        return ready ? 'wait' : 'team';
+    }
+    function _trvCurOf(m, mode) {
+        const vs = m.trial.versions;
+        const had = vs.find(v => v.letter === _trvCur[m.id]);
+        if (had) return had;
+        const stage = _trvStage(mode);
+        const v = vs.find(x => _trvAnswer(x, stage) === 'wait') || vs[0];
+        _trvCur[m.id] = v.letter;
+        return v;
+    }
+    /* The post the player plays: today's post with the version's link in place of the card's. On a client link the
+       player asks for the card's own video by the card's id (frameio-view), so a version that is not the card's link
+       opens in a new tab there (today's fallback, `noPlayer`); staff pages play every version in place. */
+    function svTrialReviewPost(m, mode) {
+        if (!m || !m.trial) return m && m.post;
+        const v = _trvCurOf(m, mode);
+        if (!v) return m.post;
+        // A version with no link yet shows today's "No video yet", never another version's video.
+        if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
+        return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
+    }
+    // The version on screen is still with the team (the SMM has not looked at it): the page shows that, not Approve.
+    function svTrialReviewWithTeam(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
+    }
+    // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
+    function svTrialReviewAnswered(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
+    }
+    function svTrialReviewApproveWord(m, mode) {
+        return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
+    }
+
+    /* The page around the player, as the approved mock (mock-c1440, mock-c390; Probe E1 to E5):
+         - above the player, only once a winner is picked: "Video C: the one we are posting" (Q8);
+         - an arrow on each side of the player (desktop; on a phone the video is swiped left or right instead);
+         - under the player, "Video A of 5" and a row of letter dots carrying this reviewer's answer on each version,
+           with "Swipe for the next version" on a phone;
+         - "Approve all (4 waiting)" at the bottom left, beside Finish reviewing, which counts versions.
+       Each answers '' for today's page. */
+    // One quiet word over the version's name, on every page that reviews a trial card's video (Sidney, 2026-10-27: "it
+    // should say that it's a trial video"; no visual noise, so a small muted word and no pill). Not on the player's
+    // badge: a 9:16 player on a wide page is too narrow for it, so the page hides the badge there.
+    const TRV_TAG = '<span class="trv-tag">Trial</span>';
+    function svTrialReviewBarHtml(m, mode) {
+        if (!m || !m.trial || !m.trial.winner) return '';
+        return TRV_TAG + '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
+    }
+    function svTrialReviewUnderHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
+        const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
+        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
+        const dots = vs.map(v => {
+            const a = _trvAnswer(v, stage);
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+        }).join('');
+        return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
+            + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
+            + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
+            + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
+    }
+    // The two arrows beside the player ('' with one version). They hide on a phone (CSS): there the video is swiped.
+    function svTrialReviewArrowsHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner || m.trial.versions.length < 2) return '';
+        const vs = m.trial.versions, i = vs.indexOf(_trvCurOf(m, mode));
+        const arrow = (d, on, label, side, path) => '<button type="button" class="trv-arr trv-side ' + side + '" data-trv-step="' + d + '" aria-label="' + label + '"' + (on ? '' : ' disabled') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg></button>';
+        return arrow(-1, i > 0, 'The version before', 'prev', 'M10 3 5 8l5 5') + arrow(1, i < vs.length - 1, 'The next version', 'next', 'M6 3l5 5-5 5');
+    }
+    function svTrialReviewAllHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const stage = _trvStage(mode), open = m.trial.versions.filter(v => _trvAnswer(v, stage) === 'wait');
+        if (open.length < 2) return '';
+        return '<button type="button" class="btn-quiet trv-all" data-trv-all="1"' + (_trvBusy.has(m.id) ? ' disabled' : '') + '>'
+            + '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>'
+            + 'Approve all (' + open.length + ' waiting)</button>';
+    }
+    // Finish reviewing counts versions in place of the video (plan section 5): null for today's count.
+    function svTrialReviewCount(m, mode) {
+        if (!m || !m.trial || m.trial.winner || m.trial.versions.length < 2) return null;
+        const stage = _trvStage(mode), vs = m.trial.versions;
+        return { done: vs.filter(v => _trvAnswer(v, stage) !== 'wait').length, total: vs.length };
+    }
+    // One step to the version before (-1) or after (1). False at either end, so the arrow keys can move on to the next part.
+    function svTrialReviewStep(m, mode, d) {
+        if (!m || !m.trial || m.trial.winner) return false;
+        const vs = m.trial.versions, next = vs[vs.indexOf(_trvCurOf(m, mode)) + d];
+        if (!next) return false;
+        _trvCur[m.id] = next.letter; _trvRepaint();
+        return true;
+    }
+    function svTrialReviewBind(el, m, mode, onAll) {
+        if (!el || !m || !m.trial || m.trial.winner) return;
+        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvRepaint(); }));
+        el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => svTrialReviewStep(m, mode, Number(b.dataset.trvStep))));
+        el.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => onAll()));
+    }
+    /* A phone swipes the video left (the next version) or right (the one before). Bound once on the stage; `model()`
+       is the post on stage now. A swipe that starts on the player's own controls (its scrubber) is the player's. */
+    function svTrialReviewSwipe(el, model, mode) {
+        if (!el || el.__trvSwipe) return;
+        el.__trvSwipe = true;
+        let x0 = 0, y0 = 0, on = false;
+        el.addEventListener('touchstart', e => {
+            const t = e.touches && e.touches[0];
+            on = !!t && e.touches.length === 1 && !(e.target.closest && e.target.closest('.fv-controls, input, button, a'));
+            if (on) { x0 = t.clientX; y0 = t.clientY; }
+        }, { passive: true });
+        el.addEventListener('touchend', e => {
+            if (!on) return;
+            on = false;
+            const t = e.changedTouches && e.changedTouches[0];
+            if (!t) return;
+            const dx = t.clientX - x0, dy = t.clientY - y0;
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+            svTrialReviewStep(model(), mode(), dx < 0 ? 1 : -1);
+        }, { passive: true });
+    }
+
+    /* Approve answers AT ONCE (Sidney, 2026-10-27: "everything should feel fast"): the version reads approved here and
+       the page moves on before the server answers. The answers of one card go to the server one at a time, in order,
+       and only the last one's answer is drawn, so a second Approve right after is never undone by the first's answer.
+       A refused answer puts the card back as the server has it and says so. Today's approve on the card still runs
+       only once the server says the stage is done. */
+    const _trvChain = {};     // post id -> the answer in flight (the next waits for it)
+    const _trvSeq = {};       // post id -> how many answers were asked; only the latest one's reply is drawn
+    function _trvLocal(m, mode, body) {
+        const e = _trv[m.trial.slug], card = e && e.cards[m.id];
+        if (!card || !Array.isArray(card.versions)) return null;
+        const stage = _trvStage(mode), now = new Date().toISOString();
+        const versions = card.versions.map(v => {
+            const hit = body.kind === 'approve_all' ? _trvLive(v) && _trvAnswer(v, stage) === 'wait' : v.letter === body.letter && _trvAnswer(v, stage) === 'wait';
+            if (!hit) return v;
+            return Object.assign({}, v, stage === 'client' ? { status: 'approved', client_ok_at: now } : { [stage + '_ok_at']: now });
+        });
+        const before = card;
+        e.cards[m.id] = Object.assign({}, card, { versions });
+        return { before, versions };
+    }
+    function _trvAnswerCall(m, mode, body) {
+        const seq = _trvSeq[m.id] = (_trvSeq[m.id] || 0) + 1;
+        const run = async () => {
+            _trvBusy.add(m.id); _trvRepaint();
+            try {
+                const json = await svTrialCall(Object.assign({ action: 'answer', client: m.trial.slug, post_id: m.id, stage: _trvStage(mode) }, body));
+                const e = _trv[m.trial.slug];
+                if (e && json.versions && seq === _trvSeq[m.id]) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
+                return json;
+            } finally {
+                if (seq === _trvSeq[m.id]) _trvBusy.delete(m.id);
+                _trvRepaint();
+            }
+        };
+        const p = (_trvChain[m.id] || Promise.resolve()).catch(() => {}).then(run);
+        _trvChain[m.id] = p;
+        p.catch(() => {}).finally(() => { if (_trvChain[m.id] === p) delete _trvChain[m.id]; });
+        return p;
+    }
+    function _trvDone(json, mode) {
+        const stage = _trvStage(mode);
+        return stage === 'client' ? !!json.card_approvable : !!(json.stages_done && json.stages_done[stage]);
+    }
+    /* Approve the version on screen. `proceed` is today's approve on the video part; it runs only once the stage is done. */
+    async function svTrialReviewApprove(m, mode, proceed, all) {
+        const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
+        const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
+        const local = _trvLocal(m, mode, body);
+        if (local) {
+            // On to the next version still waiting for this reviewer, now.
+            const next = local.versions.filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
+            if (next) _trvCur[m.id] = next.letter;
+            _trvRepaint();
+        }
+        let json;
+        try { json = await _trvAnswerCall(m, mode, body); }
+        catch (e) {
+            // Back as it was: this version on screen, the card as the server has it.
+            const ent = _trv[slug];
+            if (local && ent && ent.cards[m.id] && ent.cards[m.id].versions === local.versions) ent.cards[m.id] = local.before;
+            _trvCur[m.id] = letter;
+            _trvRepaint();
+            showNotify('Video ' + letter + ' was not approved', svTrialErrorText(e));
+            _trvLoad(slug, true);
+            return;
+        }
+        if (_trvDone(json, mode)) { proceed(); return; }
+        if (!local) {
+            const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
+            if (next) _trvCur[m.id] = next.letter;
+        }
+        _trvRepaint();
+    }
+    /* A change on the version on screen: today's change request goes at once, naming it, and the version's own change
+       is written too. That write is kept in this browser until the function takes it, and sent again after every
+       versions read, so a refused or lost one is never dropped (it is what restarts the version when its new cut lands). */
+    const TRV_PENDING_KEY = 'syncview_trv_pending_v1';
+    function _trvPendingRead() { try { const v = JSON.parse(localStorage.getItem(TRV_PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function _trvPendingWrite(list) { try { if (list.length) localStorage.setItem(TRV_PENDING_KEY, JSON.stringify(list.map(j => ({ slug: j.slug, pid: j.pid, stage: j.stage, letter: j.letter, note: j.note, at: j.at })))); else localStorage.removeItem(TRV_PENDING_KEY); } catch (e) {} }
+    let _trvPendingMem = null;   // the same list when storage is blocked
+    const _trvPending = () => _trvPendingMem || (_trvPendingMem = _trvPendingRead());
+    function _trvPendingSave() { _trvPendingWrite(_trvPending()); }
+    async function _trvSendChange(job) {
+        try {
+            const json = await svTrialCall({ action: 'answer', client: job.slug, post_id: job.pid, stage: job.stage, kind: 'change', letter: job.letter, note: job.note });
+            const list = _trvPending(), i = list.indexOf(job);
+            if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
+            const e = _trv[job.slug];
+            if (e && json.versions) e.cards[job.pid] = Object.assign({}, e.cards[job.pid] || {}, json, { enabled: true });
+            _trvRepaint();
+            return true;
+        } catch (err) {
+            // The version is gone, dropped or already decided: nothing left to record.
+            if (['version_not_found', 'version_dropped', 'version_on_trial', 'trial_reels_off', 'not_enabled'].includes(String(err && err.code || ''))) {
+                const list = _trvPending(), i = list.indexOf(job);
+                if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
+            }
+            return false;
+        }
+    }
+    function _trvFlush(slug) {
+        _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
+    }
+    // The version on screen now ('' when the card has no open trial): a change box remembers it when it opens.
+    function svTrialReviewLetter(m, mode) {
+        return m && m.trial && !m.trial.winner ? _trvCurOf(m, mode).letter : '';
+    }
+    /* `asked` is the version the change was asked on (the box remembers it when it opens, and the client's queue keeps
+       it with each change): a change sent after a look at another version is still about the one it was asked on
+       (Probe bugs 10 and 10b). Without it, the version on screen. */
+    function svTrialReviewChangeText(m, mode, text, frameNote, asked) {
+        const had = asked && m.trial.versions.find(v => v.letter === asked);
+        const letter = had ? had.letter : _trvCurOf(m, mode).letter;
+        const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
+        _trvPending().push(job); _trvPendingSave();
+        job.inFlight = true;
+        _trvSendChange(job).then(ok => {
+            job.inFlight = false;
+            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", 'Your change request was sent. Marking Video ' + letter + ' as changed will be tried again in a moment.');
+        });
+        // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
+        return frameNote ? text : 'Video ' + letter + ': ' + text;
+    }
+
+    const TRV_CSS = `
+.trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
+.trv-under{flex-direction:column;gap:6px;padding:10px 0 2px;min-height:0}
+.trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
+.trv-tag{display:block;padding-top:10px;text-align:center;font-size:.66rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary)}
+.trv-tag + .trv-under{padding-top:2px}
+.trv-of{font-weight:500;color:var(--text-secondary)}
+.trv-dots{display:inline-flex;align-items:center;gap:2px}
+.trv-dot{display:grid;place-items:center;width:26px;height:26px;border:0;background:none;font:inherit;cursor:pointer;padding:0}
+.trv-dot i{display:grid;place-items:center;width:22px;height:22px;box-sizing:border-box;border:1px solid var(--hair);border-radius:50%;color:var(--text-secondary);font-style:normal;font-size:.62rem;font-weight:700}
+.trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
+.trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
+.trv-dot.team i{opacity:.45;border-style:dashed}
+.trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
+.trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
+.trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
+.trv-arr:hover:not([disabled]){background:var(--fill-hover)}
+.trv-arr[disabled]{opacity:.35;cursor:default}
+.trv-arr svg{width:14px;height:14px}
+.trv-side{position:absolute;top:50%;transform:translateY(-50%);z-index:5}
+.trv-side.prev{left:calc(50% - var(--trv-half,140px) - 58px)}
+.trv-side.next{left:calc(50% + var(--trv-half,140px) + 14px)}
+.trv-all{display:inline-flex;align-items:center;gap:6px}
+.trv-all svg{width:14px;height:14px}
+.trv-busy{color:var(--text-secondary)}
+.dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
+@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
+`;
+export {
+  TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml,
+  svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost,
+  svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewAnswered
+};

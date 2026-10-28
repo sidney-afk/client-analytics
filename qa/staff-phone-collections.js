@@ -163,6 +163,8 @@ async function main(){
     await root.locator('[data-staff-menu=more]').tap();
     const dialog=root.locator('dialog[open]');
     assert.deepEqual(await dialog.locator('h3').allTextContents(),['Work on content','View & organize','Preferences','Tools & account']);
+    // The menu opens with an animation: wait for its first item, then check it (an immediate read raced a busy runner).
+    await dialog.getByRole('button',{name:'Select cards',exact:true}).waitFor({state:'visible',timeout:5000}).catch(()=>{});
     assert(await dialog.getByRole('button',{name:'Select cards',exact:true}).isVisible());
     if(type==='calendar')assert(await dialog.getByRole('button',{name:'Write captions',exact:true}).isVisible());
     else assert.equal(await dialog.getByRole('button',{name:'Write captions',exact:true}).count(),0,'Samples must not gain an unsupported caption writer');

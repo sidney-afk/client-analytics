@@ -73,8 +73,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        dot, not counted in Approve all (Probe rule-miss 13). A read without `ready` (older) counts as ready. */
     function _trvAnswer(v, stage) {
         if (v.status === 'change asked') return 'chg';
-        // The client's "Not this one": answered, for the client; the team drops it.
-        if (stage === 'client' && v.client_pass_at && v.status === 'waiting') return 'pass';
+        // The client's "Not this one": answered, for the client; for the team (the SMM's Review tab, Kasper's standard
+        // layout) it is "Client dropped", never another Approve, and the team drops it (Trialtest, 2026-10-28).
+        if (v.client_pass_at && v.status === 'waiting') return stage === 'client' ? 'pass' : 'cpass';
         const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
         if (ok) return 'ok';
         const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
@@ -119,7 +120,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return m.trial.versions.some(v => v.letter !== cur.letter && _trvLive(v) && !v.client_pass_at);
     }
     function svTrialReviewPassed(m, mode) {
-        return !!(m && m.trial && !m.trial.winner && mode === 'client' && _trvAnswer(_trvCurOf(m, mode), 'client') === 'pass');
+        if (!m || !m.trial || m.trial.winner) return false;
+        const a = _trvAnswer(_trvCurOf(m, mode), _trvStage(mode));
+        return a === 'pass' || a === 'cpass';
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
@@ -147,8 +150,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
-            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
@@ -359,6 +362,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const letter = had ? had.letter : _trvCurOf(m, mode).letter;
         const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
         _trvPending().push(job); _trvPendingSave();
+        // The version reads "change asked" at once, as Approve does (Trialtest, 2026-10-28: the client's own dot stayed
+        // waiting); the server's answer, or the next read, replaces it.
+        const ent = _trv[m.trial.slug], card = ent && ent.cards[m.id];
+        if (card && Array.isArray(card.versions)) {
+            ent.cards[m.id] = Object.assign({}, card, { versions: card.versions.map(v => v.letter === letter && _trvLive(v) && ['waiting', 'approved'].includes(v.status) ? Object.assign({}, v, { status: 'change asked', change_by: job.stage }) : v) });
+            _trvRepaint();
+        }
         job.inFlight = true;
         _trvSendChange(job).then(ok => {
             job.inFlight = false;

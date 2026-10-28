@@ -35129,6 +35129,23 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - A tile with no picture shows a quiet video mark. No version has a picture of its own (frameio-view returns none), so the card's poster is used when it has one.
 - **Proven:** `test/trial-reels-round2-review-browser.js`, light and dark: from the first frame the card has tiles or placeholders, the panes under them never move, and a video mark is in every tile. Each fails on main.
 
+## 566. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: a version the client passed on read "waiting" on Kasper's standard layout and the SMM's Review tab, and the client's own dot missed their change (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest after #2409.
+  - On Kasper's standard layout (390, or any Kasper without the second layout), with Video B on stage on a card where the client passed B: the dot read "Video B, waiting", nothing said "Client passed", the button offered "Approve Video B", and "Approve all (2 waiting)" counted B. The second layout's tile was right. The SMM's Review tab had the same gap.
+  - On the client link, after a change on Video C (Ask for a change, typed, Enter), the server had the change, but the client's own dot for C stayed "waiting" while the box stayed open.
+- **Why:**
+  - `_trvAnswer` (`src/index/194-review-trial-versions.js.part`) knew the pass only for the client's stage.
+  - The client's change waited for the server's answer, and the page holds its redraw while a box has focus (`_rsTyping`, `195`).
+- **Fix:**
+  - For the team, a passed version reads "Client passed" on its dot ("Video B, client passed"). In place of Approve it says "Client passed on Video B: drop it from the card", and Approve all leaves it out.
+  - The change marks the version "change asked" at once, as Approve does.
+  - A trial card's version bar is drawn again even while a box has focus. It holds no input.
+- **Proven:** `test/trial-reels-round2-review-browser.js`:
+  - `TRL_PART=staffpass`: Kasper at 1280 and at 390, and the SMM's Review tab at 1440;
+  - `TRL_PART=clientchg`: the server answers after 1.5 s, the box keeps the focus, and C's dot says change asked within 400 ms.
+  - Each fails on main.
+
 ## 567. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a client's answer took up to 30 s to reach the SMM's open card (Sidney, session Trials)
 
 - **What happened:** Sidney, 2026-10-28: "if a client does something on the trial, like approves, it shows immediately on the calendar. I always want everything to be fast." Since #2409 (563) the staff card caught up on its 30 s read, so about 20 s on average.

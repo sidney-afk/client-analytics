@@ -226,6 +226,56 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
+    // ---------- Trialtest, round 2 live: the client's pass on Kasper's standard layout and the SMM's Review tab ----------
+    // Kasper without his second layout (1280 wide, and a phone) and the SMM's Review tab: a version the client passed on
+    // says so on its dot and in its place, offers no Approve, and Approve all leaves it out.
+    for (const [mode, w, h, label] of [['kasper', 1280, 860, 'kasper standard 1280'], ['kasper', 390, 844, 'kasper 390'], ['smm', 1440, 900, 'SMM review 1440']].filter(() => part('staffpass'))) {
+      const vs = three().map(v => Object.assign(v, mode === 'smm' ? { kasper_ok_at: null } : {}));
+      if (mode === 'smm') vs.forEach(v => { v.smm_ok_at = null; });
+      vs[1].client_pass_at = '2026-10-28T09:00:00.000Z'; vs[1].smm_ok_at = '2026-10-28T08:00:00.000Z';
+      if (mode === 'kasper') vs[1].kasper_ok_at = null;
+      const t = await start(mode, true, vs, Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      let d = await dec(t);
+      const all0 = await R(t, `return ((r.querySelector('[data-trv-all]') || {}).textContent || '').trim();`);
+      ok(/pass/.test(d.dots.split(',')[1] || '') && /Approve all \(2 waiting\)|^$/.test(all0) && !/\(3 waiting\)/.test(all0), `${label}: Video B's dot says the client passed, and Approve all counts only A and C (${d.dots} | ${all0})`);
+      const aria = await R(t, `const b = r.querySelector('[data-trv-go="B"]'); return b ? b.getAttribute('aria-label') : '';`);
+      ok(/client dropped/i.test(aria), `${label}: B's dot is read out as client dropped ("${aria}")`);
+      await press(t, '[data-trv-go="B"]');
+      await sleep(400);
+      d = await dec(t);
+      ok(/Client dropped Video B/.test(d.said) && !d.ok, `${label}: on Video B, "Client dropped" in place of Approve (${d.said} | ok "${d.ok}")`);
+      await shot(t, 'r2-staffpass-' + label.replace(/\s+/g, '-'));
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- Trialtest, round 2 live: the client's own dot shows the change at once, with the box still open ----------
+    if (part('clientchg')) {
+      // Only the video is left to review on this card (the thumbnail and caption are approved), as on Trialtest's card,
+      // so the page stays on the Video step after the change.
+      const t = await start('client', true, three(), { beforeOpen: async t2 => { const c = t2.state.cards.find(x => x.id === 'rs1'); Object.assign(c, { graphic_status: 'Approved', caption_status: 'Approved' }); } });
+      await press(t, '[data-trv-go="C"]');
+      await sleep(300);
+      await press(t, '[data-chg="video"]');
+      await sleep(300);
+      await inS(t.page, '#ta').fill('Fictional note: a shorter end card.');
+      // The live answer takes a moment, and the box can keep the focus meanwhile (Trialtest's case).
+      t.T.delay = 1500;
+      await inS(t.page, '#ta').press('Enter');
+      await t.page.evaluate(() => { const ta = document.getElementById('svReviewStage').shadowRoot.querySelector('#ta'); if (ta) ta.focus(); });
+      await sleep(400);
+      const early = await dec(t);
+      ok(/chg/.test(early.dots.split(',')[2] || ''), `client: C's dot says change asked at once, before the server answers, with the box still focused (${early.dots})`);
+      await waitFor(async () => t.T.versions[2].status === 'change asked', 40);
+      await sleep(600);
+      // (No press anywhere after the send: the bar must follow by itself.)
+      const d = await dec(t);
+      if (process.env.TRL_DEBUG) console.log('DEBUG', JSON.stringify(d), await R(t, `return [!!r.querySelector('.trv-under'), (r.activeElement || {}).id, !!r.querySelector('#ta'), [...r.querySelectorAll('.stp')].map(n => n.className + ':' + n.textContent.trim()).join('|'), ((r.querySelector('.trv-under-host') || {}).innerHTML || '').slice(0, 300)];`));
+      ok(t.T.versions[2].status === 'change asked' && /chg/.test(d.dots.split(',')[2] || ''), `client: after a change on Video C, C's own dot says change asked at once (${d.dots})`);
+      ok(!t.errors.length, `client change: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
     // ---------- 2: the review page keeps the reel's shape while the next version loads ----------
     for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('shape'))) {
       const t = await start('client', true, three(), Object.assign({ beforeOpen: async t2 => {

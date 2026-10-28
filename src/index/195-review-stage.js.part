@@ -1879,7 +1879,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.skel) { _rsHeader(); _rsSkeleton(); return; }   // the client page's Review while its cards load
         _rsSkeletonOff();
         if (R.bar) { _rsHeader(); return; }   // Sheet, Month or Week under the client link's header: no stage
-        if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); if (R.cp) _rsCpTypingPaint(); return; }
+        if (!(opts && opts.force) && _rsTyping()) {
+            R.pending = true; _rsHeader(); _rsStrip(); if (R.cp) _rsCpTypingPaint();
+            // A trial card's version bar still follows while a box is typed in: it holds no input of its own.
+            const tm = _rsCur();
+            if (tm && tm.trial && !R.l2 && _rsKind(R.S.step) === 'video') _rsTrialBar(tm, _rsQ('view'));
+            return;
+        }
         R.pending = false;
         const m = _rsCur();
         _rsEmptyMemory(!m);
@@ -2447,7 +2453,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
         // The client said "Not this one" on the version on screen (owner, 2026-10-28): said, and the team takes it out.
-        if (x.key === 'video' && svTrialReviewPassed(_rsCur(), R.mode)) return '<span class="dst">Not this one: the team will take Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' out</span>';
+        if (x.key === 'video' && svTrialReviewPassed(_rsCur(), R.mode)) return R.mode === 'client'
+            ? '<span class="dst">Not this one: the team will take Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' out</span>'
+            : '<span class="dst">Client dropped Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ': take it off the card</span>';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's

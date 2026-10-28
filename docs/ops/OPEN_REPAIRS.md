@@ -35060,3 +35060,69 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proof:** `test/app-update-self-reload-behavior.js` (4 new checks, stub DOM) and `test/app-update-quiet-browser.js` (3 new checks in Chromium: a visible signed-out tab gets the bar after the hour, a hidden one reloads itself, and not once a key has been typed). On main's 350 both fail. The live check before the fix: with the card shown, the bar check and the hidden-reload check fail; with it hidden, every check passes.
 
 **Way back:** revert the pull request.
+
+## 561. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: the Thumbnail and Video rows' colour stopped short of the row's end, and the trial state read "0/3 ap…" (Sidney, session Trials)
+
+- **What happened:** Sidney's round on the test client's card, 2026-10-28: "the pink and blue thing should go … like how it was before, the color should still go to the end". The coloured fill covered only the link. The trial switch, the arrow and the pencil sat outside it on the card's white. On his card the trial state was cut to "Video · 4  0/3 ap…".
+- **Why:** #2392 (OPEN_REPAIRS 550) made the row buttons transparent so a hover changes only their icon. The colour had lived on those buttons, so it went with them. The state text ended in an ellipsis on a row narrower than its words.
+- **Fix:** `src/index/020-styles-surfaces.css.part` and `src/index/189-trial-reels-card.js.part`.
+  - The row (`.cal-link-field.has-link` on the Thumbnail and Video rows) carries the colour, so it runs to the end under the unboxed buttons. The buttons and their hover are unchanged, and the link keeps its own hover. A row being edited and the read-only client rows are unchanged.
+  - The trial state never truncates. On a narrow row its words step back ("0/3", "5 h left"), and the full words are in the link's hover ("Open the video. 0 of 3 approved").
+  - The phone card's outlined rows are unchanged.
+- **Proven:** `test/trial-reels-round2-card-browser.js`:
+  - at 1440 the row's end colour equals the link's colour, with its last button inside it, in light and dark;
+  - a hover on the pencil changes only the icon;
+  - on a 236 px row the state reads whole;
+  - the hover has the full words.
+  - Each fails on main.
+
+## 562. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: the client had no way to say no to one version (Sidney, session Trials)
+
+- **What happened:** Sidney, as the client: "when it's a trial, shouldn't the client have the option to reject it, like to drop it?"
+- **Fix:** a "Not this one" on the version on screen, on the client link only.
+  - **The server** (`supabase/functions/trial-reels`): a new client answer kind, `pass`, with the same stage rules as an approve. It stamps `client_pass_at` on the version and leaves its status as it was.
+  - **What a pass changes:** a passed version is not waiting for anyone. Approve all skips it, the client stage and the card's Approved count without it, and the trial starts with the approved versions only.
+  - **What a pass cannot do:** it is never allowed on the last version the client has not passed, and staff cannot pass (only the team drops). The client never moves the card's link.
+  - **What clears it:** a new cut, a new link, Bring back, or the client's own approve.
+  - **Migration:** `supabase/migrations/20261028150000_trial_reels_client_pass.sql` adds the one column, with no grants (the table stays service-role only). It is marked `functions-cope-without-this`: until it is applied, only the pass is refused (`pass_unavailable`, said to the client in words), and no other write names the column.
+  - **The page:** the client's review page moves to the next version at once and says "Not this one: the team will take Video A out" on the passed one, with its dot crossed.
+  - **What the team sees:** "Client passed" on the card's version list, in Production's version rows and on Kasper's tile (with Drop, without Approve). The card's summary does not count the version as waiting.
+- **Proven:**
+  - `test/trial-reels-logic.js` (22 new checks);
+  - `test/trial-reels-function-deno.ts`: `pass_unavailable` before the column exists, `pass_client_only` for staff, the pass, the ledger row `trial_pass`, and the client's approve taking the pass back;
+  - `test/trial-reels-round2-review-browser.js` (client at 1440 and 390, light and dark; a refused pass put back; Kasper's tile);
+  - `test/trial-reels-round2-card-browser.js` and `test/trial-reels-production-browser.js` ("Client passed").
+  - Each fails on main.
+- **Needs:** Lighthouse applies the migration. Until then the client's pass answers `pass_unavailable`, and everything else works.
+
+## 563. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: a client's answer did not show on the SMM's card until something redrew it (Sidney, session Trials)
+
+- **What happened:** "I approved one of them, but in the SMM's calendar I don't see that it's approved."
+  - Read on live (read only): on that test-client card the server holds one client answer, Video B approved at 14:35:24 UTC, and no answer on Video A. So the approve Sidney remembers as Video A landed on Video B.
+  - Either way, the SMM's card read the versions only when it was drawn again.
+- **Why:** a client's answer writes only the versions log, which sends the Calendar no live change. The card's list was kept 30 s but read again only on a redraw.
+- **Fix:** `src/index/189-trial-reels-card.js.part`.
+  - While a trial card is on screen on the staff Calendar, the list is read again once it is 30 s old (looked at every 5 s), and at once when the tab comes back.
+  - Only the cards whose versions changed are drawn again, and an open versions list stays open.
+  - Staff only; nothing on a client link or a hidden tab.
+- **Proven:** `test/trial-reels-round2-card-browser.js`: the server approves Video A with no page action. Within one refresh the card says 1/3 and A's row says approved. A tab return brings "Client passed". This fails on main.
+- **Open:** why Sidney's press landed on Video B is not proven. The player plays the version the bar names in every offline check (`trial-reels-review-browser.js`). A live walk by Trialtest should press Approve on a named version and read the ledger.
+
+## 564. [2026-10-28 UTC, BUILT, NOT MERGED] Notes player: switching Video A, B, C showed a wide box "for like a second" (Sidney, session Trials)
+
+- **What happened:** on a trial card with no thumbnail picture (a Frame.io thumbnail page), each switch in the Notes player's "Video A B C" showed a 16:9 box (772 by 434 at 1440) until the next version's video gave its size.
+- **Why:** each switch mounts the player again. It started at today's 16:9 fallback, because the card had no poster to give the shape.
+- **Fix:** `src/index/187-frame-viewer.js.part` remembers each card's video shape once seen. The next version, or the same card again, starts at that shape. A trial card's first look with no picture starts at a reel's 9:16 (`_fvPortrait` from 189 and 194). This covers the Notes player, the client player and the review stage.
+- **Proven:**
+  - `test/trial-reels-round2-card-browser.js`: every frame from the press until the next version plays, at 1440 and 390; never a wide frame. This fails on main.
+  - `test/trial-reels-round2-review-browser.js`: the same on the review page, which 559's 9:16 fallback already held.
+
+## 565. [2026-10-28 UTC, BUILT, NOT MERGED] Kasper's second layout: the "Trial 3 versions" tiles appeared late and pushed the card down, and showed black squares (Sidney, session Trials)
+
+- **What happened:** the tiles "appeared really late". With the read at 1.2 s the card drew without them, and then the panes under them dropped by 121 px. A card with a Frame.io thumbnail page (no picture) showed a black square in every tile.
+- **Why:** the trial read began only when the review page's own code had loaded and built the card, never with Kasper's queue. The tiles drew nothing in place of a missing picture.
+- **Fix:**
+  - `src/index/330-kasper-review-history.js.part` and `189` start each queue client's read the moment the queue arrives. The review page's first read is that same list (`svTrialListShared`); its later reads are its own, so an answer given there is never taken back.
+  - While the read is not in, `194` and `195` draw a row of tile placeholders the same height as the tiles, so nothing under them moves.
+  - A tile with no picture shows a quiet video mark. No version has a picture of its own (frameio-view returns none), so the card's poster is used when it has one.
+- **Proven:** `test/trial-reels-round2-review-browser.js`, light and dark: from the first frame the card has tiles or placeholders, the panes under them never move, and a video mark is in every tile. Each fails on main.

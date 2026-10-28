@@ -605,7 +605,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         host.style.removeProperty('--fv-ar');
         // The shape on the first frame: the same picture is usually already decoded on the page (the card's
         // thumbnail) or was seen before; a new <img> only knows its size a frame later, and the view jumped.
-        const known = _fvPosterSize(posterSafe);
+        // The card's own video shape wins once seen: another version of a trial card (Sidney, 2026-10-28: switching
+        // A, B, C "shows a landscape video for like a second" while the next one loads) or the same video again.
+        // A trial card's first look, with no picture to go by, is a reel's 9:16.
+        const seen = post && post.id ? _fvCardShapes.get(post.id) : null;
+        const known = seen || _fvPosterSize(posterSafe) || (post && post._fvPortrait ? [9, 16] : null);
         if (known) { FV_STAGE.host = host; _fvOrient(known[0], known[1]); }
         host.innerHTML = `<div class="fv-player" data-state="loading">
                 ${posterSafe ? `<img class="fv-poster" src="${_calEscAttr(posterSafe)}" alt="" onerror="this.remove()">` : ''}
@@ -635,7 +639,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
         const img = _fvSp('.fv-poster');
         if (img) {
-            const fit = () => { if (img.naturalWidth) _fvPosterSizes.set(posterSafe, [img.naturalWidth, img.naturalHeight]); if (img.naturalWidth && FV_STAGE.host === host && !(FV_STAGE.video && FV_STAGE.video.videoWidth)) _fvOrient(img.naturalWidth, img.naturalHeight); };
+            const fit = () => { if (img.naturalWidth) _fvPosterSizes.set(posterSafe, [img.naturalWidth, img.naturalHeight]); if (img.naturalWidth && !seen && FV_STAGE.host === host && !(FV_STAGE.video && FV_STAGE.video.videoWidth)) _fvOrient(img.naturalWidth, img.naturalHeight); };
             if (img.complete) fit(); else img.addEventListener('load', fit, { once: true });
         }
         _fvSp('.fv-play').addEventListener('click', svFrameTogglePlay);
@@ -667,6 +671,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return true;
     }
     const _fvPosterSizes = new Map();
+    const _fvCardShapes = new Map();   // card id -> the [width, height] its video last played at
+    function _fvVideoShape(w, h) {
+        if (FV_STAGE.pid && w > 0 && h > 0) _fvCardShapes.set(FV_STAGE.pid, [w, h]);
+        _fvOrient(w, h);
+    }
     function _fvPosterSize(src) {
         if (!src) return null;
         if (_fvPosterSizes.has(src)) return _fvPosterSizes.get(src);
@@ -879,7 +888,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             v.addEventListener('timeupdate', () => { if (mine()) _fvClock(); });
             v.addEventListener('loadedmetadata', () => {
                 if (!mine()) return;
-                _fvOrient(v.videoWidth, v.videoHeight);
+                _fvVideoShape(v.videoWidth, v.videoHeight);
                 if (FV_STAGE.seekTo != null) { try { v.currentTime = FV_STAGE.seekTo; } catch (e) {} FV_STAGE.seekTo = null; }
                 const s = _fvSp('.fv-scrub'); if (s) s.disabled = false;
                 _fvClock(); _fvStageMarkers();
@@ -902,7 +911,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         else if (FV_STAGE.resumeAt > 0) FV_STAGE.seekTo = FV_STAGE.resumeAt;
         FV_STAGE.resumeAt = 0;
         if (v.readyState >= 1 && v.videoWidth) {
-            _fvOrient(v.videoWidth, v.videoHeight);
+            _fvVideoShape(v.videoWidth, v.videoHeight);
             if (FV_STAGE.seekTo != null) { try { v.currentTime = FV_STAGE.seekTo; } catch (e) {} FV_STAGE.seekTo = null; }
             const s = _fvSp('.fv-scrub'); if (s) s.disabled = false;
         }

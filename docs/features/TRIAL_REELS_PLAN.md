@@ -40,7 +40,7 @@ Mockups (round 2, after the owner looked at the round 1 card on 2026-10-26; see 
   are typed** (owner, Q7): after the trial **the SMM simply picks the winner** (Q6); the others become lost. **The
   winner posts on the card's calendar date and the card turns Posted.** The client sees only the winner, once it is
   picked (Q8).
-- **Only the team can drop a version** (Q2). **A changed version takes the normal route**: the SMM and Kasper again
+- **Only the team can drop a version** (Q2). The client can say "Not this one" on a version (owner, 2026-10-28; OPEN_REPAIRS 562): it records `client_pass_at`, the team sees "Client passed" and drops it, and it no longer holds the client's stage or the card's Approved. **A changed version takes the normal route**: the SMM and Kasper again
   before the client (Q3). **The client link works like today, with no token** (Q5). **The SMM always picks one**, so
   SyncView has no "no clear winner" (Q10).
 - **Frame.io links are pasted by people** (Q9): the person who uploads each version to Frame.io pastes its link into

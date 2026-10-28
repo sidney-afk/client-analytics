@@ -2269,6 +2269,22 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-round2-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the owner's second trial-reels round on the staff card behind trial_reels_pages: the Thumbnail and Video rows' colour runs to the row's end with the buttons inside it and a hover changing only the icon, the trial state never ends in an ellipsis (on a narrow row its words step back into the hover), a client's answer reaches the SMM's card by itself within one 30 s refresh or a tab return, a version the client passed on says Client passed and is not counted as waiting, and the Notes player never shows a wide frame while the next version loads, at 1440 and 390, light and dark.",
+      "reproduce": "node test/trial-reels-round2-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-round2-review-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the owner's second trial-reels round on the review page: the client's Not this one on the version on screen (at once, never on the last version not passed, a refusal put back and said, the rest approved moves the card to Approved, the three buttons fitting a 390 screen), Kasper's second layout drawing tile placeholders from the first frame so nothing under them moves when the tiles land, Client passed with Drop on Kasper's tile, a video mark in place of a missing picture, and the review player never showing a wide box while the next version loads.",
+      "reproduce": "node test/trial-reels-round2-review-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-notes-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

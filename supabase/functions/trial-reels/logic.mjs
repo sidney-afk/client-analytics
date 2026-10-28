@@ -130,6 +130,16 @@ export function probeVerdict({ status, contentType, disposition, sample }) {
 }
 
 export const live = (v) => v.status !== STATUS.dropped;
+/*
+ * The client's "Not this one" (owner, 2026-10-28): client_pass_at on the version, its status left as it was. A passed
+ * version is not waiting for anyone: the client stage, the card's Approved and the trial count without it, and the team
+ * drops it (only the team drops, Q2, so the card's link never moves for the client). Cleared by a new cut, a new link,
+ * Bring back, or the client's own approve. A row with no pass never names the column, so every other write works
+ * before the migration that adds it is applied.
+ */
+export const passed = (v) => !!v.client_pass_at;
+const counted = (v) => live(v) && !passed(v);
+const clearPass = (v) => (passed(v) ? { client_pass_at: null } : {});
 
 /*
  * One row per letter. Two writers add rows: the AI editor's studio log, keyed by its batch and video number, and
@@ -204,7 +214,7 @@ export function mainLetter(versions, mainLink) {
 
 /** Has every version that is not dropped got this stage's OK? (At least one version must remain.) */
 export function stageDone(versions, stage) {
-  const rest = versions.filter(live);
+  const rest = versions.filter(counted);
   if (!rest.length) return false;
   if (stage === "client") return rest.every((v) => v.status === STATUS.approved || v.status === STATUS.trial || v.status === STATUS.winner || v.status === STATUS.lost);
   return rest.every((v) => !!v[okField(stage)]);
@@ -212,7 +222,7 @@ export function stageDone(versions, stage) {
 
 /** The card is Approved once no version is waiting or has a change asked, and at least one is approved (owner, Q4). */
 export function cardApprovable(versions) {
-  const rest = versions.filter(live);
+  const rest = versions.filter(counted);
   return rest.length > 0 && rest.every((v) => v.status === STATUS.approved);
 }
 
@@ -243,11 +253,12 @@ export function sentOnWhole(versions, stage, cardStatus) {
 export function answerPatches(versions, { stage, kind, letter, note, cardStatus }, now) {
   if (!STAGES.includes(stage)) return { error: "stage_invalid" };
   const whole = sentOnWhole(versions, stage, cardStatus);
-  if (!["approve", "change", "approve_all"].includes(kind)) return { error: "kind_invalid" };
+  if (!["approve", "change", "approve_all", "pass"].includes(kind)) return { error: "kind_invalid" };
+  if (kind === "pass" && stage !== "client") return { error: "pass_client_only" };
   // Open for this reviewer: live, not decided, not waiting on a new cut, with a link to watch, its turn, not yet answered.
   const open = (v) => live(v) && v.status !== STATUS.change && v.status !== STATUS.trial && v.status !== STATUS.winner && v.status !== STATUS.lost
     && !!clean(v.frame_url, 2048) && stageReady(v, stage, whole)
-    && (stage === "client" ? v.status === STATUS.waiting : !v[okField(stage)]);
+    && (stage === "client" ? v.status === STATUS.waiting && !passed(v) : !v[okField(stage)]);
   let targets;
   if (kind === "approve_all") targets = versions.filter(open);
   else {
@@ -255,6 +266,13 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
     if (!v) return { error: "version_not_found" };
     if (!live(v)) return { error: "version_dropped" };
     if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
+    if (kind === "pass") {
+      if (v.status !== STATUS.waiting) return { error: v.status === STATUS.change ? "change_open" : "version_answered" };
+      if (passed(v)) return { error: "version_passed" };
+      if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
+      if (!stageReady(v, stage, whole)) return { error: "stage_order" };
+      if (!versions.some((x) => x.letter !== v.letter && counted(x))) return { error: "last_live_version" };
+    }
     if (kind === "approve") {
       // A change asked waits for its new cut (Q3); nothing to watch, nothing to approve; and each stage in its turn.
       if (v.status === STATUS.change) return { error: "change_open" };
@@ -269,8 +287,9 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
       const text = clean(note, 4000);
       return { id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.change, change_by: stage, change_note: text || null, change_at: now } };
     }
+    if (kind === "pass") return { id: v.id, letter: v.letter, from: v.status, patch: { client_pass_at: now } };
     const patch = { [okField(stage)]: now };
-    if (stage === "client") patch.status = STATUS.approved;
+    if (stage === "client") Object.assign(patch, { status: STATUS.approved }, clearPass(v));
     return { id: v.id, letter: v.letter, from: v.status, patch };
   });
   if (kind === "change" && !clean(note, 4000)) return { error: "note_required" };
@@ -313,7 +332,7 @@ function linkChange(v, link) {
     Object.assign(patch, {
       revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting,
       smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null,
-    });
+    }, clearPass(v));
   }
   return patch;
 }
@@ -345,7 +364,7 @@ export function newCutPatch(versions, letter) {
   if (!v) return { error: "version_not_found" };
   if (v.status !== STATUS.change) return { error: "version_not_change_asked" };
   if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
-  return { patch: { revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } };
+  return { patch: { revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null, ...clearPass(v) } };
 }
 
 /** Only the team drops a version (owner, Q2), and never one that is out on trial or decided. */
@@ -356,7 +375,7 @@ export function dropPatch(versions, letter, restore, mainLink) {
   // Brought back: reviewed again from the start, so no earlier OK stands for it.
   if (restore) {
     return v.status === STATUS.dropped
-      ? { patch: { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } }
+      ? { patch: { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null, ...clearPass(v) } }
       : { patch: null };
   }
   if (!restore && v.status !== STATUS.dropped && !versions.some((x) => x.letter !== letter && live(x))) return { error: "last_live_version" };
@@ -431,6 +450,8 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       frame_url: isMain && clean(mainLink, 2048) ? clean(mainLink, 2048) : (v.frame_url || null),
       on_card: isMain,
       client_ok_at: v.client_ok_at || null,
+      // The client's own "Not this one" (shown to the team as "Client passed").
+      client_pass_at: v.client_pass_at || null,
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
       ready: !!v.smm_ok_at || whole,

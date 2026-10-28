@@ -1760,6 +1760,11 @@
         .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
         .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-slot-video-bg-hover); }
         .cal-link-post.has-link .cal-link-ico { color: var(--sv-slot-video-fg); }
+        /* The row's colour runs to its end, under the buttons beside the link (owner, 2026-10-28: "the color should
+           still go to the end", as before trial reels). The buttons stay unboxed and a hover still changes only their
+           icon (2026-10-27); the link keeps its own hover. Not while the link is being edited (its box is the row). */
+        .cal-link-thumb.has-link:not(.editing):not(.cal-link-ro) { background: var(--sv-slot-thumb-bg); border-radius: 8px; }
+        .cal-link-post.has-link:not(.editing):not(.cal-link-ro) { background: var(--sv-slot-video-bg); border-radius: 8px; }
         /* Trial reels (189, behind trial_reels_pages): the switch, the state, the arrow and the versions, all inside
            today's Video row so a collapsed card keeps today's height. Like the row's other buttons, the switch, the
            trophy and the arrow sit beside the link with no box; a hover changes only their own shape (owner,
@@ -1784,7 +1789,12 @@
         .cal-link-post.trl-open .trl-chev:hover svg { transform: rotate(180deg) scale(1.2); }
         .cal-link-post .trl-state-ico svg { width: 13px; height: 13px; transition: transform .12s; }
         .cal-link-post.trl-main .cal-link-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
-        .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+        /* The state never ends in "…" (owner, 2026-10-28: "Video · 4  0/3 ap…"): on a narrow row its words step back
+           ("0/3", "5 h left") and stay in the link's hover. */
+        .cal-link-post.trl-main .cal-link-pill-open { container-type: inline-size; }
+        .cal-link-post.trl-main .trl-main-label, .cal-link-post .trl-state { flex: none; white-space: nowrap; }
+        .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; }
+        @container (max-width: 160px) { .cal-link-post .trl-state-w { display: none; } }
         .trl-list { display: flex; flex-direction: column; gap: 3px; margin: -2px 0 8px 10px; padding-left: 8px; border-left: 2px solid var(--sv-slot-video-border); }
         .trl-v { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 2px 6px 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
             color: var(--sv-slot-video-fg); background: color-mix(in srgb, var(--sv-slot-video-bg) 55%, transparent); }

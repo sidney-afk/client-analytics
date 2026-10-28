@@ -55,6 +55,7 @@ import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
 import { svFrameFlagWait, svFrameWarm, svFrameWatchBtnHtml } from './187-frame-viewer.js';
 import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from './188-review-stage-switch.js';
+import { svTrialPrime } from './189-trial-reels-card.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -819,6 +820,8 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
         // and this body keeps only the notices above it (save alerts, freshness, what could not be read).
         // Fast boot: the first card's video is asked for while the list is still being drawn.
         if (svRsKasperFast()) _kasperWarmFirstVideo(urgent.concat(waiting));
+        // Trial reels (189): each client's versions are asked for now, with the queue, so a trial card's tiles draw with it.
+        svTrialPrime(urgent.concat(waiting, tweaks).map(i => i && i.client));
         if (svRsKasperPaint({ urgent, waiting, tweaks })) {
             if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
             // The notices above the page are drawn again on every refresh, and the freshness note fades in each time it is

@@ -106,7 +106,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
-        const began = Date.now();
+        const began = Date.now(), first = !e.at;
+        let changed = null;
         e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
             .then(json => {
                 const cards = (json && json.cards) || {};
@@ -114,12 +115,50 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 for (const pid of Object.keys(e.cards)) {
                     if ((_trlPending[pid] || []).length || (_trlWroteAt[pid] || 0) > began) { if (e.cards[pid]) cards[pid] = e.cards[pid]; else delete cards[pid]; }
                 }
+                // Only the cards whose versions moved are drawn again (a refresh every 30 s must not redraw the rest).
+                changed = [...new Set(Object.keys(cards).concat(Object.keys(e.cards)))].filter(pid => JSON.stringify(cards[pid] || null) !== JSON.stringify(e.cards[pid] || null));
                 e.cards = cards; e.at = Date.now(); return e;
             })
             .catch(() => { e.at = Date.now(); return e; })
-            .finally(() => { e.promise = null; _trlRepaintAll(slug); _trlNotesChanged(''); });
+            .finally(() => {
+                e.promise = null;
+                if (first || !changed) { _trlRepaintAll(slug); _trlNotesChanged(''); return; }
+                changed.forEach(pid => { _trlRepaintField(pid); _trlNotesChanged(pid); });
+            });
         return e.promise;
     }
+    /* Kasper's queue (330) starts the trial read of each of its clients the moment the queue arrives, before the review
+       page's own code has loaded (owner, 2026-10-28: the "TRIAL 3 versions" tiles "appeared really late"). The review
+       page (194) then reads from this same list (svTrialListShared), so a staff page asks once per client. */
+    function svTrialPrime(clients) {
+        if (_isClientLink) return;
+        const seen = new Set();
+        (clients || []).forEach(c => {
+            const slug = _trlSlug(c);
+            if (slug && !seen.has(slug) && svTrialReelsOn(slug)) { seen.add(slug); _trlLoad(slug); }
+        });
+    }
+    // The staff list of one client, shared with the review page: { at, cards } once read (a failed read has no cards).
+    function svTrialListShared(slug, force) {
+        return Promise.resolve(_trlLoad(slug, !!force)).then(e => ({ at: e.at, cards: Object.assign({}, e.cards) }));
+    }
+    /* The card reads its versions again by itself (owner, 2026-10-28: "I approved one of them, but in the SMM's
+       calendar I don't see that it's approved"). A client's answer on the review link writes only the versions, which
+       send the Calendar no live change, so while a trial card is on screen the list is read every 30 s, and at once
+       when the tab comes back after that long. Staff Calendar only; nothing for a client link or a hidden tab. */
+    function _trlRefresh(minAge) {
+        if (_isClientLink || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+        if (!document.querySelector('#calView .cal-link-post.trl-main')) return;
+        Object.keys(_trlCards).forEach(slug => {
+            const e = _trlCards[slug];
+            if (e.at && !e.promise && Date.now() - e.at >= minAge && Object.values(e.cards).some(c => c && c.enabled)) _trlLoad(slug, true);
+        });
+    }
+    try {
+        // Looked at every 5 s, read once the list is 30 s old: a read that landed late never doubles the wait.
+        setInterval(() => _trlRefresh(TRL_LIST_TTL_MS), 5000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') _trlRefresh(2000); });
+    } catch (e) {}
     function _trlShape(post) {
         const slug = _trlSlug(post.client || calState.client);
         const e = _trlCards[slug];
@@ -195,26 +234,31 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (vs.some(v => v.status === 'on trial')) {
             if (_trlTrialUp(shape)) return { trophy: true };
             const ms = Math.max(0, Date.parse(shape.trial_ends_at || '') - Date.now());
-            return { text: 'On trial · ' + Math.max(1, Math.ceil(ms / 3600000)) + ' h left' };
+            const hrs = Math.max(1, Math.ceil(ms / 3600000)) + ' h left';
+            return { text: 'On trial · ' + hrs, html: '<span class="trl-state-w">On trial · </span>' + hrs, words: 'On trial, ' + hrs };
         }
-        const live = vs.filter(TRL_LIVE);
+        // A version the client passed on is not waiting for anyone's OK: the team drops it (owner, 2026-10-28).
+        const live = vs.filter(v => TRL_LIVE(v) && !v.client_pass_at);
         if (!live.length) return { text: '' };
-        return { text: live.filter(v => v.status === 'approved').length + '/' + live.length + ' approved' };
+        const n = live.filter(v => v.status === 'approved').length;
+        return { text: n + '/' + live.length + ' approved', html: n + '/' + live.length + '<span class="trl-state-w"> approved</span>', words: n + ' of ' + live.length + ' approved' };
     }
     /* No visual noise: a label shows only where it says something the row does not. One every live version shares is
        dropped (the collapsed row already says it), "lost" once there is a winner; "dropped", "winner" and "change
        asked" always stay. */
     function svTrialLabelShown(vs, v) {
-        if (v.status === 'dropped' || v.status === 'winner' || v.status === 'change asked') return true;
+        if (v.status === 'dropped' || v.status === 'winner' || v.status === 'change asked' || v.client_pass_at) return true;
         if (v.status === 'lost') return false;
-        return new Set(vs.filter(TRL_LIVE).map(x => x.status)).size > 1;
+        return new Set(vs.filter(x => TRL_LIVE(x) && !x.client_pass_at).map(x => x.status)).size > 1;
     }
 
     /* A version's label: a pill, except "dropped", which is plain muted text (owner, 2026-10-27: still said, never a
        pill). sv-dropped-note is the one shared class; the card, Production and the review pages all use it. */
-    function svTrialLabelHtml(status) {
+    function svTrialLabelHtml(status, v) {
         const s = String(status || '');
         if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
+        // The client said "Not this one" (owner, 2026-10-28): the team sees it and drops the version.
+        if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client passed" title="The client passed on this version. Drop it when you are ready.">Client passed</span>';
         return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '">' + _calEsc(s) + '</span>';
     }
 
@@ -244,9 +288,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
         const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
-            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="Open the video">' + parts.extIco
+            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr('Open the video' + (tiny.words ? '. ' + tiny.words : '')) + '">' + parts.extIco
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
-            + (tiny.text ? '<span class="trl-state">' + _calEsc(tiny.text) + '</span>' : '') + '</span></button>'
+            + (tiny.html ? '<span class="trl-state">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
             + '<span class="trl-fill" aria-hidden="true"></span>'
             + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'
@@ -270,7 +314,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // The name opens the version too, not only the small icon (owner, 2026-10-27).
             const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span><button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>';
-            const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status) : '<span class="trl-lab-gap"></span>';
+            const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>';
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -680,7 +724,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialNotesPost(post) {
         const vs = post && _trlNotesVersions(post);
         if (!vs) return post;
-        return Object.assign({}, post, { asset_url: _trlNotesCurOf(post, vs).frame_url });
+        // _fvPortrait: a reel's 9:16 until the video says (187), never a wide box first.
+        return Object.assign({}, post, { asset_url: _trlNotesCurOf(post, vs).frame_url, _fvPortrait: true });
     }
     function svTrialNotesSwitchHtml(post) {
         const vs = post && _trlNotesVersions(post);
@@ -711,6 +756,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialStart, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialAttachBack, svTrialCall, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

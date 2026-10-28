@@ -2,7 +2,8 @@ import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } from './189-trial-reels-card.js';
+import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialListShared, svTrialMoveCard } from './189-trial-reels-card.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
        in PR 2352).
 
@@ -29,7 +30,10 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
     function _trvLoad(slug, force) {
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
-        e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+        // A staff page's first read is the Calendar's list of this client (189), which Kasper's queue starts as it
+        // arrives; every later one is this page's own, so it never takes back an answer given here since.
+        const read = !_isClientLink && !e.at ? svTrialListShared(slug, false) : svTrialCall({ action: 'list', client: slug, post_id: '' });
+        e.promise = read
             .then(json => { e.cards = (json && json.cards) || {}; _trvFlush(slug); })
             .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
             .finally(() => { e.at = Date.now(); e.promise = null; _trvRepaint(); });
@@ -53,6 +57,15 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         const live = shape.versions.filter(_trvLive);
         return live.length ? { slug, versions: live, shape } : null;
     }
+    /* The card's trial read is not in yet for a client the switch lists: the page draws a row of tile placeholders in
+       the tiles' place (Kasper's second layout), never a late pop-in. */
+    function svTrialReviewPending(post, item) {
+        if (!post || !post.id || (item && item._sxr)) return false;
+        const slug = _trvSlug(post.client || (item && item.client) || '');
+        if (!slug || !svTrialReelsOn(slug)) return false;
+        const e = _trv[slug];
+        return !e || !e.at;
+    }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
     /* This reviewer's answer on one version: ok, chg or wait. */
     /* This reviewer's answer on one version: ok, chg, wait, or team: Kasper and the client answer a version only after
@@ -60,6 +73,8 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
        dot, not counted in Approve all (Probe rule-miss 13). A read without `ready` (older) counts as ready. */
     function _trvAnswer(v, stage) {
         if (v.status === 'change asked') return 'chg';
+        // The client's "Not this one": answered, for the client; the team drops it.
+        if (stage === 'client' && v.client_pass_at && v.status === 'waiting') return 'pass';
         const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
         if (ok) return 'ok';
         const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
@@ -84,7 +99,7 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         if (!v) return m.post;
         // A version with no link yet shows today's "No video yet", never another version's video.
         if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
-        return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvAskLink: true } : {});
+        return Object.assign({}, m.post, { asset_url: v.frame_url, _fvPortrait: true }, mode === 'client' && !v.on_card ? { _trvAskLink: true } : {});
     }
     // The version on screen is still with the team (the SMM has not looked at it): the page shows that, not Approve.
     function svTrialReviewWithTeam(m, mode) {
@@ -93,6 +108,18 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
     // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
     function svTrialReviewAnswered(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
+    }
+    /* The client's "Not this one" on the version on screen (owner, 2026-10-28: "when it's a trial, shouldn't the client
+       have the option to reject it, like to drop it?"). The client link only; never on the last version the client has
+       not passed (or approved, or asked to change); the team drops it. */
+    function svTrialReviewCanPass(m, mode) {
+        if (mode !== 'client' || !m || !m.trial || m.trial.winner) return false;
+        const cur = _trvCurOf(m, mode);
+        if (_trvAnswer(cur, 'client') !== 'wait') return false;
+        return m.trial.versions.some(v => v.letter !== cur.letter && _trvLive(v) && !v.client_pass_at);
+    }
+    function svTrialReviewPassed(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && mode === 'client' && _trvAnswer(_trvCurOf(m, mode), 'client') === 'pass');
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
@@ -120,8 +147,8 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
-            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
@@ -258,6 +285,38 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         }
         _trvRepaint();
     }
+    /* "Not this one" on the version on screen: at once, as Approve is; the page moves on to the next version still
+       waiting. A refused pass puts the version back and says so. Once every other version is approved, `proceed` is
+       today's approve on the video part (a passed version does not hold the card back). */
+    async function svTrialReviewPass(m, mode, proceed) {
+        if (!svTrialReviewCanPass(m, mode)) return;
+        const letter = _trvCurOf(m, mode).letter, slug = m.trial.slug;
+        const e = _trv[slug], card = e && e.cards[m.id];
+        let before = null;
+        if (card && Array.isArray(card.versions)) {
+            before = card;
+            const now = new Date().toISOString();
+            const versions = card.versions.map(v => v.letter === letter ? Object.assign({}, v, { client_pass_at: now }) : v);
+            e.cards[m.id] = Object.assign({}, card, { versions });
+            const next = versions.filter(_trvLive).find(v => _trvAnswer(v, 'client') === 'wait');
+            if (next) _trvCur[m.id] = next.letter;
+            _trvRepaint();
+        }
+        let json;
+        try { json = await _trvAnswerCall(m, mode, { kind: 'pass', letter }); }
+        catch (err) {
+            const ent = _trv[slug];
+            if (before && ent) ent.cards[m.id] = before;
+            _trvCur[m.id] = letter;
+            _trvRepaint();
+            const code = String((err && err.code) || '');
+            showNotify('Video ' + letter + ' was not passed on', code === 'last_live_version' ? 'This is the last version left. Approve it or ask for a change.'
+                : code === 'pass_unavailable' ? 'This is not ready yet. Tell your manager which version you do not want.' : svTrialErrorText(err));
+            _trvLoad(slug, true);
+            return;
+        }
+        if (_trvDone(json, mode)) proceed();
+    }
     /* A change on the version on screen: today's change request goes at once, naming it, and the version's own change
        is written too. That write is kept in this browser until the function takes it, and sent again after every
        versions read, so a refused or lost one is never dropped (it is what restarts the version when its new cut lands). */
@@ -316,13 +375,19 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         if (!m || !m.trial || m.trial.winner || m.trial.versions.length < 2) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode), busy = _trvBusy.has(m.id);
         const open = vs.filter(v => _trvAnswer(v, stage) === 'wait');
-        const poster = m.thumb ? '<img alt="" src="' + _calEscAttr(m.thumb) + '">' : '';
+        // The card's poster; a card whose thumbnail is a Frame.io page has no picture, so each tile shows a quiet video
+        // mark there instead of a black square (owner, 2026-10-28).
+        const poster = m.thumb ? '<img alt="" src="' + _calEscAttr(m.thumb) + '">' : TRV_PLAY;
         const tiles = vs.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter);
-            const acts = a === 'wait'
+            const dropBtn = v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>';
+            // The client said "Not this one": the team sees it and drops the version (owner, 2026-10-28).
+            const acts = v.client_pass_at && v.status === 'waiting'
+                ? '<span class="trk-lab" data-l="passed" title="The client passed on this version">Client passed</span>' + dropBtn
+                : a === 'wait'
                 ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '" aria-label="Approve Video ' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
                     + '<button type="button" class="trk-ic" data-trk-chg="' + l + '" title="Ask for a change" aria-label="Ask for a change to Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_BACK + '</button>'
-                    + (v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>')
+                    + dropBtn
                 : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : 'change') + '">' + (a === 'ok' ? 'approved' : 'change asked') + '</span>';
             return '<div class="trk-v' + (v === cur ? ' cur' : '') + '"><button type="button" class="trk-go" data-trk-go="' + l + '" aria-label="Put Video ' + l + ' on stage"' + (v === cur ? ' aria-current="true"' : '') + '>'
                 + '<span class="trk-pic">' + poster + '</span><span class="trk-n">Video ' + l + '</span></button><div class="trk-acts">' + acts + '</div></div>';
@@ -330,6 +395,12 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t"><span class="trv-tag trk-tag">Trial</span> ' + vs.length + ' versions</span>'
             + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
             + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div></div>';
+    }
+    // The tiles' placeholders, drawn at once in their place while the card's trial read is not in (one line, three tiles).
+    function svTrialReviewSkeletonHtml() {
+        const B = (w, h, r) => '<i class="sk-b" style="width:' + w + ';height:' + h + (r ? ';border-radius:' + r : '') + '"></i>';
+        const tile = '<div class="trk-v"><span class="trk-go"><span class="trk-pic"></span>' + B('52px', '.8em', '5px') + '</span><div class="trk-acts">' + B('100%', '26px', '8px') + '</div></div>';
+        return '<div class="trk trk-skel" aria-hidden="true"><div class="trk-h"><span class="trk-t">' + B('104px', '.8em', '5px') + '</span></div><div class="trk-g">' + tile + tile + tile + '</div></div>';
     }
     function svTrialReviewBindTiles(el, m, mode, on) {
         if (!el || !m || !m.trial) return;
@@ -363,13 +434,14 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
             _trvBusy.delete(m.id); _trvRepaint();
         }
     }
+    const TRV_PLAY = '<svg class="trk-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 3.8v8.4a.6.6 0 0 0 .9.5l6.6-4.2a.6.6 0 0 0 0-1L6.4 3.3a.6.6 0 0 0-.9.5z"/></svg>';
     const TRV_CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
     const TRV_BACK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6H11a2.5 2.5 0 0 1 0 5H8"/><path d="M7 4 5 6l2 2"/></svg>';
     const TRV_DROP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
 
     const TRV_CSS = `
 .trk{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
-.trk-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.trk-h{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:32px}
 .trk-t{font-size:.78rem;font-weight:700;color:var(--text-secondary)}
 .trk-t .trk-tag{display:inline;padding:0 4px 0 0}
 .trk-all{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);border-radius:10px;background:var(--deck);color:var(--text-primary);font:inherit;font-size:.8rem;font-weight:600;padding:7px 13px;cursor:pointer}
@@ -383,6 +455,10 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
 .trk-go{display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}
 .trk-pic{display:block;flex:none;width:28px;height:40px;border-radius:5px;background:var(--media-bg);overflow:hidden}
 .trk-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.trk-pic:has(>.trk-mark){display:grid;place-items:center;background:var(--fill);color:var(--pd-video)}
+.trk-mark{width:13px;height:13px}
+.trk-skel .trk-pic{background:var(--fill)}
+.trk-skel .trk-acts .sk-b{display:block}
 .trk-n{font-size:.8rem;font-weight:700;color:var(--text-primary)}
 .trk-acts{display:flex;align-items:center;gap:4px;min-height:28px}
 .trk-ok{flex:1 1 auto;border:0;border-radius:8px;background:var(--ok-solid-bg);color:var(--ok-solid-fg);font:inherit;font-size:.75rem;font-weight:700;padding:5px 8px;cursor:pointer}
@@ -392,6 +468,8 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
 .trk-lab{border-radius:99px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
 .trk-lab[data-l="approved"]{background:var(--ok-soft-2);color:var(--ok-ink)}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
+.trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.trk-acts:has(>.trk-lab[data-l="passed"]){justify-content:space-between}
 .trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
 .trv-under{flex-direction:column;gap:6px;padding:10px 0 2px;min-height:0}
 .trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
@@ -404,6 +482,7 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
 .trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
 .trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
 .trv-dot.team i{opacity:.45;border-style:dashed}
+.trv-dot.pass i{background:var(--fill);color:var(--text-secondary);text-decoration:line-through}
 .trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
 .trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
 .trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
@@ -420,5 +499,5 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
-  TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
+  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
 };

@@ -300,8 +300,16 @@ async function run(browser, origin, viewport) {
   if (SHOTS) await shoot(page, 'leads-today-' + label, true);
   const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
   expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
-  const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
-  expect(box && box.height >= 36, label + ': the No-show button is a real touch target');
+  // Measured once it is laid out: read straight after the list draws, a slow runner could catch the row mid-paint and
+  // fail a button that is 36 px a moment later. Still fails if it never reaches 36 px.
+  const noShow = callRow.locator('[data-crm-outcome="no_show"]');
+  await noShow.waitFor({ state: 'visible', timeout: 5000 }).catch(() => null);
+  let box = null;
+  for (let i = 0; i < 30 && !(box && box.height >= 36); i++) {
+    box = await noShow.boundingBox().catch(() => null);
+    if (!(box && box.height >= 36)) await page.waitForTimeout(100);
+  }
+  expect(box && box.height >= 36, label + ': the No-show button is a real touch target (' + (box ? Math.round(box.height) + ' px' : 'not laid out') + ')');
   await callRow.locator('[data-crm-outcome="no_show"]').click();
   await page.waitForFunction(() => !document.querySelector('[data-crm-call="00000000-0000-4000-8000-000000000003"]'));
   expect(state.outcomes.length === 1 && state.outcomes[0].outcome === 'no_show' && Number.isInteger(state.outcomes[0].expected_version), label + ': No-show sends one call outcome with the version it had');

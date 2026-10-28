@@ -50,6 +50,15 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 - **Scheduling:** the same switch as TikTok's. "Post immediately" is on by default; switch it off to pick a date and time (SyncView's own date and time controls, plus a timezone). The queue shows a scheduled post as Scheduled, with a Cancel button until it goes out.
 - **Post type:** every post is a Reel. There is no Feed video choice: Instagram treats videos as Reels now. The function still tells Post For Me `placement: reels` explicitly, so it never falls back to a default.
 
+## Trial reels
+
+- **What it does:** the **Trial reel** switch on the Instagram side posts the video as an Instagram trial reel: Instagram shows it to non-followers first. The SMM downloads the version from Frame.io, drags it in as usual, switches on Trial reel and posts (now or scheduled). The function sends Post For Me `configuration: { placement: "reels", trial_reel_type: "manual" }` and keeps `trial_reel_type` in the row's `options`; the queue row reads **Trial reel**. The switch is off again after each post.
+- **Manual only:** sharing a trial reel to followers stays in the Instagram app, by a person. Post For Me's other kind, `performance` (Instagram shares it by itself if it does well), is refused by the function, so a trial can never reach followers on its own. Meta's API has no call to share a trial to followers.
+- **Eligibility:** Instagram does not let every account post trial reels (a public professional account; Meta publishes no exact rule). An account that cannot is refused at publish: the row shows **Failed** with Instagram's reason, as any refusal does.
+- **Same safety switches:** the client must be in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` and the account must be the one on file, exactly as for a normal Reel.
+- **Not tied to the Calendar's trial reels yet:** posting a trial here does not mark a card version "on trial"; the SMM still presses "Mark approved as on trial" on the card.
+- Sources: Meta's `trial_params` on IG User Media (https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media) and Post For Me's `trial_reel_type` (https://api.postforme.dev/docs).
+
 ## Cover image (Reel cover)
 
 Below the video there is an optional **Cover image** field, with a **Preview** beside the form showing the cover that will be used.

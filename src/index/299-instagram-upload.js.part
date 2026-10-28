@@ -42,6 +42,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
+        trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
         uploads: [],
@@ -488,6 +489,16 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 
             </div>
             <div class="tk-card">
+                <div class="tk-sched-head"><h3>Trial reel</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="igTrial" ${igState.trial ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Trial reel
+                    </label>
+                </div>
+                ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
+            </div>
+            <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
                         <input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
@@ -531,6 +542,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             _igRenderPreview();
         });
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
+        $('igTrial')?.addEventListener('change', (e) => { igState.trial = e.target.checked; _igRenderForm(); });
         $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
         $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
         $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
@@ -609,7 +621,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const file = igState.file;
         const cv = igState.cover;
         const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey].join('|');
+        const trial = igState.trial ? 'manual' : '';
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey, trial].join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -659,7 +672,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
+                mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
@@ -681,7 +694,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
-            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null;
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
             igState.queueTab = 'upcoming';
@@ -740,7 +753,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>Reel</span></div>
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.trial ? 'Trial reel' : 'Reel'}</span></div>
                         ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}

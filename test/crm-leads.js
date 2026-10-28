@@ -28,6 +28,9 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(!c.leadsAllowed('creative', 'Example Person'), 'the grant is tied to its role');
   ok(!c.leadsAllowed('smm', 'Other Person'), 'and to its member');
   c.LEADS_MEMBER_GRANTS.length = 0;
+  c.LEADS_MEMBER_GRANT_HASHES.push(require('crypto').createHash('sha256').update('smm:example person').digest('hex'));
+  ok(await c.leadsAllowedAsync('smm', ' Example  Person ') && !(await c.leadsAllowedAsync('smm', 'Other Person')) && !(await c.leadsAllowedAsync('creative', 'Example Person')) && !(await c.leadsAllowedAsync('smm', '')), 'a hashed grant admits only that member in that role');
+  c.LEADS_MEMBER_GRANT_HASHES.pop();
 
   // ── normalisers (mirror the SQL) ──
   ok(c.normalizeEmail('  A@Example.INVALID ') === 'a@example.invalid', 'email trimmed and lowered');
@@ -120,7 +123,7 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
 
   // ── Edge Function ──
   const ef = read('supabase/functions/crm-leads/index.ts');
-  ok(/authorizeStaffKey\(/.test(ef) && /leadsAllowed\(role, actor\)/.test(ef), 'function checks the staff key, then the leads grant');
+  ok(/authorizeStaffKey\(/.test(ef) && /leadsAllowedAsync\(role, actor\)/.test(ef), 'function checks the staff key, then the leads grant');
   ok(ef.indexOf('leadsAllowed(role, actor)') < ef.indexOf('createClient(', ef.indexOf('authorizeStaffKey(key')), 'access is decided before any database client exists');
   ok(ef.indexOf('serverKeyOk(req)') < ef.indexOf('createClient(') && ef.indexOf('createClient(') < ef.indexOf('authorizeStaffKey(key'), 'the server actions decide access before their database client too');
   ok(/auth\.via !== "role"/.test(ef), 'only a role key, never a legacy secret');

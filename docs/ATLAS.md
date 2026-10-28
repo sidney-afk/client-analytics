@@ -29,7 +29,7 @@ Written for teammates (SMMs, editors and designers, Kasper), not developers. The
 
 **Roles used below.** **Admin** (Kasper and the owner), **SMM** (social media manager), **Creative** (video editors and graphic designers). A **client link** is the private address a client opens with no login; it never shows staff controls.
 
-**How switches work.** Many features sit behind a runtime switch that the owner or supervisor flips live with no release. A switch can be on for **all** (every signed-in staff member, or every client; a staff switch never reaches the client link), for a short list of named staff or clients, for the **test client only** (the test client `sidneylaruel`), or off. The table at the end of this guide lists every live switch and who has it on.
+**How switches work.** Many features sit behind a runtime switch that the owner or supervisor flips live with no release. A switch can be on for **all** (every signed-in staff member, or every client; a staff switch never reaches the client link), for a short list of named staff or clients, for the **test client only** (the agency's own test account, never a real client), or off. The table at the end of this guide lists every live switch and who has it on.
 
 ### Quick answers
 

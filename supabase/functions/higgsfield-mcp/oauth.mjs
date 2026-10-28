@@ -102,6 +102,7 @@ export function makeOAuth(deps) {
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
     scopes_supported: ["mcp"],
+    authorization_response_iss_parameter_supported: true,
   });
 
   const resourceMeta = () => ({
@@ -177,6 +178,7 @@ export function makeOAuth(deps) {
     const back = new URL(form.redirect_uri);
     back.searchParams.set("code", code);
     if (form.state) back.searchParams.set("state", form.state);
+    back.searchParams.set("iss", base); // RFC 9207: says which server answered
     return new Response(null, { status: 302, headers: { Location: back.toString(), "Cache-Control": "no-store" } });
   }
 

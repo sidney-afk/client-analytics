@@ -32,6 +32,7 @@ const crypto = require('node:crypto');
     assert.equal(m.issuer, base);
     assert.equal(m.token_endpoint, base + '/oauth/token');
     assert.deepEqual(m.code_challenge_methods_supported, ['S256']);
+    assert.equal(m.authorization_response_iss_parameter_supported, true);
   }
   assert.equal(await call('GET', '/something-else'), null);
   const ch = o.challenge({});
@@ -77,6 +78,7 @@ const crypto = require('node:crypto');
   const back = new URL(ok.headers.get('location'));
   assert.equal(back.origin + back.pathname, 'https://app.test/cb');
   assert.equal(back.searchParams.get('state'), 'st"1');
+  assert.equal(back.searchParams.get('iss'), base, 'names itself (RFC 9207)');
   const code = back.searchParams.get('code');
   assert.ok(!code.includes(GOOD), 'the pass never shows in the code');
 

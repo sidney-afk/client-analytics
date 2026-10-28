@@ -212,6 +212,15 @@ async function run(browser, origin, viewport) {
   expect(/Dream 100/.test(text) && /Made-up batch/.test(text), label + ': a lead line says where they came from (' + text.replace(/\s+/g, ' ') + ')');
   expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on the Pipeline');
   expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
+  if (viewport.width >= 900) {
+    await page.evaluate(() => { document.querySelector('.crm-main').style.paddingBottom = '2000px'; window.scrollTo(0, document.documentElement.scrollHeight); });
+    await page.waitForTimeout(100);
+    const before = await page.evaluate(() => document.querySelector('#crmSearch').getBoundingClientRect().top);
+    const top = await page.evaluate(() => { const side = document.querySelector('#crmSide'); for (let i = 0; i < 40; i++) side.insertAdjacentHTML('beforeend', '<button type="button" class="crm-side-item crm-probe">x</button>'); window.scrollTo(0, document.documentElement.scrollHeight); return document.querySelector('#crmSearch').getBoundingClientRect().top + ' below=' + (document.documentElement.scrollHeight - (document.querySelector('.crm-app').getBoundingClientRect().bottom + scrollY)); });
+    await page.evaluate(() => document.querySelectorAll('.crm-probe').forEach(n => n.remove()));
+    await page.evaluate(() => { document.querySelector('.crm-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
+    expect(Math.abs(parseFloat(top) - before) < 2, label + ': the Leads title and search stay in place at the very end of the page (' + top + ')');
+  }
   await page.fill('#crmSearch', 'kitchen');
   expect(await page.locator('[data-crm-card]').count() === 1 && /1 match/.test(await page.locator('#crmSummary').innerText()), label + ': search narrows the Pipeline as you type');
   await page.fill('#crmSearch', 'nobody-like-this');
@@ -295,7 +304,7 @@ async function run(browser, origin, viewport) {
   state.refuse = 'conflict';
   await page.fill('#crmPStep', 'A changed made-up step');
   await page.click('.crm-form button[type="submit"]');
-  await page.waitForFunction(() => document.querySelector('#crmPStageLabel') && document.querySelector('#crmPStageLabel').textContent === 'Nurture');
+  await page.waitForFunction(() => document.querySelector('#crmPStageLabel') && document.querySelector('#crmPStageLabel').textContent === 'Gone quiet');
   expect(await page.inputValue('#crmPStep') === 'Call prep', label + ': a lost race shows the stored copy, not the typed one');
   state.refuse = '';
   expect(!(await page.locator('#crmPNote').count()), label + ': the note box stays closed until Add a note');

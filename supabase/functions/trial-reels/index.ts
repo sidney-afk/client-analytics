@@ -460,7 +460,11 @@ Deno.serve(async (req: Request) => {
     if (action === "answer") {
       // A client link answers only as the client; staff say which stage they answer for.
       const stage = principal.kind === "client" ? "client" : clean(body.stage, 10).toLowerCase();
-      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note, cardStatus: card.video_status }, now);
+      const kind = clean(body.kind, 20).toLowerCase();
+      // The client's "Not this one" needs the client_pass_at column (migration 20261028150000). Until it is applied the
+      // rows read back without it, and only a pass is refused; every other answer and action works as before.
+      if (kind === "pass" && versions.length && !Object.prototype.hasOwnProperty.call(versions[0], "client_pass_at")) throw new Refusal(503, "pass_unavailable");
+      const r = answerPatches(versions, { stage, kind, letter, note: body.note, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "version_link_set") {

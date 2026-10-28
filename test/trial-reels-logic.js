@@ -224,6 +224,50 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   for (const col of ['post_id', 'deliverable_id', 'frame_url', 'smm_ok_at', 'kasper_ok_at', 'client_ok_at', 'change_by', 'change_note', 'change_at', 'revision', 'trial_ends_at']) {
     ok(new RegExp('add column if not exists ' + col + ' ').test(sql), 'settled column ' + col);
   }
+  // The client's "Not this one" (owner, 2026-10-28): a pass on one version, stamped client_pass_at; the status stays
+  // as it was, the team drops it. Never on the last version left, never by staff, never twice.
+  {
+    const three = () => ['A', 'B', 'C'].map(l => v(l, { smm_ok_at: NOW, kasper_ok_at: NOW, client_pass_at: null }));
+    let p = L.answerPatches(three(), { stage: 'client', kind: 'pass', letter: 'B' }, NOW);
+    ok(p.patches && p.patches.length === 1 && p.patches[0].patch.client_pass_at === NOW && !('status' in p.patches[0].patch), 'a client pass on B stamps client_pass_at and leaves the status');
+    ok(L.answerPatches(three(), { stage: 'kasper', kind: 'pass', letter: 'B' }, NOW).error === 'pass_client_only' && L.answerPatches(three(), { stage: 'smm', kind: 'pass', letter: 'B' }, NOW).error === 'pass_client_only', 'only the client passes (the team drops)');
+    const passedB = () => three().map(x => x.letter === 'B' ? Object.assign(x, { client_pass_at: NOW }) : x);
+    ok(L.answerPatches(passedB(), { stage: 'client', kind: 'pass', letter: 'B' }, NOW).error === 'version_passed', 'a version passed already is not passed twice');
+    const lastTwo = [v('A', { smm_ok_at: NOW, client_pass_at: NOW }), v('B', { smm_ok_at: NOW, client_pass_at: null }), v('C', { status: 'dropped', client_pass_at: null })];
+    ok(L.answerPatches(lastTwo, { stage: 'client', kind: 'pass', letter: 'B' }, NOW).error === 'last_live_version', 'never the last version the client has not passed');
+    ok(L.answerPatches(three().map(x => Object.assign(x, { smm_ok_at: null })), { stage: 'client', kind: 'pass', letter: 'B' }, NOW).error === 'stage_order', 'the same stage order as an approve: only after the SMM');
+    ok((L.answerPatches(three(), { stage: 'client', kind: 'pass', letter: 'A' }, NOW).patches || []).length === 1, 'the version on the card may be passed too (the team moves the card when it drops it)');
+    // Not waiting for the client any more: Approve all skips it, the client stage and the card count without it.
+    r = L.answerPatches(passedB(), { stage: 'client', kind: 'approve_all' }, NOW);
+    ok((r.patches || []).map(x => x.letter).join('') === 'AC', 'Approve all leaves a passed version alone');
+    const rest = passedB().map(x => x.letter !== 'B' ? Object.assign(x, { status: 'approved' }) : x);
+    ok(L.stageDone(rest, 'client') && L.cardApprovable(rest), 'A and C approved, B passed: the client is done and the card can move to Approved');
+    ok(L.trialPatches(rest, Date.parse(NOW)).patches.map(x => x.letter).join('') === 'AC', 'the trial starts with the approved versions only');
+    // The client changes their mind: an approve on a passed version takes back the pass.
+    p = L.answerPatches(passedB(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW);
+    ok(p.patches[0].patch.status === 'approved' && p.patches[0].patch.client_pass_at === null, 'an approve on a passed version takes the pass back');
+    // A new cut, a new link and Bring back clear it; with no pass on the row the column is never written (the
+    // function runs before the migration is applied).
+    const chg = passedB().map(x => x.letter === 'B' ? Object.assign(x, { status: 'change asked' }) : x);
+    ok(L.newCutPatch(chg, 'B').patch.client_pass_at === null, 'a new cut clears the pass');
+    ok(L.linkPatch(passedB().map(x => Object.assign(x, { status: x.letter === 'B' ? 'approved' : x.status })), 'B', 'https://f.io/fixture-b-new', A_LINK).patch.client_pass_at === null, 'a new link clears the pass');
+    ok(L.dropPatch(passedB().map(x => x.letter === 'B' ? Object.assign(x, { status: 'dropped' }) : x), 'B', true, A_LINK).patch.client_pass_at === null, 'Bring back clears the pass');
+    ok(!('client_pass_at' in L.newCutPatch(five().map(x => Object.assign(x, { status: 'change asked' })), 'B').patch) && !('client_pass_at' in L.dropPatch(five().map(x => Object.assign(x, { status: 'dropped' })), 'B', true, A_LINK).patch),
+      'a row with no pass never names the column');
+    // Codex on PR 2409: a card sent straight to the client (no SMM answer yet) lets the client pass a version with no
+    // OK on it; a new link on that version must still clear the pass and start it again.
+    const bare = [v('A'), v('B', { client_pass_at: NOW }), v('C')];
+    const lp = L.linkPatch(bare, 'B', 'https://f.io/fixture-b-other', A_LINK).patch;
+    ok(lp && lp.client_pass_at === null && lp.status === 'waiting' && lp.revision === 1, 'a new link on a version passed with no OK on it clears the pass and starts it again');
+    const shp = L.readShape(passedB(), { client: true, mainLink: A_LINK });
+    ok(shp.versions.find(x => x.letter === 'B').client_pass_at === NOW, 'the client read says which version the client passed on');
+    ok(L.readShape(passedB(), { client: false, mainLink: A_LINK }).versions.find(x => x.letter === 'B').client_pass_at === NOW, 'and so does the staff read');
+    ok(/kind === "pass"[\s\S]{0,200}pass_unavailable/.test(code), 'before the column exists, only a pass is refused (pass_unavailable); nothing else changes');
+    const mig = fs.readdirSync(path.join(__dirname, '..', 'supabase', 'migrations')).filter(f => /trial_reels_client_pass/.test(f));
+    const msql = mig.length === 1 ? fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', mig[0]), 'utf8') : '';
+    ok(/^-- ef-auto-deploy: functions-cope-without-this/m.test(msql) && /add column if not exists client_pass_at timestamptz/.test(msql), 'the migration adds client_pass_at and says the function copes without it');
+    ok(!/grant/i.test(msql.replace(/^--.*$/mg, '')), 'the migration grants nothing');
+  }
   const toml = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'config.toml'), 'utf8');
   ok(/\[functions\.trial-reels\]\nverify_jwt = false/.test(toml), 'config.toml: trial-reels is JWT-off and authenticates itself');
 

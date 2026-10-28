@@ -234,10 +234,11 @@ const DID = 'del_vid_1';
     await sleep(300);
     await page.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: false });
   }
-  async function openCal() {
+  async function openCal(w, h) {
     const page = await S.newPage();
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: w || 1440, height: h || 900 });
     await S.openCalendar(page);
+    if (w && w < 600) { await page.getByText(card.name).first().click(); await sleep(1000); }
     await sleep(1500);
     return page;
   }
@@ -301,10 +302,10 @@ const DID = 'del_vid_1';
     S.setCardField(PID, patch, 'review-page');
     return st;
   }
-  async function openReview(mode, asStatus, calendarOnly) {
+  async function openReview(mode, asStatus, calendarOnly, extra) {
     toReview(asStatus);
     const t = await RS.open(rbrowser, rorigin, Object.assign({ stage: mode, state: rstate, flags: 'on', flagValues: { trial_reels_pages: { clients: W.flagClients.length ? W.flagClients : ['someotherclient'] } } },
-      mode !== 'client' ? { staff: RS.STAFF } : {}));
+      mode !== 'client' ? { staff: RS.STAFF } : {}, extra || {}));
     await routeTrialReels(t.ctx);
     if (mode === 'client') {
       await t.page.goto(rorigin + '/index.html?' + new URLSearchParams({ c: RS.CLIENT, v: 'calendar', t: RS.TOKEN }), { waitUntil: 'domcontentloaded' });
@@ -320,6 +321,8 @@ const DID = 'del_vid_1';
       await t.page.evaluate(() => onCalViewChange('smmreview'));
     }
     if (calendarOnly) await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
+    // Kasper's second layout has no steps: it is ready once its list of parts is drawn.
+    else if (extra && extra.layout2) await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
     else await RS.waitNew(t);
     await sleep(1500);
     t.n0 = rstate.upserts.length; t.g0 = rstate.gateway.length;
@@ -627,6 +630,65 @@ const DID = 'del_vid_1';
     const c10 = W.calls.length;
     await page.close();
     ok(W.calls.slice(c10).every(c => c.action === 'list' || c.action === 'read'), '10 the page sends no trial write for a client not listed');
+
+    // ============ 11. round 2 (Sidney, 2026-10-28): the client approves one, passes on one, asks a change on one ============
+    // A new trial on the same card: three versions through the SMM and Kasper, two dropped, the card with the client.
+    W.flagClients = TEST_SLUGS.slice();
+    Object.assign(W.sw, { enabled: true, winner_letter: null });
+    W.versions.forEach(v => Object.assign(v, { status: ['A', 'B', 'C'].includes(v.letter) ? 'waiting' : 'dropped', frame_url: LINK(v.letter + '11'), revision: 0,
+      smm_ok_at: '2026-10-28T08:00:00.000Z', kasper_ok_at: '2026-10-28T08:05:00.000Z', client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null }));
+    vid.file_url = LINK('A11'); card.asset_url = LINK('A11');
+    S.setCardField(PID, { video_status: 'Client Approval', status: 'Client Approval' }, 'kasper');
+    l0 = W.ledger.length;
+    t = await openReview('client', 'Client Approval');
+    b = await bar(t);
+    ok(/^Video A of 3/.test(b.text), `11 client: "Video A of 3" (${b.text})`);
+    await approveOnScreen(t);
+    ok(V('A').status === 'approved' && /^Video B of 3/.test((await bar(t)).text), '11 client: Video A approved, on to B');
+    c0 = W.calls.length;
+    await RS.inS(t.page, '[data-pass="video"]').click();
+    await until(() => W.calls.slice(c0).some(c => c.kind === 'pass'));
+    await sleep(900);
+    ok(!!V('B').client_pass_at && V('B').status === 'waiting' && /^Video C of 3/.test((await bar(t)).text), '11 client: "Not this one" on Video B: the pass is recorded, on to C');
+    // A is approved, so C may still be passed (the rule: never every version); the client asks a change instead.
+    ok(await RS.inS(t.page, '[data-pass="video"]').count() === 1, '11 client: with Video A approved, Video C may still be passed');
+    await RS.inS(t.page, '[data-chg="video"]').click();
+    await RS.inS(t.page, '#ta').fill('Fictional note: a shorter opening, please.');
+    await RS.inS(t.page, '#sendBtn').click();
+    await until(() => V('C').status === 'change asked' && /Tweaks Needed/.test(videoStatusSent(t.n0, t.g0)));
+    st = fromReview(t.n0, t.g0);
+    ok(V('C').status === 'change asked' && V('C').change_by === 'client' && st === 'Tweaks Needed' && /Video C: Fictional note/.test(String(card.video_tweaks || '')), `11 client: a change on Video C, today's change request names it, the card goes to Tweaks Needed (${st})`);
+    ok(ledgerSince(l0) === 'trial_approve(A) trial_pass(B) trial_change(C)', `11 ledger: ${ledgerSince(l0)}`);
+    ok(!t.errors.length, '11 client: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    oneLink('11');
+    // The SMM's card and Production say each version's state.
+    for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']]) {
+      page = await openCal(w, h);
+      await openList(page);
+      const rows = await listRows(page);
+      txt = await rowText(page);
+      ok(/approved/.test(rows[0].t) && /Client passed/.test(rows[1].t) && /change asked/.test(rows[2].t), `11 the SMM's card (${label}): A approved, B Client passed, C change asked (${rows.slice(0, 3).map(r => r.t).join(' | ')})`);
+      ok(/1\/2/.test(txt), `11 the SMM's card (${label}): the passed version is not waiting: "${txt}"`);
+      await shot(page, 'journey-11-card-' + label);
+      await page.close();
+    }
+    page = await openProd();
+    const pr11 = (await prodRows(page)).filter(x => x.trial);
+    ok(/approved/.test(pr11[0].value) && /Client passed/.test(pr11[1].value) && /change asked/.test(pr11[2].value), `11 Production: A approved, B Client passed, C change asked (${pr11.slice(0, 3).map(r => r.value).join(' | ')})`);
+    await page.close();
+    // Kasper: his second layout (B's tile says Client passed, with Drop) and his standard layout (the same three dots).
+    S.setCardField(PID, { video_status: 'Kasper Approval', status: 'Kasper Approval' }, 'editor');
+    t = await openReview('kasper', 'Kasper Approval', false, { layout2: true });
+    await until(() => t.page.evaluate(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('#l2trv .trk-v')), 60);
+    const tiles11 = await t.page.evaluate(() => [...document.getElementById('svReviewStage').shadowRoot.querySelectorAll('#l2trv .trk-v')].map(v => (v.innerText || '').replace(/\s+/g, ' ').trim() + (v.querySelector('[data-trk-drop]') ? ' [drop]' : '')));
+    ok(tiles11.length === 3 && /Client passed/.test(tiles11[1]) && /\[drop\]/.test(tiles11[1]), `11 Kasper, second layout: B's tile says Client passed, with Drop (${tiles11.join(' | ')})`);
+    await t.ctx.close();
+    t = await openReview('kasper', 'Kasper Approval', false, { width: 1280, height: 860 });
+    b = await bar(t);
+    ok(/^Video \w of 3/.test(b.text) && b.dots.length === 3, `11 Kasper, standard layout: the three versions under the player (${b.text})`);
+    ok(!t.errors.length, '11 Kasper: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));
     console.error(e);

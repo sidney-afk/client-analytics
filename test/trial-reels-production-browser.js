@@ -262,6 +262,14 @@ async function shot(page, name) {
     await page.close();
 
     // Once the winner is picked.
+    // The client said "Not this one" on Video E (owner, 2026-10-28): its row says "Client passed", not waiting.
+    reset(fresh().map(v => v.letter === 'E' ? Object.assign(v, { client_pass_at: '2026-10-28T09:00:00.000Z' }) : v), LINK('A'));
+    {
+      const pg = await open(1440, 900);
+      const pr = (await rows(pg)).filter(x => x.trial);
+      ok(pr.length === 5 && /Client passed/.test(pr[4].value) && !/waiting/.test(pr[4].value), 'a version the client passed on says "Client passed" in its row (' + (pr[4] || {}).value + ')');
+      await pg.close();
+    }
     reset(fresh().map(v => Object.assign(v, { status: v.letter === 'C' ? 'winner' : v.letter === 'D' ? 'dropped' : 'lost' })), LINK('C'));
     for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']]) {
       page = await open(w, h);

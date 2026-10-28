@@ -490,6 +490,8 @@ jobs:
           Trial reels: a refused link or drop on the version on the card puts the card's link back|node test/trial-reels-link-guard-browser.js
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
+          Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
+          Trial reels round 2 on the review page: the client's Not this one, Kasper's tiles drawn with the card and a video mark for no picture, the player's shape|node test/trial-reels-round2-review-browser.js
           LANES
 
 

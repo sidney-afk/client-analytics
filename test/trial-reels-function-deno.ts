@@ -159,6 +159,18 @@ const clientB = await step({ action: "answer", kind: "approve", letter: "B" }, "
 ok(clientB.body.ok === true && v("B").status === "approved", "the client (with its token) approves Video B");
 const clientC = await step({ action: "answer", kind: "change", letter: "C", note: "Bigger opening text" }, "client-none");
 ok(clientC.body.ok === true && v("C").status === "change asked" && v("C").change_by === "client", "the client (no token) asks a change on Video C (" + clientC.status + " " + clientC.body.error + ")");
+// The client's "Not this one" (2026-10-28): before the client_pass_at column exists, only the pass is refused.
+const passEarly = await step({ action: "answer", kind: "pass", letter: "E" }, "client-none");
+ok(passEarly.status === 503 && passEarly.body.error === "pass_unavailable" && v("E").status === "waiting", "before the migration, a client pass answers pass_unavailable and changes nothing");
+for (const r of tables.studio_trial_versions) r.client_pass_at = null;
+const passStaff = await step({ action: "answer", stage: "smm", kind: "pass", letter: "E" });
+ok(passStaff.status === 400 && passStaff.body.error === "pass_client_only", "staff cannot pass (the team drops)");
+const passE = await step({ action: "answer", kind: "pass", letter: "E" }, "client-none");
+ok(passE.body.ok === true && !!v("E").client_pass_at && v("E").status === "waiting" && ((passE.body.versions as Row[]).find((x) => x.letter === "E") as Row).client_pass_at,
+  "the client passes on Video E: client_pass_at set, its status left as it was, and the answer says so");
+ok(tables.calendar_post_events.some((e) => e.action === "trial_pass" && (e.payload as Row).letter === "E"), "the card's history gets a trial_pass row for Video E");
+const unpass = await step({ action: "answer", kind: "approve", letter: "E" }, "client-none");
+ok(unpass.body.ok === true && v("E").status === "approved" && v("E").client_pass_at === null, "the client changes their mind: approving Video E takes the pass back");
 const aNoAttach = await step({ action: "version_link_set", letter: "A", link: "https://f.io/fixture-a2" });
 ok(aNoAttach.status === 409 && aNoAttach.body.error === "attach_first" && v("A").frame_url === "https://f.io/fixture-a", "Video A's link is refused until today's attach has put it on the card (one link, never two)");
 const cNew = await step({ action: "version_link_set", letter: "C", link: "https://f.io/fixture-c2" });

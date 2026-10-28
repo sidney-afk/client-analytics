@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -339,6 +339,7 @@ svg{display:block;flex-shrink:0}
 .b-ask{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 14px;border-radius:11px;font-size:.82rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;transition:background .14s,color .14s}
 .b-ask svg{width:12px;height:12px}
 .b-ask:hover,.b-ask:focus-visible{background:var(--chgb);color:var(--chg-fg)}
+.b-pass:hover,.b-pass:focus-visible{background:var(--fill-hover);color:var(--text-primary)}
 .dst{display:inline-flex;align-items:center;gap:8px;font-size:.84rem;font-weight:700;white-space:nowrap}
 .dst .ck{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--tl-ok);color:var(--tl-ok-fg)}
 .dst .ck.chg{background:var(--tl-chg);color:var(--tl-chg-fg)}
@@ -2445,6 +2446,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
+        // The client said "Not this one" on the version on screen (owner, 2026-10-28): said, and the team takes it out.
+        if (x.key === 'video' && svTrialReviewPassed(_rsCur(), R.mode)) return '<span class="dst">Not this one: the team will take Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' out</span>';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's
@@ -2454,8 +2457,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const on = tiles ? ': Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '';
         const frame = R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame' + on) + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame' + on, 'Frame tweaks' + (tiles ? ' · Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '')) + '</button>' : '';
         if (tiles) return frame;
+        const pass = x.key === 'video' && svTrialReviewCanPass(_rsCur(), R.mode)
+            ? '<button class="b-ask b-pass" type="button" data-pass="video" title="You do not want this version: the team takes it out"' + _rsBusyAttr(busy, false) + '>' + RI.x + 'Not this one</button>' : '';
         return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsLblAttr(chg ? 'Change asked' : 'Ask for a change') + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? _rsLbl('Change asked', 'Asked') : _rsLbl('Ask for a change', 'Ask for change')) + '</button>'
-            + frame;
+            + pass + frame;
     }
     /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
        Easel, 2026-10-20): what a part answered by someone else reads, who can be pinged, the active part's buttons or
@@ -2556,6 +2561,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         el.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); S.menu = S.menu === b.dataset.menu ? '' : b.dataset.menu; _rsDecide(); }));
         el.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => _rsSendChange(cur(), b.dataset.frame, RS_FRAME_NOTE, { where: 'stage' })));
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
+        el.querySelectorAll('[data-pass]').forEach(b => b.addEventListener('click', () => svTrialReviewPass(cur(), R.mode, () => { const c = cur(); _rsApprove(c, 'video', '', true); })));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
         el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
     }
@@ -3914,13 +3920,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsL2Trial(m) {
         const el = _rsQ('l2trv');
         if (!el) return;
-        const html = svTrialReviewTilesHtml(m, R.mode);
+        // The card's trial read not in yet: the tiles' placeholders, in their place, at once (owner, 2026-10-28).
+        const html = svTrialReviewTilesHtml(m, R.mode) || (svTrialReviewPending(m.post, m.item) ? svTrialReviewSkeletonHtml() : '');
         // The handlers hold this post: identical tiles of another card are bound again (Codex on PR 2366).
         if (el.__trvHtml === html && el.__trvPid === m.id) return;
         el.__trvHtml = html;
         el.__trvPid = m.id;
         el.innerHTML = html;
-        if (!html) return;
+        if (!html || !m.trial) return;
         const cur = () => _rsModelById(m.id) || m;
         svTrialReviewBindTiles(el, m, R.mode, {
             approve: () => _rsApprove(cur(), 'video', ''),

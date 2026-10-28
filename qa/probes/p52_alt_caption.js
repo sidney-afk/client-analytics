@@ -1,5 +1,6 @@
 // p52 — per-platform ALT caption: SMM-owned, client read-only, rides along with the caption
-// component's review. Sidney has instagram/youtube/linkedin enabled.
+// component's review. Sidney has instagram/youtube/linkedin enabled. Also the client's MAIN caption:
+// editable and saved in Collaborative mode, read only without it (owner 2026-10-27).
 //   • an alt caption (caption_alt + caption_alt_platform) propagates to the client (read view)
 //   • client CANNOT edit it: _calOnAltCapInput is blocked (no pending edit) and _calAltCapRemove
 //     no-ops on the client link
@@ -21,6 +22,7 @@ const clientHasAlt = (cli, pid, text) => cli.evaluate(async (a) => {
   const browser = await Q.launch();
   const smm = await Q.smmPage(browser);
   const cli = await Q.clientPage(browser);
+  let r;
   try {
     // seed a card with a saved alt caption (as if the SMM authored it)
     await Q.up({ id: PID, name: 'ALT ' + PID.slice(-6), platforms: 'instagram,linkedin', scheduled_date: '2026-06-29',
@@ -35,15 +37,21 @@ const clientHasAlt = (cli, pid, text) => cli.evaluate(async (a) => {
     S.ok(seen.plat === 'linkedin', 'client sees the alt caption platform = linkedin (got ' + seen.plat + ')');
 
     // 2) alt-caption is client read-only, Collaborative mode or not. Since #2208 (merged in train #2209,
-    //    owner 2026-10-18) a client's caption, CTA and alt caption are read only on an existing card in
-    //    every mode; only a blank "suggest a post" card the client is writing stays editable. The
-    //    handler gate _calClientFieldEditBlocked(el) therefore blocks this card even with collab ON
-    //    (the test client is collab ON). Before #2208 it was isClientLink && !collabOn, which is what
-    //    this check asserted until 2026-10-26 (red every night from 2026-10-18).
+    //    owner 2026-10-18) a client's text is read only on an existing card; the owner reopened the CAPTION
+    //    alone in Collaborative mode on 2026-10-27 (session Capedit). So with collab ON (the test client is
+    //    collab ON) the handler gate _calClientFieldEditBlocked(el) lets 'caption' through and still blocks
+    //    'caption_alt', 'cta' and 'scheduled_date'; with collab OFF it blocks all four. Collab OFF is checked by
+    //    flipping the page's own setting for a moment, never by saving it.
     const cliGuards = await cli.evaluate((pid) => {
       const collabOn = (typeof _calIsCollabOn === 'function') ? !!_calIsCollabOn() : null;
-      const gate = (id) => (typeof _calClientFieldEditBlocked === 'function') ? !!_calClientFieldEditBlocked({ dataset: { pid: id, fld: 'caption_alt' } }) : null;
-      const blocked = gate(pid), blankBlocked = gate('__blank__p52_probe');
+      const gate = (id, fld) => (typeof _calClientFieldEditBlocked === 'function') ? !!_calClientFieldEditBlocked({ dataset: { pid: id, fld } }) : null;
+      const fields = ['caption', 'caption_alt', 'cta', 'scheduled_date'];
+      const on = {}, off = {};
+      fields.forEach(f => { on[f] = gate(pid, f); });
+      const saved = calState.settings.collab_mode;
+      calState.settings.collab_mode = false;
+      try { fields.forEach(f => { off[f] = gate(pid, f); }); } finally { calState.settings.collab_mode = saved; }
+      const blankBlocked = gate('__blank__p52_probe', 'caption_alt');
       const before = (calState.posts || []).find(x => x.id === pid);
       const altBefore = before ? before.caption_alt : null;
       const typedHandler = typeof _calOnAltCapInput === 'function';
@@ -51,14 +59,25 @@ const clientHasAlt = (cli, pid, text) => cli.evaluate(async (a) => {
       try { _calAltCapRemove(null, pid); } catch (e) {}
       const after = (calState.posts || []).find(x => x.id === pid);
       const pend = _calPendingEdits[pid] || null;
-      return { isClientLink: _isClientLink, collabOn, blocked, blankBlocked, typedHandler, altBefore, altAfter: after ? after.caption_alt : null, hasPending: !!pend };
+      return { isClientLink: _isClientLink, collabOn, on, off, blankBlocked, typedHandler, altBefore, altAfter: after ? after.caption_alt : null, hasPending: !!pend };
     }, PID);
     S.ok(cliGuards.isClientLink === true, 'client surface is a client link');
-    S.ok(cliGuards.blocked === true, 'client text edits on an existing card are blocked in every mode (#2208; collabOn=' + cliGuards.collabOn + ' → blocked=' + cliGuards.blocked + ')');
+    S.ok(cliGuards.collabOn === true, 'the test client is in Collaborative mode (collabOn=' + cliGuards.collabOn + ')');
+    S.ok(cliGuards.on.caption === false, 'collab on: the client may edit the caption on an existing card (owner 2026-10-27; blocked=' + cliGuards.on.caption + ')');
+    S.ok(cliGuards.on.caption_alt === true && cliGuards.on.cta === true && cliGuards.on.scheduled_date === true, 'collab on: alt caption, CTA and date stay blocked (' + JSON.stringify(cliGuards.on) + ')');
+    S.ok(Object.values(cliGuards.off).every(b => b === true), 'collab off: caption, alt caption, CTA and date are all blocked (' + JSON.stringify(cliGuards.off) + ')');
     S.ok(cliGuards.blankBlocked === false, 'a blank "suggest a post" card stays editable for the client (blocked=' + cliGuards.blankBlocked + ')');
     S.ok(cliGuards.typedHandler && cliGuards.altAfter === cliGuards.altBefore && !cliGuards.hasPending, 'client alt-caption typing and _calAltCapRemove are NO-OPs (alt unchanged, no pending edit queued)');
+
+    // 2b) collab on: a caption the client types on this existing card saves through the client link.
+    const CLIENT_CAP = 'Main caption text, edited by the client ' + PID.slice(-6);
+    await Q.waitForPost(cli, PID, "p=>String(p.caption||'')==='Main caption text'");
+    await cli.evaluate((a) => { const el = { dataset: { pid: a.pid, fld: 'caption' }, value: a.text }; _calOnFieldInput(el); _calOnFieldBlur(el); }, { pid: PID, text: CLIENT_CAP });
+    r = await Q.pollRaw(PID, x => x.caption === CLIENT_CAP, 'caption,caption_alt,caption_status', 15000);
+    S.ok(r.caption === CLIENT_CAP, 'collab on: the client\'s caption edit is saved to the DB (got ' + JSON.stringify(String(r.caption || '').slice(0, 60)) + ')');
+    S.ok(r.caption_status === 'Client Approval', 'collab on: a client caption edit leaves caption_status as it was (' + r.caption_status + ')');
     // DB still has the alt (client couldn't have removed it)
-    let r = await Q.rawRow(PID, 'caption_alt'); S.ok(r.caption_alt === ALT, 'alt caption still in DB after client attempt (unchanged)');
+    r = await Q.rawRow(PID, 'caption_alt'); S.ok(r.caption_alt === ALT, 'alt caption still in DB after client attempt (unchanged)');
 
     // 3) SMM CAN remove it → persists → reaches client
     await Q.waitForPost(smm, PID, "p=>String(p.caption_alt||'')==='" + ALT.replace(/'/g, "\\'") + "'");

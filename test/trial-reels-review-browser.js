@@ -92,6 +92,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       T.attaches.push(b.file_url); T.mainLink = b.file_url;
       return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: true, native_committed: true, row: { id: 'del_rs1', updated_at: new Date().toISOString() } }) });
     });
+    // A route of the check's own (a video that cannot play), added last so it wins over the ones above.
+    if (extra && extra.beforeOpen) await extra.beforeOpen(t);
     if (mode === 'client') {
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
     } else if (mode === 'kasper') {
@@ -464,6 +466,46 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('.trk-ok')].map(n => n.getAttribute('aria-label') || n.textContent.trim()).join('|'); });
     ok(l2ok === 'Approve Video A|Approve Video B|Approve Video C|Approve Video D|Approve Video E', 'Kasper, second layout: each tile\'s Approve names its version (' + l2ok + ')');
     ok(!t.errors.length, 'Kasper, second layout: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // ---------- a video that cannot play: its message is never under the player's two pills (Trialtest, 2026-10-28) ----------
+    // On the review page the version badge ("Video A") and "Open in Frame.io" sit over the top of the player. When the
+    // video cannot load, the player's error panel fills it, and its title must start below the pills, not under them.
+    const pillsClear = t => t.page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot;
+      const st = [...r.querySelectorAll('.fv-player[data-state="error"] .fv-state-title')].find(n => n.getClientRects().length);
+      if (!st) return 'no error panel';
+      const a = st.getBoundingClientRect();
+      const hit = [...r.querySelectorAll('#fvHost > .mpill, #fvHost .fv-stage-foot .fv-open-link')].filter(n => n.getClientRects().length).find(n => {
+        const b = n.getBoundingClientRect(); return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; });
+      return hit ? 'under ' + hit.className + ' (title top ' + Math.round(a.top) + ', pill bottom ' + Math.round(hit.getBoundingClientRect().bottom) + ')' : 'clear';
+    });
+    // Trialtest's case: a version whose link is refused before any load (a Frame.io project page, not a share or file
+    // link) on a card with no thumbnail, so no poster and no aspect ratio: the player is only a short box.
+    const PROJECT = 'https://next.frame.io/project/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002';
+    const noPoster = async t => {
+      t.state.cards.forEach(c => { c.thumbnail_url = ''; });
+      // frameio-view refuses such a link before any load, as it does live (logic.mjs, unsupported_link).
+      await t.ctx.route('**/functions/v1/frameio-view*', route => {
+        const r = route.request();
+        if (r.method() !== 'OPTIONS' && (r.postData() || '').includes('/project/')) return route.fulfill({ status: 422, headers: CORS, contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'unsupported_link', message: 'This link is not a Frame.io share or file link, so it cannot be played here.' }) });
+        return route.fallback();
+      });
+    };
+    t = await start('kasper', true, fresh({ C: { frame_url: PROJECT } }), { layout2: true, beforeOpen: noPoster });
+    await inS(t.page, '[data-trk-go="C"]').click();
+    await waitFor(async () => (await pillsClear(t)) !== 'no error panel', 80);
+    let clear = await pillsClear(t);
+    if (process.env.TRIAL_REVIEW_SHOTS) await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'video-error-kasper-l2.png') });
+    ok(clear === 'clear', 'Kasper, second layout, 1440: a version that cannot play, with no poster, shows its message below the badge and "Open in Frame.io" (' + clear + ')');
+    await t.ctx.close();
+    // The same on the SMM's Review tab at 390, where the player is narrow.
+    t = await start('smm', true, fresh({ C: { frame_url: PROJECT } }), { width: 390, height: 844, context: { hasTouch: true, isMobile: true }, beforeOpen: noPoster });
+    await inS(t.page, '.trv [data-trv-go="C"]').click();
+    await waitFor(async () => (await pillsClear(t)) !== 'no error panel', 80);
+    clear = await pillsClear(t);
+    if (process.env.TRIAL_REVIEW_SHOTS) await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'video-error-smm-390.png') });
+    ok(clear === 'clear', 'SMM, 390: a version that cannot play, with no poster, shows its message below the badge and "Open in Frame.io" (' + clear + ')');
     await t.ctx.close();
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));

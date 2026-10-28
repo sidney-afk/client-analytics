@@ -35019,3 +35019,17 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **After merge:** the polish gate's packet step reads the live function. If the push run on this merge reaches the packet before the merge lane has deployed trial-reels, it can still see the old 409 once. Re-run it after the deploy.
 
 **Way back:** revert the PR. The page still reads the old 409 as no versions here.
+
+## 559. [2026-10-28 UTC, BUILT, NOT MERGED] Review page: a video that cannot play, on a card with no thumbnail, shrank to a strip with its message under the two pills (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest on build 6, in Kasper's second layout at 1440. Video C's link was a Frame.io project page, which frameio-view refuses before any load (`unsupported_link`), on a card with no thumbnail. The player shrank from 9:16 to a short box, about 284 by 160 px. Its "Video C" badge and "Open in Frame.io" pill sat over the error title, so only "…g troubl…" showed, and "Try again" was cut off at the bottom.
+- **Why:** the review page sizes the player's box with a 9:16 fallback ratio, but the player inside fell back to 16:9 (`020-styles-surfaces.css.part`, `.fv-player`). With no poster and no video to give the real ratio, the box was 9:16 wide and 16:9 tall. The error panel also centred its text under the pills.
+- **Fix, in `src/index/195-review-stage.js.part`:**
+  - The review page's player takes the same 9:16 fallback ratio as its box.
+  - Its error panel starts below the pills.
+  - The Notes player and every other player are unchanged.
+- **Proven:**
+  - `test/trial-reels-review-browser.js`, with a project link and no thumbnail: in Kasper's second layout at 1440, the error title is clear of both pills (fails without the fix: title top 500, pill bottom 552). The SMM's Review tab at 390 is checked too.
+  - The review-stage suites, `frameio-viewer-browser` and `frame-comments-in-notes-browser` pass.
+
+**Way back:** revert the pull request.

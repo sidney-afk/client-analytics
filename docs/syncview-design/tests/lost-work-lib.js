@@ -41,10 +41,12 @@ function serveStatic() {
 const iso = (ms) => new Date(ms).toISOString();
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-/* ---- fake supabase-js (realtime only). Tests fire echoes with env.realtime(). ---- */
+/* ---- fake supabase-js (realtime only). Tests fire echoes with env.realtime(). ----
+   Served for every script from the CDN (chart.js too, which loads async on every page), so running it again never
+   empties the channels already joined: a late chart.js once wiped the trial-reels channel (#2418). */
 const FAKE_SUPABASE = `
-window.__rtChannels = [];
-window.supabase = { createClient: function () {
+if (!window.__rtChannels) window.__rtChannels = [];
+if (!window.supabase) window.supabase = { createClient: function () {
   return {
     channel: function (name) {
       var ch = { name: name, _cbs: [], on: function (t, f, cb) { ch._cbs.push({ f: f, cb: cb }); return ch; },

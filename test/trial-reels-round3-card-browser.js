@@ -168,6 +168,24 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await page.close();
       }
     }
+    // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
+    // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      let release; const late = new Promise(r => { release = r; });
+      const hold = async route => { await late; return route.fallback(); };
+      await S.ctx.route('**/chart.js@*/**', hold);
+      const page = await open(1440, 900, 'light');
+      await openList(page);
+      await page.waitForFunction(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'), null, { timeout: 8000, polling: 100 }).catch(() => {});
+      release();
+      await page.waitForFunction(() => typeof window.Chart !== 'undefined' || (document.querySelectorAll('script[src*="chart.js"]').length && performance.getEntriesByType('resource').some(e => /chart\.js@/.test(e.name))), null, { timeout: 8000 }).catch(() => {});
+      await sleep(500);
+      const kept = await page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'));
+      ok(kept, 'late chart.js: the card still listens on the trial-reels channel after the CDN\'s other script lands');
+      await S.ctx.unroute('**/chart.js@*/**', hold);
+      await page.close();
+    }
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));
     console.error(e);

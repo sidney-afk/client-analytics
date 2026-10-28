@@ -170,12 +170,13 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
       mountInstagramPanel({});
       return igState;
     `)(state, shared);
-    const idle = () => ({ client: 'Alpha', file: null, title: '', submitting: false, cover: { source: 'calendar', cardId: 'c1', note: 'n' } });
+    const idle = () => ({ client: 'Alpha', file: null, items: [], title: '', submitting: false, cover: { source: 'calendar', cardId: 'c1', note: 'n' } });
     const moved = mount(idle(), 'Beta');
     ok(moved.client === 'Beta', 'Instagram: an empty form follows the client picked in the top bar');
     ok(moved.coverCleared === true && moved.cover.cardId === '', 'Instagram: and drops the cover it had taken from the old client\'s Calendar');
     ok(mount(Object.assign(idle(), { title: 'A caption in progress' }), 'Beta').client === 'Alpha', 'Instagram: a post already being written keeps its client');
     ok(mount(Object.assign(idle(), { file: { size: 1 } }), 'Beta').client === 'Alpha', 'Instagram: so does one with a video attached');
+    ok(mount(Object.assign(idle(), { items: [{ file: { size: 1 } }] }), 'Beta').client === 'Alpha', 'Instagram: and one with carousel items attached');
     ok(mount(Object.assign(idle(), { client: null }), 'Beta').client === 'Beta', 'Instagram: a form with no client takes the top-bar client, as before');
     const carded = mount(Object.assign(idle(), { title: 'From the card', titleFromCard: 'From the card' }), 'Beta');
     ok(carded.client === 'Beta' && carded.title === '', 'Instagram: a caption only a Calendar card filled in does not hold the form, and leaves with the old client (OPEN_REPAIRS 404)');

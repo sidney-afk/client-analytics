@@ -19,6 +19,12 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg':
 const ADMIN = { id: 'qa_admin', name: 'QA Admin', role: 'admin', team: null };
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS' };
 const C = 'linkfixtureclient';
+/* A busy runner, made repeatable: the Clients Info sheet answers the FIRST
+ * visit of each address late, the reloads at once. That is the order that
+ * turned #2402 red (the first reading before Templates rewrote its address,
+ * the reloads after). */
+let slowSheetOnce = false;
+let sheetAnswered = Promise.resolve();   // a reading waits for the late sheet too
 
 // address -> the skeleton that may paint ('neutral' is always allowed too)
 const ROUTES = [
@@ -71,8 +77,11 @@ async function newContext(browser, viewport) {
     if (/\/functions\/v1\/key-verify/.test(url)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: ADMIN.role, member: ADMIN }) });
     // The invented client exists only in the (mocked) Clients Info sheet.
     if (/docs\.google\.com/.test(url)) {
-      const csv = /Clients%20Info|Clients\+Info|Clients Info/.test(url) ? 'client_name\nLink Fixture Client\n' : 'client_name,date\n';
-      return route.fulfill({ status: 200, contentType: 'text/csv', headers: cors, body: csv });
+      const info = /Clients%20Info|Clients\+Info|Clients Info/.test(url);
+      const csv = info ? 'client_name\nLink Fixture Client\n' : 'client_name,date\n';
+      const answer = () => route.fulfill({ status: 200, contentType: 'text/csv', headers: cors, body: csv }).catch(() => {});
+      if (info && slowSheetOnce) { slowSheetOnce = false; return (sheetAnswered = new Promise(r => setTimeout(r, 2500)).then(answer)); }
+      return answer();
     }
     // Time Off is switched on, as it is live; otherwise /time-off goes home.
     if (/\/rest\/v1\/syncview_runtime_flags/.test(url) && /pto_v1/.test(url)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify([{ value: { mode: 'on' } }]) });
@@ -102,8 +111,38 @@ async function newContext(browser, viewport) {
   return context;
 }
 
+/* The address the page settles on. Some tabs rewrite their own address once
+ * their data arrives: Templates swaps the client slug for the encoded display
+ * name (060, replaceState '#templates/' + encodeURIComponent(name)). Reading
+ * it before that lands made the before/after comparison race on a busy runner
+ * (#2402, 2026-10-28). Sample Reviews drops an item the data does not have
+ * the same way. So wait for the late sheet, then until the address has held
+ * still for 750 ms (at most 10 s), before reading it. */
+async function settledAddress(page) {
+  let last = null, since = Date.now();
+  const end = Date.now() + 10000;
+  while (Date.now() < end) {
+    const now = await page.evaluate(() => location.pathname + location.hash).catch(() => null);
+    if (now !== last) { last = now; since = Date.now(); }
+    else if (Date.now() - since >= 750) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+/* Tab and client, not their spelling: '/templates/linkfixtureclient' and
+ * '/templates/Link%20Fixture%20Client' are the same place. A real change of
+ * tab, client or deeper item still differs. */
+function identity(at) {
+  return String(at || '').split('/').map(part => {
+    let d = part;
+    try { d = decodeURIComponent(part); } catch (e) {}
+    return d.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  }).join('/');
+}
+
 async function skeletons(page) {
   await page.waitForFunction(() => window.__svSkeletonsDone === true, null, { timeout: 30000 }).catch(() => {});
+  await sheetAnswered;
+  await settledAddress(page);
   return page.evaluate(() => ({ seen: window.__svSkeletons || [], nav: typeof currentNav !== 'undefined' ? currentNav : null, at: location.pathname }));
 }
 
@@ -122,6 +161,7 @@ async function skeletons(page) {
         // A new visit to the bare address opens Today (#1798, 2026-09-27);
         // Analytics is what a refresh on it shows, so start from its history entry.
         if (want === 'analytics') await page.addInitScript(() => { try { if (!history.state) history.replaceState({ nav: 'home', client: null }, ''); } catch (e) {} });
+        slowSheetOnce = true;
         await page.goto(base + addr, { waitUntil: 'domcontentloaded' });
         const first = await skeletons(page);
         for (const [how, act] of [['reload', () => page.reload({ waitUntil: 'domcontentloaded' })], ['update-banner refresh', async () => {
@@ -139,7 +179,7 @@ async function skeletons(page) {
           check(r.seen.length > 0, `${label}: painted no skeleton at all`);
           const tab = a => a.split('/')[1] || '';
           check(tab(r.at) === tab(addr), `${label}: the tab moved to ${r.at}`);
-          check(r.nav === first.nav && r.at === first.at, `${label}: tab changed from ${first.nav} ${first.at} to ${r.nav} ${r.at}`);
+          check(r.nav === first.nav && identity(r.at) === identity(first.at), `${label}: tab changed from ${first.nav} ${first.at} to ${r.nav} ${r.at}`);
         }
         await page.close();
       }

@@ -238,12 +238,27 @@
     }
     document.addEventListener('input', markEdited, true);
     document.addEventListener('change', markEdited, true);
+    /* The staff sign-in card is not work in progress (OPEN_REPAIRS 558). It is
+     * a role=dialog, so a signed-out tab read as "busy" forever: no
+     * self-reload, and since #2389 no bar until the 4-hour wall. A name picked
+     * there costs a click to pick again; only a typed role key counts. */
+    var SIGN_IN_ID = 'staffIdentityForm';
+    var SIGN_IN_KEY_ID = 'staffIdentityKey';
+    function signInCardOnly(el){
+        if (!el || el.id === SIGN_IN_KEY_ID) return false;
+        for (var n = el; n && n.nodeType === 1; n = n.parentElement) if (n.id === SIGN_IN_ID) return true;
+        return false;
+    }
     function wouldLoseWork(){
         var edited = document.querySelectorAll('[data-sv-unsaved-edit]');
-        for (var k = 0; k < edited.length; k++) if (onRenderedSurface(edited[k])) return true;
+        for (var k = 0; k < edited.length; k++) {
+            if (signInCardOnly(edited[k])) continue;
+            if (onRenderedSurface(edited[k])) return true;
+        }
         var fields = document.querySelectorAll('input, textarea, select, [contenteditable="true"]');
         for (var i = 0; i < fields.length; i++) {
             var el = fields[i];
+            if (signInCardOnly(el)) continue;
             if (el.isContentEditable) {
                 if (visibleEl(el) && String(el.textContent || '').trim()) return true;
                 continue;
@@ -261,7 +276,7 @@
                 !== String(el.defaultValue == null ? '' : el.defaultValue)) return true;
         }
         var open = document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]');
-        for (var j = 0; j < open.length; j++) if (visibleEl(open[j])) return true;
+        for (var j = 0; j < open.length; j++) if (open[j].id !== SIGN_IN_ID && visibleEl(open[j])) return true;
         return false;
     }
     // No storage means no loop guard, so no self-reload either. Failing to the

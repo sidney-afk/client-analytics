@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -32,11 +32,21 @@ export function staffAllows(role, action) {
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
   // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.
-  return r === "creative" && (action === "version_link_set" || action === "version_new_cut");
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
 export const likeExact = (text) => String(text).replace(/[\\%_]/g, "\\$&");
+
+/*
+ * The card's video sub-issue id as studio_trial_versions.deliverable_id takes it: that column is a uuid, while the
+ * card names its sub-issue "del_<uuid>" (found live, 2026-10-27: version_add answered write_failed on every card with
+ * a sub-issue). The uuid part, as the studio's log stores it, or null when there is none.
+ */
+export function deliverableUuid(id) {
+  const s = clean(id, 80).replace(/^del_/i, "");
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s.toLowerCase() : null;
+}
 
 /** The page switch: {"clients": [...]} or {"all": true}. Anything else, missing or unreadable, is off. */
 export function flagAllows(value, slug) {
@@ -46,16 +56,116 @@ export function flagAllows(value, slug) {
   return list.some((c) => clean(c, 80).toLowerCase() === slug.toLowerCase());
 }
 
-/** A version link: an https address, as the card's Video link takes today (permissive: the server checks the shape only). */
+/*
+ * Where a version's link may point: the providers today's Production attach takes for a Deliverable file (Frame.io,
+ * Google Drive, Dropbox; production-write/policy.mjs assetUrlType), so a version that wins can always become the
+ * card's one link. A Google Doc is a brief, not a video, and stays out, as it does there.
+ */
+export const LINK_HOSTS = ["frame.io", "app.frame.io", "next.frame.io", "f.io", "drive.google.com", "dropbox.com", "www.dropbox.com"];
+// Where the sharing check may follow a redirect: the providers above and their own file hosts (as production-write's probe).
+const PROBE_REDIRECT_HOSTS = ["drive.usercontent.google.com", "dl.dropboxusercontent.com", "storage.googleapis.com"];
+const hostOf = (u) => { try { return new URL(u).hostname.toLowerCase().replace(/\.$/, ""); } catch (_e) { return ""; } };
+
+/** A version link: an https address on one of the providers above, with no credential in it. */
 export function cleanLink(raw) {
   const s = clean(raw, 2049);
   if (!s) return { link: "" };
   if (s.length > 2048) return { error: "link_too_long" };
   if (!/^https:\/\/[^\s<>"']+$/i.test(s)) return { error: "link_not_https" };
+  let u;
+  try { u = new URL(s); } catch (_e) { return { error: "link_not_https" }; }
+  if (u.username || u.password || !LINK_HOSTS.includes(hostOf(s)) || u.pathname === "/") return { error: "link_host_unsupported" };
   return { link: s };
 }
 
+/** May the sharing check open this address (the first request, or a redirect it was sent)? */
+export function probeHostAllowed(url) {
+  if (!/^https:\/\//i.test(String(url || ""))) return false;
+  const h = hostOf(url);
+  return LINK_HOSTS.includes(h) || PROBE_REDIRECT_HOSTS.includes(h) || h.endsWith(".googleusercontent.com");
+}
+
+/** The address the check opens: a Drive file's download URL and a Dropbox share's raw URL, as production-write's assetProbeUrl. */
+export function probeUrl(raw) {
+  const url = new URL(raw);
+  const host = hostOf(raw);
+  if (host === "drive.google.com") {
+    const id = (url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i) || [])[1] || url.searchParams.get("id");
+    if (id) {
+      const p = new URL("https://drive.google.com/uc");
+      p.searchParams.set("export", "download");
+      p.searchParams.set("id", id);
+      const key = url.searchParams.get("resourcekey");
+      if (key) p.searchParams.set("resourcekey", key);
+      return p.toString();
+    }
+  }
+  if (host === "dropbox.com" || host === "www.dropbox.com") {
+    url.searchParams.delete("dl");
+    url.searchParams.set("raw", "1");
+  }
+  return url.toString();
+}
+
+/*
+ * The sharing check's verdict, the same rule as production-write's providerEvidenceState (a copy: that probe lives
+ * inside a Section 4 function and cannot move to _shared without changing it). A live provider page is enough
+ * (owner ruling 2026-08-16: Frame.io never serves the video's bytes at a share link), unless it is a sign-in or
+ * request-access wall. The words are Production's own: available, permission_denied, expired, unavailable.
+ */
+export function probeVerdict({ status, contentType, disposition, sample }) {
+  if (status === 401 || status === 403) return "permission_denied";
+  if (status === 404 || status === 410) return "expired";
+  if (!(status >= 200 && status < 300)) return "unavailable";
+  const type = String(contentType || "").toLowerCase().split(";")[0].trim();
+  if (String(disposition || "").toLowerCase().includes("attachment") || /^(?:image|video|audio)\//.test(type)
+      || /^application\/(?:pdf|octet-stream|zip|vnd[.])/.test(type)) return "available";
+  if (type !== "text/html" && type !== "application/xhtml+xml") return "unavailable";
+  const body = String(sample || "").toLowerCase();
+  if (!body) return "unavailable";
+  if (/accounts[.]google[.]com|servicelogin|request access|access denied|permission denied|not authorized|(?:sign|log)[ -]?in|type\s*=\s*["']password["']/i.test(body)) {
+    return "permission_denied";
+  }
+  return "available";
+}
+
 export const live = (v) => v.status !== STATUS.dropped;
+
+/*
+ * One row per letter. Two writers add rows: the AI editor's studio log, keyed by its batch and video number, and
+ * SyncView's version_add, keyed by the card's id and "card". Both key rows by (client, batch, video, letter), so a
+ * card switched on before the studio logged it can end up with two "Video A" rows (Codex on PR 2373). Every read
+ * keeps the earliest written for each letter (then the smaller id), so each letter names one version; the other row
+ * is never read or written here.
+ */
+export function oneRowPerLetter(rows) {
+  const keep = new Map();
+  for (const r of rows || []) {
+    const was = keep.get(r.letter);
+    const key = (x) => String(x.created_at || "9999") + "|" + String(x.id || "");
+    if (!was || key(r) < key(was)) keep.set(r.letter, r);
+  }
+  return [...keep.values()];
+}
+
+/*
+ * A version added from SyncView (2026-10-27, found live): until now a card listed only the rows the AI editor's studio
+ * log writes, so a card it had not logged showed no versions and nowhere to paste a link. The next free letter, A to
+ * G, with its link. The first live version is the one on the card, so its link must already be the card's (the page
+ * saves the card's link first, as it does for Video A). Never once the trial has started.
+ */
+export function addVersion(versions, rawLink, mainLink) {
+  if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { error: "version_on_trial" };
+  const used = new Set(versions.map((v) => v.letter));
+  const letter = LETTERS.find((l) => !used.has(l));
+  if (!letter) return { error: "no_letter_left" };
+  const c = cleanLink(rawLink);
+  if (c.error) return { error: c.error };
+  if (!c.link) return { error: "version_has_no_link" };
+  if (versions.some((x) => clean(x.frame_url, 2048) === c.link)) return { error: "link_used_by_another_version" };
+  if (!versions.some(live) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
+  return { letter, link: c.link };
+}
 
 /*
  * The winner is SyncView's alone (owner, 2026-10-27): trial_reel_cards.winner_letter is the only source of truth, and
@@ -112,16 +222,31 @@ export function cardApprovable(versions) {
  * and the client only after the SMM (the SMM may send a version straight to the client, as "Approve to client" does
  * today, so the client's turn does not wait on Kasper).
  */
-export function stageReady(v, stage) {
-  return stage === "smm" ? true : !!v.smm_ok_at;
+export function stageReady(v, stage, sentWhole) {
+  return stage === "smm" ? true : !!v.smm_ok_at || !!sentWhole;
 }
 
-export function answerPatches(versions, { stage, kind, letter, note }, now) {
+/*
+ * The team sent the card on today's way (today's Approve before the review page asked per version, or the status menu)
+ * while the SMM had looked at no version: every version then counts as through the SMM for the stage the card was sent
+ * to, or the client link would show them all "with the team" and nothing could move (Sidney, 2026-10-27). Once the SMM
+ * has looked at one version, one it has not seen stays with the team (Probe rule-miss 13).
+ */
+const SENT_TO = Object.freeze({
+  kasper: ["Kasper Approval"],
+  client: ["Client Approval", "Approved", "Scheduled", "Posted"],
+});
+export function sentOnWhole(versions, stage, cardStatus) {
+  return (SENT_TO[stage] || []).includes(clean(cardStatus, 40)) && !versions.some((v) => live(v) && v.smm_ok_at);
+}
+
+export function answerPatches(versions, { stage, kind, letter, note, cardStatus }, now) {
   if (!STAGES.includes(stage)) return { error: "stage_invalid" };
+  const whole = sentOnWhole(versions, stage, cardStatus);
   if (!["approve", "change", "approve_all"].includes(kind)) return { error: "kind_invalid" };
   // Open for this reviewer: live, not decided, not waiting on a new cut, with a link to watch, its turn, not yet answered.
   const open = (v) => live(v) && v.status !== STATUS.change && v.status !== STATUS.trial && v.status !== STATUS.winner && v.status !== STATUS.lost
-    && !!clean(v.frame_url, 2048) && stageReady(v, stage)
+    && !!clean(v.frame_url, 2048) && stageReady(v, stage, whole)
     && (stage === "client" ? v.status === STATUS.waiting : !v[okField(stage)]);
   let targets;
   if (kind === "approve_all") targets = versions.filter(open);
@@ -134,7 +259,7 @@ export function answerPatches(versions, { stage, kind, letter, note }, now) {
       // A change asked waits for its new cut (Q3); nothing to watch, nothing to approve; and each stage in its turn.
       if (v.status === STATUS.change) return { error: "change_open" };
       if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
-      if (!stageReady(v, stage)) return { error: "stage_order" };
+      if (!stageReady(v, stage, whole)) return { error: "stage_order" };
     }
     targets = [v];
   }
@@ -191,6 +316,22 @@ function linkChange(v, link) {
     });
   }
   return patch;
+}
+
+/*
+ * The copy of the card's one link, caught up. Production's own Deliverable file row (today's attach) is how the
+ * version on the card gets a new link from Production, and nothing tells this log; so a staff read copies file_url
+ * into that version's frame_url, with the same restart as a link pasted here (Q3).
+ * Not while the page is moving the card's link between versions: when the card's link is ANOTHER version's link (a
+ * winner pick, or its Undo, between today's attach and winner_set / winner_undo), nothing is copied.
+ */
+export function healMainPatch(versions, mainLink) {
+  const link = clean(mainLink, 2048);
+  const letter = mainLetter(versions, mainLink);
+  const v = versions.find((x) => x.letter === letter);
+  if (!link || !v || clean(v.frame_url, 2048) === link) return null;
+  if (versions.some((x) => x.letter !== letter && clean(x.frame_url, 2048) === link)) return null;
+  return { id: v.id, letter, from: v.status, patch: linkChange(v, link) };
 }
 
 /*
@@ -280,6 +421,8 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
   const sorted = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
   const main = mainLetter(sorted, mainLink);
   const winner = sorted.find((v) => v.status === STATUS.winner);
+  // A client read answers for the client's turn; a staff read for Kasper's (the SMM's is never held back).
+  const whole = sentOnWhole(sorted, client ? "client" : "kasper", cardStatus);
   const rows = (client ? (winner ? [winner] : sorted.filter((v) => live(v) && v.status !== STATUS.lost)) : sorted).map((v) => {
     const isMain = v.letter === main;
     const base = {
@@ -290,7 +433,7 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       client_ok_at: v.client_ok_at || null,
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
-      ready: !!v.smm_ok_at,
+      ready: !!v.smm_ok_at || whole,
     };
     if (client) return base;
     return Object.assign(base, {

@@ -23,6 +23,14 @@
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position:static; width:auto !important; height:auto !important; max-width:100% !important; max-height:min(62dvh,560px) !important; object-fit:contain; aspect-ratio:auto; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-card-thumb-fallback { min-height: 104px; display: grid; place-items: center; }
+    /* A thumbnail that is a link (a Frame.io page, an image folder) has no picture to give the strip its height, so its
+       placeholder was drawn over the 56 px tool bar ("Open thumbnail" under the play button and the icons; 139 live
+       cards). It takes its own room above the tools, as the fallback does; with a video, the play button sits in its
+       middle and the words under it (session Trialpolish, 2026-10-27). */
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-thumb-frame { position: relative; inset: auto; align-self: stretch; width: 100%; min-height: 176px !important; box-sizing: border-box; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-play) > .cal-thumb-frame { justify-content: flex-end; padding-bottom: 18px; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-play) > .cal-thumb-frame .cal-thumb-frame-badge { display: none; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-frame) > .cal-thumb-play { top: 76px; }
     html.sv-staff-phone .sv-phone-card-tools { width: 100%; box-sizing: border-box; padding: 6px 10px; background: var(--white); }
     html.sv-staff-phone .sv-phone-card-primary, html.sv-staff-phone .sv-phone-card-secondary { display: flex; align-items: center; gap: 4px; min-width: 0; justify-content: flex-end; }
     html.sv-staff-phone .sv-phone-card-primary > .cal-linear-pile { margin-left: 0; order: 0; }

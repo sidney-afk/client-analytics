@@ -24,6 +24,7 @@ const C = 'linkfixtureclient';
  * turned #2402 red (the first reading before Templates rewrote its address,
  * the reloads after). */
 let slowSheetOnce = false;
+let sheetAnswered = Promise.resolve();   // a reading waits for the late sheet too
 
 // address -> the skeleton that may paint ('neutral' is always allowed too)
 const ROUTES = [
@@ -79,7 +80,7 @@ async function newContext(browser, viewport) {
       const info = /Clients%20Info|Clients\+Info|Clients Info/.test(url);
       const csv = info ? 'client_name\nLink Fixture Client\n' : 'client_name,date\n';
       const answer = () => route.fulfill({ status: 200, contentType: 'text/csv', headers: cors, body: csv }).catch(() => {});
-      if (info && slowSheetOnce) { slowSheetOnce = false; return new Promise(r => setTimeout(r, 2500)).then(answer); }
+      if (info && slowSheetOnce) { slowSheetOnce = false; return (sheetAnswered = new Promise(r => setTimeout(r, 2500)).then(answer)); }
       return answer();
     }
     // Time Off is switched on, as it is live; otherwise /time-off goes home.
@@ -114,8 +115,9 @@ async function newContext(browser, viewport) {
  * their data arrives: Templates swaps the client slug for the encoded display
  * name (060, replaceState '#templates/' + encodeURIComponent(name)). Reading
  * it before that lands made the before/after comparison race on a busy runner
- * (#2402, 2026-10-28). So wait until the address has held still for 750 ms
- * (at most 10 s) before reading it. */
+ * (#2402, 2026-10-28). Sample Reviews drops an item the data does not have
+ * the same way. So wait for the late sheet, then until the address has held
+ * still for 750 ms (at most 10 s), before reading it. */
 async function settledAddress(page) {
   let last = null, since = Date.now();
   const end = Date.now() + 10000;
@@ -139,6 +141,7 @@ function identity(at) {
 
 async function skeletons(page) {
   await page.waitForFunction(() => window.__svSkeletonsDone === true, null, { timeout: 30000 }).catch(() => {});
+  await sheetAnswered;
   await settledAddress(page);
   return page.evaluate(() => ({ seen: window.__svSkeletons || [], nav: typeof currentNav !== 'undefined' ? currentNav : null, at: location.pathname }));
 }

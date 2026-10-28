@@ -207,12 +207,18 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.getElementById('crmResults').hidden);
   expect(await page.inputValue('#crmSearch') === '', label + ': Escape closes the results and clears the search');
   await page.fill('#crmSearch', 'coach');
-  await page.locator('#crmResults .crm-result').first().click();
-  await page.waitForSelector('#crmPanel:not([hidden]) .crm-timeline');
-  expect(/Sample Coach/.test(await page.locator('#crmPanel').innerText()), label + ': a search result opens the person');
-  await page.click('.crm-x');
-  await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
-  if (!(await page.locator('#crmResults').isHidden())) { await page.keyboard.press('Escape'); }
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#crmPanel.is-page:not([hidden]) .crm-timeline');
+  expect(/Sample Coach/.test(await page.locator('#crmPanel').innerText()) && await page.locator('#crmScrim').isHidden(), label + ': Enter in search opens the first person on their own page');
+  expect(/[?&]v=person/.test(page.url()), label + ': the profile has its own address (' + page.url() + ')');
+  await page.goBack();
+  await page.waitForSelector('#crmHome .crm-home-tile');
+  expect(await page.locator('#crmPanel').isHidden(), label + ': Back from a profile returns home');
+  await page.goForward();
+  await page.waitForSelector('#crmPanel.is-page:not([hidden])');
+  expect(true, label + ': Forward opens the profile again');
+  await page.click('#crmPanel .crm-back');
+  await page.waitForSelector('#crmHome .crm-home-tile');
 
   // Today, from its tile.
   await page.click('#crmHome [data-crm-nav="today"]');
@@ -228,6 +234,11 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"] .crm-stage-body'));
   expect(await page.locator('[data-crm-temp="cold"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a section folds');
   await page.click('[data-crm-temp="cold"] .crm-stage-toggle');
+  await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');
+  await page.click('#crmTempSeg [data-crm-show="warm"]');
+  await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"] .crm-stage-body') && document.querySelector('[data-crm-temp="warm"] .crm-stage-body'));
+  expect(true, label + ': the Warm toggle folds Cold and opens Warm');
+  await page.click('#crmTempSeg [data-crm-show="all"]');
   await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');
   const first = page.locator('[data-crm-card="00000000-0000-4000-8000-000000000001"]');
   const text = await first.innerText();
@@ -405,6 +416,22 @@ async function run(browser, origin, viewport) {
   await page.click('#crmTop [data-crm-nav="sequences"]');
   await page.click('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
   await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
+  if (!label.startsWith('390')) {
+    expect(await page.locator('#crmSide [data-crm-nav="n8n:didnt_book_doctors"][aria-current="page"]').count() === 1, label + ': the left list opens to and marks the automation picked from the menu');
+    const topBefore = await page.locator('#crmTop .crm-crumbs').boundingBox();
+    expect(/\/leads\?v=n8n/.test(page.url()), label + ': the automation has its own address (' + page.url() + ')');
+    // A reload of /leads?v=... reaches the app as the host's stub hop does.
+    await page.goto(origin + '/?sv_path=%2Fleads&v=' + encodeURIComponent('n8n:didnt_book_doctors'), { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]', { timeout: 30000 });
+    const topAfter = await page.locator('#crmTop .crm-crumbs').boundingBox();
+    expect(true, label + ': a reload stays on the same automation');
+    await page.click('#crmTop [data-crm-nav="home"]');
+    const topHome = await page.locator('#crmTop .crm-crumbs').boundingBox();
+    expect(!/[?&]v=/.test(page.url()), label + ': Home clears the view from the address (' + page.url() + ')');
+    expect(topBefore && topHome && Math.abs(topBefore.x - topHome.x) < 2 && Math.abs(topBefore.width - topHome.width) < 2 && topAfter, label + ': the menu row does not move when the left list shows');
+    await page.goBack();
+    await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
+  }
   const n8nText = await page.locator('[data-crm-seq="didnt_book_doctors"]').innerText();
   expect(/Sending|Off/.test(n8nText) && !/Edited in n8n/.test(n8nText) && /made-up subject line/.test(n8nText) && /a made-up email body/.test(n8nText) && /a made-up text/.test(n8nText) && /Stops when/.test(n8nText), label + ': an n8n sequence shows its emails and texts word for word');
   expect(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-mail').count() === 1 && await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-bubble').count() === 1, label + ': an email reads as an email and a text as a text bubble');

@@ -1734,62 +1734,67 @@
         .cal-link-field.has-link.editing .cal-link-folder,
         .cal-link-field.has-link.editing .cal-link-edit { display: none; }
         .cal-link-pill-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
-            padding: 8px 9px; background: var(--field-bg); border: 0; border-radius: 8px 0 0 8px; cursor: pointer;
+            padding: 8px 9px; background: var(--field-bg); border: 0; border-radius: 8px; cursor: pointer;
             font-family: inherit; font-size: 0.72rem; font-weight: 600; color: var(--text-primary); text-align: left; transition: background 0.12s; }
         .cal-link-pill-open:hover { background: var(--field-bg-hover); }
         .cal-link-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-secondary); }
         .cal-link-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* The row's buttons beside the link (open the folder, compare, edit): no box around them, and a hover changes
+           only the icon itself (owner, 2026-10-27). The click target stays 32px wide and the row's full height. */
         .cal-link-folder,
         .cal-link-edit { flex-shrink: 0; width: 32px; display: inline-flex; align-items: center; justify-content: center;
-            background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); border-radius: 0 8px 8px 0;
-            color: var(--text-muted); cursor: pointer; transition: background 0.12s, color 0.12s; }
-        .cal-link-folder { border-radius: 0; }
-        .cal-link-folder + .cal-link-edit { border-radius: 0 8px 8px 0; }
+            background: transparent; border: 0; border-radius: 0; padding: 0;
+            color: var(--text-muted); cursor: pointer; }
         .cal-link-folder:hover,
-        .cal-link-edit:hover { background: var(--field-bg-hover); color: var(--text-primary); }
+        .cal-link-edit:hover,
+        .cal-link-folder:focus-visible,
+        .cal-link-edit:focus-visible { background: transparent; color: var(--text-primary); }
         .cal-link-folder svg,
-        .cal-link-edit svg { width: 12px; height: 12px; }
+        .cal-link-edit svg { width: 12px; height: 12px; transition: color 0.12s, transform 0.12s; }
+        .cal-link-folder:hover svg,
+        .cal-link-edit:hover svg { transform: scale(1.2); }
         /* Coloured link pills once a URL is set */
         .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg); }
         .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-slot-thumb-bg-hover); }
         .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-slot-thumb-fg); }
-        .cal-link-thumb.has-link .cal-link-folder,
-        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg-soft); border-left-color: var(--sv-slot-thumb-border); }
-        .cal-link-thumb.has-link .cal-link-folder:hover,
-        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-slot-thumb-bg-hover); color: var(--sv-slot-thumb-fg); }
         .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
         .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-slot-video-bg-hover); }
         .cal-link-post.has-link .cal-link-ico { color: var(--sv-slot-video-fg); }
-        .cal-link-post.has-link .cal-link-folder,
-        .cal-link-post.has-link .cal-link-edit { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
-        .cal-link-post.has-link .cal-link-folder:hover,
-        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
         /* Trial reels (189, behind trial_reels_pages): the switch, the state, the arrow and the versions, all inside
-           today's Video row so a collapsed card keeps today's height. The parts are sibling buttons drawn as one row. */
-        .cal-link-post .trl-sw-slot, .cal-link-post .trl-chev, .cal-link-post .trl-state-ico, .cal-link-post .trl-fill {
-            flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; padding: 0 6px;
-            background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); font: inherit; cursor: pointer; }
-        .cal-link-post .trl-fill { flex: 1 1 auto; padding: 0; cursor: default; }
-        .cal-link-post .trl-sw-slot:hover, .cal-link-post .trl-chev:hover, .cal-link-post .trl-state-ico:hover { background: var(--sv-slot-video-bg-hover); }
-        .cal-link-post.trl-main .cal-link-pill-open { flex: 0 1 auto; }
-        .cal-link-post .trl-sw { position: relative; display: block; width: 22px; height: 12px; border-radius: 999px; background: color-mix(in srgb, currentColor 22%, transparent); }
-        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
-        .cal-link-post .trl-sw-slot.on .trl-sw { background: color-mix(in srgb, currentColor 40%, transparent); }
+           today's Video row so a collapsed card keeps today's height. Like the row's other buttons, the switch, the
+           trophy and the arrow sit beside the link with no box; a hover changes only their own shape (owner,
+           2026-10-27: the switch was dimmed and boxed). */
+        .cal-link-post .trl-sw-slot, .cal-link-post .trl-chev, .cal-link-post .trl-state-ico {
+            flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; padding: 0 6px; min-width: 32px;
+            background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; }
+        .cal-link-post .trl-fill { display: none; }
+        .cal-link-post .trl-chev:hover, .cal-link-post .trl-state-ico:hover,
+        .cal-link-post .trl-chev:focus-visible, .cal-link-post .trl-state-ico:focus-visible { color: var(--text-primary); }
+        .cal-link-post .trl-chev:hover svg, .cal-link-post .trl-state-ico:hover svg { transform: scale(1.2); }
+        .cal-link-post .trl-sw { position: relative; display: block; width: 24px; height: 14px; border-radius: 999px;
+            background: color-mix(in srgb, var(--text-secondary) 45%, transparent); transition: background .12s, transform .12s; }
+        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
+        .cal-link-post .trl-sw-slot.on .trl-sw { background: var(--sv-slot-video-fg); }
         .cal-link-post .trl-sw-slot.on .trl-sw::after { left: 12px; }
-        .cal-link-post .trl-sw-slot:not(.on) { opacity: .45; }
-        .cal-link-post:hover .trl-sw-slot:not(.on), .cal-link-post .trl-sw-slot:focus-visible { opacity: .9; }
-        /* A card with no Video link yet: the switch sits at the end of today's empty field, in the field's colours. */
-        .cal-link-post:not(.has-link) .trl-sw-slot { background: var(--field-bg); color: var(--text-muted); border-radius: 0 8px 8px 0; }
-        .cal-link-post:not(.has-link):has(.trl-sw-slot) .cal-link-input { border-radius: 8px 0 0 8px; }
+        .cal-link-post .trl-sw-slot:hover .trl-sw, .cal-link-post .trl-sw-slot:focus-visible .trl-sw { background: color-mix(in srgb, var(--text-secondary) 70%, transparent); transform: scale(1.08); }
+        .cal-link-post .trl-sw-slot.on:hover .trl-sw, .cal-link-post .trl-sw-slot.on:focus-visible .trl-sw { background: color-mix(in srgb, var(--sv-slot-video-fg) 80%, var(--text-primary)); }
+        .cal-link-post .trl-sw-slot:focus-visible { outline: none; }
         .cal-link-post .trl-chev svg { width: 10px; height: 10px; transition: transform .15s; }
         .cal-link-post.trl-open .trl-chev svg { transform: rotate(180deg); }
-        .cal-link-post .trl-state-ico svg { width: 13px; height: 13px; opacity: .85; }
+        .cal-link-post.trl-open .trl-chev:hover svg { transform: rotate(180deg) scale(1.2); }
+        .cal-link-post .trl-state-ico svg { width: 13px; height: 13px; transition: transform .12s; }
         .cal-link-post.trl-main .cal-link-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
         .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
         .trl-list { display: flex; flex-direction: column; gap: 3px; margin: -2px 0 8px 10px; padding-left: 8px; border-left: 2px solid var(--sv-slot-video-border); }
         .trl-v { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 2px 6px 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
             color: var(--sv-slot-video-fg); background: color-mix(in srgb, var(--sv-slot-video-bg) 55%, transparent); }
         .trl-v .trl-l { flex: none; }
+        .trl-v a.trl-name { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
+        .trl-v a.trl-name:hover, .trl-v a.trl-name:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
+        /* A dropped version, said as plain muted text, never a pill (owner, 2026-10-27). One shared class: the card,
+           Production's version rows and the review pages use it. */
+        .sv-dropped-note { flex: none; font-size: 10.5px; font-weight: 600; font-style: normal; white-space: nowrap; color: var(--text-secondary); }
+        .trl-v .sv-dropped-note { margin-left: auto; }
         .trl-v.trl-dropped .trl-l { text-decoration: line-through; }
         .trl-v .trl-go { flex: none; display: inline-flex; align-items: center; justify-content: center; color: inherit; opacity: .7; }
         .trl-v .trl-go svg { width: 11px; height: 11px; }
@@ -1823,7 +1828,7 @@
         .trl-prod-v .prod-asset-value { display: flex; align-items: center; gap: 8px; }
         /* The link or text gives way (ellipsis); the version's labels stay whole (Probe E10: a long "Not readable
            until…" pushed "on the card" under the state pill). */
-        .trl-prod-v .prod-asset-value > a, .trl-prod-v .prod-asset-value > span:not(.trl-lab):not(.trl-oncard):not(.prod-asset-skeleton) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trl-prod-v .prod-asset-value > a, .trl-prod-v .prod-asset-value > span:not(.trl-lab):not(.trl-oncard):not(.sv-dropped-note):not(.prod-asset-skeleton) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trl-prod-v .trl-lab { flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .trl-prod-v .trl-oncard { flex: none; font-size: 11px; font-weight: 600; color: var(--prod-strong); }
@@ -6922,8 +6927,9 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #calView[data-pocket-staff-phone] .cal-review-tweak-btn { flex: 0 0 auto; padding: 0 12px; border-radius: 12px; font-size: 12px; }
             #calView[data-pocket-staff-phone] .cal-review-comment-btn:disabled,
             #calView[data-pocket-staff-phone] .cal-review-tweak-btn:disabled { background: var(--surface-raised); border-color: var(--border); }
-            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); }
-            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-pill-open { background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 600; }
+            /* The outline is the link's own; the buttons beside it (folder, edit, the trial switch) sit outside it, unboxed. */
+            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link { border: 0; background: transparent; }
+            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-pill-open { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); color: var(--text-primary); font-size: 13px; font-weight: 600; }
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-pill-open svg { color: var(--text-secondary); }
             #calView[data-pocket-staff-phone] .cal-fld-substatus-comp,
             #calView[data-pocket-staff-phone] .cal-fld-substatus-label { font-size: 13px; }
@@ -7374,8 +7380,9 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn { flex: 0 0 auto; padding: 0 12px; border-radius: 12px; font-size: 12px; }
             #sxrView[data-pocket-staff-samples] .cal-review-comment-btn:disabled,
             #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn:disabled { background: var(--surface-raised); border-color: var(--border); }
-            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); }
-            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-pill-open { background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 600; }
+            /* The outline is the link's own; the buttons beside it (folder, edit, the trial switch) sit outside it, unboxed. */
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link { border: 0; background: transparent; }
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-pill-open { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); color: var(--text-primary); font-size: 13px; font-weight: 600; }
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-pill-open svg { color: var(--text-secondary); }
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp,
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 13px; }
@@ -7889,6 +7896,14 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position:static; width:auto !important; height:auto !important; max-width:100% !important; max-height:min(62dvh,560px) !important; object-fit:contain; aspect-ratio:auto; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-card-thumb-fallback { min-height: 104px; display: grid; place-items: center; }
+    /* A thumbnail that is a link (a Frame.io page, an image folder) has no picture to give the strip its height, so its
+       placeholder was drawn over the 56 px tool bar ("Open thumbnail" under the play button and the icons; 139 live
+       cards). It takes its own room above the tools, as the fallback does; with a video, the play button sits in its
+       middle and the words under it (session Trialpolish, 2026-10-27). */
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-thumb-frame { position: relative; inset: auto; align-self: stretch; width: 100%; min-height: 176px !important; box-sizing: border-box; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-play) > .cal-thumb-frame { justify-content: flex-end; padding-bottom: 18px; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-play) > .cal-thumb-frame .cal-thumb-frame-badge { display: none; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools):has(> .cal-thumb-frame) > .cal-thumb-play { top: 76px; }
     html.sv-staff-phone .sv-phone-card-tools { width: 100%; box-sizing: border-box; padding: 6px 10px; background: var(--white); }
     html.sv-staff-phone .sv-phone-card-primary, html.sv-staff-phone .sv-phone-card-secondary { display: flex; align-items: center; gap: 4px; min-width: 0; justify-content: flex-end; }
     html.sv-staff-phone .sv-phone-card-primary > .cal-linear-pile { margin-left: 0; order: 0; }

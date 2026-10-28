@@ -35214,6 +35214,26 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`): a `request_failed` refusal says "not approved" with no code and no quotation marks. It fails on main.
 - Allactions' third finding (the versions list drawn twice after the Video row's pencil and Escape) is 573 in this PR.
 
+## 576. [2026-10-28 UTC, TEST BUILT; ITS THREE FINDINGS FIXED BY #2412] Trial reels: every action on every surface, walked and checked after each step (session Allactions)
+
+- **Why:** Sidney pressed an edit pencil on a trial card, did nothing, pressed Escape, and the versions list was drawn twice. No test caught it, because each trial-reels test walks the happy path of one feature. He asked for every action to be tried.
+- **The test:** `test/trial-reels-action-matrix-browser.js`, offline, one in-memory backend that follows `trial-reels/index.ts` and `logic.mjs` for every page. It walks the staff card at 1440 and 390 (switch on and off, add, paste, edit then Escape, edit then click away, edit then Enter with the same link, not https, a foreign host, another version's link, clear, a new link, the version on the card, switching rows mid-edit, the Video row's own pencil, the arrow, drop, bring back, double clicks, slow and refused answers, new cut, the trial, the winner, Undo), Production's Assets rows, the SMM's Review tab, Kasper's two layouts, the client link at 1440 and 390, the Notes player, two tabs at once and a reload during a write. After every step it checks one Video row, at most one list, no version twice, nothing half drawn, the list equal to the backend, the card's one link, the write count and page errors. About 1,250 checks, about 5 minutes. In CI, part 2 of the entry-link lanes.
+- **Findings** (all three fixed by session Trials in #2412, merged 2026-10-28 at 2acad7f; the test now asserts each, with no KNOWN marks left):
+  - **576a (fixed as 573). The Video row's own pencil, then Escape or a click away, draws the versions list twice** (Sidney's report). Each further time adds one more copy. Cause: `_calOnLinkBlur` (160) replaces only the Video row with `_calLinkFieldHtml`, which for a trial card returns the row and its open list, and leaves the old list in place. The version rows' own pencils are fine. Desktop and phone.
+  - **576b (fixed as 574). A double click on Approve on the review pages answers the next version too.** The first click approves the version on screen and the page moves on; the second lands on the next version's Approve. Seen for the SMM, Kasper's standard layout and the client link at 1440 and 390 (at 390 it depends on timing: it passed once in three offline runs). This may be why Sidney's approve "landed on Video B" (563, open).
+  - **576c (fixed as 575). A refused answer on the client link shows the client the server's code**: "The server answered "request_failed". Nothing was changed."
+- **Checked and fine:** every version-row action on the card, Production's Edit, Cancel and Save (same link writes nothing, a foreign link is refused in words), Kasper's double-clicked Drop and Approve all write once, Notes' quick version switches end on the version named, two tabs dropping at once, and a reload during a write.
+- **Live, on the test client** (one throwaway card with no sub-issue, made and archived by this session; the prepared test card was not touched; main's page against the live backend, 2026-10-28 about 18:40 UTC):
+  - 576a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
+  - 576b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
+  - Two staff tabs dropping Video C at once: C dropped once, both tabs agree; bringing it back from one tab works.
+- **Live again after #2412 (round 3)**, same rules, a new throwaway card made and archived (2026-10-28 about 20:00 UTC):
+  - the Video row's pencil then Escape, then a click away: 1 list each time, no trial write;
+  - a version's pencil then Escape, with and without a link typed, and then a click away: no write, the link kept;
+  - two staff tabs dropping Video C at once: dropped once, both tabs agree, and brought back from one tab;
+  - the client's double click on Approve on Video A: A approved, B still waiting, the page on Video B.
+- **Kept as today, not trial findings:** today's link box saves the card on any close, Escape included (it refreshes a file swapped behind the same link); Production's asset editors do not close on Escape, today's included.
+
 ## 577. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a version only the client approved showed the team a plain Approve; a dropped version with no link still asked for one (Trialtest, session Trials)
 
 - **What happened (Trialtest's live walk of #2412):**

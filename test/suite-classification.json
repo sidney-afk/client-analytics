@@ -2294,6 +2294,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-action-matrix-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Walks every trial-reels action (staff card at 1440 and 390, Production's Assets rows, the SMM's Review tab, Kasper's two layouts, the client link at 1440 and 390, Notes, two tabs, slow and refused answers, a reload mid-write) and after each step checks one Video row, at most one versions list, no version twice, nothing half drawn, the list equal to the backend, the card's one link, the write count and page errors. Findings not fixed yet are marked KNOWN with their OPEN_REPAIRS id.",
+      "reproduce": "node test/trial-reels-action-matrix-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-notes-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

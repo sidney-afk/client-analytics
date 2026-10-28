@@ -191,6 +191,7 @@ async function run(browser, origin, viewport) {
   const tiles = await page.locator('#crmHome .crm-home-tile .crm-tile-name').allInnerTexts();
   expect(tiles.join() === 'Today,Leads,Report,Automations', label + ': Leads opens on a home page with Today, Leads, Report and Automations (' + tiles.join() + ')');
   expect(await page.locator('#crmHome #crmSearch').count() === 1, label + ': the home page has the search bar');
+  expect(await page.locator('#crmTop [data-crm-nav="home"][aria-current="page"]').count() === 1 && await page.locator('#crmTop [data-crm-nav="today"]').count() === 1, label + ': the section menu stays on the home page too');
   expect(await page.locator('#crmSide').isHidden(), label + ': no side menu on the home page');
   await page.waitForFunction(() => /things? to do|Nothing waiting/.test(document.querySelector('#crmHome [data-crm-nav="today"]').innerText));
   if (SHOTS) await shoot(page, 'leads-home-' + label);

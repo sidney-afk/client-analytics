@@ -449,6 +449,7 @@ jobs:
           Calendar status filter (Show only / Hide) on desktop and phone|node docs/syncview-design/tests/calendar-card-status-filter-browser.js
           Instagram Calendar cover stays with the client it was picked for|node test/instagram-cover-client-switch-browser.js
           The client link shows staff notes as the team and never receives a staff name (mocked)|node docs/syncview-design/tests/note-author-client-browser.js
+          Trial reels: every action on every surface (card 1440 and 390, Production, SMM, Kasper, client, Notes, two tabs, slow and refused answers); findings marked KNOWN when open (OPEN_REPAIRS 576)|node test/trial-reels-action-matrix-browser.js
           LANES
       - name: Entry link and client browser checks, three side by side (part 3 of 3)
         if: ${{ matrix.part == 3 }}

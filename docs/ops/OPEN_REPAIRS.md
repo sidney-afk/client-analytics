@@ -35028,6 +35028,31 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR. The page still reads the old 409 as no versions here.
 
+## 559. [2026-10-28 UTC, BUILT, NOT MERGED] Review page: a video that cannot play, on a card with no thumbnail, shrank to a strip with its message under the two pills (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest on build 6, in Kasper's second layout at 1440. Video C's link was a Frame.io project page, which frameio-view refuses before any load (`unsupported_link`), on a card with no thumbnail. The player shrank from 9:16 to a short box, about 284 by 160 px. Its "Video C" badge and "Open in Frame.io" pill sat over the error title, so only "…g troubl…" showed, and "Try again" was cut off at the bottom.
+- **Why:** the review page sizes the player's box with a 9:16 fallback ratio, but the player inside fell back to 16:9 (`020-styles-surfaces.css.part`, `.fv-player`). With no poster and no video to give the real ratio, the box was 9:16 wide and 16:9 tall. The error panel also centred its text under the pills.
+- **Fix, in `src/index/195-review-stage.js.part`:**
+  - The review page's player takes the same 9:16 fallback ratio as its box.
+  - Its error panel starts below the pills.
+  - The Notes player and every other player are unchanged.
+- **Proven:**
+  - `test/trial-reels-review-browser.js`, with a project link and no thumbnail: in Kasper's second layout at 1440, the error title is clear of both pills (fails without the fix: title top 500, pill bottom 552). The SMM's Review tab at 390 is checked too.
+  - The review-stage suites, `frameio-viewer-browser` and `frame-comments-in-notes-browser` pass.
+
+**Way back:** revert the pull request.
+
+## 560. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: after a switch to another trial card with the same versions, the version dots moved the first card (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest on the client link at 1440, from build 4 (#2361). Two trial cards with the same letters and answers drew identical "Video A of 3 · A B C" bars. After switching to the second card, a press on dot B did nothing there. Switching back showed the first card on Video B.
+- **Why:** `_rsTrialBar` (`src/index/195-review-stage.js.part`) kept the bar under the player when its markup matched, so the dots stayed bound to the first card. The arrows beside the player already keyed on the card's id, and the tiles in Kasper's second layout already did too.
+- **Fix:** the bar under the player keys on the card's id as well as its markup, so another card's identical bar is bound again.
+  - "Approve all" was already safe: its row is drawn through `_rsCalm`, which keys on the card.
+  - Approve itself reads the card on stage.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (76): on the client link, two trial cards with identical versions; switch to the second, press dot B. The second card shows Video B, and the first stays on Video A. Without the fix, the second card stayed on Video A and the first showed Video B.
+  - The trial and review-stage suites pass.
+
 ## 558. [2026-10-28 UTC, BUILT, NOT MERGED] A signed-out tab never took a new version: the staff sign-in card read as unsaved work (session Freshness)
 
 - **Found by:** the read-only live check of #2389 (552) on d409bae. A signed-out load shows the staff sign-in card (`#staffIdentityForm`, `role="dialog"`). The update check counts any open dialog as work in progress, so a signed-out tab never reloaded itself. Since #2389 it also got no bar until the 4-hour stale mark (then the bar, never the wall). Before #2389 it got the bar at once.

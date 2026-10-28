@@ -595,7 +595,8 @@ svg{display:block;flex-shrink:0}
 .stp.hint{animation:stpHint 1.6s var(--ease) .7s 1 both}
 .sk-list{scroll-behavior:auto}
 .rs-fv{position:relative;width:min(100%,calc(var(--fv-h,480px) * var(--fv-ar,.5625)));max-width:100%}
-.rs-fv .fv-player{width:100%}
+.rs-fv .fv-player{width:100%;aspect-ratio:var(--fv-ar,.5625)}
+.rs-fv .fv-player[data-state="error"] .fv-state{padding-top:44px}
 /* A narrow (vertical) player keeps Full screen: the speed button gives way instead (session Curtain Ten). */
 @container (max-width: 300px){.rs-fv .fv-player .fv-full{display:inline-flex!important}.rs-fv .fv-player .fv-rate{display:none!important}}
 /* ...but not on a desktop screen: there the speed button stays and the clock gives way, so the bar still fits (Rail). */
@@ -2263,8 +2264,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!under) { if (uh) uh.remove(); return; }
         if (!uh) { uh = document.createElement('div'); uh.className = 'trv-under-host'; v.after(uh); }
         if (v) svTrialReviewSwipe(v, () => _rsCur(), () => R.mode);
-        if (uh.__trvHtml === under) return;
-        uh.__trvHtml = under;
+        // The dots hold this post: the same bar of another card (the same versions) is bound again, as the arrows are.
+        const ukey = m.id + '|' + under;
+        if (uh.__trvHtml === ukey) return;
+        uh.__trvHtml = ukey;
         uh.innerHTML = under;
         svTrialReviewBind(uh, m, R.mode, () => {});
     }

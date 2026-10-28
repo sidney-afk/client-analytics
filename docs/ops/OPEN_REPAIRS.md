@@ -35027,3 +35027,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **After merge:** the polish gate's packet step reads the live function. If the push run on this merge reaches the packet before the merge lane has deployed trial-reels, it can still see the old 409 once. Re-run it after the deploy.
 
 **Way back:** revert the PR. The page still reads the old 409 as no versions here.
+
+## 558. [2026-10-28 UTC, BUILT, NOT MERGED] A signed-out tab never took a new version: the staff sign-in card read as unsaved work (session Freshness)
+
+- **Found by:** the read-only live check of #2389 (552) on d409bae. A signed-out load shows the staff sign-in card (`#staffIdentityForm`, `role="dialog"`). The update check counts any open dialog as work in progress, so a signed-out tab never reloaded itself. Since #2389 it also got no bar until the 4-hour stale mark (then the bar, never the wall). Before #2389 it got the bar at once.
+- **Fix (350 footer, `signInCardOnly`):** the sign-in card and the name picked on it no longer count as work. Only a typed role key does. A signed-out tab now follows the clean-tab rules: hidden, it reloads itself; visible, it gets the one bar after the hour. Every other dialog still counts.
+- **Proof:** `test/app-update-self-reload-behavior.js` (4 new checks, stub DOM) and `test/app-update-quiet-browser.js` (3 new checks in Chromium: a visible signed-out tab gets the bar after the hour, a hidden one reloads itself, and not once a key has been typed). On main's 350 both fail. The live check before the fix: with the card shown, the bar check and the hidden-reload check fail; with it hidden, every check passes.
+
+**Way back:** revert the pull request.

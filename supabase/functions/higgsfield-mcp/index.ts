@@ -28,7 +28,7 @@ import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
 import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
 import { ACTION_NAMES as STUDIO_ACTION_NAMES, TOOL_DESCRIPTION as STUDIO_TOOL_DESCRIPTION, studioAction } from "./studioaction.mjs";
 import { lookup as frameLookup, tokenSource as frameTokenSource } from "../frameio-view/logic.mjs";
-import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
+import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, handbookChange, handbookRead, listClients } from "./clientinfo.ts";
 import type { Asker } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
@@ -316,24 +316,26 @@ const TOOLS = [
   },
   {
     name: "client_brain",
-    description: "What the Synchro Brain has written about a client: the editor brief, then each written fact (what their content is focused on right now, who they are, voice, editing, relationship, audience) with its heading and fact id, all in full when the whole brain fits in one answer. The current focus always comes first and in full. When the rest does not fit, the brief stays in full and each fact shows its first paragraph; facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (focus, identity, voice, editing, relationship, audience, brief) to get those facts in full. A section headed \"Dreamt by the brain\" is the brain's own read of the client, not facts: when you use a line from it, say it was dreamt by the brain, and if asked why, give the facts it names (topic \"dreams\" returns it alone). The overview may end with one open question about the client that this person can answer: do not ask it straight away; finish the person's task, then ask that one question in one plain sentence at the end, and if they answer, save it with brain_change passing its question_id. Never ask Sidney client questions. Read only apart from noting which question was offered.",
+    description: "What the Synchro Brain has written about a client: the editor brief, then each written fact (what their content is focused on right now, who they are, voice, editing, relationship, audience) with its heading and fact id, all in full when the whole brain fits in one answer. The current focus always comes first and in full. When the rest does not fit, the brief stays in full and each fact shows its first paragraph; facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (focus, identity, voice, editing, relationship, audience, brief) to get those facts in full. A section headed \"Dreamt by the brain\" is the brain's own read of the client, not facts: when you use a line from it, say it was dreamt by the brain, and if asked why, give the facts it names (topic \"dreams\" returns it alone). The overview may end with one open question about the client that this person can answer: do not ask it straight away; finish the person's task, then ask that one question in one plain sentence at the end, and if they answer, save it with brain_change passing its question_id. Never ask Sidney client questions. Read only apart from noting which question was offered. Also reads the team handbook: when the question is about how the company works (how to do something, who does what, who films where, the weekly rhythm) rather than one client, call it with handbook set to \"start\" for the index, then again with the page name; no client needed.",
     inputSchema: {
-      type: "object", required: ["client"], additionalProperties: false,
+      type: "object", required: [], additionalProperties: false,
       properties: {
-        client: { type: "string", description: "The client's name as SyncView shows it." },
+        client: { type: "string", description: "The client's name as SyncView shows it. Required unless handbook is set." },
+        handbook: { type: "string", description: "Optional: read the team handbook instead of a client. \"start\" is the index; or a page name such as team, work, app, videographers, assistant, tools, rhythm." },
         topic: { type: "string", description: "Optional: a fact id, heading words or a file name. Returns the matching facts in full instead of the overview." },
       },
     },
   },
   {
     name: "brain_change",
-    description: "Save something new and lasting about a client to their Synchro Brain, the same way SyncView's \"Send a change\" button does. Call this on your own, without being asked, whenever the person states something new and lasting about a client (a preference, a decision, a date, a change of direction), or when they say \"add this to X's brain\"; then confirm in one line: \"Saved to <client>'s brain: <what>\". Never use it for notes about one video. If the person says a saved item is wrong, call brain_change again with a correction that names the earlier change (what it said) and what is right instead. When the person answers an open question that client_brain gave you, pass its question_id too: the answer is filed the same way and the question is marked answered.",
+    description: "Save something new and lasting about a client to their Synchro Brain, the same way SyncView's \"Send a change\" button does. Call this on your own, without being asked, whenever the person states something new and lasting about a client (a preference, a decision, a date, a change of direction), or when they say \"add this to X's brain\"; then confirm in one line: \"Saved to <client>'s brain: <what>\". Never use it for notes about one video. If the person says a saved item is wrong, call brain_change again with a correction that names the earlier change (what it said) and what is right instead. When the person answers an open question that client_brain gave you, pass its question_id too: the answer is filed the same way and the question is marked answered. The same tool corrects the team handbook: pass handbook_page (for example videographers) instead of client. Anyone may change the videographers page; a change to any other page is sent as a suggestion that waits for Sidney, and you must say so.",
     inputSchema: {
       type: "object",
-      required: ["client", "what_changed"],
+      required: ["what_changed"],
       additionalProperties: false,
       properties: {
-        client: { type: "string", description: "The client's name as SyncView shows it." },
+        client: { type: "string", description: "The client's name as SyncView shows it. Required unless handbook_page is set." },
+        handbook_page: { type: "string", description: "Optional: change the team handbook instead of a client. The page name, such as videographers, team, work, app, assistant, tools or rhythm." },
         what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
         fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
         question_id: { type: "string", description: "Optional: the question id (q.<client>.<name>) of the open question client_brain asked you to put to the person, when what_changed is their answer. Refused if it is not an open question of this client." },
@@ -1400,7 +1402,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
+  if (name === "client_brain" && String(args.handbook || "").trim()) return await handbookRead(String(args.handbook));
   if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who));
+  if (name === "brain_change" && String(args.handbook_page || "").trim()) return await handbookChange(String(args.handbook_page), String(args.what_changed || ""), String(args.fact_id || ""), author);
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author, String(args.question_id || ""));
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());

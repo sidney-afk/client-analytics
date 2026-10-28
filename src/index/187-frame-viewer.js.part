@@ -440,10 +440,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!res.status) return 'The video could not be loaded. Check your connection.';
         return 'The video could not be loaded from Frame.io.';
     }
-    async function _fvFetchVideo(link, cardId) {
+    async function _fvFetchVideo(link, cardId, ask) {
         // A client link sends only the card's id (and its own token, added by _syncviewEfHeaders): the server decides
-        // from the card which video this client may play, and never answers with comments.
-        const res = await _fvRequest(_isClientLink ? { card_id: cardId } : { link, part: 'video' });
+        // from the card which video this client may play, and never answers with comments. A trial reels version
+        // (`ask`, 194) also names its link; the server plays it only when it is one of this card's own versions.
+        const res = await _fvRequest(_isClientLink ? (ask ? { card_id: cardId, link } : { card_id: cardId }) : { link, part: 'video' });
         const j = res.json;
         if (res.status === 200 && j && j.ok && j.video && j.video.url) return { ok: true, video: j.video, open_url: j.open_url || '' };
         return { ok: false, message: _fvFailText(res), status: res.status };
@@ -487,14 +488,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // The address (and its warmed video element) for a link. Reused for 45 seconds, so the hover before a click
     // does the work; a retry asks again (fresh).
-    function _fvGetVideo(link, cardId, fresh) {
+    function _fvGetVideo(link, cardId, fresh, ask) {
         const key = link + '|' + (_isClientLink ? cardId : '');
         const hit = FV_PRE.get(key);
         if (!fresh && hit && Date.now() - hit.at < FV_PRE_TTL_MS) return hit;
         if (hit) _fvDispose(hit);
         FV_PRE.forEach((r, k) => { if (Date.now() - r.at >= FV_PRE_TTL_MS && !r.adopted) { _fvDispose(r); FV_PRE.delete(k); } });
         const rec = { at: Date.now(), video: null, comments: null, warm: null, adopted: false };
-        rec.video = _fvFetchVideo(link, cardId).then((res) => {
+        rec.video = _fvFetchVideo(link, cardId, ask).then((res) => {
             if (!res.ok) { if (FV_PRE.get(key) === rec) FV_PRE.delete(key); return res; }
             rec.open = res.open_url;
             if (!rec.adopted && FV_PRE.get(key) === rec) {
@@ -565,7 +566,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        the video is ready. The play button sits at the bottom centre; it never presses itself, except that a view opened
        from a play button starts playing at once (_fvAutoIntent, session Curtain Seven). */
     // rate: the playback speed, kept for as long as the dialog is open (across a smaller file or a fresh address).
-    const FV_STAGE = { host: null, pid: '', link: '', client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 };
+    const FV_STAGE = { host: null, pid: '', link: '', ask: false, client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 };
 
     // The Frame.io link the card's player would play, or '' when this card gets no player (no Frame.io link, or the
     // switch is off for its client).
@@ -597,7 +598,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return true;
         }
         svFrameStageUnmount();
-        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: auto, autoplay: auto, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
+        Object.assign(FV_STAGE, { host, pid: post.id, link, ask: !!post._trvAskLink, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: auto, autoplay: auto, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
         const posterSafe = String(poster || '');
         host.hidden = false;
         host.setAttribute('data-orient', 'landscape');
@@ -839,7 +840,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvStageState('loading');
         if (!_isClientLink) { try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { if (seq === FV_STAGE.seq) _fvStageState('error', 'Your staff sign-in was not accepted for this. Sign in again and retry.', true); return; } }
         if (seq !== FV_STAGE.seq || FV_STAGE.host !== host) return;
-        const rec = _fvGetVideo(link, pid, !!fresh);
+        const rec = _fvGetVideo(link, pid, !!fresh, FV_STAGE.ask);
         FV_STAGE.rec = rec;
         if (!_isClientLink) {
             // The comments are asked for beside the video (or already were, when the pointer reached the door first).

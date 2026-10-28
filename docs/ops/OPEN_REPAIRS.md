@@ -34621,6 +34621,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows.
 
+## 521. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: on the client link, every version plays in the page's player, not a new tab (session Trials)
+
+- **What:** plan section 10 item 1. On a client link the player asks frameio-view for the card's video by the card's id only, so a version that was not the card's link opened in a new tab. Now a trial version also names its link (`_trvAskLink`, set in `194`; `187` sends `{ card_id, link }` only then), and frameio-view (`client-card.mjs`, `trialVersionLink`) plays it only when all of these hold, read server side: the `trial_reels_pages` switch lists the client; the card's Trial reels switch is on (`trial_reel_cards`); the link is the `frame_url` of one of THIS card's versions that is neither dropped nor lost, and once a winner is picked, only the winner's. Anything else answers exactly like a link that is not the card's (404). The client still gets no comments, as before.
+- **Deploy:** frameio-view is not a Section 4 function; it deploys on merge like the rest. No migration. `frameio-view/logic.mjs` (shared with higgsfield-mcp) is unchanged.
+- **Proven:** `node test/frameio-view-source.js` (130 checks, 12 new for the version path), `node test/trial-reels-review-browser.js` (36 checks: the client's Video B now plays in the player, asked by card id and B's link), frameio-viewer-browser, frame-comments-in-notes-browser, trial-reels-notes-browser, check-modules.
+
+**Way back:** revert the PR; the client link falls back to the new tab for a version not on the card.
+
 ## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
 
 - **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.

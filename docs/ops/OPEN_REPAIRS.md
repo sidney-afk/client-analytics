@@ -35227,4 +35227,9 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - 576a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
   - 576b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
   - Two staff tabs dropping Video C at once: C dropped once, both tabs agree; bringing it back from one tab works.
+- **Live again after #2412 (round 3)**, same rules, a new throwaway card made and archived (2026-10-28 about 20:00 UTC):
+  - the Video row's pencil then Escape, then a click away: 1 list each time, no trial write;
+  - a version's pencil then Escape, with and without a link typed, and then a click away: no write, the link kept;
+  - two staff tabs dropping Video C at once: dropped once, both tabs agree, and brought back from one tab;
+  - the client's double click on Approve on Video A: A approved, B still waiting, the page on Video B.
 - **Kept as today, not trial findings:** today's link box saves the card on any close, Escape included (it refreshes a file swapped behind the same link); Production's asset editors do not close on Escape, today's included.

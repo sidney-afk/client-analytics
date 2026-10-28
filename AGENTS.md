@@ -292,6 +292,16 @@ commit so the reader can see what they actually branched from. Reasoning, the
 two-shape sweep and its per-candidate verdicts are in
 `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A NEW OR CHANGED TAB, BUTTON OR TOGGLE UPDATES THE TEAM GUIDE IN THE SAME PR
+
+The [Team guide in `docs/ATLAS.md`](docs/ATLAS.md#team-guide-every-tab-button-and-switch)
+is what the brain reads to answer a teammate's "how does X work in SyncView".
+Any PR that adds, removes, renames or changes what a tab, button, toggle, mode
+or runtime switch does updates that guide in the same PR, in plain English: what
+it does, who sees it, what the client sees, and which switch it sits behind.
+Flipping a switch's audience live (owner or supervisor) updates its line too.
+The PR template carries the same checkbox.
+
 ## Two working rules learned the expensive way (2026-09-05)
 
 Both cost a real defect on the same day, on the post-level asset work

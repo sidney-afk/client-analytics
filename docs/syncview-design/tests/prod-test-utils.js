@@ -91,6 +91,17 @@ function isNonReadRequest(req) {
   return !/\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(url || '');
 }
 
+function trialReelsReadAction(req) {
+  let body = null;
+  try {
+    const raw = typeof req.postData === 'function' ? req.postData() : req.postData;
+    body = JSON.parse(raw || '');
+  } catch (_) {
+    return false;
+  }
+  return !!body && typeof body === 'object' && (body.action === 'read' || body.action === 'list');
+}
+
 function isWriteLikeRequest(req) {
   const method = typeof req.method === 'function' ? req.method() : req.method;
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
@@ -101,6 +112,13 @@ function isWriteLikeRequest(req) {
   // surface mutated nothing" fail on the act of signing in. Narrow on purpose:
   // every other POST to functions/v1 still counts.
   if (/\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(url || '')) return false;
+  // Trial reels answer their reads by POST too: Production's video sub-issue
+  // asks trial-reels {action:'read'} and the staff Calendar asks {action:'list'}.
+  // Neither is a person's edit (the only thing either may write is the function
+  // copying the card's own link onto that version's row, which the read path
+  // owns). Exact action match on a parsed body: every other trial-reels action,
+  // and a body that does not parse, still counts.
+  if (/\/functions\/v1\/trial-reels(?:[/?#]|$)/i.test(url || '') && trialReelsReadAction(req)) return false;
   return /supabase|n8n|webhook|syncview|rest\/v1|functions\/v1/i.test(url || '');
 }
 

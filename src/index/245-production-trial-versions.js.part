@@ -41,11 +41,17 @@ import { _prodRender } from './260-production-refresh-boot.js';
         let again = false;
         e.promise = svTrialCall(Object.assign({ action: 'read', client: e.client, post_id: e.postId, probe: true },
             full ? {} : { probe_budget_ms: TRL_PROD_PROBE_BUDGET_MS }), 'production')
-            .then(json => { e.shape = json; e.readFailed = false; again = !full && !!(json && json.probe_pending); })
+            .then(json => {
+                // A card whose Trial reels switch is off answers { ok: true, enabled: false } (session Packet,
+                // OPEN_REPAIRS 557): no versions here, today's single row, and no red 409 in the console.
+                e.shape = json && json.enabled === false ? null : json;
+                e.readFailed = false; again = !!e.shape && !full && !!json.probe_pending;
+            })
             .catch(err => {
                 // Only an answer that says there are no versions here gives back today's single row. Any other
                 // failure (the network, an unreadable table) keeps what was drawn and says so, with Retry: the
-                // page never hides the versions on a state it could not establish (AGENTS.md).
+                // page never hides the versions on a state it could not establish (AGENTS.md). The function
+                // answered an off card with 409 trial_reels_off before session Packet, so that still counts.
                 if (TRL_PROD_NONE.has(String(err && err.code || ''))) { e.shape = null; e.readFailed = false; }
                 else e.readFailed = true;
             })

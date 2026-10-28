@@ -65,6 +65,9 @@ async function shot(page, name) {
     const b = JSON.parse(r.postData() || '{}');
     T.calls.push(b);
     const reply = (obj, status) => route.fulfill({ status: status || 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) });
+    // T.cardOff: the client is listed but this card's switch is off. 'answer' is the function since session Packet
+    // (200, enabled: false); 'refuse' is the function before it (409 trial_reels_off), still understood by the page.
+    if (T.cardOff && b.action === 'read') return T.cardOff === 'answer' ? reply({ ok: true, enabled: false }) : reply({ ok: false, error: 'trial_reels_off' }, 409);
     if (!T.enabled) return reply({ ok: false, error: 'trial_reels_off' }, 409);
     if (T.down && b.action === 'read') return reply({ ok: false, error: 'versions_unreadable' }, 503);
     const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
@@ -139,8 +142,24 @@ async function shot(page, name) {
     ok(r.some(x => x.today && x.label === 'Deliverable file') && !r.some(x => x.trial) && !T.calls.length, 'switch off: one "Deliverable file" row, as today, and the function is never asked');
     await page.close();
 
+    // Client listed, this card's switch off: today's single row, no "Could not be read", and (with today's function)
+    // no red 409 in the console (session Packet, OPEN_REPAIRS 557).
+    T.flag = true;
+    const consoleErrors = [];
+    S.ctx.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+    for (const mode of ['answer', 'refuse']) {
+      T.cardOff = mode; T.calls = []; consoleErrors.length = 0;
+      page = await open(1440, 900);
+      r = await rows(page);
+      ok(r.some(x => x.today && x.label === 'Deliverable file') && !r.some(x => x.trial) && !(await page.$('[data-trl-read-error]'))
+        && T.calls.some(c => c.action === 'read'), `card switch off (${mode}): one "Deliverable file" row, as today, and no read error`);
+      if (mode === 'answer') ok(!consoleErrors.some(t => /409|trial_reels_off/.test(t)), 'card switch off: no 409 in the console (' + consoleErrors.join(' | ') + ')');
+      await page.close();
+    }
+    T.cardOff = '';
+
     // Switch on: one row per version.
-    T.flag = true; T.calls = [];
+    T.calls = [];
     page = await open(1440, 900);
     r = await rows(page);
     const vr = r.filter(x => x.trial);

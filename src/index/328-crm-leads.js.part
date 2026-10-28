@@ -55,6 +55,9 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
        This list only decides whether the link shows; the function decides
        access. */
     const CRM_LEADS_MEMBER_GRANTS = [];
+    /* Members shown the Leads link by roster id (an id, not a name, so it can
+       sit in this public file); the server twin is LEADS_MEMBER_GRANT_HASHES. */
+    const CRM_LEADS_MEMBER_IDS = ['9eab9c80-666a-4fcf-8af7-a671469af2f0'];
     const CRM_ICON_VIEW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"/></svg>';
     const CRM_ICON_SEARCH = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
     const CRM_ICON_X = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
@@ -76,6 +79,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if (_syncviewStaffCan('leads')) return true;
             const id = _syncviewStaffIdentityForHeaders();
             const name = String(id && id.member && id.member.name || '').trim().toLowerCase();
+            const mid = String(id && id.member && id.member.id || '').trim();
+            if (mid && CRM_LEADS_MEMBER_IDS.includes(mid)) return true;
             return !!name && CRM_LEADS_MEMBER_GRANTS.some(n => String(n).trim().toLowerCase() === name);
         } catch (e) { return false; }
     }

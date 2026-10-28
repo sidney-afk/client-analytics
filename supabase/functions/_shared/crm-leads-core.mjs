@@ -24,7 +24,18 @@ export const LIST_MAX = 500;
    have yet; docs/features/CRM_LEADS.md says what that would take. */
 export const LEADS_ROLES = ['admin'];
 export const LEADS_MEMBER_GRANTS = [];
+/* Grants written as SHA-256 of "role:member name" in lower case, so a
+   member's name never sits in this public file. */
+export const LEADS_MEMBER_GRANT_HASHES = ['ff18b6f18da6b7127f0f6012784f53764b68f6b45d9e55766340f46f98589e30'];
 
+export async function leadsAllowedAsync(role, actor) {
+  if (leadsAllowed(role, actor)) return true;
+  const key = String(role || '').trim().toLowerCase() + ':' + String(actor || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!String(actor || '').trim()) return false;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return LEADS_MEMBER_GRANT_HASHES.includes(hex);
+}
 export function leadsAllowed(role, actor) {
   const r = String(role || '').trim().toLowerCase();
   if (!r) return false;

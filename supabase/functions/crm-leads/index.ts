@@ -38,7 +38,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, matchingRoleForKey, staffAuthFailureStatus, timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import {
-  cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowed, LIST_MAX, mergeForImport,
+  cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowedAsync, LIST_MAX, mergeForImport,
   normalizeEmail, normalizeHandle, normalizePhone, parseListFilters, validateIngest, validateNote, validatePatch,
 } from "../_shared/crm-leads-core.mjs";
 import {
@@ -577,7 +577,7 @@ Deno.serve(async (req: Request) => {
   const auth = authorizeStaffKey(key, ["admin", "smm", "creative"]);
   if (!auth.ok || auth.via !== "role") return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
   const role = matchingRoleForKey(key);
-  if (!leadsAllowed(role, actor)) return json({ ok: false, error: "forbidden" }, 403);
+  if (!(await leadsAllowedAsync(role, actor))) return json({ ok: false, error: "forbidden" }, 403);
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   try {

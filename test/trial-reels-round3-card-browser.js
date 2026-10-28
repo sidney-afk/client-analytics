@@ -10,6 +10,7 @@
  *   5. The state labels are small tags with a small radius, not pills.
  *   6. The "Video E  Paste the Frame.io link" row is a minimal "+ Add version" that opens the paste field.
  *   7. The row's pencil, then Escape, drew the whole versions list twice for a moment.
+ *   Follow-up (Trialtest's live walk): a version dropped before its link was pasted shows no paste placeholder.
  * At 1440 and 390, light and dark. TRIAL_R3_SHOTS=<dir> writes screenshots (fictional data only).
  */
 const path = require('path');
@@ -32,6 +33,8 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
   const reset = () => {
     T.versions = ['A', 'B', 'C', 'D'].map((l, i) => ({ id: 'v' + l, letter: l, status: ['waiting', 'waiting', 'waiting', 'dropped'][i],
       frame_url: LINK(l), revision: 0, smm_ok_at: '2026-10-28T08:00:00.000Z', kasper_ok_at: '2026-10-28T08:05:00.000Z', updated_at: '2026-10-28T09:00:00.000Z', post_id: 'p_t1' }));
+    // D was dropped before anyone pasted its link (Trialtest, 2026-10-28): its row shows no paste placeholder.
+    T.versions[3].frame_url = '';
     T.calls = [];
     vid.file_url = LINK('A'); card.asset_url = LINK('A'); card.thumbnail_url = 'https://f.io/fixture-round3-thumb';
   };
@@ -113,6 +116,8 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         ok(A && /SMM: approved/.test(A.title) && /Kasper: approved/.test(A.title) && /Client: approved/.test(A.title), `${tag}: A's hover says who approved, per stage ("${A && A.title}")`);
         ok(C && C.lab === 'Client dropped' && !/passed/i.test(await page.evaluate(() => document.querySelector('.trl-list').innerText)), `${tag}: C says "Client dropped", never "passed" (${C && C.lab})`);
         ok(R.filter(r => r.lab && r.lab !== 'dropped').every(r => r.radius > 0 && r.radius <= 6), `${tag}: the state tags have a small radius, not a pill (${R.map(r => r.radius).join(',')})`);
+        const D = R.find(r => /^Video D/.test(r.t));
+        ok(D && /dropped/.test(D.t) && !/Paste the Frame\.io link/.test(D.t) && await page.evaluate(() => ![...document.querySelectorAll('.trl-list .trl-v')].some(n => /^Video D/.test(n.innerText.trim()) && n.querySelector('.trl-paste'))), `${tag}: a dropped version with no link shows no paste placeholder ("${D && D.t}")`);
         // ---- 4: no start link ----
         ok(!/Posted as trial reels|Start the 24 h/i.test(await page.evaluate(() => document.querySelector('.trl-list').innerText)) && !(await page.$('.trl-start')), `${tag}: no "Posted as trial reels? Start the 24 h" link`);
         // ---- 6: "+ Add version" ----

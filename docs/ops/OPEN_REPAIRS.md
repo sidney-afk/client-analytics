@@ -35213,3 +35213,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix:** `svTrialErrorText` (`src/index/189-trial-reels-card.js.part`) gives a client link plain words only. A few states have their own sentence (it changed a moment ago, it waits for its new cut, the team is still looking at it, it is already out, the team took it out). Anything else reads "This did not save. Check your connection and try again in a moment." Staff wording is unchanged.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`): a `request_failed` refusal says "not approved" with no code and no quotation marks. It fails on main.
 - Allactions' third finding (the versions list drawn twice after the Video row's pencil and Escape) is 573 in this PR.
+
+## 577. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a version only the client approved showed the team a plain Approve; a dropped version with no link still asked for one (Trialtest, session Trials)
+
+- **What happened (Trialtest's live walk of #2412):**
+  - A version the client approved before anyone on the team had answered (a card sent straight to Client Approval) showed the SMM's Review tab and Kasper's pages nothing about the client's OK: the SMM saw a plain Approve, and Kasper's tile said "change asked". Sidney asked that approved things show as approved.
+  - A version dropped before its link was pasted still showed the grey "Paste the Frame.io link" between its name and "dropped" on the staff card.
+- **Fix:**
+  - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
+  - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).

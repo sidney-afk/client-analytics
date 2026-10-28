@@ -388,9 +388,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + l + '"></div>';
             }
             const link = v.frame_url ? '<a class="trl-go" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">' + TRL_GO + '</a>' : '';
-            // The name opens the version too, not only the small icon (owner, 2026-10-27).
+            // The name opens the version too, not only the small icon (owner, 2026-10-27). A version dropped before its
+            // link was pasted asks for no link (Trialtest, 2026-10-28).
             const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
-                : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span><button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>';
+                : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>' + (v.status === 'dropped' ? '' : '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>');
             const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>';
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'

@@ -9,6 +9,10 @@ export const MEDIA_URL_RE = /^https:\/\/data\.postforme\.dev\//;
 // explicitly rather than left to pick a default).
 export const PLACEMENT = 'reels';
 export const MAX_CAPTION_CHARS = 2200;
+// A trial reel is shown to non-followers first. Only Post For Me's "manual" kind is offered: the reel stays
+// a trial until someone shares it to followers in the Instagram app. "performance" (Instagram shares it by
+// itself if it does well) is refused, so a trial can never reach followers without a person deciding.
+export const TRIAL_REEL_TYPES = Object.freeze(['manual']);
 export const STATUSES = Object.freeze(['uploading', 'scheduled', 'processing', 'posted', 'failed', 'cancelled']);
 export const TERMINAL = Object.freeze(['posted', 'failed', 'cancelled']);
 
@@ -134,6 +138,9 @@ export function buildCreate(input, nowMs, actor) {
   if (!options || typeof options !== 'object') options = {};
   const placement = PLACEMENT;
   const coverMs = Number(options.cover_timestamp_ms);
+  const trialRaw = clean(options.trial_reel_type).toLowerCase();
+  if (trialRaw && !TRIAL_REEL_TYPES.includes(trialRaw)) return { ok: false, error: 'trial_reel_type must be manual' };
+  const trial = trialRaw || null;
   // The cover: an uploaded image (already in Post For Me storage) or a frame of the video, never both.
   // Post For Me documents both fields on a media item and does not say which wins, so only one is ever sent.
   const coverUrl = clean(body.coverUrl);
@@ -150,11 +157,13 @@ export function buildCreate(input, nowMs, actor) {
   let cover = null;
   if (coverUrl) { media.thumbnail_url = coverUrl; cover = 'image'; }
   else if (Number.isFinite(coverMs) && coverMs > 0) { media.thumbnail_timestamp_ms = Math.round(coverMs); cover = 'frame'; }
+  const configuration = { placement };
+  if (trial) configuration.trial_reel_type = trial;
   const postBody = {
     caption: title,
     social_accounts: [accountId],
     media: [media],
-    account_configurations: [{ social_account_id: accountId, configuration: { placement } }],
+    account_configurations: [{ social_account_id: accountId, configuration }],
     external_id: id,
   };
   if (scheduledUtc) postBody.scheduled_at = scheduledUtc;
@@ -162,7 +171,7 @@ export function buildCreate(input, nowMs, actor) {
   const nowIso = new Date(nowMs).toISOString();
   const row = {
     id, client, account_id: accountId, title,
-    options: { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null },
+    options: { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null, trial_reel_type: trial },
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
     status: scheduledUtc ? 'scheduled' : 'uploading',
@@ -228,5 +237,6 @@ export function publicRow(row) {
     created_at: r.created_at || '', updated_at: r.updated_at || '',
     placement: (r.options && r.options.placement) || 'reels',
     cover: (r.options && r.options.cover) || '',
+    trial: !!(r.options && r.options.trial_reel_type),
   };
 }

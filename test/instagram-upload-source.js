@@ -136,6 +136,21 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(L.buildCreate(base, NOW).postBody.media, [{ url: 'https://data.postforme.dev/x.mp4' }], 'no cover chosen sends no thumbnail field at all');
   eq(L.publicRow({ id: 'a', options: { cover: 'image' } }).cover, 'image', 'the queue row says which cover kind it used');
 
+  // --- trial reels: manual only
+  r = L.buildCreate(base, NOW);
+  ok(!('trial_reel_type' in r.postBody.account_configurations[0].configuration), 'off: no trial field is sent');
+  eq(r.row.options.trial_reel_type, null, 'off: the row says it is not a trial');
+  eq(L.publicRow(r.row).trial, false, 'off: the queue row is not marked Trial');
+  r = L.buildCreate({ ...base, options: { trial_reel_type: 'manual' } }, NOW);
+  ok(r.ok, 'a manual trial reel builds');
+  eq(r.postBody.account_configurations[0].configuration, { placement: 'reels', trial_reel_type: 'manual' }, 'on: a Reel with trial_reel_type manual');
+  eq(r.row.options.trial_reel_type, 'manual', 'on: stored in the row options');
+  eq(L.publicRow(r.row).trial, true, 'on: the queue row is marked Trial');
+  eq(L.buildCreate({ ...base, options: '{"trial_reel_type":"MANUAL"}' }, NOW).postBody.account_configurations[0].configuration.trial_reel_type, 'manual', 'case and string options are accepted');
+  ok(!L.buildCreate({ ...base, options: { trial_reel_type: 'performance' } }, NOW).ok, 'performance (Instagram shares it by itself) is refused');
+  ok(!L.buildCreate({ ...base, options: { trial_reel_type: 'SS_PERFORMANCE' } }, NOW).ok, "Meta's own performance name is refused too");
+  ok(!L.buildCreate({ ...base, options: { trial_reel_type: 'yes' } }, NOW).ok, 'any other value is refused');
+
   // --- Post For Me's answers become statuses
   const row = L.buildCreate(base, NOW).row;
   eq(L.applyCreateResponse(row, { id: 'sp_1', status: 'processing' }, NOWISO).status, 'processing', 'created, in flight');

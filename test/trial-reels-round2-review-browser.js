@@ -191,7 +191,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
-    // ---------- Kasper: "Client passed" on the tile, and 5: the tiles draw with the card ----------
+    // ---------- Kasper: "Client dropped" on the tile, and 5: the tiles draw with the card ----------
     for (const th of ['light', 'dark'].filter(() => part('kasper'))) {
       const tag = 'kasper 1440 ' + th;
       const vs = three(); vs[1].client_pass_at = '2026-10-28T09:00:00.000Z';
@@ -219,7 +219,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(tops.length && Math.max(...tops) - Math.min(...tops) <= 2, `${tag}: and nothing under them moves when the tiles land (panes top ${Math.min(...tops)} to ${Math.max(...tops)}; ${[...new Set(frames.map(f => f[1] + ':' + f[2]))].join(' ')})`);
       const tiles = await R(t, `return [...r.querySelectorAll('#l2trv .trk-v')].map(v => ({ n: (v.querySelector('.trk-n') || {}).textContent, lab: ((v.querySelector('.trk-lab') || {}).textContent || '').trim(), drop: !!v.querySelector('[data-trk-drop]'), ok: !!v.querySelector('[data-trk-ok]'),
         pic: (() => { const p = v.querySelector('.trk-pic'); return p ? (p.querySelector('img') ? 'img' : p.querySelector('.trk-mark') ? 'mark' : 'empty') : 'none'; })() }));`);
-      ok(tiles.length === 3 && tiles[1].lab === 'Client passed' && tiles[1].drop && !tiles[1].ok, `${tag}: Video B's tile says "Client passed", with Drop and no Approve (${JSON.stringify(tiles[1])})`);
+      ok(tiles.length === 3 && tiles[1].lab === 'Client dropped' && tiles[1].drop && !tiles[1].ok, `${tag}: Video B's tile says "Client dropped", with Drop and no Approve (${JSON.stringify(tiles[1])})`);
       ok(tiles.every(x => x.pic === 'mark'), `${tag}: a card with no picture: each tile shows a video mark, never a black square (${tiles.map(x => x.pic).join(',')})`);
       await shot(t, 'r2-kasper-l2-' + th);
       ok(!t.errors.length, `${tag}: no page errors (${t.errors.join(' | ')})`);

@@ -128,7 +128,20 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.winnerPatches(trial, 'D', 'https://f.io/fixture-d').error === 'version_not_on_trial', 'only a version on trial can win');
   const early = trial.map(x => Object.assign({}, x, { trial_ends_at: '2026-10-28T10:00:00.000Z' }));
   ok(L.winnerPatches(early, 'C', 'https://f.io/fixture-c', { nowMs: Date.parse(NOW) }).error === 'trial_not_over', 'no winner before the 24 h are up');
-  ok(L.winnerPatches(trial, 'C', 'https://f.io/fixture-c', { cardStatus: 'Posted' }).error === 'card_posted', 'no winner once the card is Posted');
+  // The trial runs on a Posted card (owner, 2026-10-28), so the winner is picked there.
+  ok((L.winnerPatches(trial, 'C', 'https://f.io/fixture-c', { cardStatus: 'Posted' }).patches || []).length === 3, 'the winner is picked on the Posted card');
+  ok(!L.undoWinnerPatches([v('A', { status: 'lost' }), v('C', { status: 'winner' })], A_LINK, { cardStatus: 'Posted' }).error, 'and Undo works on the Posted card too');
+  // Posted starts the trial: the approved versions, 24 h from the card's Posted time; the rest stay off it.
+  {
+    const ap = [v('A', { status: 'approved' }), v('B', { status: 'approved' }), v('C', { status: 'waiting' }), v('D', { status: 'approved', client_pass_at: NOW }), v('E', { status: 'dropped' })];
+    ok(!L.autoTrialPatches(ap, { cardStatus: 'Approved', postedAt: NOW, nowMs: Date.parse(NOW) }).patches.length, 'not Posted: no trial');
+    const at = L.autoTrialPatches(ap, { cardStatus: 'Posted', postedAt: '2026-10-28T12:00:00.000Z', nowMs: Date.parse(NOW) }).patches;
+    ok(at.map(x => x.letter).join('') === 'AB' && at.every(x => x.patch.status === 'on trial' && x.patch.posted_at === '2026-10-28T12:00:00.000Z' && x.patch.trial_ends_at === '2026-10-29T12:00:00.000Z'),
+      'Posted: the approved versions go on trial, 24 h from the Posted time; waiting, client-dropped and dropped stay off it');
+    ok(L.autoTrialPatches(ap, { cardStatus: 'Posted', postedAt: '', nowMs: Date.parse(NOW) }).patches[0].patch.posted_at === NOW, 'with no Posted time, the 24 h count from now');
+    ok(!L.autoTrialPatches([v('A'), v('B')], { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW) }).patches.length, 'none approved: no trial');
+    ok(!L.autoTrialPatches(ap.map(x => x.letter === 'A' ? Object.assign({}, x, { status: 'on trial' }) : x), { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW) }).patches.length, 'started once: never again');
+  }
   ok(!JSON.stringify(r).includes('no clear winner'), 'SyncView never writes "no clear winner" (owner, Q10)');
   const decided = [v('A', { status: 'lost' }), v('B', { status: 'lost' }), v('C', { status: 'winner' }), v('D', { status: 'dropped' })];
   ok(L.undoWinnerPatches(decided, 'https://f.io/fixture-c').error === 'attach_first', "Undo is refused until the card's link is back on Video A's");

@@ -48,6 +48,8 @@ function matches(row: Row, params: URLSearchParams): boolean {
 }
 
 const moved = { id: "" };
+const W_on = () => tables.studio_trial_versions.some((r) => r.status === "on trial");
+const broadcasts: Row[] = [];
 // Each answer of the stand-in database can be made to take this long (the speed checks at the end).
 const latency = { ms: 0 };
 const realServe = Deno.serve.bind(Deno);
@@ -55,6 +57,8 @@ const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (r
   if (latency.ms) await new Promise((r) => setTimeout(r, latency.ms));
   const u = new URL(req.url);
   const t = u.pathname.replace(/^\/rest\/v1\//, "");
+  // Realtime's broadcast endpoint (the function says each change to the staff pages that have the client open).
+  if (u.pathname === "/realtime/v1/api/broadcast" && req.method === "POST") { broadcasts.push(await req.json()); return new Response("{}", { status: 202 }); }
   const rows = tables[t];
   if (!rows) return new Response(JSON.stringify({ message: "no table " + t }), { status: 404 });
   const single = (req.headers.get("accept") || "").includes("vnd.pgrst.object");
@@ -127,7 +131,9 @@ const on = await step({ action: "switch_set", enabled: true });
 ok(on.body.ok === true && tables.trial_reel_cards.length === 1, "switch_set turns the card's switch on");
 const listed = await step({ action: "list", post_id: "" });
 ok(listed.body.ok === true && Object.keys(listed.body.cards as Row).join() === "p1" && ((listed.body.cards as Row).p1 as Row).main_letter === "A", "list: every card of the client whose switch is on, in one answer");
+const bRead = broadcasts.length;
 const readStaff = await step({ action: "read" });
+ok(broadcasts.length === bRead, "a read says nothing on the channel (only changes do)");
 ok(readStaff.body.ok === true && (readStaff.body.versions as Row[]).length === 5 && readStaff.body.main_letter === "A", "staff read: five versions, Video A on the card");
 {
   const q = console.log; console.log = () => {};
@@ -165,7 +171,17 @@ ok(passEarly.status === 503 && passEarly.body.error === "pass_unavailable" && v(
 for (const r of tables.studio_trial_versions) r.client_pass_at = null;
 const passStaff = await step({ action: "answer", stage: "smm", kind: "pass", letter: "E" });
 ok(passStaff.status === 400 && passStaff.body.error === "pass_client_only", "staff cannot pass (the team drops)");
+const b0 = broadcasts.length;
 const passE = await step({ action: "answer", kind: "pass", letter: "E" }, "client-none");
+await new Promise((r) => setTimeout(r, 50));
+{
+  const m = ((broadcasts.slice(b0)[0] || {}).messages as Row[] || [])[0] || {};
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("p1"));
+  const h = [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+  ok(m.topic === "trial-reels" && m.event === "changed" && JSON.stringify(m.payload) === JSON.stringify({ h }),
+    "a client's answer is said at once on the one trial-reels channel, as a 12-hex hash of the card and nothing else (" + JSON.stringify(m) + ")");
+  ok(!/fixtureclient|"p1"/.test(JSON.stringify(broadcasts)), "no broadcast carries a client slug or a card id");
+}
 ok(passE.body.ok === true && !!v("E").client_pass_at && v("E").status === "waiting" && ((passE.body.versions as Row[]).find((x) => x.letter === "E") as Row).client_pass_at,
   "the client passes on Video E: client_pass_at set, its status left as it was, and the answer says so");
 ok(tables.calendar_post_events.some((e) => e.action === "trial_pass" && (e.payload as Row).letter === "E"), "the card's history gets a trial_pass row for Video E");
@@ -186,8 +202,18 @@ const all = await step({ action: "answer", kind: "approve_all" }, "client-none")
 ok(all.body.card_approvable === true && !("card_behind" in all.body), "the client's last answer tells its page the card can move to Approved (today's approve save)");
 const staffAfter = await step({ action: "read" });
 ok(staffAfter.body.card_behind === true, "until that save lands, staff see card_behind and the page offers it again");
-const trial = await step({ action: "trial_start" });
-ok(trial.body.ok === true && ["A", "B", "C", "E"].every((l) => v(l).status === "on trial" && v(l).trial_ends_at), "on trial with the 24 h timer");
+// Posted starts the trial (owner, 2026-10-28): asked for before, it is refused; once the card is Posted, the next read
+// puts every approved version on trial, its 24 h counted from the card's Posted time, with a trial_start ledger row.
+const early = await step({ action: "trial_start" });
+ok(early.status === 409 && early.body.error === "trial_starts_when_posted" && !W_on(), "the trial cannot be started by hand before the card is Posted (" + early.status + " " + early.body.error + ")");
+Object.assign(tables.calendar_posts[0], { video_status: "Posted", video_status_at: "2026-10-28T12:00:00.000Z" });
+const bT = broadcasts.length;
+const trial = await step({ action: "read" });
+ok(trial.body.ok === true && ["A", "B", "C", "E"].every((l) => v(l).status === "on trial" && v(l).posted_at === "2026-10-28T12:00:00.000Z" && v(l).trial_ends_at === "2026-10-29T12:00:00.000Z"),
+  "the card is Posted: the next read puts every approved version on trial, 24 h from the card's Posted time");
+ok(tables.calendar_post_events.filter((e) => e.action === "trial_trial_start").length === 4 && broadcasts.length > bT, "with a trial_start ledger row per version, said on the channel");
+const again = await step({ action: "read" });
+ok(again.body.ok === true && tables.calendar_post_events.filter((e) => e.action === "trial_trial_start").length === 4, "a second read starts nothing again");
 const tooSoon = await step({ action: "winner_set", letter: "C" });
 ok(tooSoon.status === 400 && tooSoon.body.error === "trial_not_over", "no winner before the 24 h are up");
 for (const r of tables.studio_trial_versions) if (r.status === "on trial") r.trial_ends_at = new Date(Date.now() - 60000).toISOString();   // the 24 h pass

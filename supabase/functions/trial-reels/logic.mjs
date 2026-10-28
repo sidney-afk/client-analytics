@@ -396,6 +396,24 @@ export function trialPatches(versions, nowMs) {
   return { patches: ready.map((v) => ({ id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.trial, posted_at: at, trial_ends_at: ends } })) };
 }
 
+/*
+ * Posted starts the trial (owner, 2026-10-28): once the card's video is Posted, every approved live version goes on
+ * trial, its 24 h counted from the card's Posted time (video_status_at; now when that is unknown). A version not
+ * approved (waiting, change asked, dropped by the client) stays off it and the team drops it; with none approved there
+ * is no trial. Once started it stays, even if the card leaves Posted before a winner (nothing is lost). Nothing to do
+ * answers no patches.
+ */
+export function autoTrialPatches(versions, { cardStatus, postedAt, nowMs }) {
+  if (clean(cardStatus, 40) !== "Posted") return { patches: [] };
+  if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { patches: [] };
+  const ready = versions.filter((v) => v.status === STATUS.approved && !passed(v));
+  if (!ready.length) return { patches: [] };
+  const t = Date.parse(clean(postedAt, 40));
+  const startMs = Number.isFinite(t) ? t : nowMs;
+  const at = new Date(startMs).toISOString(), ends = new Date(startMs + TRIAL_MS).toISOString();
+  return { patches: ready.map((v) => ({ id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.trial, posted_at: at, trial_ends_at: ends } })) };
+}
+
 /**
  * The SMM picks the winner (staff only). The card's one link must already be the winner's (the page saves it through
  * today's Production attach first), so the card, Production and this log agree.
@@ -405,7 +423,7 @@ export function winnerPatches(versions, letter, mainLink, opts) {
   const w = versions.find((x) => x.letter === letter);
   if (!w) return { error: "version_not_found" };
   if (w.status !== STATUS.trial) return { error: "version_not_on_trial" };
-  if (clean(o.cardStatus, 40) === "Posted") return { error: "card_posted" };
+  // The card is Posted for the whole trial (it starts there), so the pick is made on a Posted card (owner, 2026-10-28).
   // The 24 h first (the page shows the trophy only then; the server holds the same line).
   const nowMs = Number.isFinite(o.nowMs) ? o.nowMs : Date.now();
   if (versions.some((v) => v.status === STATUS.trial && v.trial_ends_at && Date.parse(v.trial_ends_at) > nowMs)) return { error: "trial_not_over" };
@@ -425,7 +443,6 @@ export function winnerPatches(versions, letter, mainLink, opts) {
  */
 export function undoWinnerPatches(versions, mainLink, opts) {
   if (!versions.some((v) => v.status === STATUS.winner)) return { error: "no_winner" };
-  if (clean((opts || {}).cardStatus, 40) === "Posted") return { error: "card_posted" };
   // Back on trial, the card carries the first live version again (Video A unless it was dropped).
   const a = [...versions].sort((x, y) => LETTERS.indexOf(x.letter) - LETTERS.indexOf(y.letter)).find(live);
   if (!a || clean(mainLink, 2048) !== clean(a.frame_url, 2048)) return { error: "attach_first" };

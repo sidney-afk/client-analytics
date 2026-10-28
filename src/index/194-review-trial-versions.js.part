@@ -383,7 +383,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const dropBtn = v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>';
             // The client said "Not this one": the team sees it and drops the version (owner, 2026-10-28).
             const acts = v.client_pass_at && v.status === 'waiting'
-                ? '<span class="trk-lab" data-l="passed" title="The client passed on this version">Client passed</span>' + dropBtn
+                ? '<span class="trk-lab" data-l="passed" title="The client dropped this version">Client dropped</span>' + dropBtn
                 : a === 'wait'
                 ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '" aria-label="Approve Video ' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
                     + '<button type="button" class="trk-ic" data-trk-chg="' + l + '" title="Ask for a change" aria-label="Ask for a change to Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_BACK + '</button>'
@@ -465,7 +465,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trk-ic{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);cursor:pointer;padding:0}
 .trk-ic svg{width:13px;height:13px}
 .trk-ok[disabled],.trk-ic[disabled]{opacity:.6;cursor:default}
-.trk-lab{border-radius:99px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
+.trk-lab{border-radius:4px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
 .trk-lab[data-l="approved"]{background:var(--ok-soft-2);color:var(--ok-ink)}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
 .trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px;min-width:0;overflow:hidden;text-overflow:ellipsis}

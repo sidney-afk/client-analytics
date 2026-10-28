@@ -35128,3 +35128,54 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - While the read is not in, `194` and `195` draw a row of tile placeholders the same height as the tiles, so nothing under them moves.
   - A tile with no picture shows a quiet video mark. No version has a picture of its own (frameio-view returns none), so the card's poster is used when it has one.
 - **Proven:** `test/trial-reels-round2-review-browser.js`, light and dark: from the first frame the card has tiles or placeholders, the panes under them never move, and a video mark is in every tile. Each fails on main.
+
+## 567. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a client's answer took up to 30 s to reach the SMM's open card (Sidney, session Trials)
+
+- **What happened:** Sidney, 2026-10-28: "if a client does something on the trial, like approves, it shows immediately on the calendar. I always want everything to be fast." Since #2409 (563) the staff card caught up on its 30 s read, so about 20 s on average.
+- **Fix:** `supabase/functions/trial-reels/index.ts` and `src/index/189-trial-reels-card.js.part`.
+  - **The broadcast:** after every change (an answer, a link, a drop, a version added, the switch, the winner, the automatic trial start), trial-reels sends one Realtime broadcast on the fixed channel `trial-reels`.
+  - **The payload, which carries no client and no card:** its only field is the first 12 hex of sha256(post_id). Anyone with the publishable key can join a public channel, so the Supervisor ruled out a client slug in the channel name and a raw post_id in the payload.
+  - **The staff Calendar:** it joins the channel once, hashes the trial cards it already holds, and on a match reads that one card again through the function. A burst (Approve all) reads it once.
+  - **Kept:** the 30 s refresh stays as the fallback, and broadcasts are best effort, sent after the answer.
+- **Proven:**
+  - `test/trial-reels-round3-card-browser.js`: the client's approve shows on the open card in under 2 s, reading only that card; another card's hash reads nothing.
+  - `test/trial-reels-function-deno.ts`: one broadcast on `trial-reels` with `{h}` only, no slug or card id in any broadcast, and none on a read.
+  - Each fails on main.
+- **Open:** Trialtest times it live after the merge.
+
+## 568. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: a version row was blank when every version shared its state (Sidney, session Trials)
+
+- **What happened:** in Sidney's screenshot A and B were approved and their rows said nothing. The "no visual noise" rule (2026-10-27) hid a label every live version shared.
+- **Fix:** every version row says its state, on the card and in Production; only "lost" stays unsaid once there is a winner. The label's hover says who said what, per stage: "SMM: approved · Kasper: approved · Client: approved".
+- **Proven:** `test/trial-reels-round3-card-browser.js` (A and B say "approved", with the per-stage hover); the card, polish, journey and Production suites updated to the new rule.
+
+## 569. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: "Client passed" reads "Client dropped" (Sidney, session Trials)
+
+- The card, Production's version rows and Kasper's tiles say "Client dropped" for a version the client said no to (562). The client's own page still says "Not this one".
+
+## 570. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: Posted starts the 24 h; no "Start the 24 h" link; the winner is picked on the Posted card (Sidney, session Trials; rule approved by the Supervisor)
+
+- **What happened:** the SMM had to press "Posted as trial reels? Start the 24 h" after posting the reels by hand, and trial-reels refused a winner on a Posted card (`card_posted`), though the card is Posted for the whole trial.
+- **The rule:**
+  - On the first trial-reels request that reads the card after its video is Posted (by anyone), every approved live version goes on trial. Its 24 h are counted from the card's `video_status_at`, or from now when that is unknown.
+  - A version not approved (waiting, change asked, client dropped) stays off the trial and the team drops it. With none approved there is no trial.
+  - Once started, the trial stays, even if the card leaves Posted before a winner, and nothing is lost.
+  - The winner and Undo are no longer refused on a Posted card; the card's link still moves through today's attach first.
+  - `trial_start` asked for by hand before Posted answers `trial_starts_when_posted`.
+- **Code:** `logic.mjs` `autoTrialPatches`, and `index.ts` `startIfPosted` in the list and every per-card request, with a `trial_start` ledger row per version and the broadcast. The link is gone from the card.
+- **Proven:** `test/trial-reels-logic.js` (139), `test/trial-reels-function-deno.ts` (the read after Posted starts the trial at the Posted time, once) and the journey test (step 7: Posted starts it; step 9: Undo is no longer refused for Posted).
+
+## 571. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: the state tags were pills (Sidney, session Trials)
+
+- The state tags on the card, in Production and on Kasper's tiles have a 4 px radius, not 999 px. Proven in `test/trial-reels-round3-card-browser.js`.
+
+## 572. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: the "Video E  Paste the Frame.io link" row is a minimal "+ Add version" (Sidney, session Trials)
+
+- The add row is one "+ Add version" (its hover names the next letter), which opens the paste field focused. Proven in `test/trial-reels-round3-card-browser.js`; the empty-card, card and polish suites updated.
+
+## 573. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: the Video row's pencil, then Escape, drew the whole versions list twice (Sidney, session Trials)
+
+- **What happened:** on a trial card with its versions list open, Sidney pressed the row's pencil, did nothing, and pressed Escape. A second block of A to E (and a second start link) appeared under the first, then went on the next redraw.
+- **Why:** `_calOnLinkBlur` (`src/index/160-calendar-organize-ui.js.part`) replaced the Video row with `_calLinkFieldHtml`, which for a trial card draws the row and its open list, but left the old list after it. `_calRefreshLinkField` had the same gap.
+- **Fix:** both remove the old list before redrawing the row. `_calRefreshLinkField` does not redraw while a version's link is being typed in that list.
+- **Proven:** `test/trial-reels-round3-card-browser.js`, every frame for about 2 s after the pencil and Escape: exactly one list (main: 1 then 2).

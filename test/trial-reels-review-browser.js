@@ -313,7 +313,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       'a refused version write: today\'s change request still goes, and the version\'s change waits in this browser');
     await t.page.reload({ waitUntil: 'domcontentloaded' });
     await waitNew(t);
-    for (let i = 0; i < 60 && t.T.versions[3].status !== 'change asked'; i++) await sleep(100);
+    // The fake server marks the version before its answer reaches the page, which then clears what it kept: wait for both.
+    for (let i = 0; i < 60 && (t.T.versions[3].status !== 'change asked' || await t.page.evaluate(() => localStorage.getItem('syncview_trv_pending_v1'))); i++) await sleep(100);
     ok(t.T.versions[3].status === 'change asked' && t.T.versions[3].change_note === 'Shorter end card.' && !(await t.page.evaluate(() => localStorage.getItem('syncview_trv_pending_v1'))),
       'the next versions read sends it again, and Video D is marked as changed');
     await t.ctx.close();

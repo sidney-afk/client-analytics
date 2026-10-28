@@ -9,7 +9,7 @@
  *   4. "I approved one of them, but in the SMM's calendar I don't see that it's approved": the card reads its
  *      versions again by itself while it is on screen (every 30 s, and when the tab comes back), so a client's answer
  *      shows on the SMM's card with no reload and no click.
- *   3. (the team's side) a version the client passed on says "Client passed" in the card's list, and the collapsed row
+ *   3. (the team's side) a version the client passed on says "Client dropped" in the card's list, and the collapsed row
  *      does not count it as waiting.
  * Proves each at 1440 and 390, light and dark. TRIAL_R2_SHOTS=<dir> writes screenshots (fictional data only).
  */
@@ -166,14 +166,14 @@ const SHOTS = process.env.TRIAL_R2_SHOTS || '';
           ok(took < 36000, `${tag}: the card says 1/3 within one refresh (${took} ms), no reload, no click`);
           ok(/approved/.test(await rowOf(page, 'A')), `${tag}: Video A's row says approved: "${await rowOf(page, 'A')}"`);
           ok(!!(await page.$('.cal-link-post.trl-main.trl-open')), `${tag}: the open list stays open through the refresh`);
-          // The client passes on Video B: "Client passed" on its row, and the row counts it as answered.
+          // The client passes on Video B: "Client dropped" on its row, and the row counts it as answered.
           Object.assign(T.versions[1], { client_pass_at: new Date().toISOString(), updated_at: new Date().toISOString() });
           await sleep(2500);
           await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
           await sleep(200);
           await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
-          await page.waitForFunction(() => /Client passed/.test(document.body.innerText), null, { timeout: 5000, polling: 200 }).catch(() => {});
-          ok(/Client passed/.test(await rowOf(page, 'B')), `${tag}: back on the tab, Video B's row says "Client passed": "${await rowOf(page, 'B')}"`);
+          await page.waitForFunction(() => /Client dropped/.test(document.body.innerText), null, { timeout: 5000, polling: 200 }).catch(() => {});
+          ok(/Client dropped/.test(await rowOf(page, 'B')), `${tag}: back on the tab, Video B's row says "Client dropped": "${await rowOf(page, 'B')}"`);
           const st2 = await state(page);
           ok(st2 && /1\/2/.test(st2.text), `${tag}: the passed version is not counted as waiting: ${JSON.stringify(st2)}`);
           await shot(page, 'r2-card-passed-' + label + '-' + theme);

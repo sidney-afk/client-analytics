@@ -34606,6 +34606,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows.
 
+## 536. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 5 of 5: the version switch in the Notes view (session Trials)
+
+- **What:** with more than one version linked, the Notes view's player plays one version, picked in a small "Video A B C D E" switch under it (beside Open in Frame.io; at 390 a slim bar of its own under the player, because the player's own buttons sit over the video there). The Frame.io comments follow the version on screen. The title reads "Test card · Video C" and the "About the…" switch says "Video C". A note about the video written while C is on screen starts "Video C:" (owner: a note written while C is on screen is about Video C). Staff only, behind `trial_reels_pages`. Once a winner is picked: today's player, no switch. Code in `189` (reusing the card's own read of the versions), hooked into `190` (the Notes stage, its Frame.io comments, the title, the "About the…" switch, the quiet line and the send).
+- **Proven:** `node test/trial-reels-notes-browser.js` (17 checks, desktop and 390), frame-comments-in-notes-browser, frameio-viewer-browser, lost-work-drafts-browser, staff-calendar-expanded-browser, prod-write-gateway-browser, check-modules and check-lazy-safety.
+
+**Way back:** revert the PR; with the switch off nothing shows.
+
 ## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
 
 - **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
@@ -34651,6 +34658,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - the arrow keys move through the versions first, then on to the next part.
 - **Kept as built (owner taste, for the morning):** the button words (E6), the winner line above the player (E12), and the step still named "Video" (the mock says "Versions").
 - **Proven:** `node test/trial-reels-review-browser.js` (37 checks, now with places, letters, Approve all, the count, the badge, the keys, and a phone with swipe), trial-reels-change-naming-browser, review-stage-browser, review-stage-client-layout-browser, review-stage-kasper-layout2-browser (188), review-stage-finish-browser, check-modules, no-sending-words, no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
+## 527. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Notes: a version with a Google Drive or Dropbox link hid the version switch (Codex on PR 2364, session Trials)
+
+- **What was wrong:** the Notes view's version switch sat in the player's own footer. Picking a version whose link is Google Drive or Dropbox (both accepted for versions) left no player, so the switch went too, and nothing could pick another version again, not even after closing and reopening Notes (the pick is kept).
+- **Fix (`190`):** where the card's own video would play, a version that cannot play keeps the switch in the slim bar under the stage, with "Open this version" beside it. `187` exports `svFrameStageFor` for that check.
+- **Proven:** `node test/trial-reels-notes-browser.js` (19 checks; the new Drive check fails without the fix), frame-comments-in-notes-browser, frameio-viewer-browser, and the other trial suites.
 
 **Way back:** revert the commit.
 
@@ -34818,6 +34833,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert this commit.
 
+## 551. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: Kasper's approve button did not name the version it approves (Trialtest, session Trials)
+
+- **What happened:** checked live on build 4. On a trial card, Kasper's button read "Approve the video" in both of his layouts, while the client's reads "Approve Video A". Kasper approves only the version on screen, so he could think he was approving the whole video.
+- **Fix:** Kasper's split approve button takes the same words as the client's ("Approve Video A"). The change is in `_rsSplit`, `src/index/195-review-stage.js.part`. On the second layout's narrow column the short form stays "Approve". The SMM's button still reads "Approve to Kasper", as designed.
+- **Proven:** `test/trial-reels-review-browser.js` checks both of Kasper's layouts (60; both checks fail without the fix). These also pass: `review-stage-kasper-layout2` (188 checks), `review-stage-browser`, `staff-layout`, `instant`, `save`, and the trial journey (90).
+
 ## 550. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the staff card: every action answers at once, "dropped" is plain text, unboxed row buttons and switch (session Trialpolish)
 
 - **Owner, 2026-10-27, from the test client's card:** every trial action felt slow (pasting a Frame.io link, dropping a version, the trial switch); "dropped" must not be a pill; a version's name should open its link; the trial switch looked dimmed and sat in a box; the row buttons (open the folder, edit link) should have no box either, with a hover that changes only the icon; and the versions list should open by itself when the switch goes on.
@@ -34830,5 +34851,19 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Look:** "dropped" is plain muted text through one shared class, `sv-dropped-note` (helper `svTrialLabelHtml`), on the card and in Production's version rows (Trials told, for the review pages). "Video A" is a link to its video in a new tab; the small icon stays. The switch, the trophy and the arrow sit beside the link with no fill and full strength; a hover changes only the switch's own track (or the icon). The row buttons on every link row (Thumbnail's folder, compare and edit, Video's edit; the Samples cards too) have no fill and no divider, the link keeps its own rounded fill, and a hover changes only the icon; their targets are unchanged (32x29 desktop, 44x44 phone, measured on main and after). On the phone card the outline is now the link's own, with the buttons outside it. The list opens by itself when the switch goes on.
 - **Also fixed (found on the screenshots, not from this change):** on the staff phone card, a thumbnail that is a link rather than a picture (a Frame.io page or an image folder: 14 and 125 live cards, 3 on the test client) drew its "Open thumbnail" / "Open folder" placeholder over the 56 px tool bar, under the play button and the icons. Its placeholder now takes 176 px of its own above the tools, as the no-thumbnail fallback does; with a video, the play button sits in its middle and the words under it. Phone only (`html.sv-staff-phone`); the desktop card is unchanged. Checked at 390 for both kinds (five overlaps on main, none now); `qa/staff-phone-design-browser.js` still 16 of 16.
 - **Proof:** screenshots `docs/syncview-design/proofs/trial-polish/` (1440 and 390, light and dark, switch off and on). `node test/trial-reels-polish-browser.js` (new, offline, 1440 and 390, light and dark): each "at once" check, each rollback with its message, the typing guard, no pill, 4.5:1, the name link, the unboxed and undimmed switch, hover changes, row buttons and their targets. On main its speed, switch, row-button, name and dropped checks fail. The five trial-reels browser suites pass (card and empty-card updated: the list is now open after switching on).
+
+**Way back:** revert the pull request.
+
+## 553. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Notes: a trial video did not say it was one (Sidney, session Trials)
+
+- **What Sidney asked:** "It should say that it's a trial video whenever we view it in the review sheet of Kasper, of the client, of the SMM, or in the notes thing." The review pages got their marker in build 4 (OPEN_REPAIRS 549); this is the Notes view.
+- **Fix:**
+  - One quiet "TRIAL" sits under the Notes head's "post name · Video C" line, for any trial card: one version or several, before and after the pick. It is one word, no pill.
+  - `svTrialCardOn` (`src/index/189-trial-reels-card.js.part`) reads the card's switch from the card's own trial read, so there is no second read. `src/index/190-calendar-approval-comments.js.part` draws the word.
+- **Also, a test #2392 left red on main:** with the list now opening on switch-on, `test/trial-reels-journey-browser.js` measured the collapsed card height with the list open (751 → 925, red on main at 7d235e2). The test now checks the list opens, closes it with its arrow, then measures.
+- **Proven:**
+  - `test/trial-reels-notes-browser.js` (23): exactly one "Trial" at 1440 and 390 and after the pick, none with the switch off. Without the fix, 3 checks fail.
+  - The journey test passes (91).
+  - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
 
 **Way back:** revert the pull request.

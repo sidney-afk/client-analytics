@@ -8,6 +8,12 @@ export const MEDIA_URL_RE = /^https:\/\/data\.postforme\.dev\//;
 // Instagram treats a video post as a Reel, so a Reel is the only placement offered (Post For Me is told it
 // explicitly rather than left to pick a default).
 export const PLACEMENT = 'reels';
+// A carousel is one feed post of several items (images and videos may mix). Post For Me takes it as several
+// media on one post with placement "timeline"; Instagram allows 2 to 10 items in one carousel.
+export const CAROUSEL_PLACEMENT = 'timeline';
+export const CAROUSEL_MIN_ITEMS = 2;
+export const CAROUSEL_MAX_ITEMS = 10;
+export const KINDS = Object.freeze(['reel', 'carousel']);
 export const MAX_CAPTION_CHARS = 2200;
 // A trial reel is shown to non-followers first. Only Post For Me's "manual" kind is offered: the reel stays
 // a trial until someone shares it to followers in the Instagram app. "performance" (Instagram shares it by
@@ -120,6 +126,7 @@ function toUtcIso(raw) {
 }
 
 // Validates the browser's create request and builds both the queue row and the Post For Me body.
+// `kind` is "reel" (the default: one video, placement reels) or "carousel" (see buildCarousel).
 // Returns { ok:false, error } or { ok:true, row, postBody }.
 export function buildCreate(input, nowMs, actor) {
   const body = input && typeof input === 'object' ? input : {};
@@ -127,11 +134,15 @@ export function buildCreate(input, nowMs, actor) {
   const accountId = clean(body.socialAccountId);
   const title = clean(body.title);
   const mediaUrl = clean(body.mediaUrl);
+  const kind = clean(body.kind).toLowerCase() || 'reel';
+  if (!KINDS.includes(kind)) return { ok: false, error: 'kind must be reel or carousel' };
+  if (kind === 'carousel') return buildCarousel(body, nowMs, actor, { client, accountId, title });
   if (!client) return { ok: false, error: 'clientName required' };
   if (!ACCOUNT_ID_RE.test(accountId)) return { ok: false, error: 'socialAccountId must be a Post For Me connection id (spc_...)' };
   if (!title) return { ok: false, error: 'caption required' };
   if (title.length > MAX_CAPTION_CHARS) return { ok: false, error: 'caption is over ' + MAX_CAPTION_CHARS + ' characters' };
   if (!MEDIA_URL_RE.test(mediaUrl)) return { ok: false, error: 'mediaUrl must be a Post For Me media url' };
+  if (body.mediaUrls != null) return { ok: false, error: 'mediaUrls is only for a carousel' };
 
   let options = body.options;
   if (typeof options === 'string') { try { options = JSON.parse(options); } catch { options = {}; } }
@@ -172,6 +183,63 @@ export function buildCreate(input, nowMs, actor) {
   const row = {
     id, client, account_id: accountId, title,
     options: { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null, trial_reel_type: trial },
+    scheduled_for: scheduledUtc || null,
+    timezone: clean(body.timezone).slice(0, 60),
+    status: scheduledUtc ? 'scheduled' : 'uploading',
+    post_id: '', instagram_url: '', error: '', posted_at: null,
+    created_by: clean(actor).slice(0, 80), created_at: nowIso, updated_at: nowIso,
+  };
+  return { ok: true, row, postBody };
+}
+
+function parseOptions(raw) {
+  let options = raw;
+  if (typeof options === 'string') { try { options = JSON.parse(options); } catch { options = {}; } }
+  return options && typeof options === 'object' ? options : {};
+}
+
+// A carousel: 2 to 10 items, every one already in Post For Me storage, in the order they will show. The same
+// client, account, caption, schedule and key checks as a Reel. Reel-only things (a trial, a cover image or
+// frame) are refused rather than dropped, so nothing the SMM picked is silently ignored.
+function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
+  if (!client) return { ok: false, error: 'clientName required' };
+  if (!ACCOUNT_ID_RE.test(accountId)) return { ok: false, error: 'socialAccountId must be a Post For Me connection id (spc_...)' };
+  if (!title) return { ok: false, error: 'caption required' };
+  if (title.length > MAX_CAPTION_CHARS) return { ok: false, error: 'caption is over ' + MAX_CAPTION_CHARS + ' characters' };
+  if (!Array.isArray(body.mediaUrls)) return { ok: false, error: 'a carousel needs mediaUrls' };
+  const urls = body.mediaUrls.map(clean);
+  if (urls.length < CAROUSEL_MIN_ITEMS || urls.length > CAROUSEL_MAX_ITEMS) {
+    return { ok: false, error: 'a carousel has ' + CAROUSEL_MIN_ITEMS + ' to ' + CAROUSEL_MAX_ITEMS + ' items' };
+  }
+  if (!urls.every((u) => MEDIA_URL_RE.test(u))) return { ok: false, error: 'every carousel item must be a Post For Me media url' };
+  if (new Set(urls).size !== urls.length) return { ok: false, error: 'a carousel item is listed twice' };
+  if (clean(body.mediaUrl)) return { ok: false, error: 'a carousel sends mediaUrls, not mediaUrl' };
+  if (clean(body.coverUrl)) return { ok: false, error: 'a carousel has no cover image' };
+  const options = parseOptions(body.options);
+  if (clean(options.trial_reel_type)) return { ok: false, error: 'a trial is for a Reel only, not a carousel' };
+  if (Number(options.cover_timestamp_ms) > 0) return { ok: false, error: 'a carousel has no cover frame' };
+
+  const scheduledUtc = toUtcIso(body.scheduledAtUTC);
+  if (clean(body.scheduledAtUTC) && !scheduledUtc) return { ok: false, error: 'scheduledAtUTC is not a valid time' };
+  if (scheduledUtc && Date.parse(scheduledUtc) < nowMs - 60 * 1000) return { ok: false, error: 'scheduled time is in the past' };
+
+  const id = clean(body.idempotencyKey) || ('ig_' + nowMs.toString(36) + '_' + Math.random().toString(36).slice(2, 8));
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
+
+  const placement = CAROUSEL_PLACEMENT;
+  const postBody = {
+    caption: title,
+    social_accounts: [accountId],
+    media: urls.map((url) => ({ url })),
+    account_configurations: [{ social_account_id: accountId, configuration: { placement } }],
+    external_id: id,
+  };
+  if (scheduledUtc) postBody.scheduled_at = scheduledUtc;
+
+  const nowIso = new Date(nowMs).toISOString();
+  const row = {
+    id, client, account_id: accountId, title,
+    options: { kind: 'carousel', placement, items: urls.length, cover: null, cover_timestamp_ms: null, trial_reel_type: null },
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
     status: scheduledUtc ? 'scheduled' : 'uploading',
@@ -238,5 +306,8 @@ export function publicRow(row) {
     placement: (r.options && r.options.placement) || 'reels',
     cover: (r.options && r.options.cover) || '',
     trial: !!(r.options && r.options.trial_reel_type),
+    // A row written before carousels existed has no kind: it is a Reel.
+    kind: (r.options && r.options.kind === 'carousel') ? 'carousel' : 'reel',
+    items: (r.options && Number(r.options.items)) || 1,
   };
 }

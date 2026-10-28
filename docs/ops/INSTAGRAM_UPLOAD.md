@@ -48,7 +48,22 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 ## Scheduling and post type
 
 - **Scheduling:** the same switch as TikTok's. "Post immediately" is on by default; switch it off to pick a date and time (SyncView's own date and time controls, plus a timezone). The queue shows a scheduled post as Scheduled, with a Cancel button until it goes out.
-- **Post type:** every post is a Reel. There is no Feed video choice: Instagram treats videos as Reels now. The function still tells Post For Me `placement: reels` explicitly, so it never falls back to a default.
+- **Post type:** a **Reel / Carousel** choice sits at the top of the media card. **Reel** (the default) is one video, exactly as before: the function tells Post For Me `placement: reels` explicitly, so it never falls back to a default, and there is no Feed video choice (Instagram treats videos as Reels now). **Carousel** is one feed post of several images and videos (below).
+
+## Carousel (added 2026-10-28, session Igcarousel)
+
+- **What the SMM does:** switch the media card to **Carousel**, then pick or drop 2 to 10 images and videos (JPEG, PNG, WEBP, MP4, MOV; they may mix). The picker is TikTok's Photo carousel picker: numbered tiles, **←** / **→** to reorder, **×** to remove, keyboard focus stays on the moved item. Caption, schedule and timezone work as for a Reel. The preview shows the first item and the item count. The queue row reads **Carousel (n)**.
+- **No cover, no trial:** the Cover image card and the Trial reel switch are hidden on a carousel, and a trial switched on beforehand is switched off. The function refuses a carousel that carries a trial, a cover image or a cover frame, so nothing picked is silently dropped.
+- **What is sent:** each item goes to Post For Me storage in carousel order (a PNG or WEBP is redrawn as a JPEG first, because Instagram's feed takes JPEG images), then one `create` call with `kind: "carousel"` and `mediaUrls` (2 to 10, every one a `https://data.postforme.dev/` address, no repeats). The function sends Post For Me one post with those media in that order and `configuration: { placement: "timeline" }` (the feed).
+- **Same safety switches:** the client must be in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`, the account must be the one on file, and Post For Me must say it is an Instagram account, exactly as for a Reel. The same retry-safe key means a second press cannot post twice.
+- **Stored in the row:** `instagram_uploads.options` gets `{ kind: "carousel", placement: "timeline", items: n, ... }`. No migration: `options` is already a JSON column. A Reel row keeps its old shape, and any row without a `kind` reads as a Reel.
+- **Limits (Instagram's, from Meta's carousel rules):** 2 to 10 items; images and videos may mix; Instagram crops every item to the shape of the first one (the page says so under the picker); feed images are JPEG, up to 8 MB each (the page enforces 8 MB per image; videos use the Reel size limit).
+
+**Confirmed from Post For Me's live API reference (the OpenAPI document inside https://api.postforme.dev/docs, read 2026-10-28):** a post takes a `media` array of several items, each `{ url }`, ordered by its position in the array (or an explicit `index`); Instagram's `placement` accepts `timeline`; the only multi-media rule the reference states is for `stories` ("individual posts are created per media item"), so several media on a `timeline` post is one post.
+
+**Still unproven until Sidney's first real carousel:** that Post For Me turns several media on an Instagram `timeline` post into one carousel (its reference does not use the word "carousel" for Instagram; it does for Facebook and LinkedIn); what Post For Me does past Instagram's 10-item limit (the function never sends more); whether it converts a non-JPEG image itself (the page sends JPEGs, so it should not matter); how a mixed image-and-video carousel and a scheduled carousel come back in the result lookup; and which link the **Open** button gets for a carousel. All of it lives in `supabase/functions/instagram-upload/`, so a mismatch is a small fix.
+
+**Try one yourself:** Instagram side, **Carousel**, the test client, 2 or 3 images, caption "test, please ignore", schedule 15 minutes ahead, check the queue says **Carousel (n)** and **Scheduled**, press **Cancel**. Then post one for real.
 
 ## Trial reels
 

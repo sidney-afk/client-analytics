@@ -31,11 +31,17 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     const IG_COVER_RATIO = 9 / 16;
     const IG_CALL_TIMEOUT_MS = 30000;
     const IG_QUEUE_PAGE = 5;
+    // A carousel: one feed post of 2 to 10 images and videos (Instagram's own limits). The server checks the count too.
+    const IG_CAROUSEL_MIN = 2;
+    const IG_CAROUSEL_MAX = 10;
+    const IG_CAROUSEL_IMAGE_MAX_BYTES = 8 * 1024 * 1024;   // Instagram's limit for a feed image
 
     const igState = {
         client: null,
+        kind: 'reel',                // 'reel' (one video) | 'carousel' (2 to 10 images and videos, one feed post)
         file: null,
         objectUrl: null,
+        items: [],                   // carousel only: [{ file, objectUrl, isVideo }], carousel order = array order
         title: '',
         titleFromCard: '',           // the caption a Calendar card filled in, while unedited
         captionFill: null,           // { name, text }: the caption the chosen video's file name filled in, while it can be undone
@@ -44,6 +50,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
+        carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
         uploads: [],
         queueReadState: 'loading',   // only a successful read proves an empty queue
@@ -375,6 +382,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igRenderPreview() {
         const host = document.getElementById('igPreviewCol');
         if (!host) return;
+        if (igState.kind === 'carousel') { _igRenderCarouselPreview(host); return; }
         const url = _igCoverPreviewUrl();
         host.innerHTML = `<div class="tk-card" id="igPreviewCard"><h3>Preview <span class="tk-card-hint">${_igEsc(_igCoverSummary())}</span></h3>
             <div style="width:180px;max-width:100%;aspect-ratio:9/16;margin:0 auto;border-radius:12px;overflow:hidden;background:var(--bg);display:grid;place-items:center">
@@ -382,6 +390,125 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             </div>
             ${igState.title.trim() ? `<div class="tk-queue-title" style="margin-top:10px">${_igEsc(igState.title.trim().slice(0, 140))}</div>` : ''}
         </div>`;
+    }
+
+    /* ---- Carousel ------------------------------------------------------------------------------
+       The same picker as TikTok's Photo carousel (pick or drop several files, arrows to reorder, x to
+       remove), with Instagram's limits: 2 to 10 items, images and videos may mix, and Instagram crops
+       every item to the shape of the first one. Each item goes to Post For Me storage in order, then
+       one create call sends the list (placement "timeline", a feed post). */
+    function _igCarouselPreviewHtml(it, alt) {
+        return it.isVideo
+            ? `<video src="${_igEsc(it.objectUrl)}" muted playsinline preload="metadata" aria-label="${_igEsc(alt)}" style="width:100%;height:100%;object-fit:cover;display:block"></video>`
+            : `<img src="${_igEsc(it.objectUrl)}" alt="${_igEsc(alt)}">`;
+    }
+    function _igRenderCarouselPreview(host) {
+        const items = igState.items, first = items[0];
+        host.innerHTML = `<div class="tk-card" id="igPreviewCard"><h3>Preview <span class="tk-card-hint">${items.length ? 'Carousel · ' + items.length + ' item' + (items.length === 1 ? '' : 's') : 'Carousel'}</span></h3>
+            <div style="width:200px;max-width:100%;aspect-ratio:4/5;margin:0 auto;border-radius:12px;overflow:hidden;background:var(--bg);display:grid;place-items:center" id="igPreviewFrame">
+                ${first ? (first.isVideo
+                    ? `<video id="igPreviewImg" src="${_igEsc(first.objectUrl)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>`
+                    : `<img id="igPreviewImg" src="${_igEsc(first.objectUrl)}" alt="First carousel item" style="width:100%;height:100%;object-fit:cover">`)
+                    : '<span class="tk-step-note" style="text-align:center;padding:10px">No items yet. The first item is the one people see first.</span>'}
+            </div>
+            ${items.length > 1 ? `<div class="tk-step-note" style="text-align:center;margin-top:6px">1 of ${items.length} · swipe for the rest</div>` : ''}
+            ${igState.title.trim() ? `<div class="tk-queue-title" style="margin-top:10px">${_igEsc(igState.title.trim().slice(0, 140))}</div>` : ''}
+        </div>`;
+    }
+    function _igCarouselCardHtml() {
+        const items = igState.items, off = igState.submitting ? 'disabled' : '';
+        const verb = window.svIsStaffPhone?.() ? 'tap' : 'click';
+        const grid = items.length ? `
+            <div class="tk-photo-grid" id="igCarGrid">
+                ${items.map((it, i) => `
+                <div class="tk-photo-item" data-ig-car-item="${i}">
+                    ${_igCarouselPreviewHtml(it, (it.isVideo ? 'Video ' : 'Image ') + (i + 1))}
+                    <div class="tk-photo-badge">${i + 1}${it.isVideo ? ' · Video' : ''}</div>
+                    <div class="tk-photo-actions">
+                        <button type="button" class="tk-photo-btn" data-ig-car-idx="${i}" data-action="move-earlier" ${(i === 0 || igState.submitting) ? 'disabled' : ''} title="Move earlier" aria-label="Move item ${i + 1} earlier">&larr;</button>
+                        <button type="button" class="tk-photo-btn" data-ig-car-idx="${i}" data-action="move-later" ${(i === items.length - 1 || igState.submitting) ? 'disabled' : ''} title="Move later" aria-label="Move item ${i + 1} later">&rarr;</button>
+                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" data-ig-car-idx="${i}" data-action="remove" ${off} title="Remove" aria-label="Remove item ${i + 1}">&times;</button>
+                    </div>
+                </div>`).join('')}
+            </div>` : '';
+        const drop = items.length < IG_CAROUSEL_MAX ? `
+            <div class="tk-drop" id="igCarDrop">
+                <input type="file" id="igCarFile" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/*" multiple ${off}>
+                <div class="tk-drop-title">${items.length ? 'Drop more images or videos, or ' + verb + ' to add' : 'Drop images or videos here, or ' + verb + ' to browse'}</div>
+                <div class="tk-drop-sub">JPEG, PNG, WEBP, MP4 or MOV · ${IG_CAROUSEL_MIN} to ${IG_CAROUSEL_MAX} items · images up to ${_igDeps.formatBytes(IG_CAROUSEL_IMAGE_MAX_BYTES)}</div>
+            </div>` : '';
+        const count = `<div class="tk-step-note" id="igCarCount">${items.length} of ${IG_CAROUSEL_MAX} items${items.length && items.length < IG_CAROUSEL_MIN ? ' · add at least ' + IG_CAROUSEL_MIN : ''}. Instagram crops every item to the shape of the first one.</div>`;
+        return grid + drop + count;
+    }
+    function _igHandleCarouselFiles(fileList) {
+        if (!fileList || !fileList.length || igState.submitting) return;
+        const room = IG_CAROUSEL_MAX - igState.items.length;
+        const incoming = Array.from(fileList);
+        let err = null;
+        let added = 0;
+        for (const file of incoming.slice(0, Math.max(room, 0))) {
+            const isVideo = /^video\//.test(file.type || '') || /\.(mp4|mov|m4v)$/i.test(file.name || '');
+            const isImage = /^image\/(jpeg|png|webp)$/.test(file.type || '') || /\.(jpe?g|png|webp)$/i.test(file.name || '');
+            if (!isVideo && !isImage) { err = `"${file.name}" is not a JPEG, PNG or WEBP image, or a video.`; continue; }
+            const limit = isVideo ? _igDeps.maxBytes : IG_CAROUSEL_IMAGE_MAX_BYTES;
+            if (file.size > limit) { err = `"${file.name}" is ${_igDeps.formatBytes(file.size)}. The limit is ${_igDeps.formatBytes(limit)}.`; continue; }
+            igState.items.push({ file, objectUrl: URL.createObjectURL(file), isVideo });
+            added++;
+        }
+        if (incoming.length > room) err = `Only ${room} more item${room === 1 ? '' : 's'} fit: a carousel holds ${IG_CAROUSEL_MAX}.`;
+        igState.error = err;
+        if (added) igState.notice = null;
+        _igRenderForm();
+    }
+    // A re-render drops keyboard focus; put it back on the button a keyboard user expects.
+    function _igFocusCarouselControl(idx, action) {
+        const el = document.querySelector(`[data-ig-car-idx="${idx}"][data-action="${action}"]`);
+        if (el && !el.disabled) { el.focus(); return true; }
+        return false;
+    }
+    function _igCarouselAction(i, action) {
+        const arr = igState.items;
+        if (igState.submitting || !arr[i]) return;
+        if (action === 'remove') {
+            try { URL.revokeObjectURL(arr[i].objectUrl); } catch (e) {}
+            arr.splice(i, 1);
+            _igRenderForm();
+            if (!_igFocusCarouselControl(Math.min(i, arr.length - 1), 'remove')) document.getElementById('igCarFile')?.focus();
+            return;
+        }
+        const j = i + (action === 'move-earlier' ? -1 : 1);
+        if (j < 0 || j >= arr.length) return;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        _igRenderForm();
+        _igFocusCarouselControl(j, action) || _igFocusCarouselControl(j, action === 'move-earlier' ? 'move-later' : 'move-earlier') || _igFocusCarouselControl(j, 'remove');
+    }
+    function _igClearCarousel() {
+        igState.items.forEach(it => { try { URL.revokeObjectURL(it.objectUrl); } catch (e) {} });
+        igState.items = [];
+    }
+    // Instagram's feed takes JPEG images, so a PNG or WEBP is redrawn as a JPEG (on white, for transparent parts).
+    async function _igToJpeg(file) {
+        if (/^image\/jpeg$/.test(file.type || '') || (!file.type && /\.jpe?g$/i.test(file.name || ''))) return file;
+        const url = URL.createObjectURL(file);
+        try {
+            const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+            const cv = document.createElement('canvas');
+            cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+            const cx = cv.getContext('2d');
+            cx.fillStyle = 'white'; cx.fillRect(0, 0, cv.width, cv.height);
+            cx.drawImage(img, 0, 0);
+            return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('convert failed')), 'image/jpeg', 0.92));
+        } finally { URL.revokeObjectURL(url); }
+    }
+    function _igSetKind(kind) {
+        if (igState.submitting || (kind !== 'reel' && kind !== 'carousel') || kind === igState.kind) return;
+        igState.kind = kind;
+        // A trial is a Reel thing; a carousel never carries one.
+        if (kind === 'carousel') igState.trial = false;
+        // Each kind keeps its own retry-safe key: a post whose outcome is unknown must reuse its key when the
+        // SMM comes back to it, or a second press could post it twice.
+        igState.error = null; igState.notice = null;
+        _igRenderForm();
     }
 
     // The schedule is held as date + 12-hour time, like TikTok's; this composes "YYYY-MM-DDTHH:MM".
@@ -424,8 +551,13 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
         if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
-        if (!igState.file) return 'Attach a video.';
-        if (igState.file.size > _igDeps.maxBytes) return 'That video is over the ' + _igDeps.formatBytes(_igDeps.maxBytes) + ' limit.';
+        if (igState.kind === 'carousel') {
+            if (igState.items.length < IG_CAROUSEL_MIN) return 'A carousel needs at least ' + IG_CAROUSEL_MIN + ' images or videos.';
+            if (igState.items.length > IG_CAROUSEL_MAX) return 'A carousel holds at most ' + IG_CAROUSEL_MAX + ' items.';
+        } else {
+            if (!igState.file) return 'Attach a video.';
+            if (igState.file.size > _igDeps.maxBytes) return 'That video is over the ' + _igDeps.formatBytes(_igDeps.maxBytes) + ' limit.';
+        }
         if (!igState.title.trim()) return 'Add a caption.';
         if (igState.title.length > IG_MAX_CAPTION) return 'Caption is over the ' + IG_MAX_CAPTION + '-character limit.';
         if (!igState.schedule.postNow) {
@@ -446,7 +578,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const accountOk = IG_ACCOUNT_RE.test(account);
         const names = _igClientNames();
         const over = igState.title.length > IG_MAX_CAPTION;
-        const can = !!(igState.client && accountOk && igState.file && igState.title.trim() && !over && !igState.submitting);
+        const isCarousel = igState.kind === 'carousel';
+        const hasMedia = isCarousel ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : !!igState.file;
+        const can = !!(igState.client && accountOk && hasMedia && igState.title.trim() && !over && !igState.submitting);
         let accountLine = '';
         if (igState.client) {
             accountLine = accountOk
@@ -478,17 +612,21 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 ${accountLine}
             </div>
             <div class="tk-card">
-                <h3>Video</h3>
-                ${media}
+                <h3>${isCarousel ? 'Carousel' : 'Video'}</h3>
+                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Instagram post type" style="margin-bottom:12px">
+                    <label class="tk-radio${isCarousel ? '' : ' active'}"><input type="radio" name="igKind" value="reel" ${isCarousel ? '' : 'checked'} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Reel</label>
+                    <label class="tk-radio${isCarousel ? ' active' : ''}"><input type="radio" name="igKind" value="carousel" ${isCarousel ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Carousel</label>
+                </div>
+                ${isCarousel ? _igCarouselCardHtml() : media}
             </div>
-            ${_igCoverCardHtml()}
+            ${isCarousel ? '' : _igCoverCardHtml()}
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
                 ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name) : ''}
 
             </div>
-            <div class="tk-card">
+            ${isCarousel ? '' : `<div class="tk-card">
                 <div class="tk-sched-head"><h3>Trial reel</h3>
                     <label class="tk-toggle">
                         <input type="checkbox" id="igTrial" ${igState.trial ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
@@ -497,7 +635,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     </label>
                 </div>
                 ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
-            </div>
+            </div>`}
             <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
@@ -561,6 +699,15 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             coverDrop.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) _igSetCoverImage(f, f.name, 'upload'); });
         }
         $('igRemoveFile')?.addEventListener('click', _igClearFile);
+        document.querySelectorAll('input[name="igKind"]').forEach(r => r.addEventListener('change', (e) => _igSetKind(e.target.value)));
+        $('igCarFile')?.addEventListener('change', (e) => { _igHandleCarouselFiles(e.target.files); e.target.value = ''; });
+        const carDrop = $('igCarDrop');
+        if (carDrop) {
+            ['dragenter', 'dragover'].forEach(ev => carDrop.addEventListener(ev, (e) => { e.preventDefault(); carDrop.classList.add('tk-drag'); }));
+            ['dragleave', 'drop'].forEach(ev => carDrop.addEventListener(ev, (e) => { e.preventDefault(); carDrop.classList.remove('tk-drag'); }));
+            carDrop.addEventListener('drop', (e) => _igHandleCarouselFiles(e.dataTransfer && e.dataTransfer.files));
+        }
+        document.querySelectorAll('[data-ig-car-idx]').forEach(b => b.addEventListener('click', () => _igCarouselAction(Number(b.getAttribute('data-ig-car-idx')), b.getAttribute('data-action'))));
         $('igCapFillUndo')?.addEventListener('click', () => { _igDropCaptionFill(); _igRenderForm(); $('igTitle')?.focus(); });
         $('igSubmit')?.addEventListener('click', _igSubmit);
         $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
@@ -575,7 +722,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igValidateSoft() {
         if (igState.submitting) return 'busy';
         if (!igState.client || !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'account';
-        if (!igState.file || !igState.title.trim() || igState.title.length > IG_MAX_CAPTION) return 'fields';
+        const hasMedia = igState.kind === 'carousel' ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : !!igState.file;
+        if (!hasMedia || !igState.title.trim() || igState.title.length > IG_MAX_CAPTION) return 'fields';
         return '';
     }
 
@@ -614,6 +762,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     async function _igSubmit() {
         const err = _igValidate();
         if (err) { igState.error = err; _igRenderForm(); return; }
+        if (igState.kind === 'carousel') return _igSubmitCarousel();
         const account = _igResolveAccount(igState.client);
         const wall = igState.schedule.postNow ? '' : _igAt();
         const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
@@ -711,6 +860,89 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         }
     }
 
+    /* A carousel, the same three steps as a Reel: each item gets a one-time storage URL and is PUT there in
+       carousel order, then one create call sends the list. The client, caption and schedule are read once,
+       before the uploads, so an edit made while they run cannot send these items somewhere else. The
+       retry-safe key works the same way as for a Reel: an unknown outcome keeps it, so a second press
+       cannot post twice. */
+    async function _igSubmitCarousel() {
+        const client = igState.client;
+        const account = _igResolveAccount(client);
+        const title = igState.title.trim();
+        const tz = igState.schedule.tz;
+        const wall = igState.schedule.postNow ? '' : _igAt();
+        const utc = wall ? (_igDeps.wallClockToUTC(wall, tz) || '') : '';
+        if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
+        const items = igState.items.slice();
+        const fp = ['carousel', client, items.map(it => [it.file.name, it.file.size, it.file.lastModified].join(':')).join(','), title, utc].join('|');
+        if (!igState.carouselAttempt || igState.carouselAttempt.fp !== fp) {
+            igState.carouselAttempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
+        }
+        const idempotencyKey = igState.carouselAttempt.key;
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        _igAbort = ctrl;
+        igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0; igState.phase = 'uploading';
+        _igRenderForm();
+        try {
+            const mediaUrls = [];
+            for (let i = 0; i < items.length; i++) {
+                const it = items[i];
+                let body = it.file;
+                if (!it.isVideo) {
+                    try { body = await _igToJpeg(it.file); } catch (e) { throw new Error('Item ' + (i + 1) + ' (' + it.file.name + ') could not be read as an image.'); }
+                }
+                const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
+                if (!mint.ok || !mint.json || !mint.json.upload_url || !mint.json.media_url) {
+                    _igRecordFailure('instagram_mint', mint.status);
+                    throw new Error((mint.json && mint.json.error) || ('Could not prepare item ' + (i + 1) + '. Try again.'));
+                }
+                const type = it.isVideo ? (it.file.type || 'video/mp4') : 'image/jpeg';
+                const put = await fetch(mint.json.upload_url, { method: 'PUT', headers: { 'Content-Type': type }, body, signal: ctrl ? ctrl.signal : undefined });
+                if (!put.ok) { _igRecordFailure('instagram_storage_put', put.status); throw new Error('Item ' + (i + 1) + ' upload to storage failed (HTTP ' + put.status + '). Try again.'); }
+                mediaUrls.push(mint.json.media_url);
+                igState.progress = Math.round(((i + 1) / items.length) * 90);
+                const bar = document.getElementById('igProgress');
+                if (bar) bar.style.width = igState.progress + '%';
+            }
+            if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            igState.phase = 'creating';
+            _igRenderForm();
+            const created = await _igCall({
+                action: 'create', kind: 'carousel', clientName: client, socialAccountId: account, title,
+                mediaUrls, options: {}, scheduledAtUTC: utc, timezone: tz, idempotencyKey,
+            }, 'instagram_create');
+            if (!created.ok) {
+                const final = _igCreateAnswerIsFinal(created);
+                if (final) igState.carouselAttempt = null;
+                const reason = final ? '' : _igCreateRefusalReason(created);
+                if (reason) {
+                    const failedRow = created.json.row;
+                    if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                    throw Object.assign(new Error('Instagram did not take this post: ' + reason + ' Pressing the button again retries this same post; it cannot post twice.'), { igUnknown: false });
+                }
+                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
+            }
+            igState.carouselAttempt = null;
+            const row = created.json.row;
+            if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
+            igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
+            _igClearCarousel();
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null;
+            igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
+            igState.queueTab = 'upcoming';
+            _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
+        } catch (e) {
+            const inCreate = igState.phase === 'creating';
+            _igAbort = null;
+            igState.submitting = false; igState.progress = 0; igState.phase = '';
+            const cancelled = !!(e && (e.igCancelled || e.name === 'AbortError')) && !inCreate;
+            if (cancelled) { igState.carouselAttempt = null; igState.error = 'Upload cancelled.'; }
+            else if (inCreate && !(e && e.igUnknown === false)) igState.error = 'We could not confirm whether Instagram received this post. Press the button again: it will not post twice. You can also check the queue.';
+            else igState.error = e && e.message ? e.message : 'The upload failed. Try again.';
+            _igRenderForm();
+        }
+    }
+
     function _igEffective(r) { return r.status; }
     function _igWhen(r) {
         const iso = r.scheduled_for || r.posted_at || r.created_at || '';
@@ -753,7 +985,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.trial ? 'Trial reel' : 'Reel'}</span></div>
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.kind === 'carousel' ? 'Carousel (' + _igEsc(r.items || '') + ')' : r.trial ? 'Trial reel' : 'Reel'}</span></div>
                         ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
@@ -826,7 +1058,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
            bar and the top bar and the TikTok side said B while this form, empty,
            still said A, and a video attached then went to A's Instagram. */
         // A caption a Calendar card filled in, unedited, is not a post being written.
-        const igIdle = !igState.file && !igState.submitting
+        const igIdle = !igState.file && !igState.items.length && !igState.submitting
             && (!String(igState.title || '').trim() || (!!igState.titleFromCard && igState.title === igState.titleFromCard));
         if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
             const leaving = igState.client && igState.client !== shared;

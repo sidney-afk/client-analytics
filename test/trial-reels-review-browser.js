@@ -440,6 +440,23 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(asked.post_id === 'rs3' && asked.letter === 'B', "a second trial card with the same tiles: its tile's Approve answers that card, not the first (" + asked.post_id + ')');
     await t.ctx.close();
 
+    // ---------- two trial cards with the same versions: the dots answer the card on screen (Trialtest, 2026-10-28) ----------
+    // The bar under the player was kept when its markup matched, so after a switch to a card with identical versions its
+    // dots still held the first card: a press did nothing here and moved the first card instead.
+    t = await start('client', true, fresh(), { cards: ['rs1', 'rs3'] });
+    await inS(t.page, '#skList .chipp[data-id="rs3"]').click();
+    await waitFor(async () => /^Video A of 5/.test((await bar(t)).text) && await t.page.evaluate(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('#skList .chipp.cur[data-id="rs3"]')), 60);
+    await inS(t.page, '.trv [data-trv-go="B"]').click();
+    await sleep(500);
+    const onSecond = (await bar(t)).text;
+    await inS(t.page, '#skList .chipp[data-id="rs1"]').click();
+    await waitFor(async () => await t.page.evaluate(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('#skList .chipp.cur[data-id="rs1"]')), 60);
+    await sleep(500);
+    const onFirst = (await bar(t)).text;
+    ok(/^Video B of 5/.test(onSecond) && /^Video A of 5/.test(onFirst), 'a second trial card with the same versions: its dot B shows Video B there and leaves the first card on Video A (' + onSecond + ' | ' + onFirst + ')');
+    ok(!t.errors.length, 'two trial cards: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
     // ---------- Kasper's Review Session ----------
     t = await start('kasper', true, fresh());
     b = await bar(t);

@@ -35041,3 +35041,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The review-stage suites, `frameio-viewer-browser` and `frame-comments-in-notes-browser` pass.
 
 **Way back:** revert the pull request.
+
+## 560. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: after a switch to another trial card with the same versions, the version dots moved the first card (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest on the client link at 1440, from build 4 (#2361). Two trial cards with the same letters and answers drew identical "Video A of 3 · A B C" bars. After switching to the second card, a press on dot B did nothing there. Switching back showed the first card on Video B.
+- **Why:** `_rsTrialBar` (`src/index/195-review-stage.js.part`) kept the bar under the player when its markup matched, so the dots stayed bound to the first card. The arrows beside the player already keyed on the card's id, and the tiles in Kasper's second layout already did too.
+- **Fix:** the bar under the player keys on the card's id as well as its markup, so another card's identical bar is bound again.
+  - "Approve all" was already safe: its row is drawn through `_rsCalm`, which keys on the card.
+  - Approve itself reads the card on stage.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (76): on the client link, two trial cards with identical versions; switch to the second, press dot B. The second card shows Video B, and the first stays on Video A. Without the fix, the second card stayed on Video A and the first showed Video B.
+  - The trial and review-stage suites pass.
+
+**Way back:** revert the pull request.

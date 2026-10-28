@@ -2264,8 +2264,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!under) { if (uh) uh.remove(); return; }
         if (!uh) { uh = document.createElement('div'); uh.className = 'trv-under-host'; v.after(uh); }
         if (v) svTrialReviewSwipe(v, () => _rsCur(), () => R.mode);
-        if (uh.__trvHtml === under) return;
-        uh.__trvHtml = under;
+        // The dots hold this post: the same bar of another card (the same versions) is bound again, as the arrows are.
+        const ukey = m.id + '|' + under;
+        if (uh.__trvHtml === ukey) return;
+        uh.__trvHtml = ukey;
         uh.innerHTML = under;
         svTrialReviewBind(uh, m, R.mode, () => {});
     }

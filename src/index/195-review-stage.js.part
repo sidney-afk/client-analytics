@@ -2455,7 +2455,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // The client said "Not this one" on the version on screen (owner, 2026-10-28): said, and the team takes it out.
         if (x.key === 'video' && svTrialReviewPassed(_rsCur(), R.mode)) return R.mode === 'client'
             ? '<span class="dst">Not this one: the team will take Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' out</span>'
-            : '<span class="dst">Client passed on Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ': drop it from the card</span>';
+            : '<span class="dst">Client dropped Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ': take it off the card</span>';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's

@@ -100,10 +100,20 @@ const DID = 'del_vid_1';
       W.writes.push({ action: 'heal', letter: c.letter });
       W.ledger.push(...L.ledgerRows(client, PID, [c], principal, now, 'version_link_set'));
     };
+    // Posted starts the trial (index.ts startIfPosted): on any request that reads the card.
+    const autoStart = () => {
+      const r = L.autoTrialPatches(W.versions, { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now() });
+      if (!r.patches.length) return;
+      const at = stamp();
+      for (const c of r.patches) Object.assign(W.versions.find(v => v.id === c.id), c.patch, { updated_at: at });
+      W.writes.push({ action: 'auto_trial_start', letters: r.patches.map(c => c.letter).join('') });
+      W.ledger.push(...L.ledgerRows(client, PID, r.patches, principal, at, 'trial_start'));
+    };
     if (action === 'list') {
       const cards = {};
       if (W.sw && W.sw.enabled) {
         if (!isClient) heal();
+        autoStart();
         cards[PID] = Object.assign({ enabled: true, winner_letter: W.sw.winner_letter || null }, shape());
       }
       return { status: 200, body: { ok: true, cards } };
@@ -119,6 +129,7 @@ const DID = 'del_vid_1';
     }
     if (!W.sw || W.sw.enabled !== true) return refuse(409, 'trial_reels_off');
     if (!isClient) heal();
+    autoStart();
     if (action === 'read') {
       const out = Object.assign({ ok: true, enabled: true, winner_letter: W.sw.winner_letter || null }, shape());
       if (!isClient) {
@@ -146,9 +157,8 @@ const DID = 'del_vid_1';
       const v = W.versions.find(x => x.letter === letter);
       if (r.patch) changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
     } else if (action === 'trial_start') {
-      r = L.trialPatches(W.versions, W.nowMs || Date.now());
-      if (r.error) return refuse(400, r.error);
-      changes = r.patches;
+      // It starts by itself on a Posted card (autoStart above); asked for before, it is refused.
+      if (L.clean(card.video_status, 40) !== 'Posted') return refuse(409, 'trial_starts_when_posted');
     } else if (action === 'winner_set') {
       r = L.winnerPatches(W.versions, letter, mainLink(), { nowMs: Date.now(), cardStatus: card.video_status });
       if (r.error) return refuse(r.error === 'attach_first' ? 409 : 400, r.error);
@@ -413,7 +423,7 @@ const DID = 'del_vid_1';
     page = await openCal();
     await openList(page);
     let rows = await listRows(page);
-    ok(rows.length === 5 && rows.every((r, i) => r.href === LINK(LETTERS[i])) && rows.every(r => !r.lab), '2 the card shows the links pasted in Production; no label while every version waits (no visual noise)');
+    ok(rows.length === 5 && rows.every((r, i) => r.href === LINK(LETTERS[i])) && rows.every(r => r.lab === 'waiting'), '2 the card shows the links pasted in Production; each row says "waiting" (owner, 2026-10-28: every row says its state)');
     oneLink('2 all links in');
     await page.close();
 
@@ -505,10 +515,15 @@ const DID = 'del_vid_1';
     txt = await rowText(page);
     ok(/5\/5 approved/.test(txt), `7 the card reads "5/5 approved" (${txt})`);
     await openList(page);
+    ok(!(await page.$('.trl-list .trl-start')) && !/Start the 24 h/.test(await page.evaluate(() => document.querySelector('.trl-list').innerText)), '7 no "Start the 24 h" link (owner, 2026-10-28)');
+    await page.close();
+    // Posted starts the trial (owner, 2026-10-28): the SMM posts the reels and sets the card Posted, as today.
     l0 = W.ledger.length;
-    await page.click('.trl-list .trl-start');
-    await sleep(1200);
-    ok(W.versions.every(v => v.status === 'on trial' && v.posted_at && v.trial_ends_at && Date.parse(v.trial_ends_at) - Date.parse(v.posted_at) === 24 * 3600000), '7 "Start the 24 h": every approved version on trial, ends 24 h after');
+    const postedAt = new Date(Date.now() - 60000).toISOString();
+    S.setCardField(PID, { video_status: 'Posted', status: 'Posted', video_status_at: postedAt }, 'posted');
+    page = await openCal();
+    await sleep(600);
+    ok(W.versions.every(v => v.status === 'on trial' && v.posted_at === postedAt && Date.parse(v.trial_ends_at) - Date.parse(v.posted_at) === 24 * 3600000), '7 the card is Posted: every approved version is on trial by itself, 24 h from the card\'s Posted time');
     ok(ledgerSince(l0) === LETTERS.map(l => 'trial_trial_start(' + l + ')').join(' '), `7 ledger: ${ledgerSince(l0)}`);
     await page.close();
     page = await openCal();
@@ -530,7 +545,7 @@ const DID = 'del_vid_1';
     await trophy.click();
     await sleep(300);
     rows = await listRows(page);
-    ok(rows.filter(r => r.pick).length === 5 && rows.every(r => !r.lab), '7 the trophy opens the list: a trophy on every version, no "on trial" labels');
+    ok(rows.filter(r => r.pick).length === 5 && rows.every(r => r.lab === 'on trial'), '7 the trophy opens the list: a trophy on every version, each saying "on trial"');
     await shot(page, 'journey-due-open');
     l0 = W.ledger.length;
     let a0 = W.attaches.length;
@@ -589,19 +604,19 @@ const DID = 'del_vid_1';
       '8 a client read answers only the winner, with no hook and the card\'s one link');
     noWritesSince(w8, '8 the client opening the page');
 
-    // ============ 9. the card posts (today's path) ============
+    // ============ 9. the card stays Posted ============
     const w9 = W.writes.length;
-    S.setCardField(PID, { video_status: 'Posted', status: 'Posted', posted_at: new Date().toISOString() }, 'posted');
+    S.setCardField(PID, { video_status: 'Posted', status: 'Posted' }, 'posted');
     page = await openCal();
     txt = await rowText(page);
     ok(/^Video E\b/.test(txt), `9 posted: the card still says "Video E" (${txt})`);
     await page.close();
     oneLink('9 posted');
-    noWritesSince(w9, '9 posting is today\'s path; the trial wrote nothing');
-    // Once posted, the winner stands: neither Undo nor another pick moves the card's link.
-    const late = [trialReels({ action: 'winner_undo', client: RS.SLUG, post_id: PID }, { 'x-syncview-key': 'qa-key' }),
-      trialReels({ action: 'winner_set', client: RS.SLUG, post_id: PID, letter: 'A' }, { 'x-syncview-key': 'qa-key' })];
-    ok(late.every(r => r.status >= 400) && V('E').status === 'winner' && W.writes.length === w9, `9 posted: Undo and another pick are refused (${late.map(r => r.status + ' ' + r.body.error).join(', ')})`);
+    noWritesSince(w9, '9 the trial wrote nothing more once its winner is picked');
+    // The trial runs on the Posted card, so Undo is not refused for that (owner, 2026-10-28); it still needs the card's
+    // link back on Video A first.
+    const late = trialReels({ action: 'winner_undo', client: RS.SLUG, post_id: PID }, { 'x-syncview-key': 'qa-key' });
+    ok(late.status === 409 && late.body.error === 'attach_first' && V('E').status === 'winner' && W.writes.length === w9, `9 posted: Undo asks for the card's link first, never "card_posted" (${late.status} ${late.body.error})`);
 
     // ============ 10. switch the card off; a client the page switch does not list ============
     page = await openCal();
@@ -668,21 +683,21 @@ const DID = 'del_vid_1';
       await openList(page);
       const rows = await listRows(page);
       txt = await rowText(page);
-      ok(/approved/.test(rows[0].t) && /Client passed/.test(rows[1].t) && /change asked/.test(rows[2].t), `11 the SMM's card (${label}): A approved, B Client passed, C change asked (${rows.slice(0, 3).map(r => r.t).join(' | ')})`);
+      ok(/approved/.test(rows[0].t) && /Client dropped/.test(rows[1].t) && /change asked/.test(rows[2].t), `11 the SMM's card (${label}): A approved, B Client dropped, C change asked (${rows.slice(0, 3).map(r => r.t).join(' | ')})`);
       ok(/1\/2/.test(txt), `11 the SMM's card (${label}): the passed version is not waiting: "${txt}"`);
       await shot(page, 'journey-11-card-' + label);
       await page.close();
     }
     page = await openProd();
     const pr11 = (await prodRows(page)).filter(x => x.trial);
-    ok(/approved/.test(pr11[0].value) && /Client passed/.test(pr11[1].value) && /change asked/.test(pr11[2].value), `11 Production: A approved, B Client passed, C change asked (${pr11.slice(0, 3).map(r => r.value).join(' | ')})`);
+    ok(/approved/.test(pr11[0].value) && /Client dropped/.test(pr11[1].value) && /change asked/.test(pr11[2].value), `11 Production: A approved, B Client dropped, C change asked (${pr11.slice(0, 3).map(r => r.value).join(' | ')})`);
     await page.close();
-    // Kasper: his second layout (B's tile says Client passed, with Drop) and his standard layout (the same three dots).
+    // Kasper: his second layout (B's tile says Client dropped, with Drop) and his standard layout (the same three dots).
     S.setCardField(PID, { video_status: 'Kasper Approval', status: 'Kasper Approval' }, 'editor');
     t = await openReview('kasper', 'Kasper Approval', false, { layout2: true });
     await until(() => t.page.evaluate(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('#l2trv .trk-v')), 60);
     const tiles11 = await t.page.evaluate(() => [...document.getElementById('svReviewStage').shadowRoot.querySelectorAll('#l2trv .trk-v')].map(v => (v.innerText || '').replace(/\s+/g, ' ').trim() + (v.querySelector('[data-trk-drop]') ? ' [drop]' : '')));
-    ok(tiles11.length === 3 && /Client passed/.test(tiles11[1]) && /\[drop\]/.test(tiles11[1]), `11 Kasper, second layout: B's tile says Client passed, with Drop (${tiles11.join(' | ')})`);
+    ok(tiles11.length === 3 && /Client dropped/.test(tiles11[1]) && /\[drop\]/.test(tiles11[1]), `11 Kasper, second layout: B's tile says Client dropped, with Drop (${tiles11.join(' | ')})`);
     await t.ctx.close();
     t = await openReview('kasper', 'Kasper Approval', false, { width: 1280, height: 860 });
     b = await bar(t);

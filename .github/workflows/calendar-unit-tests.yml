@@ -449,7 +449,7 @@ jobs:
           Calendar status filter (Show only / Hide) on desktop and phone|node docs/syncview-design/tests/calendar-card-status-filter-browser.js
           Instagram Calendar cover stays with the client it was picked for|node test/instagram-cover-client-switch-browser.js
           The client link shows staff notes as the team and never receives a staff name (mocked)|node docs/syncview-design/tests/note-author-client-browser.js
-          Trial reels: every action on every surface (card 1440 and 390, Production, SMM, Kasper, client, Notes, two tabs, slow and refused answers); known findings marked (OPEN_REPAIRS 567)|node test/trial-reels-action-matrix-browser.js
+          Trial reels: every action on every surface (card 1440 and 390, Production, SMM, Kasper, client, Notes, two tabs, slow and refused answers); findings marked KNOWN when open (OPEN_REPAIRS 576)|node test/trial-reels-action-matrix-browser.js
           LANES
       - name: Entry link and client browser checks, three side by side (part 3 of 3)
         if: ${{ matrix.part == 3 }}
@@ -493,6 +493,7 @@ jobs:
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
           Trial reels round 2 on the review page: the client's Not this one, Kasper's tiles drawn with the card and a video mark for no picture, the player's shape|node test/trial-reels-round2-review-browser.js
+          Trial reels round 3 on the card: a client's change shows at once (the broadcast), every row says its state, Client dropped, small tags, + Add version, one list after the pencil and Escape|node test/trial-reels-round3-card-browser.js
           LANES
 
 

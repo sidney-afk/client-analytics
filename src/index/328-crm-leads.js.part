@@ -42,7 +42,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const CRM_LEAD_TYPES = [['dream100', 'Dream 100'], ['ad_lead', 'Ad lead'], ['past_call', 'Past call'], ['email', 'Email list'], ['referral', 'Referral']];
     const CRM_LOST_REASONS = [['price', 'Price'], ['trust', 'Trust'], ['timing', 'Timing'], ['budget', 'Budget'], ['no_show', 'No-show']];
     const CRM_TYPE_HINTS = { dream100: 'Someone we picked to reach out to', ad_lead: 'Filled in the form on an ad', past_call: 'Had a call with Kasper before', email: 'On our email list', referral: 'Came to us by word of mouth' };
-    const CRM_TABS = [['today', 'Today'], ['pipeline', 'Pipeline'], ['report', 'Report']];
+    const CRM_TABS = [['today', 'Today'], ['pipeline', 'Leads'], ['report', 'Report']];
+    const CRM_PAGE_NAMES = { today: 'Today', pipeline: 'Leads', report: 'Report', sequences: 'Automations', seq: 'Automations' };
     const CRM_CHANNELS = { sms: 'Text', email: 'Email', 'email+sms': 'Email and text', 'sms+email': 'Text and email', telegram: 'Telegram', meta_event: 'Meta event', none: 'None' };
     const CRM_AUDIENCES = { all: '', lost_price: 'If lost on price', lost_trust: 'If lost on trust', lost_other: 'Any other reason' };
     const CRM_HOLD_REASONS = {
@@ -62,7 +63,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const CRM_ICON_SEARCH = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
     const CRM_ICON_X = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
     const _crmState = {
-        tab: 'today', seqKey: '', loading: false, loaded: false, error: '', people: [], sources: [], truncated: false,
+        tab: 'home', seqKey: '', col: { stage: '', src: '', niche: '', due: '' }, sort: '', colMenu: '', tempFold: {}, loading: false, loaded: false, error: '', people: [], sources: [], truncated: false,
         filters: { lead_type: '', niche: '', owner: '', source_id: '', due_this_week: false },
         openId: '', person: null, events: [], source: null, personLoading: false, personError: '', saving: false,
         dragId: '', drafts: {}, gen: 0, editing: false,
@@ -160,10 +161,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         } finally {
             _crmState.loading = false;
             _crmPaintRefresh();
-            if (gen === _crmState.gen) {
-                _crmPaintBoard();
-                _crmPaintFilters();   // the niche, owner and batch choices come from the list just loaded
-            }
+            if (gen === _crmState.gen) { _crmPaintBoard(); _crmPaintHome(); _crmPaintResults(); }
         }
     }
     async function _crmOpenPerson(id, opts) {
@@ -236,18 +234,14 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         }
         el.innerHTML = '<div class="crm-page crm-app">'
             + '<nav class="crm-side" id="crmSide" aria-label="Leads"></nav>'
-            + '<div class="crm-main">'
-            + '<div class="crm-head-actions">'
-            + '<div class="crm-view" id="crmView"><button type="button" class="crm-view-btn" id="crmViewBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="crmViewMenu" aria-label="View options" onclick="_crmToggleView()">' + CRM_ICON_VIEW + '<span>View</span></button>'
-            + '<div class="crm-view-menu" id="crmViewMenu" role="dialog" aria-label="View options" hidden><div class="crm-filters" id="crmFilters"></div></div></div>'
-            + '</div><div id="crmBody"></div></div></div>'
+            + '<div class="crm-main"><div class="crm-top" id="crmTop"></div><div id="crmBody"></div></div></div>'
             + '<div class="crm-panel-scrim" id="crmScrim" hidden onclick="_crmClosePanel()"></div>'
             + '<aside class="crm-panel" id="crmPanel" role="dialog" aria-modal="false" aria-labelledby="crmPanelTitle" hidden></aside>';
-        _crmPaintFilters();
         _crmPaintSide();
+        _crmPaintTop();
         _crmPaintBody();
         if (!_crmState.loaded) _crmLoad(false); else _crmLoad(true);
-        if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences') _crmLoadSequences(!!_crmState.seqs);   // the side menu lists the sequences
+        if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences') _crmLoadSequences(!!_crmState.seqs);   // home and the side menu list the automations
     }
     function _crmSignIn() { _syncviewOfferStaffSignIn('leads'); }
     /* Our drafted sequences, split by whether they can send yet. */
@@ -266,12 +260,21 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const CRM_SUB_ORDER = ['Doctors', 'Educators', 'Other calls', 'Booked', 'Before the call', ''];
     /* Rows of one group; rows that share a sub-group (Doctors, Booked...)
        go in their own folder, built by wrap(name, rows html, count). */
-    function _crmWithSubs(items, row, wrap) {
+    function _crmRuns(items) {
         const runs = [];
         items.forEach(x => { const r = runs[runs.length - 1]; if (r && r.sub === x.sub) r.items.push(x); else runs.push({ sub: x.sub, items: [x] }); });
-        return runs.map(r => r.sub ? wrap(r.sub, r.items.map(row).join(''), r.items.length) : r.items.map(row).join('')).join('');
+        return runs;
     }
-    function _crmSubFolded(key) { return !!(_crmState.treeFold || {})[key]; }
+    function _crmWithSubs(items, row, wrap) {
+        return _crmRuns(items).map(r => r.sub ? wrap(r.sub, r.items.map(row).join(''), r.items.length) : r.items.map(row).join('')).join('');
+    }
+    /* Automation folders start closed; the one holding the open automation opens. */
+    function _crmSubFolded(key) {
+        const o = _crmState.treeOpen || {};
+        if (key in o) return !o[key];
+        const k = _crmState.tab === 'seq' ? _crmState.seqKey : '';
+        return !(k && _crmSeqGroups().some(g => g.items.some(x => x.key === k && (key === g.title || key === g.title + ' / ' + x.sub))));
+    }
     /* The sequences as groups: n8n ones by when they start, then ours,
        split by whether they can send yet. */
     function _crmSeqGroups() {
@@ -292,16 +295,18 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const el = document.getElementById('crmSide');
         if (!el) return;
         const t = _crmState.tab, k = _crmState.seqKey;
-        const open = _crmState.seqMenuOpen !== false;
+        const open = true;
         const inSeq = t === 'seq' || t === 'sequences';
+        const app = el.closest('.crm-app'); if (app) app.classList.toggle('has-side', inSeq);
+        el.hidden = !inSeq;
+        if (!inSeq) { el.innerHTML = ''; return; }
         let tree = '';
         if (open) {
             if (!_crmState.seqs) tree = _crmState.seqError ? '' : '<div class="crm-side-skel" aria-hidden="true">' + [1, 2, 3, 4].map(() => '<span class="sv-skeleton"></span>').join('') + '</div>';
             else {
-                const fold = _crmState.treeFold || {};
-                tree = '<div class="crm-tree" id="crmSeqTree"><button type="button" class="crm-tree-line" aria-label="Fold Sequences" title="Fold" onclick="_crmToggleSeqMenu()"></button>'
+                tree = '<div class="crm-tree" id="crmSeqTree">'
                     + _crmSeqGroups().map(g => {
-                        const shut = !!fold[g.title];
+                        const shut = _crmSubFolded(g.title);
                         return '<div class="crm-tree-g' + (shut ? ' is-folded' : '') + '"><button type="button" class="crm-tree-head" aria-expanded="' + !shut + '" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(g.title) + '</span><span class="crm-tree-n">' + g.items.length + '</span></button>'
                             + (shut ? '' : '<div class="crm-tree-body"><button type="button" class="crm-tree-line" aria-label="' + _calEscAttr('Fold ' + g.title) + '" title="Fold" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')"></button>'
                             + _crmWithSubs(g.items, x => _crmSideItem(x.key, x.name, t === 'seq' && k === x.key), (n, html, c) => {
@@ -312,18 +317,15 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                     }).join('') + '</div>';
             }
         }
-        el.innerHTML = '<h1 class="crm-side-title">Leads</h1>' + _crmSearchHtml()
-            + '<div class="crm-side-nav">' + CRM_TABS.map(x => _crmSideItem(x[0], x[1], t === x[0])).join('')
-            + '<div class="crm-side-section"><button type="button" class="crm-side-item crm-side-parent" data-crm-nav="sequences"' + (t === 'sequences' ? ' aria-current="page"' : '') + ' aria-expanded="' + open + '" aria-controls="crmSeqTree" onclick="_crmGo(\'sequences\')"><span class="crm-side-label">Sequences</span>'
-            + '<span class="crm-side-chev" role="presentation" onclick="event.stopPropagation();_crmToggleSeqMenu()">' + CRM_CHEVRON + '</span></button>' + tree + '</div></div>';
+        el.innerHTML = '<div class="crm-side-nav"><div class="crm-side-section"><button type="button" class="crm-side-item crm-side-parent" data-crm-nav="sequences"' + (t === 'sequences' ? ' aria-current="page"' : '') + ' onclick="_crmGo(\'sequences\')"><span class="crm-side-label">All automations</span></button>' + tree + '</div></div>';
         el.classList.toggle('in-seq', inSeq);
     }
     function _crmToggleSeqMenu() { _crmState.seqMenuOpen = _crmState.seqMenuOpen === false; _crmPaintSide(); }
     /* A sub-group of the Sequences menu folds from its title or its line. */
     function _crmFoldGroup(title) {
-        const f = _crmState.treeFold || (_crmState.treeFold = {}); f[title] = !f[title];
+        const f = _crmState.treeOpen || (_crmState.treeOpen = {}); f[title] = _crmSubFolded(title);
         const a = document.activeElement, inSeqs = !!(a && a.closest && a.closest('#crmSeqs')), cls = a && a.className, how = a && a.getAttribute && a.getAttribute('onclick');
-        _crmPaintSide(); if (_crmState.tab === 'sequences') _crmPaintSeqOverview();
+        _crmPaintSide();
         /* Keep keyboard focus on the folder button that was pressed. */
         if (how) { const box = document.getElementById(inSeqs ? 'crmSeqs' : 'crmSide'); const b = box && Array.from(box.querySelectorAll('button')).find(n => n.getAttribute('onclick') === how && n.className === cls); if (b) b.focus(); }
     }
@@ -332,14 +334,12 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const el = document.getElementById('crmSeqs');
         if (!el) return;
         if (!_crmState.seqs && _crmLoadingOr(el, true, _crmState.seqError, '_crmLoadSequences(false)', 'sequences')) return;
-        el.innerHTML = '<header class="crm-view-head"><h2 title="Every automatic email and text a lead can get, grouped by when it starts">Sequences</h2></header>'
-            + _crmSeqGroups().map(g => '<section class="crm-group"><h3 class="crm-group-title">' + _calEsc(g.title) + '</h3><ul class="crm-rows">'
-                + _crmWithSubs(g.items, x => '<li class="crm-row"><button type="button" class="crm-row-main crm-seq-line" onclick="_crmGo(' + _jsAttrArg(x.key) + ')"' + (x.desc ? ' title="' + _calEscAttr(x.desc) + '"' : '') + '><span class="crm-row-name">' + _calEsc(x.name) + '</span></button>'
-                + (x.count ? '<span class="crm-seq-count">' + x.count + (x.count === 1 ? ' message' : ' messages') + '</span>' : '') + _crmLiveDot(x.live, x.where) + '</li>', (n, html, c) => {
-                    const fk = g.title + ' / ' + n, sh = _crmSubFolded(fk);
-                    return '<li class="crm-seq-subg"><button type="button" class="crm-seq-sub" aria-expanded="' + !sh + '" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(n) + '</span><span class="crm-group-n">' + c + '</span></button>'
-                        + (sh ? '' : '<ul class="crm-rows">' + html + '</ul>') + '</li>';
-                }) + '</ul></section>').join('');
+        const tile = x => '<button type="button" class="crm-tile crm-seq-tile" data-crm-nav="' + _calEscAttr(x.key) + '" onclick="_crmGo(' + _jsAttrArg(x.key) + ')"' + (x.desc ? ' title="' + _calEscAttr(x.desc) + '"' : '') + '><span class="crm-tile-name">' + _calEsc(x.name) + '</span>'
+            + '<span class="crm-tile-foot">' + (x.count ? '<span class="crm-seq-count">' + x.count + (x.count === 1 ? ' message' : ' messages') + '</span>' : '') + _crmLiveDot(x.live, x.where) + '</span></button>';
+        el.innerHTML = '<header class="crm-view-head"><h2 title="Every automatic email and text a lead can get, grouped by when it starts">Automations</h2></header>'
+            + _crmSeqGroups().map(g => '<section class="crm-group crm-menu-group"><h3 class="crm-group-title">' + _calEsc(g.title) + '</h3>'
+                + _crmRuns(g.items).map(r => (r.sub ? '<h4 class="crm-seq-sub">' + _calEsc(r.sub) + '</h4>' : '') + '<div class="crm-tiles">' + r.items.map(tile).join('') + '</div>').join('')
+                + '</section>').join('');
     }
     /* Sending or not, as a dot and one word; where it runs is in the hover. */
     function _crmLiveDot(live, where) {
@@ -350,26 +350,54 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     function _crmGo(key) {
         key = String(key || '');
         if (/^(n8n|own):/.test(key)) { _crmState.tab = 'seq'; _crmState.seqKey = key; }
-        else if (key === 'sequences') { _crmState.tab = 'sequences'; _crmState.seqMenuOpen = true; }
-        else if (CRM_TABS.some(x => x[0] === key)) _crmState.tab = key;
+        else if (key === 'sequences') _crmState.tab = 'sequences';
+        else if (key === 'home' || CRM_TABS.some(x => x[0] === key)) _crmState.tab = key;
         else return;
+        _crmState.colMenu = '';
         _crmPaintSide();
+        _crmPaintTop();
         _crmPaintBody();
+        if (window.scrollY > 0 && window.innerWidth > 720) window.scrollTo({ top: 0, behavior: 'instant' });
         const main = document.querySelector('.crm-main'); if (main && main.scrollIntoView && window.innerWidth <= 720) main.scrollIntoView({ block: 'start' });
     }
     function _crmSetTab(tab) { _crmGo(tab); }
+    /* Every page but home: a way back home, where you are, and search. */
+    function _crmPaintTop() {
+        const el = document.getElementById('crmTop');
+        if (!el) return;
+        const t = _crmState.tab;
+        if (t === 'home') { el.innerHTML = ''; el.hidden = true; return; }
+        el.hidden = false;
+        el.innerHTML = '<nav class="crm-crumbs" aria-label="Where you are"><button type="button" class="crm-crumb" data-crm-nav="home" onclick="_crmGo(\'home\')">Leads home</button><span class="crm-crumb-sep" aria-hidden="true">/</span>'
+            + CRM_HOME_TILES.map(x => '<button type="button" class="crm-crumb' + ((x[0] === t || (x[0] === 'sequences' && t === 'seq')) ? ' is-here' : '') + '" data-crm-nav="' + x[0] + '"' + ((x[0] === t || (x[0] === 'sequences' && t === 'seq')) ? ' aria-current="page"' : '') + ' onclick="_crmGo(' + _jsAttrArg(x[0]) + ')">' + _calEsc(x[1]) + '</button>').join('')
+            + '</nav>' + _crmSearchHtml();
+    }
+    const CRM_HOME_TILES = [['today', 'Today', 'Calls to mark and follow-ups due'], ['pipeline', 'Leads', 'Everyone we might work with'], ['report', 'Report', 'Calls and wins by where they came from'], ['sequences', 'Automations', 'Every email and text that goes out by itself']];
+    function _crmHomeFact(key) {
+        if (key === 'today') { const t = _crmState.today; if (!t) return ''; const n = t.calls.length + t.due.length; return n ? n + (n === 1 ? ' thing to do' : ' things to do') : 'Nothing waiting'; }
+        if (key === 'pipeline') { if (!_crmState.loaded) return ''; const n = _crmState.people.length, o = _crmState.people.filter(_crmOverdue).length; return n + (n === 1 ? ' person' : ' people') + (o ? ' \u00b7 ' + o + ' overdue' : ''); }
+        if (key === 'sequences') { if (!_crmState.seqs) return ''; const n = _crmSeqGroups().reduce((a, g) => a + g.items.filter(x => x.live).length, 0); return n ? n + ' sending' : ''; }
+        return '';
+    }
+    function _crmPaintHome() {
+        const el = document.getElementById('crmHome');
+        if (!el) return;
+        const keep = document.activeElement && document.activeElement.id === 'crmSearch';
+        el.innerHTML = '<header class="crm-home-head"><h1>Leads</h1></header>' + _crmSearchHtml()
+            + '<div class="crm-tiles crm-home-tiles">' + CRM_HOME_TILES.map(x => { const f = _crmHomeFact(x[0]); return '<button type="button" class="crm-tile crm-home-tile" data-crm-nav="' + x[0] + '" onclick="_crmGo(' + _jsAttrArg(x[0]) + ')"><span class="crm-tile-name">' + _calEsc(x[1]) + '</span><span class="crm-tile-desc">' + _calEsc(x[2]) + '</span>' + (f ? '<span class="crm-tile-fact">' + _calEsc(f) + '</span>' : '') + '</button>'; }).join('') + '</div>';
+        if (keep) { const n = document.getElementById('crmSearch'); if (n) { n.focus({ preventScroll: true }); n.setSelectionRange(n.value.length, n.value.length); } }
+        _crmPaintResults();
+    }
     function _crmPaintBody() {
         const body = document.getElementById('crmBody');
         if (!body) return;
         _crmCloseStepEditor(true);
-        // The View button only filters the Pipeline, so it only shows there.
-        const view = document.getElementById('crmView');
-        if (view) { view.hidden = _crmState.tab !== 'pipeline'; if (view.hidden) _crmCloseView(); }
+        if (_crmState.tab === 'home') { body.innerHTML = '<div id="crmHome"></div>'; _crmPaintHome(); if (!_crmState.today) _crmLoadToday(false); return; }
         if (_crmState.tab === 'today') { body.innerHTML = '<div id="crmToday"></div>'; _crmPaintToday(); _crmLoadToday(!!_crmState.today); return; }
         if (_crmState.tab === 'seq') { body.innerHTML = '<div id="crmSeqs"></div>'; _crmPaintSequences(); _crmLoadSequences(!!_crmState.seqs); return; }
         if (_crmState.tab === 'report') { body.innerHTML = '<div id="crmReport"></div>'; _crmPaintReport(); _crmLoadReport(!!_crmState.report); return; }
         if (_crmState.tab === 'sequences') { body.innerHTML = '<div id="crmSeqs"></div>'; _crmPaintSeqOverview(); _crmLoadSequences(!!_crmState.seqs); return; }
-        body.innerHTML = '<header class="crm-view-head"><h2>Pipeline</h2><p class="crm-sub" id="crmSummary">Everyone we might work with, by where they are in the conversation.</p></header><div id="crmBoard" class="crm-board-wrap"></div>';
+        body.innerHTML = '<header class="crm-view-head"><h2>Leads</h2><p class="crm-sub" id="crmSummary">Everyone we might work with.</p></header><div id="crmBoard" class="crm-board-wrap"></div>';
         _crmPaintBoard();
     }
     function _crmPaintRefresh() {
@@ -476,6 +504,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const overdue = _crmOverdue(p);
         return '<div class="crm-lead' + (overdue ? ' is-overdue' : '') + '" role="listitem" draggable="true" tabindex="0" data-crm-card="' + _calEscAttr(p.id) + '" aria-label="' + _calEscAttr(_crmName(p) + ', ' + _crmLabel(CRM_STAGES, p.stage) + (overdue ? ', overdue' : '')) + '">'
             + '<span class="crm-lead-name">' + _calEsc(_crmName(p)) + '</span>'
+            + '<span class="crm-lead-stage" data-crm-stage-tone="' + _calEscAttr(p.stage) + '" title="' + _calEscAttr(CRM_STAGE_HINTS[p.stage] || '') + '">' + _calEsc(_crmLabel(CRM_STAGES, p.stage)) + '</span>'
             + _crmFromHtml(p)
             + '<span class="crm-lead-niche">' + _calEsc(p.niche || '') + '</span>'
             + (p.next_step ? '<span class="crm-lead-step" title="' + _calEscAttr(p.next_step) + '">' + _calEsc(p.next_step) + '</span>'
@@ -487,6 +516,68 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!_crmState.folded) { try { _crmState.folded = JSON.parse(localStorage.getItem('sv_crm_folded') || '[]'); } catch (e) { _crmState.folded = []; } if (!Array.isArray(_crmState.folded)) _crmState.folded = []; }
         return _crmState.folded;
     }
+    /* Cold: people we picked and never talked to. Warm: everyone who came to us or already met us. */
+    const CRM_TEMPS = [['cold', 'Cold leads', 'People we picked to reach out to, no contact from them yet'], ['warm', 'Warm leads', 'Ad leads, past calls, the email list and referrals']];
+    function _crmTemp(p) { return p.lead_type === 'dream100' ? 'cold' : 'warm'; }
+    function _crmToggleTemp(t) { _crmState.tempFold[t] = !_crmState.tempFold[t]; _crmPaintBoard(); const b = document.querySelector('[data-crm-temp="' + t + '"] .crm-stage-toggle'); if (b) b.focus({ preventScroll: true }); }
+    /* Column headers: Stage, Where they came from and Niche filter; Name and Due sort. */
+    const CRM_COLS = [['name', 'Name', 'sort'], ['stage', 'Stage', 'filter'], ['src', 'Where they came from', 'filter'], ['niche', 'Niche', 'filter'], ['step', 'Next step', ''], ['due', 'Due', 'filter']];
+    function _crmColValue(p, key) {
+        if (key === 'stage') return p.stage || '';
+        if (key === 'src') return p.source_id || ('type:' + (p.lead_type || ''));
+        if (key === 'niche') return p.niche || 'none:';
+        if (key === 'due') return _crmOverdue(p) ? 'overdue' : _crmSoon(p) ? 'soon' : p.next_step_due ? 'later' : 'none';
+        return '';
+    }
+    function _crmColLabel(key, v) {
+        if (key === 'stage') return _crmLabel(CRM_STAGES, v);
+        if (key === 'src') return v.startsWith('type:') ? _crmLabel(CRM_LEAD_TYPES, v.slice(5)) || 'Unknown' : (_crmSourceName(v) || 'Unknown');
+        if (key === 'due') return { overdue: 'Overdue', soon: 'Due in the next 2 days', later: 'Due later', none: 'No date' }[v] || v;
+        return (v && v !== 'none:') ? v : 'None';
+    }
+    function _crmColChoices(key) {
+        const seen = new Map();
+        _crmState.people.forEach(p => { const v = _crmColValue(p, key); seen.set(v, (seen.get(v) || 0) + 1); });
+        let vals = Array.from(seen.keys());
+        if (key === 'stage') vals.sort((a, b) => CRM_STAGES.findIndex(x => x[0] === a) - CRM_STAGES.findIndex(x => x[0] === b));
+        else if (key === 'due') vals.sort((a, b) => ['overdue', 'soon', 'later', 'none'].indexOf(a) - ['overdue', 'soon', 'later', 'none'].indexOf(b));
+        else vals.sort((a, b) => _crmColLabel(key, a).localeCompare(_crmColLabel(key, b)));
+        return vals.map(v => ({ v, n: seen.get(v) }));
+    }
+    function _crmColClick(key) {
+        const c = CRM_COLS.find(x => x[0] === key);
+        if (!c) return;
+        if (c[2] === 'sort') { _crmState.sort = _crmState.sort === key ? key + ':desc' : _crmState.sort === key + ':desc' ? '' : key; _crmPaintBoard(); _crmFocusCol(key); return; }
+        if (c[2] !== 'filter') return;
+        _crmState.colMenu = _crmState.colMenu === key ? '' : key;
+        _crmPaintBoard();
+        if (_crmState.colMenu) {
+            const menu = document.getElementById('crmColMenu');
+            const first = menu && menu.querySelector('button'); if (first) first.focus({ preventScroll: true });
+            svLayerOpen({ key: 'crm-col', region: '#crmColMenu', opener: document.querySelector('[data-crm-col="' + key + '"]'), isOpen: () => !!_crmState.colMenu, close: () => { _crmState.colMenu = ''; _crmPaintBoard(); } });
+        } else { svLayerRelease('crm-col', { focus: false }); _crmFocusCol(key); }
+    }
+    function _crmFocusCol(key) { const b = document.querySelector('[data-crm-col="' + key + '"]'); if (b) b.focus({ preventScroll: true }); }
+    function _crmColPick(key, v) {
+        _crmState.col[key] = v;
+        _crmState.colMenu = '';
+        svLayerRelease('crm-col', { focus: false });
+        _crmPaintBoard();
+        _crmFocusCol(key);
+    }
+    function _crmColHeadHtml() {
+        return '<div class="crm-cols" role="row">' + CRM_COLS.map(c => {
+            const on = c[2] === 'filter' ? !!_crmState.col[c[0]] : c[2] === 'sort' ? _crmState.sort.split(':')[0] === c[0] : false;
+            const label = c[2] === 'filter' && _crmState.col[c[0]] ? _crmColLabel(c[0], _crmState.col[c[0]]) : c[1];
+            const arrow = c[2] === 'sort' && on ? (_crmState.sort.endsWith(':desc') ? ' \u2193' : ' \u2191') : '';
+            const inner = c[2] ? '<button type="button" class="crm-col-btn' + (on ? ' is-on' : '') + '" data-crm-col="' + c[0] + '"' + (c[2] === 'filter' ? ' aria-haspopup="listbox" aria-expanded="' + (_crmState.colMenu === c[0]) + '"' : '') + ' title="' + _calEscAttr(c[2] === 'sort' ? 'Sort by ' + c[1].toLowerCase() : 'Filter by ' + c[1].toLowerCase()) + '" onclick="_crmColClick(' + _jsAttrArg(c[0]) + ')">' + _calEsc(label + arrow) + '</button>' : '<span class="crm-col-label">' + _calEsc(c[1]) + '</span>';
+            const menu = _crmState.colMenu === c[0] ? '<div class="crm-col-menu" id="crmColMenu" role="listbox" aria-label="' + _calEscAttr('Filter by ' + c[1].toLowerCase()) + '">'
+                + '<button type="button" class="crm-col-opt' + (!_crmState.col[c[0]] ? ' is-on' : '') + '" role="option" aria-selected="' + !_crmState.col[c[0]] + '" onclick="_crmColPick(' + _jsAttrArg(c[0]) + ',\'\')">Everyone</button>'
+                + _crmColChoices(c[0]).map(o => '<button type="button" class="crm-col-opt' + (_crmState.col[c[0]] === o.v ? ' is-on' : '') + '" role="option" aria-selected="' + (_crmState.col[c[0]] === o.v) + '" onclick="_crmColPick(' + _jsAttrArg(c[0]) + ',' + _jsAttrArg(o.v) + ')"><span>' + _calEsc(_crmColLabel(c[0], o.v)) + '</span><span class="crm-col-n">' + o.n + '</span></button>').join('') + '</div>' : '';
+            return '<span class="crm-col crm-col-' + c[0] + '" role="columnheader">' + inner + menu + '</span>';
+        }).join('') + '</div>';
+    }
+    function _crmClearCols() { Object.keys(_crmState.col).forEach(k => { _crmState.col[k] = ''; }); _crmPaintBoard(); }
     function _crmToggleStage(stage) {
         const f = _crmFolded();
         const i = f.indexOf(stage);
@@ -500,40 +591,38 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const summary = document.getElementById('crmSummary');
         _crmPaintRefresh();
         if (!board) return;
-        const q = _crmState.search.trim();
-        const people = q ? _crmState.people.filter(p => _crmSearchHit(p, q)) : _crmState.people;
+        const col = _crmState.col;
+        const people = _crmState.people.filter(p => Object.keys(col).every(k => !col[k] || _crmColValue(p, k) === col[k]));
         const overdue = people.filter(_crmOverdue).length;
+        const filtered = Object.keys(col).some(k => col[k]);
         if (summary && _crmState.loaded) {
-            summary.textContent = (q ? people.length + (people.length === 1 ? ' match' : ' matches') : people.length + (people.length === 1 ? ' person' : ' people')) + (overdue ? ', ' + overdue + ' overdue' : '') + (_crmState.truncated ? ' (showing the first ' + people.length + '; narrow the filters)' : '');
+            summary.innerHTML = _calEsc(people.length + (people.length === 1 ? ' person' : ' people') + (overdue ? ', ' + overdue + ' overdue' : '') + (_crmState.truncated ? ' (showing the first ' + people.length + ')' : ''))
+                + (filtered ? ' <button type="button" class="crm-link" onclick="_crmClearCols()">Show everyone</button>' : '');
         }
         if (_crmState.error && !_crmState.loaded) {
             board.innerHTML = '<div class="crm-empty"><p>' + _calEsc(_crmState.error) + '</p><button type="button" class="crm-btn" onclick="_crmLoad(false)">Try again</button></div>';
             return;
         }
         if (!_crmState.loaded) { board.innerHTML = _svLoadingSkeletonHtml('leads', { view: 'pipeline' }); return; }
-        const filtered = Object.keys(_crmState.filters).some(k => _crmState.filters[k]);
-        if (!people.length) {
-            board.innerHTML = '<div class="crm-empty"><p>' + (q ? 'Nobody matches \u201c' + _calEsc(q) + '\u201d.' : filtered ? 'Nobody matches these filters.' : 'No leads yet. Import a CSV with scripts/crm-import.js to fill the Pipeline.') + '</p></div>';
-            return;
-        }
+        if (!_crmState.people.length) { board.innerHTML = '<div class="crm-empty"><p>No leads yet. Import a CSV with scripts/crm-import.js to fill this list.</p></div>'; return; }
         const restore = (() => { const a = document.activeElement; const id = a && a.getAttribute && a.getAttribute('data-crm-card'); return id || ''; })();
-        /* Stages stack down the page under one row of column titles. Each
-           stage is a section you can fold, with a plain line saying what it
-           means. Empty stages stay as folded titles so a lead can be dropped
-           on them. */
-        const folded = _crmFolded();
-        board.innerHTML = '<div class="crm-sheet crm-board' + (_crmState.loading ? ' is-refreshing' : '') + '">'
-            + '<div class="crm-cols" aria-hidden="true"><span>Name</span><span title="The list, ad or call that brought them in">Where they came from</span><span title="What kind of business they run">Niche</span><span title="The next thing to do with this person. Set it with Edit on the person.">Next step</span><span class="crm-cols-due" title="When the next step should happen">Due</span></div>'
-            + CRM_STAGES.map(s => {
-                const rows = people.filter(p => p.stage === s[0]);
-                const empty = !rows.length;
-                const open = !empty && (!!q || !folded.includes(s[0]));
-                return '<section class="crm-stage' + (empty ? ' is-empty' : '') + (open ? '' : ' is-folded') + '" data-crm-stage="' + s[0] + '" aria-label="' + _calEscAttr(s[1] + ', ' + rows.length) + '">'
-                    + '<h2 class="crm-stage-head"><button type="button" class="crm-stage-toggle" aria-expanded="' + open + '"' + (empty ? ' disabled' : '') + ' onclick="_crmToggleStage(' + _jsAttrArg(s[0]) + ')">'
-                    + CRM_CHEVRON + '<span class="crm-stage-name" title="' + _calEscAttr(CRM_STAGE_HINTS[s[0]] || '') + '">' + _calEsc(s[1]) + '</span>' + (rows.length ? '<span class="crm-count">' + rows.length + '</span>' : '')
-                    + '<span class="crm-stage-hint">' + _calEsc(CRM_STAGE_HINTS[s[0]] || '') + '</span></button></h2>'
-                    + (open ? '<div class="crm-stage-body" role="list">' + rows.map(_crmLeadHtml).join('') + '</div>' : '') + '</section>';
-            }).join('')
+        const rank = st => CRM_STAGES.findIndex(x => x[0] === st);
+        const [sk, sd] = _crmState.sort.split(':');
+        const dir = sd === 'desc' ? -1 : 1;
+        const order = (a, b) => sk === 'name' ? dir * _crmName(a).localeCompare(_crmName(b))
+            : (rank(a.stage) - rank(b.stage)) || String(a.next_step_due || '9999').localeCompare(String(b.next_step_due || '9999')) || _crmName(a).localeCompare(_crmName(b));
+        /* One table, split into Cold and Warm sections you can fold. */
+        board.innerHTML = '<div class="crm-sheet crm-board' + (_crmState.loading ? ' is-refreshing' : '') + '" role="table" aria-label="Leads">'
+            + _crmColHeadHtml()
+            + (people.length ? CRM_TEMPS.map(t => {
+                const rows = people.filter(p => _crmTemp(p) === t[0]).sort(order);
+                if (!rows.length) return '';
+                const open = !_crmState.tempFold[t[0]];
+                return '<section class="crm-stage crm-temp' + (open ? '' : ' is-folded') + '" data-crm-temp="' + t[0] + '" aria-label="' + _calEscAttr(t[1] + ', ' + rows.length) + '">'
+                    + '<h2 class="crm-stage-head"><button type="button" class="crm-stage-toggle" aria-expanded="' + open + '" title="' + _calEscAttr(t[2]) + '" onclick="_crmToggleTemp(' + _jsAttrArg(t[0]) + ')">'
+                    + CRM_CHEVRON + '<span class="crm-stage-name">' + _calEsc(t[1]) + '</span><span class="crm-count">' + rows.length + '</span></button></h2>'
+                    + (open ? '<div class="crm-stage-body" role="rowgroup">' + rows.map(_crmLeadHtml).join('') + '</div>' : '') + '</section>';
+            }).join('') : '<div class="crm-empty"><p>Nobody matches these filters.</p></div>')
             + '</div>';
         if (_crmState.error) board.insertAdjacentHTML('afterbegin', '<p class="crm-stale" role="status">' + _calEsc(_crmState.error) + ' Showing the last list.</p>');
         if (restore) { const el = board.querySelector('[data-crm-card="' + CSS.escape(restore) + '"]'); if (el) el.focus({ preventScroll: true }); }
@@ -840,7 +929,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if (gen === _crmState.gen && !_crmState.today) _crmState.todayError = _crmErrorText(e);
         } finally {
             _crmState.todayLoading = false;
-            if (gen === _crmState.gen) _crmPaintToday();
+            if (gen === _crmState.gen) { _crmPaintToday(); _crmPaintHome(); }
         }
     }
     /* Only what needs someone, most urgent first: calls to mark, next steps
@@ -911,7 +1000,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if (gen === _crmState.gen && !_crmState.seqs) _crmState.seqError = _crmErrorText(e);
         } finally {
             _crmState.seqLoading = false;
-            if (gen === _crmState.gen) { if (_crmState.tab === 'sequences') _crmPaintSeqOverview(); else if (!_crmState.editStep) _crmPaintSequences(); _crmPaintSide(); _crmPaintPanel(); }
+            if (gen === _crmState.gen) { _crmPaintHome(); if (_crmState.tab === 'sequences') _crmPaintSeqOverview(); else if (!_crmState.editStep) _crmPaintSequences(); _crmPaintSide(); _crmPaintPanel(); }
         }
     }
     /* A step reads as one plain line ("Day 2, 09:00 their time · Email ·
@@ -1124,7 +1213,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const inIds = new Set(active.map(e => e.sequence_id));
         const options = (_crmState.seqs || []).filter(s => !inIds.has(s.id)).map(s => ({ value: s.id, label: s.name }));
         const add = options.length ? '<div class="crm-enrol-add">' + _svSelectHtml('crmPEnrolSeq', [{ value: '', label: 'Choose a sequence' }].concat(options), '', 'Choose a sequence') + '<button type="button" class="crm-btn crm-btn-soft" onclick="_crmEnrol()">Add</button></div>' : '';
-        return '<h3 class="crm-section-title">Sequences</h3>' + (rows ? '<ul class="crm-rows crm-enrols">' + rows + '</ul>' : '<p class="crm-muted crm-gap">Not in a sequence.</p>') + add;
+        return '<h3 class="crm-section-title">Automations</h3>' + (rows ? '<ul class="crm-rows crm-enrols">' + rows + '</ul>' : '<p class="crm-muted crm-gap">Not in an automation.</p>') + add;
     }
     async function _crmEnrol() {
         const p = _crmState.person;
@@ -1351,6 +1440,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '.crm-enrols{margin:0 -8px 8px}'
             + '.crm-enrol-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:18px}.crm-enrol-add>*:first-child{flex:1;min-width:180px}.crm-gap{margin-bottom:8px}'
             /* Phone. */
+            + '/* Round 5: home, full width, one table. */.crm-page{max-width:none;padding:4px 8px 48px}.crm-app:not(.has-side) .crm-side{display:none}.crm-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px;flex-wrap:wrap}.crm-top[hidden]{display:none}.crm-top .crm-search{width:min(360px,100%);margin:0}.crm-crumbs{display:flex;align-items:center;gap:2px;flex-wrap:wrap}.crm-crumb{min-height:34px;border:0;border-radius:8px;background:transparent;padding:6px 10px;font:inherit;font-size:0.78rem;font-weight:500;color:var(--text-secondary);cursor:pointer}.crm-crumb:hover{background:var(--surface-hover);color:var(--text-primary)}.crm-crumb.is-here{color:var(--text-primary);font-weight:700}.crm-crumb:focus-visible{outline:2px solid var(--focus-ring)}.crm-crumb-sep{color:var(--text-muted);padding:0 4px 0 0}.crm-home-head h1{margin:8px 0 16px;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em}#crmHome>.crm-search{max-width:640px;margin:0 0 28px}#crmHome>.crm-search .search-bar-pill{min-height:48px}.crm-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px;margin:0 0 18px}.crm-home-tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}.crm-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:92px;padding:16px 18px;border:1px solid var(--crm-hair);border-radius:14px;background:var(--surface-subtle);font:inherit;text-align:left;color:var(--text-primary);cursor:pointer;transition:background .12s,border-color .12s}.crm-tile:hover{background:var(--surface-hover);border-color:var(--border-medium,var(--crm-hair))}.crm-tile:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}.crm-home-tile{min-height:132px}.crm-tile-name{font-size:0.95rem;font-weight:700}.crm-home-tile .crm-tile-name{font-size:1.15rem}.crm-tile-desc{font-size:0.76rem;color:var(--text-secondary);line-height:1.4}.crm-tile-fact{margin-top:auto;font-size:0.74rem;font-weight:600;color:var(--text-primary)}.crm-tile-foot{display:flex;align-items:center;gap:12px;margin-top:auto}.crm-menu-group{margin:0 0 26px}.crm-menu-group .crm-group-title{padding:0;margin:0 0 10px;font-size:1rem}.crm-menu-group .crm-seq-sub{display:block;width:auto;padding:4px 0 8px;border:0;cursor:default}.crm-search{position:relative}.crm-results{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;max-height:min(70vh,560px);overflow:auto;padding:6px;border:1px solid var(--crm-hair);border-radius:14px;background:var(--white);box-shadow:var(--shadow-lg)}.crm-results[hidden]{display:none}.crm-result{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px 12px;border:0;border-radius:10px;background:transparent;font:inherit;text-align:left;color:var(--text-primary);cursor:pointer}.crm-result+.crm-result{margin-top:2px}.crm-result:hover,.crm-result:focus-visible{background:var(--surface-hover);outline:none}.crm-result-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.crm-result-name{font-size:0.86rem;font-weight:700}.crm-result-stage{font-size:0.7rem;font-weight:600;color:var(--text-secondary);white-space:nowrap}.crm-result-meta{display:flex;gap:12px;font-size:0.74rem;min-width:0}.crm-result-niche{color:var(--text-muted)}.crm-result-contact,.crm-result-step{font-size:0.72rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crm-results-none,.crm-results-more{margin:0;padding:10px 12px;font-size:0.76rem;color:var(--text-secondary)}.crm-results-skel{display:flex;flex-direction:column;gap:10px;padding:10px}.crm-results-skel .sv-skeleton{display:block;height:14px;border-radius:6px}.crm-cols{grid-template-columns:minmax(0,1.25fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.5fr) 150px;gap:0;padding:0 0 0 28px;align-items:stretch}.crm-lead{grid-template-columns:minmax(0,1.25fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.5fr) 150px;gap:0;border-radius:0;padding:0 0 0 28px;align-items:stretch}.crm-lead>*{padding:9px 12px;min-width:0;border-left:1px solid color-mix(in srgb,var(--text-primary) 6%,transparent)}.crm-lead>:first-child{border-left:0;padding-left:0}.crm-col{position:relative;display:flex;align-items:center;min-width:0;padding:0 4px;border-left:1px solid color-mix(in srgb,var(--text-primary) 6%,transparent)}.crm-col:first-child{border-left:0;padding-left:0}.crm-col-btn,.crm-col-label{display:block;width:100%;min-height:34px;border:0;border-radius:6px;background:transparent;padding:6px 8px;font:inherit;font-size:0.66rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.crm-col-label{cursor:default}.crm-col:first-child .crm-col-btn{padding-left:0}.crm-col-btn:hover{background:var(--surface-hover);color:var(--text-primary)}.crm-col-btn.is-on{color:var(--text-primary)}.crm-col-btn:focus-visible{outline:2px solid var(--focus-ring)}.crm-col-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:20;min-width:220px;max-height:340px;overflow:auto;padding:6px;border:1px solid var(--crm-hair);border-radius:12px;background:var(--white);box-shadow:var(--shadow-lg)}.crm-col-opt{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:34px;border:0;border-radius:8px;background:transparent;padding:6px 10px;font:inherit;font-size:0.78rem;text-align:left;color:var(--text-primary);cursor:pointer;text-transform:none;letter-spacing:0}.crm-col-opt:hover,.crm-col-opt:focus-visible{background:var(--surface-hover);outline:none}.crm-col-opt.is-on{font-weight:700}.crm-col-n{color:var(--text-muted);font-size:0.7rem;font-variant-numeric:tabular-nums}.crm-stage-body>.crm-lead:nth-child(even){background:color-mix(in srgb,var(--text-primary) 2.5%,transparent)}.crm-stage-body>.crm-lead:hover{background:var(--surface-hover)}.crm-lead-stage{font-weight:600;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.crm-lead .crm-due{text-align:right;padding-right:12px}.crm-col-label{display:flex;align-items:center}.crm-col-due .crm-col-btn{text-align:right;padding-right:12px}.crm-temp+.crm-temp{margin-top:10px}'
             + '@media (max-width:720px){'
             + '.crm-app{flex-direction:column;align-items:stretch;gap:10px}.crm-main{width:100%}.crm-side{position:static;width:100%;flex-direction:column;gap:8px}.crm-side .crm-search{width:100%;margin:0}.crm-side .crm-search .search-bar-pill{min-height:40px}.crm-side-nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}.crm-side-nav::-webkit-scrollbar{display:none}.crm-report .crm-num{width:52px}.crm-report thead th{position:static}.crm-side-title,.crm-side-group,.crm-side-skel,.crm-tree-head,.crm-tree-line,.crm-side-chev{display:none}.crm-side{max-height:none;overflow:visible}.crm-side-section,.crm-tree,.crm-tree-g,.crm-tree-body{display:flex;flex-direction:row;margin:0;padding:0;border:0;gap:4px}.crm-cols{position:static}.crm-side-parent:not([aria-current]){font-weight:500;color:var(--text-secondary)}.crm-side-item{width:auto;min-height:34px;flex-shrink:0;white-space:nowrap;border-radius:999px;padding:6px 12px}.crm-view-head{padding-right:84px}.crm-seq .crm-step{grid-template-columns:1fr}.crm-seq-facts{gap:20px}'
             + '.crm-step{grid-template-columns:1fr;gap:4px}.crm-step-when{flex-direction:row;gap:8px;align-items:baseline}.crm-sys-table,.crm-sys-table tbody,.crm-sys-table tr,.crm-sys-table td{display:block;width:auto}.crm-sys-table thead{display:none}.crm-sys-table tr{padding:10px 4px;border-top:1px solid var(--crm-hair)}.crm-sys-table tbody tr:first-child{border-top:0}.crm-sys-table td{border:0;padding:3px 4px}.crm-sys-table td:not(.crm-sys-c-name)::before{content:attr(data-label);display:block;font-size:0.62rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}'
@@ -1359,7 +1449,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '.crm-lead-niche,.crm-lead-owner{display:none}'
             + '.crm-sheet{padding:8px 6px 10px}.crm-panel{width:100vw;border-left:0}.crm-form{grid-template-columns:1fr}'
             + '.crm-row{flex-wrap:wrap;padding:0 4px 4px 0}.crm-row-actions.is-always{width:100%;justify-content:flex-start;padding-left:4px}.crm-row-actions .crm-btn{min-height:40px}'
-            + '.crm-row>.crm-due{padding-right:4px}.crm-when{flex-basis:76px;white-space:normal}.crm-agenda{gap:10px}.crm-row-actions.is-always{margin-top:-8px}}'
+            + '.crm-row>.crm-due{padding-right:4px}.crm-when{flex-basis:76px;white-space:normal}.crm-agenda{gap:10px}.crm-row-actions.is-always{margin-top:-8px}'
+            + '.crm-app.has-side .crm-side{display:none}.crm-top .crm-search{width:100%}.crm-crumbs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%}.crm-crumb{white-space:nowrap}.crm-lead>*{border-left:0;padding:0}.crm-lead{padding:9px 8px;grid-template-areas:"name due" "stage stage" "from from" "step step"}.crm-lead-stage{grid-area:stage;font-size:0.7rem}.crm-home-head h1{font-size:1.3rem}}'
             + '@media (prefers-reduced-motion:reduce){.crm-switch-track,.crm-switch-knob,.crm-sheet,.crm-stage,.crm-row-actions,.crm-step-actions{transition:none}}';
         document.head.appendChild(style);
     }
@@ -1378,15 +1469,41 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             .every(w => hay.includes(w.replace(/^@/, '')) || (/^[0-9+()\-. ]{4,}$/.test(w) && digits.includes(w.replace(/[^0-9]/g, ''))));
     }
     function _crmSearchHtml() {
-        return '<div class="search-bar-wrap crm-search"><div class="search-bar-pill"><input class="search-bar-input" id="crmSearch" type="search" placeholder="Search people" aria-label="Search people by name, email, phone, handle or niche" autocomplete="off" data-1p-ignore data-lpignore="true" spellcheck="false" value="' + _calEscAttr(_crmState.search) + '" oninput="_crmSetSearch(this.value)">'
-            + '<button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById(\'crmSearch\')?.focus()">' + CRM_ICON_SEARCH + '</button></div></div>';
+        return '<div class="search-bar-wrap crm-search" id="crmSearchWrap"><div class="search-bar-pill"><input class="search-bar-input" id="crmSearch" type="search" placeholder="Search people" aria-label="Search people by name, email, phone, handle or niche" autocomplete="off" data-1p-ignore data-lpignore="true" spellcheck="false" value="' + _calEscAttr(_crmState.search) + '" oninput="_crmSetSearch(this.value)">'
+            + '<button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById(\'crmSearch\')?.focus()">' + CRM_ICON_SEARCH + '</button></div><div class="crm-results" id="crmResults" role="listbox" aria-label="People found" hidden></div></div>';
+    }
+    function _crmPaintResults() {
+        const el = document.getElementById('crmResults');
+        if (!el) return;
+        const q = _crmState.search.trim();
+        if (!q) { el.hidden = true; el.innerHTML = ''; return; }
+        el.hidden = false;
+        if (!_crmState.loaded) { el.innerHTML = '<div class="crm-results-skel" aria-hidden="true"><span class="sv-skeleton"></span><span class="sv-skeleton"></span></div>'; return; }
+        const hits = _crmState.people.filter(p => _crmSearchHit(p, q));
+        if (!hits.length) { el.innerHTML = '<p class="crm-results-none">Nobody matches \u201c' + _calEsc(q) + '\u201d.</p>'; return; }
+        el.innerHTML = hits.slice(0, 8).map(p => {
+            const contact = [p.email, p.phone, p.instagram_handle ? '@' + p.instagram_handle : ''].filter(Boolean).join(' \u00b7 ');
+            return '<button type="button" class="crm-result" role="option" onclick="_crmOpenPersonById(' + _jsAttrArg(p.id) + ')">'
+                + '<span class="crm-result-top"><span class="crm-result-name">' + _calEsc(_crmName(p)) + '</span><span class="crm-result-stage" data-crm-stage-tone="' + _calEscAttr(p.stage) + '">' + _calEsc(_crmLabel(CRM_STAGES, p.stage)) + '</span></span>'
+                + '<span class="crm-result-meta">' + _crmFromHtml(p) + (p.niche ? '<span class="crm-result-niche">' + _calEsc(p.niche) + '</span>' : '') + '</span>'
+                + (contact ? '<span class="crm-result-contact">' + _calEsc(contact) + '</span>' : '')
+                + (p.next_step ? '<span class="crm-result-step">Next: ' + _calEsc(p.next_step) + (p.next_step_due ? ', ' + _calEsc(_crmDue(p.next_step_due)) : '') + '</span>' : '')
+                + '</button>';
+        }).join('') + (hits.length > 8 ? '<p class="crm-results-more">' + (hits.length - 8) + ' more. Keep typing to narrow it down.</p>' : '');
     }
     function _crmSetSearch(v) {
         _crmState.search = String(v || '');
-        if (_crmState.tab !== 'pipeline' && _crmState.search.trim()) {
-            _crmGo('pipeline');
-            const n = document.getElementById('crmSearch'); if (n) { n.focus({ preventScroll: true }); n.setSelectionRange(n.value.length, n.value.length); }
-        } else _crmPaintBoard();
+        _crmPaintResults();
+        if (!_crmState.search.trim() && _crmState.resultsLayer) { _crmState.resultsLayer = false; svLayerRelease('crm-results', { focus: false }); }
+        if (_crmState.search.trim() && !_crmState.resultsLayer) {
+            _crmState.resultsLayer = true;
+            svLayerOpen({ key: 'crm-results', region: '#crmSearchWrap', opener: document.getElementById('crmSearch'), isOpen: () => !!_crmState.search.trim(), close: () => { _crmState.resultsLayer = false; _crmClearSearch(); } });
+        }
+    }
+    function _crmClearSearch() {
+        _crmState.search = '';
+        const n = document.getElementById('crmSearch'); if (n) n.value = '';
+        _crmPaintResults();
     }
 
     /* Same person twice: two entries with the same full name. Email, phone
@@ -1483,9 +1600,9 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _crmAddNote, _crmApproveStep, _crmClosePanel, _crmCloseStepEditor, _crmEditPanel, _crmEditStep,
-        _crmEnrol, _crmEnrolmentOp, _crmFoldGroup, _crmGo, _crmLoad, _crmMarkCall, _crmMerge, _crmOpenNote,
-        _crmOpenPersonById, _crmReadMessage, _crmSavePanel, _crmSaveStep, _crmSetReason, _crmSetSearch,
-        _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSeqMenu, _crmToggleSequence, _crmToggleStage,
-        _crmToggleView
+        _crmAddNote, _crmApproveStep, _crmClearCols, _crmClosePanel, _crmCloseStepEditor, _crmColClick,
+        _crmColPick, _crmEditPanel, _crmEditStep, _crmEnrol, _crmEnrolmentOp, _crmFoldGroup, _crmGo, _crmLoad,
+        _crmMarkCall, _crmMerge, _crmOpenNote, _crmOpenPersonById, _crmReadMessage, _crmSavePanel,
+        _crmSaveStep, _crmSetReason, _crmSetSearch, _crmSignIn, _crmStepCount, _crmToggleDue,
+        _crmToggleSequence, _crmToggleTemp
     });

@@ -35146,17 +35146,85 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `TRL_PART=clientchg`: the server answers after 1.5 s, the box keeps the focus, and C's dot says change asked within 400 ms.
   - Each fails on main.
 
-## 567. [2026-10-28 UTC, TEST BUILT, FINDINGS OPEN] Trial reels: every action on every surface, walked and checked after each step (session Allactions)
+## 567. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a client's answer took up to 30 s to reach the SMM's open card (Sidney, session Trials)
+
+- **What happened:** Sidney, 2026-10-28: "if a client does something on the trial, like approves, it shows immediately on the calendar. I always want everything to be fast." Since #2409 (563) the staff card caught up on its 30 s read, so about 20 s on average.
+- **Fix:** `supabase/functions/trial-reels/index.ts` and `src/index/189-trial-reels-card.js.part`.
+  - **The broadcast:** after every change (an answer, a link, a drop, a version added, the switch, the winner, the automatic trial start), trial-reels sends one Realtime broadcast on the fixed channel `trial-reels`.
+  - **The payload, which carries no client and no card:** its only field is the first 12 hex of sha256(post_id). Anyone with the publishable key can join a public channel, so the Supervisor ruled out a client slug in the channel name and a raw post_id in the payload.
+  - **The staff Calendar:** it joins the channel once, hashes the trial cards it already holds, and on a match reads that one card again through the function. A burst (Approve all) reads it once.
+  - **Kept:** the 30 s refresh stays as the fallback, and broadcasts are best effort, sent after the answer.
+- **Proven:**
+  - `test/trial-reels-round3-card-browser.js`: the client's approve shows on the open card in under 2 s, reading only that card; another card's hash reads nothing.
+  - `test/trial-reels-function-deno.ts`: one broadcast on `trial-reels` with `{h}` only, no slug or card id in any broadcast, and none on a read.
+  - Each fails on main.
+- **Open:** Trialtest times it live after the merge.
+
+## 568. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: a version row was blank when every version shared its state (Sidney, session Trials)
+
+- **What happened:** in Sidney's screenshot A and B were approved and their rows said nothing. The "no visual noise" rule (2026-10-27) hid a label every live version shared.
+- **Fix:** every version row says its state, on the card and in Production; only "lost" stays unsaid once there is a winner. The label's hover says who said what, per stage: "SMM: approved · Kasper: approved · Client: approved".
+- **Proven:** `test/trial-reels-round3-card-browser.js` (A and B say "approved", with the per-stage hover); the card, polish, journey and Production suites updated to the new rule.
+
+## 569. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: "Client passed" reads "Client dropped" (Sidney, session Trials)
+
+- The card, Production's version rows and Kasper's tiles say "Client dropped" for a version the client said no to (562). The client's own page still says "Not this one".
+
+## 570. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: Posted starts the 24 h; no "Start the 24 h" link; the winner is picked on the Posted card (Sidney, session Trials; rule approved by the Supervisor)
+
+- **What happened:** the SMM had to press "Posted as trial reels? Start the 24 h" after posting the reels by hand, and trial-reels refused a winner on a Posted card (`card_posted`), though the card is Posted for the whole trial.
+- **The rule:**
+  - On the first trial-reels request that reads the card after its video is Posted (by anyone), every approved live version goes on trial. Its 24 h are counted from the card's `video_status_at`, or from now when that is unknown.
+  - A version not approved (waiting, change asked, client dropped) stays off the trial and the team drops it. With none approved there is no trial.
+  - Once started, the trial stays, even if the card leaves Posted before a winner, and nothing is lost.
+  - The winner and Undo are no longer refused on a Posted card; the card's link still moves through today's attach first.
+  - `trial_start` asked for by hand before Posted answers `trial_starts_when_posted`.
+- **Code:** `logic.mjs` `autoTrialPatches`, and `index.ts` `startIfPosted` in the list and every per-card request, with a `trial_start` ledger row per version and the broadcast. The link is gone from the card.
+- **Proven:** `test/trial-reels-logic.js` (139), `test/trial-reels-function-deno.ts` (the read after Posted starts the trial at the Posted time, once) and the journey test (step 7: Posted starts it; step 9: Undo is no longer refused for Posted).
+
+## 571. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: the state tags were pills (Sidney, session Trials)
+
+- The state tags on the card, in Production and on Kasper's tiles have a 4 px radius, not 999 px. Proven in `test/trial-reels-round3-card-browser.js`.
+
+## 572. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: the "Video E  Paste the Frame.io link" row is a minimal "+ Add version" (Sidney, session Trials)
+
+- The add row is one "+ Add version" (its hover names the next letter), which opens the paste field focused. Proven in `test/trial-reels-round3-card-browser.js`; the empty-card, card and polish suites updated.
+
+## 573. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: the Video row's pencil, then Escape, drew the whole versions list twice (Sidney, session Trials)
+
+- **What happened:** on a trial card with its versions list open, Sidney pressed the row's pencil, did nothing, and pressed Escape. A second block of A to E (and a second start link) appeared under the first, then went on the next redraw.
+- **Why:** `_calOnLinkBlur` (`src/index/160-calendar-organize-ui.js.part`) replaced the Video row with `_calLinkFieldHtml`, which for a trial card draws the row and its open list, but left the old list after it. `_calRefreshLinkField` had the same gap.
+- **Fix:** both remove the old list before redrawing the row. `_calRefreshLinkField` does not redraw while a version's link is being typed in that list.
+- **Proven:** `test/trial-reels-round3-card-browser.js`, every frame for about 2 s after the pencil and Escape: exactly one list (main: 1 then 2).
+
+## 574. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: a double click on Approve answered the next version too (Allactions, session Trials)
+
+- **What happened:** found by session Allactions' action sweep (#2413), and live: the client double-clicked "Approve Video A", and A and B were both approved. The first press moved the page to Video B at once (Approve answers at once since 2026-10-27), and the second landed on B's Approve. It happened on the SMM's Review tab, Kasper's standard layout and the client link, at 1440 and 390. This is very likely why Sidney's approve "landed on Video B" (563).
+- **Fix:** `src/index/194-review-trial-versions.js.part` ignores an Approve, or a "Not this one", pressed within 0.7 s of an answer moving the page to the next version. A deliberate pick of a version (a dot, an arrow, a swipe, a tile in Kasper's second layout) clears that hold, so each tile's own Approve still answers at once. Approve all is never held.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`):
+  - a double click answers only A on the client link at 1440 and 390, Kasper's standard layout and the SMM's Review tab;
+  - Kasper's tiles A then B, pressed quickly, answer both.
+  - It fails on main (A, then B).
+  - `trial-reels-review-browser.js`'s slow-line check now presses B 0.8 s after the move, as a person looking at B does; A's answer is still on the slow line then.
+
+## 575. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: the client was shown a server code (Allactions, session Trials)
+
+- **What happened:** a refused approve on the client link read: Video C was not approved: The server answered "request_failed". Nothing was changed.
+- **Fix:** `svTrialErrorText` (`src/index/189-trial-reels-card.js.part`) gives a client link plain words only. A few states have their own sentence (it changed a moment ago, it waits for its new cut, the team is still looking at it, it is already out, the team took it out). Anything else reads "This did not save. Check your connection and try again in a moment." Staff wording is unchanged.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`): a `request_failed` refusal says "not approved" with no code and no quotation marks. It fails on main.
+- Allactions' third finding (the versions list drawn twice after the Video row's pencil and Escape) is 573 in this PR.
+
+## 576. [2026-10-28 UTC, TEST BUILT; ITS THREE FINDINGS FIXED BY #2412] Trial reels: every action on every surface, walked and checked after each step (session Allactions)
 
 - **Why:** Sidney pressed an edit pencil on a trial card, did nothing, pressed Escape, and the versions list was drawn twice. No test caught it, because each trial-reels test walks the happy path of one feature. He asked for every action to be tried.
 - **The test:** `test/trial-reels-action-matrix-browser.js`, offline, one in-memory backend that follows `trial-reels/index.ts` and `logic.mjs` for every page. It walks the staff card at 1440 and 390 (switch on and off, add, paste, edit then Escape, edit then click away, edit then Enter with the same link, not https, a foreign host, another version's link, clear, a new link, the version on the card, switching rows mid-edit, the Video row's own pencil, the arrow, drop, bring back, double clicks, slow and refused answers, new cut, the trial, the winner, Undo), Production's Assets rows, the SMM's Review tab, Kasper's two layouts, the client link at 1440 and 390, the Notes player, two tabs at once and a reload during a write. After every step it checks one Video row, at most one list, no version twice, nothing half drawn, the list equal to the backend, the card's one link, the write count and page errors. About 1,250 checks, about 5 minutes. In CI, part 2 of the entry-link lanes.
-- **Findings** (each marked KNOWN in the test with its id, so CI stays a gate; session Trials removes the line when it fixes it):
-  - **567a. The Video row's own pencil, then Escape or a click away, draws the versions list twice** (Sidney's report). Each further time adds one more copy. Cause: `_calOnLinkBlur` (160) replaces only the Video row with `_calLinkFieldHtml`, which for a trial card returns the row and its open list, and leaves the old list in place. The version rows' own pencils are fine. Desktop and phone.
-  - **567b. A double click on Approve on the review pages answers the next version too.** The first click approves the version on screen and the page moves on; the second lands on the next version's Approve. Seen for the SMM, Kasper's standard layout and the client link at 1440 and 390 (at 390 it depends on timing: it passed once in three offline runs). This may be why Sidney's approve "landed on Video B" (563, open).
-  - **567c. A refused answer on the client link shows the client the server's code**: "The server answered "request_failed". Nothing was changed."
+- **Findings** (all three fixed by session Trials in #2412, merged 2026-10-28 at 2acad7f; the test now asserts each, with no KNOWN marks left):
+  - **576a (fixed as 573). The Video row's own pencil, then Escape or a click away, draws the versions list twice** (Sidney's report). Each further time adds one more copy. Cause: `_calOnLinkBlur` (160) replaces only the Video row with `_calLinkFieldHtml`, which for a trial card returns the row and its open list, and leaves the old list in place. The version rows' own pencils are fine. Desktop and phone.
+  - **576b (fixed as 574). A double click on Approve on the review pages answers the next version too.** The first click approves the version on screen and the page moves on; the second lands on the next version's Approve. Seen for the SMM, Kasper's standard layout and the client link at 1440 and 390 (at 390 it depends on timing: it passed once in three offline runs). This may be why Sidney's approve "landed on Video B" (563, open).
+  - **576c (fixed as 575). A refused answer on the client link shows the client the server's code**: "The server answered "request_failed". Nothing was changed."
 - **Checked and fine:** every version-row action on the card, Production's Edit, Cancel and Save (same link writes nothing, a foreign link is refused in words), Kasper's double-clicked Drop and Approve all write once, Notes' quick version switches end on the version named, two tabs dropping at once, and a reload during a write.
 - **Live, on the test client** (one throwaway card with no sub-issue, made and archived by this session; the prepared test card was not touched; main's page against the live backend, 2026-10-28 about 18:40 UTC):
-  - 567a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
-  - 567b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
+  - 576a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
+  - 576b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
   - Two staff tabs dropping Video C at once: C dropped once, both tabs agree; bringing it back from one tab works.
 - **Kept as today, not trial findings:** today's link box saves the card on any close, Escape included (it refreshes a file swapped behind the same link); Production's asset editors do not close on Escape, today's included.

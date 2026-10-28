@@ -74,7 +74,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trvAnswer(v, stage) {
         if (v.status === 'change asked') return 'chg';
         // The client's "Not this one": answered, for the client; for the team (the SMM's Review tab, Kasper's standard
-        // layout) it is "Client passed", never another Approve, and the team drops it (Trialtest, 2026-10-28).
+        // layout) it is "Client dropped", never another Approve, and the team drops it (Trialtest, 2026-10-28).
         if (v.client_pass_at && v.status === 'waiting') return stage === 'client' ? 'pass' : 'cpass';
         const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
         if (ok) return 'ok';
@@ -151,7 +151,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client passed' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
@@ -184,12 +184,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return false;
         const vs = m.trial.versions, next = vs[vs.indexOf(_trvCurOf(m, mode)) + d];
         if (!next) return false;
-        _trvCur[m.id] = next.letter; _trvRepaint();
+        _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = 0; _trvRepaint();
         return true;
     }
     function svTrialReviewBind(el, m, mode, onAll) {
         if (!el || !m || !m.trial || m.trial.winner) return;
-        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvRepaint(); }));
+        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvMovedAt[m.id] = 0; _trvRepaint(); }));
         el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => svTrialReviewStep(m, mode, Number(b.dataset.trvStep))));
         el.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => onAll()));
     }
@@ -259,14 +259,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return stage === 'client' ? !!json.card_approvable : !!(json.stages_done && json.stages_done[stage]);
     }
     /* Approve the version on screen. `proceed` is today's approve on the video part; it runs only once the stage is done. */
+    /* A second press right after the page moved on (a double click) lands on the next version's button: it is ignored
+       for a moment, so one press answers one version (Allactions, 2026-10-28: a double click approved A and B; the
+       likely reason Sidney's approve landed on Video B). */
+    const TRV_SETTLE_MS = 700;
+    const _trvMovedAt = {};   // post id -> when an answer last moved the page to the next version
+    const _trvJustMoved = m => Date.now() - (_trvMovedAt[m.id] || 0) < TRV_SETTLE_MS;
     async function svTrialReviewApprove(m, mode, proceed, all) {
+        if (!all && _trvJustMoved(m)) return;
         const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
         const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
         const local = _trvLocal(m, mode, body);
         if (local) {
             // On to the next version still waiting for this reviewer, now.
             const next = local.versions.filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
-            if (next) _trvCur[m.id] = next.letter;
+            if (next) { _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = Date.now(); }
             _trvRepaint();
         }
         let json;
@@ -292,7 +299,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        waiting. A refused pass puts the version back and says so. Once every other version is approved, `proceed` is
        today's approve on the video part (a passed version does not hold the card back). */
     async function svTrialReviewPass(m, mode, proceed) {
-        if (!svTrialReviewCanPass(m, mode)) return;
+        if (_trvJustMoved(m) || !svTrialReviewCanPass(m, mode)) return;
         const letter = _trvCurOf(m, mode).letter, slug = m.trial.slug;
         const e = _trv[slug], card = e && e.cards[m.id];
         let before = null;
@@ -302,7 +309,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const versions = card.versions.map(v => v.letter === letter ? Object.assign({}, v, { client_pass_at: now }) : v);
             e.cards[m.id] = Object.assign({}, card, { versions });
             const next = versions.filter(_trvLive).find(v => _trvAnswer(v, 'client') === 'wait');
-            if (next) _trvCur[m.id] = next.letter;
+            if (next) { _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = Date.now(); }
             _trvRepaint();
         }
         let json;
@@ -393,7 +400,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const dropBtn = v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>';
             // The client said "Not this one": the team sees it and drops the version (owner, 2026-10-28).
             const acts = v.client_pass_at && v.status === 'waiting'
-                ? '<span class="trk-lab" data-l="passed" title="The client passed on this version">Client passed</span>' + dropBtn
+                ? '<span class="trk-lab" data-l="passed" title="The client dropped this version">Client dropped</span>' + dropBtn
                 : a === 'wait'
                 ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '" aria-label="Approve Video ' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
                     + '<button type="button" class="trk-ic" data-trk-chg="' + l + '" title="Ask for a change" aria-label="Ask for a change to Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_BACK + '</button>'
@@ -414,7 +421,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function svTrialReviewBindTiles(el, m, mode, on) {
         if (!el || !m || !m.trial) return;
-        const pick = letter => { _trvCur[m.id] = letter; };
+        // A press on a tile names its own version, so it is never held back as a double click.
+        const pick = letter => { _trvCur[m.id] = letter; _trvMovedAt[m.id] = 0; };
         el.querySelectorAll('[data-trk-go]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkGo); _trvRepaint(); }));
         el.querySelectorAll('[data-trk-ok]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkOk); on.approve(); }));
         el.querySelectorAll('[data-trk-chg]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkChg); _trvRepaint(); on.change(); }));
@@ -475,7 +483,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trk-ic{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);cursor:pointer;padding:0}
 .trk-ic svg{width:13px;height:13px}
 .trk-ok[disabled],.trk-ic[disabled]{opacity:.6;cursor:default}
-.trk-lab{border-radius:99px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
+.trk-lab{border-radius:4px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
 .trk-lab[data-l="approved"]{background:var(--ok-soft-2);color:var(--ok-ink)}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
 .trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px;min-width:0;overflow:hidden;text-overflow:ellipsis}

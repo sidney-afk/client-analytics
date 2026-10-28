@@ -40,6 +40,7 @@ import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
 import { voiceStore } from "./voice.ts";
+import { isOAuthToken, makeOAuth } from "./oauth.mjs";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -52,6 +53,7 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, content-type, mcp-session-id, mcp-protocol-version, accept",
+  "Access-Control-Expose-Headers": "WWW-Authenticate, mcp-session-id",
   "Cache-Control": "no-store",
 };
 
@@ -1712,17 +1714,49 @@ async function writeActivity(row: JsonMap): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+async function memberForPass(pass: string): Promise<string | null> {
+  if (!/^[0-9a-f]{16,64}$/i.test(pass)) return null;
+  const { data } = await db().from("hf_team_members").select("name,active").eq("token", pass).maybeSingle();
+  return data && data.active ? String(data.name) : null;
+}
+
+// Apps that only do MCP's OAuth sign-in (oauth.mjs): the person types their
+// personal pass on our page once, and the app gets a sealed token holding it.
+const OAUTH = makeOAuth({
+  secret: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+  baseUrl: String(Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "") + "/functions/v1/higgsfield-mcp",
+  signinPage: "https://synchrosocial.com/syncmate-signin/",
+  checkPass: async (pass: string) => !!(await memberForPass(pass)),
+});
+
 async function memberFor(req: Request): Promise<string | null> {
   const url = new URL(req.url);
-  const token = (url.searchParams.get("key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "").trim();
-  if (!/^[0-9a-f]{16,64}$/i.test(token)) return null;
-  const { data } = await db().from("hf_team_members").select("name,active").eq("token", token).maybeSingle();
-  return data && data.active ? String(data.name) : null;
+  const bearer = (req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "").trim();
+  if (!url.searchParams.get("key") && isOAuthToken(bearer)) {
+    const pass = await OAUTH.passFromToken(bearer);
+    return pass ? memberForPass(pass) : null;
+  }
+  return memberForPass((url.searchParams.get("key") || bearer).trim());
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  const reqUrl = new URL(req.url);
+  const sub = reqUrl.pathname.replace(/^.*?\/higgsfield-mcp/, "").replace(/\/+$/, "");
+  if (sub) {
+    const handled = await OAUTH.handle(req, sub, reqUrl);
+    if (handled) {
+      for (const [k, v] of Object.entries(CORS)) if (!handled.headers.has(k)) handled.headers.set(k, v);
+      return handled;
+    }
+  }
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS });
+  // No pass at all: an OAuth app's first knock. Tell it where to sign in.
+  // (A wrong ?key= still gets the old message below.)
+  const authHeader = req.headers.get("authorization") || "";
+  if (!reqUrl.searchParams.get("key") && (!authHeader || isOAuthToken(authHeader.replace(/^Bearer\s+/i, "").trim()))) {
+    if (!authHeader || !(await memberFor(req))) return OAUTH.challenge(CORS);
+  }
 
   let msg: JsonMap;
   try { msg = await req.json(); } catch { return rpcError(null, -32700, "Parse error"); }

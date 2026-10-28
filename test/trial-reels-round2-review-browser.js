@@ -191,7 +191,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
-    // ---------- Kasper: "Client passed" on the tile, and 5: the tiles draw with the card ----------
+    // ---------- Kasper: "Client dropped" on the tile, and 5: the tiles draw with the card ----------
     for (const th of ['light', 'dark'].filter(() => part('kasper'))) {
       const tag = 'kasper 1440 ' + th;
       const vs = three(); vs[1].client_pass_at = '2026-10-28T09:00:00.000Z';
@@ -219,7 +219,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(tops.length && Math.max(...tops) - Math.min(...tops) <= 2, `${tag}: and nothing under them moves when the tiles land (panes top ${Math.min(...tops)} to ${Math.max(...tops)}; ${[...new Set(frames.map(f => f[1] + ':' + f[2]))].join(' ')})`);
       const tiles = await R(t, `return [...r.querySelectorAll('#l2trv .trk-v')].map(v => ({ n: (v.querySelector('.trk-n') || {}).textContent, lab: ((v.querySelector('.trk-lab') || {}).textContent || '').trim(), drop: !!v.querySelector('[data-trk-drop]'), ok: !!v.querySelector('[data-trk-ok]'),
         pic: (() => { const p = v.querySelector('.trk-pic'); return p ? (p.querySelector('img') ? 'img' : p.querySelector('.trk-mark') ? 'mark' : 'empty') : 'none'; })() }));`);
-      ok(tiles.length === 3 && tiles[1].lab === 'Client passed' && tiles[1].drop && !tiles[1].ok, `${tag}: Video B's tile says "Client passed", with Drop and no Approve (${JSON.stringify(tiles[1])})`);
+      ok(tiles.length === 3 && tiles[1].lab === 'Client dropped' && tiles[1].drop && !tiles[1].ok, `${tag}: Video B's tile says "Client dropped", with Drop and no Approve (${JSON.stringify(tiles[1])})`);
       ok(tiles.every(x => x.pic === 'mark'), `${tag}: a card with no picture: each tile shows a video mark, never a black square (${tiles.map(x => x.pic).join(',')})`);
       await shot(t, 'r2-kasper-l2-' + th);
       ok(!t.errors.length, `${tag}: no page errors (${t.errors.join(' | ')})`);
@@ -239,11 +239,11 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const all0 = await R(t, `return ((r.querySelector('[data-trv-all]') || {}).textContent || '').trim();`);
       ok(/pass/.test(d.dots.split(',')[1] || '') && /Approve all \(2 waiting\)|^$/.test(all0) && !/\(3 waiting\)/.test(all0), `${label}: Video B's dot says the client passed, and Approve all counts only A and C (${d.dots} | ${all0})`);
       const aria = await R(t, `const b = r.querySelector('[data-trv-go="B"]'); return b ? b.getAttribute('aria-label') : '';`);
-      ok(/client passed/i.test(aria), `${label}: B's dot is read out as client passed ("${aria}")`);
+      ok(/client dropped/i.test(aria), `${label}: B's dot is read out as client dropped ("${aria}")`);
       await press(t, '[data-trv-go="B"]');
       await sleep(400);
       d = await dec(t);
-      ok(/Client passed on Video B/.test(d.said) && !d.ok, `${label}: on Video B, "Client passed" in place of Approve (${d.said} | ok "${d.ok}")`);
+      ok(/Client dropped Video B/.test(d.said) && !d.ok, `${label}: on Video B, "Client dropped" in place of Approve (${d.said} | ok "${d.ok}")`);
       await shot(t, 'r2-staffpass-' + label.replace(/\s+/g, '-'));
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
@@ -273,6 +273,44 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       if (process.env.TRL_DEBUG) console.log('DEBUG', JSON.stringify(d), await R(t, `return [!!r.querySelector('.trv-under'), (r.activeElement || {}).id, !!r.querySelector('#ta'), [...r.querySelectorAll('.stp')].map(n => n.className + ':' + n.textContent.trim()).join('|'), ((r.querySelector('.trv-under-host') || {}).innerHTML || '').slice(0, 300)];`));
       ok(t.T.versions[2].status === 'change asked' && /chg/.test(d.dots.split(',')[2] || ''), `client: after a change on Video C, C's own dot says change asked at once (${d.dots})`);
       ok(!t.errors.length, `client change: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- Allactions (567b, 567c): a double click on Approve answers one version; the client never sees a code ----------
+    for (const [mode, w, h, label] of [['client', 1440, 900, 'client 1440'], ['client', 390, 844, 'client 390'], ['kasper', 1280, 860, 'kasper standard'], ['smm', 1440, 900, 'SMM review']].filter(() => part('dblclick'))) {
+      const vs = three().map(v => Object.assign(v, mode === 'kasper' ? { kasper_ok_at: null } : mode === 'smm' ? { kasper_ok_at: null, smm_ok_at: null } : {}));
+      const t = await start(mode, true, vs, Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      t.T.delay = 400;
+      // Two presses as fast as a double click: the first moves the page to B at once, the second must not answer B.
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-ok="video"]'); b.click(); setTimeout(() => { const b2 = r.querySelector('[data-ok="video"]'); if (b2) b2.click(); }, 60); });
+      await sleep(2500);
+      const answered = t.T.calls.filter(c => c.action === 'answer').map(c => c.letter || c.kind).join(',');
+      ok(answered === 'A', `${label}: a double click on Approve Video A answers A only (${answered})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+    if (part('dblclick')) {
+      // Kasper's tiles: each tile's own Approve names its version, so A then B pressed quickly answers both.
+      const vs = three().map(v => Object.assign(v, { kasper_ok_at: null }));
+      const t = await start('kasper', true, vs, { layout2: true });
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; r.querySelector('[data-trk-ok="A"]').click(); setTimeout(() => { const b = r.querySelector('[data-trk-ok="B"]'); if (b) b.click(); }, 120); });
+      await sleep(2500);
+      const answered = t.T.calls.filter(c => c.action === 'answer').map(c => c.letter || c.kind).join(',');
+      ok(answered === 'A,B', `kasper tiles: A's Approve then B's, pressed quickly, answer both (${answered})`);
+      await t.ctx.close();
+    }
+    if (part('dblclick')) {
+      // A refused approve on the client link: plain words, never the server's code.
+      const t = await start('client', true, three());
+      await t.ctx.route('**/functions/v1/trial-reels', async route => {
+        const b = JSON.parse(route.request().postData() || '{}');
+        if (b.action === 'answer') return route.fulfill({ status: 500, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'request_failed' }) });
+        return route.fallback();
+      });
+      await press(t, '[data-ok="video"]');
+      await sleep(1500);
+      const said = await t.page.evaluate(() => ((document.getElementById('confirmOverlay') || {}).innerText || '').replace(/\s+/g, ' '));
+      ok(/not approved/.test(said) && !/answered|request_failed|write_failed|"/.test(said), `client: a refused approve says it in plain words, no server code ("${said.slice(0, 140)}")`);
       await t.ctx.close();
     }
 

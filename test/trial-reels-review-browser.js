@@ -232,6 +232,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b = await bar(t);
     ok(/^Video B of 5/.test(b.text) && b.dots[0] === 'ok' && fast < 600 && t.T.versions[0].status === 'waiting',
       'client, slow line: Approve shows Video A approved and moves to Video B at once, before the server answers (' + fast + ' ms)');
+    // A person looks at Video B before approving it; a press within 0.7 s of the move is a double click and is held
+    // back (Allactions, 2026-10-28). A's answer is still on the slow line (1.5 s) when B is approved.
+    await sleep(800);
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => /^Video C of 5/.test((await bar(t)).text), 40);
     ok(/^Video C of 5/.test((await bar(t)).text), 'client, slow line: a second Approve right after is taken too, not lost');
@@ -241,6 +244,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b = await bar(t);
     ok(b.dots[0] === 'ok' && b.dots[1] === 'ok' && !t.state.upserts.slice(n0).some(u => u.video_status), 'client, slow line: A and B stay approved once the server agrees, and the card waits');
     t.T.delay = 300; t.T.failAnswer = 1;
+    await sleep(800);
     await inS(t.page, '[data-ok="video"]').click();
     await sleep(100);
     const early = (await bar(t)).dots[2];
@@ -313,7 +317,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       'a refused version write: today\'s change request still goes, and the version\'s change waits in this browser');
     await t.page.reload({ waitUntil: 'domcontentloaded' });
     await waitNew(t);
-    for (let i = 0; i < 60 && t.T.versions[3].status !== 'change asked'; i++) await sleep(100);
+    // The fake server marks the version before its answer reaches the page, which then clears what it kept: wait for both.
+    for (let i = 0; i < 60 && (t.T.versions[3].status !== 'change asked' || await t.page.evaluate(() => localStorage.getItem('syncview_trv_pending_v1'))); i++) await sleep(100);
     ok(t.T.versions[3].status === 'change asked' && t.T.versions[3].change_note === 'Shorter end card.' && !(await t.page.evaluate(() => localStorage.getItem('syncview_trv_pending_v1'))),
       'the next versions read sends it again, and Video D is marked as changed');
     await t.ctx.close();

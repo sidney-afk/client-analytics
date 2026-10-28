@@ -185,49 +185,81 @@ async function run(browser, origin, viewport) {
   });
 
   await page.goto(origin + '/?sv_path=%2Fleads', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#crmToday .crm-skel, #crmToday .crm-group', { timeout: 30000 });
-  const skel = await page.evaluate(() => ({ skel: !!document.querySelector('#crmToday .crm-skel .sv-skeleton'), rows: !!document.querySelector('#crmToday .crm-group'), text: (document.getElementById('crmPage') || document.body).innerText }));
-  expect(skel.skel && !skel.rows, label + ': Leads opens on Today, with a shimmer skeleton before it lands');
-  expect(!/Loading/.test(skel.text), label + ': no "Loading" text while it loads');
-  if (SHOTS) await shoot(page, 'leads-skeleton-' + label);
-  await page.waitForSelector('#crmToday .crm-group', { timeout: 30000 });
-  expect(await page.locator('[data-crm-nav="n8n:didnt_book_doctors"]').count() === 1 && await page.locator('[data-crm-nav="own:q1"]').count() === 1, label + ': the side menu lists the n8n sequences and ours');
-  await page.click('[data-crm-nav="pipeline"]');
-  await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
+  // Home: a title, search, and one tile per part.
+  await page.waitForSelector('#crmHome .crm-home-tile', { timeout: 30000 });
   expect(new URL(page.url()).pathname === '/leads', label + ': the address is /leads');
-  expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': every stage has a section, four of them open with people');
-  expect(await page.locator('.crm-stage.is-empty').count() === 6 && await page.locator('.crm-stage.is-empty .crm-stage-toggle:disabled').count() === 6, label + ': empty stages stay as folded titles');
-  expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-hint').innerText() === 'We have not reached out yet', label + ': each stage says in plain words what it means');
-  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles, with no Owner column');
-  expect(!(await page.locator('.crm-lead-owner').count()) && !/Nobody/.test(await page.locator('.crm-board').innerText()), label + ': no owner on the lines');
-  expect(!!(await page.locator('.crm-cols span', { hasText: 'Next step' }).getAttribute('title')), label + ': the Next step title explains itself on hover');
-  await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
-  await page.waitForFunction(() => !document.querySelector('[data-crm-stage="to_contact"] .crm-stage-body'));
-  expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a stage section folds');
-  await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
-  await page.waitForSelector('[data-crm-stage="to_contact"] .crm-stage-body');
+  const tiles = await page.locator('#crmHome .crm-home-tile .crm-tile-name').allInnerTexts();
+  expect(tiles.join() === 'Today,Leads,Report,Automations', label + ': Leads opens on a home page with Today, Leads, Report and Automations (' + tiles.join() + ')');
+  expect(await page.locator('#crmHome #crmSearch').count() === 1, label + ': the home page has the search bar');
+  expect(await page.locator('#crmSide').isHidden(), label + ': no side menu on the home page');
+  await page.waitForFunction(() => /things? to do|Nothing waiting/.test(document.querySelector('#crmHome [data-crm-nav="today"]').innerText));
+  if (SHOTS) await shoot(page, 'leads-home-' + label);
+  // Search opens its own results panel.
+  await page.fill('#crmSearch', 'kitchen');
+  await page.waitForSelector('#crmResults:not([hidden]) .crm-result');
+  const res = await page.locator('#crmResults').innerText();
+  expect(await page.locator('#crmResults .crm-result').count() === 1 && /Example Kitchen/.test(res) && /Contacted/.test(res) && /Food/.test(res), label + ': search shows a results panel with stage, source and niche (' + res.replace(/\s+/g, ' ') + ')');
+  if (SHOTS) await shoot(page, 'leads-search-' + label);
+  await page.fill('#crmSearch', 'nobody-like-this');
+  expect(/Nobody matches/.test(await page.locator('#crmResults').innerText()), label + ': search with no match says so');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('crmResults').hidden);
+  expect(await page.inputValue('#crmSearch') === '', label + ': Escape closes the results and clears the search');
+  await page.fill('#crmSearch', 'coach');
+  await page.locator('#crmResults .crm-result').first().click();
+  await page.waitForSelector('#crmPanel:not([hidden]) .crm-timeline');
+  expect(/Sample Coach/.test(await page.locator('#crmPanel').innerText()), label + ': a search result opens the person');
+  await page.click('.crm-x');
+  await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
+  if (!(await page.locator('#crmResults').isHidden())) { await page.keyboard.press('Escape'); }
+
+  // Today, from its tile.
+  await page.click('#crmHome [data-crm-nav="today"]');
+  await page.waitForSelector('#crmToday .crm-group', { timeout: 30000 });
+  expect(await page.locator('#crmTop [data-crm-nav="home"]').count() === 1 && await page.locator('#crmTop #crmSearch').count() === 1, label + ': other pages have a way home and the search');
+  await page.click('#crmTop [data-crm-nav="pipeline"]');
+  await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
+  expect(await page.locator('[data-crm-temp]').count() === 2 && await page.locator('[data-crm-temp="cold"] [data-crm-card]').count() === 1 && await page.locator('[data-crm-temp="warm"] [data-crm-card]').count() === 3, label + ': Leads splits into Cold (Dream 100) and Warm');
+  expect(!(await page.locator('.crm-stage-hint').count()) && !/We have not reached out yet/.test(await page.locator('.crm-board').innerText()), label + ': no explainer lines next to the section titles');
+  if (viewport.width >= 500) expect(/Name\s+Stage\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': Leads has Name, Stage, Where they came from, Niche, Next step and Due columns');
+  expect(!(await page.locator('.crm-lead-owner').count()), label + ': no owner on the lines');
+  await page.click('[data-crm-temp="cold"] .crm-stage-toggle');
+  await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"] .crm-stage-body'));
+  expect(await page.locator('[data-crm-temp="cold"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a section folds');
+  await page.click('[data-crm-temp="cold"] .crm-stage-toggle');
+  await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');
   const first = page.locator('[data-crm-card="00000000-0000-4000-8000-000000000001"]');
   const text = await first.innerText();
-  expect(/Made-up Studio/.test(text) && /First DM/.test(text) && (viewport.width < 500 || /Fitness/.test(text)), label + ': a lead line shows name, niche and next step');
+  expect(/Made-up Studio/.test(text) && /To contact/.test(text) && /First DM/.test(text) && (viewport.width < 500 || /Fitness/.test(text)), label + ': a lead line shows name, stage, niche and next step');
   expect(/Dream 100/.test(text) && /Made-up batch/.test(text), label + ': a lead line says where they came from (' + text.replace(/\s+/g, ' ') + ')');
-  expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on the Pipeline');
-  expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
-  if (viewport.width >= 900) {
-    await page.evaluate(() => { document.querySelector('.crm-main').style.paddingBottom = '2000px'; window.scrollTo(0, document.documentElement.scrollHeight); });
-    await page.waitForTimeout(100);
-    const before = await page.evaluate(() => document.querySelector('#crmSearch').getBoundingClientRect().top);
-    const top = await page.evaluate(() => { const side = document.querySelector('#crmSide'); for (let i = 0; i < 40; i++) side.insertAdjacentHTML('beforeend', '<button type="button" class="crm-side-item crm-probe">x</button>'); window.scrollTo(0, document.documentElement.scrollHeight); return document.querySelector('#crmSearch').getBoundingClientRect().top + ' below=' + (document.documentElement.scrollHeight - (document.querySelector('.crm-app').getBoundingClientRect().bottom + scrollY)); });
-    await page.evaluate(() => document.querySelectorAll('.crm-probe').forEach(n => n.remove()));
-    await page.evaluate(() => { document.querySelector('.crm-main').style.paddingBottom = ''; window.scrollTo(0, 0); });
-    expect(Math.abs(parseFloat(top) - before) < 2, label + ': the Leads title and search stay in place at the very end of the page (' + top + ')');
+  expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on Leads');
+  expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': Leads never scrolls sideways');
+  if (viewport.width >= 500) {
+    // Click a column title to filter by it.
+    await page.click('[data-crm-col="stage"]');
+    await page.waitForSelector('#crmColMenu .crm-col-opt');
+    if (SHOTS) await shoot(page, 'leads-colmenu-' + label);
+    await page.locator('#crmColMenu .crm-col-opt', { hasText: 'Contacted' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-crm-card]').length === 1);
+    expect(/Contacted/i.test(await page.locator('[data-crm-col="stage"]').innerText()) && /Show everyone/.test(await page.locator('#crmSummary').innerText()), label + ': picking a stage under its column filters the list and says so');
+    await page.locator('#crmSummary .crm-link').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-crm-card]').length === 4);
+    await page.click('[data-crm-col="niche"]');
+    await page.waitForSelector('#crmColMenu');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('crmColMenu'));
+    expect(true, label + ': Escape closes a column menu');
+    await page.click('[data-crm-col="name"]');
+    expect(/↑/.test(await page.locator('[data-crm-col="name"]').innerText()), label + ': clicking Name sorts by name');
+    await page.click('[data-crm-col="name"]'); await page.click('[data-crm-col="name"]');
+    const stripes = await page.evaluate(() => { const r = document.querySelectorAll('[data-crm-temp="warm"] .crm-lead'); return [getComputedStyle(r[0]).backgroundColor, getComputedStyle(r[1]).backgroundColor]; });
+    expect(stripes[0] !== stripes[1], label + ': rows alternate a subtle background (' + stripes.join(' / ') + ')');
   }
-  await page.fill('#crmSearch', 'kitchen');
-  expect(await page.locator('[data-crm-card]').count() === 1 && /1 match/.test(await page.locator('#crmSummary').innerText()), label + ': search narrows the Pipeline as you type');
-  await page.fill('#crmSearch', 'nobody-like-this');
-  expect(/Nobody matches/.test(await page.locator('.crm-board-wrap').innerText()), label + ': search with no match says so');
-  await page.fill('#crmSearch', '');
-  expect(await page.locator('[data-crm-card]').count() >= 3, label + ': clearing the search brings everyone back');
-  await page.click('[data-crm-nav="report"]');
+  expect(await boxesInBoxes(page) === '', label + ': Leads has no box inside a box (' + await boxesInBoxes(page) + ')');
+  expect(await first.evaluate(n => n.classList.contains('is-overdue')) && /Overdue/.test(text), label + ': an overdue next step is marked');
+  expect(!(await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').evaluate(n => n.classList.contains('is-overdue'))), label + ': a future step is not overdue');
+  if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
+  await page.click('#crmTop [data-crm-nav="report"]');
   await page.waitForSelector('.crm-report tbody tr');
   expect(/Made-up batch\s+4\s+2\s+1\s+1/.test(await page.locator('.crm-report tbody').innerText()), label + ': the Report shows people, booked, showed and signed per source');
   if (SHOTS) await shoot(page, label + '-report');
@@ -239,50 +271,35 @@ async function run(browser, origin, viewport) {
   await page.locator('#crmReport .crm-btn', { hasText: 'Yes, merge' }).click();
   await page.waitForFunction(() => !document.querySelector('#crmReport .crm-btn'));
   expect(true, label + ': a merge removes the pair from the list');
-  await page.click('[data-crm-nav="pipeline"]');
+  await page.click('#crmTop [data-crm-nav="pipeline"]');
   await page.waitForSelector('[data-crm-card]');
-  expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
-  // Filters behind one View button, with a dot while one is on.
-  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 3, label + ': the three filters are tucked behind View');
-  await page.click('#crmViewBtn');
-  await page.waitForSelector('#crmViewMenu:not([hidden])');
-  if (SHOTS) await shoot(page, 'leads-view-menu-' + label);
-  await page.click('#crmFilters .crm-toggle');
-  await page.waitForFunction(() => document.getElementById('crmViewBtn').classList.contains('has-filter'));
-  expect(true, label + ': turning a filter on puts a dot on View');
-  await page.click('#crmFilters .crm-toggle');
-  await page.waitForFunction(() => !document.getElementById('crmViewBtn').classList.contains('has-filter'));
-  await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.getElementById('crmViewMenu').hidden);
-  await page.waitForSelector('.crm-lead[data-crm-card]');
-  expect(await first.evaluate(n => n.classList.contains('is-overdue')) && /Overdue/.test(text), label + ': an overdue next step is marked');
-  expect(!(await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').evaluate(n => n.classList.contains('is-overdue'))), label + ': a future step is not overdue');
-  if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
   if (viewport.width >= 500) {
     await page.evaluate(() => { const b = document.querySelector('.crm-stage-body'); for (let i = 0; i < 60; i++) b.insertAdjacentHTML('beforeend', '<div class="crm-lead crm-pad" style="height:28px"></div>'); });
     await page.evaluate(() => window.scrollTo(0, 900));
     await page.waitForTimeout(150);
-    const stuck = await page.evaluate(() => { const s = document.getElementById('crmSide').getBoundingClientRect(); const c = document.querySelector('.crm-cols').getBoundingClientRect(); return { side: s.top, cols: c.top, y: window.scrollY }; });
-    expect(stuck.y > 300 && stuck.side >= 0 && stuck.side < 140 && stuck.cols >= 0 && stuck.cols < 140, label + ': the side menu and the column titles stay in view while the list scrolls (' + JSON.stringify(stuck) + ')');
+    const stuck = await page.evaluate(() => { const c = document.querySelector('.crm-cols').getBoundingClientRect(); return { cols: c.top, y: window.scrollY }; });
+    expect(stuck.y > 300 && stuck.cols >= 0 && stuck.cols < 140, label + ': the column titles stay in view while the list scrolls (' + JSON.stringify(stuck) + ')');
     await page.evaluate(() => { document.querySelectorAll('.crm-pad').forEach(n => n.remove()); window.scrollTo(0, 0); });
   }
 
   if (viewport.width >= 500) {
-    // Drag a card to Replied: one update with the version it had.
-    await first.dragTo(page.locator('[data-crm-stage="replied"]'));
-    await page.waitForFunction(() => document.querySelector('[data-crm-stage="replied"] [data-crm-card="00000000-0000-4000-8000-000000000001"]'));
-    expect(state.updates.length === 1 && state.updates[0].patch.stage === 'replied' && state.updates[0].expected_version === 1, label + ': drag sends one stage update with the version it had');
-    // A refused drag goes back and is reported.
+    // A refused save is reported.
     state.refuse = 'write_failed';
     const before = state.beacons;
-    await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').dragTo(page.locator('[data-crm-stage="to_contact"]'));
-    await page.waitForFunction(() => document.querySelector('[data-crm-stage="contacted"] [data-crm-card="00000000-0000-4000-8000-000000000002"]'));
+    await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').click();
+    await page.waitForSelector('#crmPanel:not([hidden]) [data-crm-edit]');
+    await page.click('#crmPanel [data-crm-edit]');
+    await page.waitForSelector('#crmPStep');
+    await page.fill('#crmPStep', 'A refused made-up step');
+    await page.click('.crm-form button[type="submit"]');
     await page.waitForFunction(() => (window.peekWriteUiQueueDiagnostics() || []).some(r => r.surface === 'leads'));
-    expect(state.updates.length === 2 && await page.locator('[data-crm-stage="contacted"] [data-crm-card="00000000-0000-4000-8000-000000000002"]').count() === 1, label + ': a refused drag puts the card back');
+    expect(state.updates.length === 1, label + ': a save sends one update');
     const diag = await page.evaluate(() => (window.peekWriteUiQueueDiagnostics ? window.peekWriteUiQueueDiagnostics() : []).filter(r => r.surface === 'leads').length);
     expect(diag >= 1, label + ': the refusal is recorded in the write-refusal log');
     expect(state.beacons >= before, label + ': the refusal beacon path ran without error');
     state.refuse = '';
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
   }
 
   // Person panel.
@@ -295,7 +312,7 @@ async function run(browser, origin, viewport) {
   expect(/Email sent by Booking Recovery Dispatch/.test(evs[1]) && await page.locator('#crmPanel .crm-link', { hasText: 'Read the message' }).count() === 1, label + ': an automatic email on the timeline says who sent it and links to its wording');
   expect(/Last touch/.test(panel) && !/No touch yet/.test(panel), label + ': the panel says when we last touched them (a call, message or reply)');
   expect(!(await page.locator('#crmPStep').count()), label + ': the edit fields stay hidden until Edit');
-  expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'What\u2019s happened' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
+  expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'What\u2019s happened' && t[1] === 'Automations'; }), label + ': the timeline comes first, automations after');
   expect(await boxesInBoxes(page) === '', label + ': the person panel has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-person-' + label);
   await page.click('#crmPanel [data-crm-edit]');
@@ -320,7 +337,7 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
 
   // Today.
-  await page.click('[data-crm-nav="today"]');
+  await page.click('#crmTop [data-crm-nav="today"]');
   await page.waitForSelector('#crmTodayCalls');
   const todayText = await page.locator('#crmToday').innerText();
   expect(/First DM/.test(todayText) && /Follow up/.test(todayText) && !/Made Up Owner/.test(todayText), label + ': Today lists each next step due, with no owner');
@@ -353,8 +370,11 @@ async function run(browser, origin, viewport) {
   // Put the made-up call back for the other viewport run's state (each run has its own state, so this is just tidy).
   state.people[2].stage = 'call1_booked';
 
-  // Sequences.
-  await page.click('[data-crm-nav="own:q1"]');
+  // Automations.
+  await page.click('#crmTop [data-crm-nav="sequences"]');
+  await page.waitForSelector('#crmSeqs .crm-seq-tile');
+  expect(await page.locator('#crmSide').isVisible() === (viewport.width >= 721) && (viewport.width < 721 || await page.locator('.crm-tree-head[aria-expanded="true"]').count() === 0), label + ': Automations has the side menu, its folders closed');
+  await page.click('#crmSeqs [data-crm-nav="own:q1"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
   const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
   expect(/Waiting for approval/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
@@ -381,7 +401,8 @@ async function run(browser, origin, viewport) {
   expect(state.toggles.length === 1 && state.toggles[0].active === true, label + ': the switch turns the sequence on');
 
   // An n8n automation as a read-only sequence with its exact wording.
-  await page.click('[data-crm-nav="n8n:didnt_book_doctors"]');
+  await page.click('#crmTop [data-crm-nav="sequences"]');
+  await page.click('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
   await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
   const n8nText = await page.locator('[data-crm-seq="didnt_book_doctors"]').innerText();
   expect(/Sending|Off/.test(n8nText) && !/Edited in n8n/.test(n8nText) && /made-up subject line/.test(n8nText) && /a made-up email body/.test(n8nText) && /a made-up text/.test(n8nText) && /Stops when/.test(n8nText), label + ': an n8n sequence shows its emails and texts word for word');
@@ -389,34 +410,25 @@ async function run(browser, origin, viewport) {
   expect(!(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-switch, [data-crm-seq="didnt_book_doctors"] .crm-btn').count()), label + ': an n8n sequence cannot be changed here');
   expect(await boxesInBoxes(page) === '', label + ': the n8n sequence has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-n8n-' + label, true);
-  await page.click('[data-crm-nav="sequences"]');
+  await page.click('#crmTop [data-crm-nav="sequences"]');
   await page.waitForSelector('#crmSeqs .crm-group');
   const ovText = await page.locator('#crmSeqs').innerText();
-  expect(/Sending|Off/.test(ovText) && !/Every automatic email and text/.test(ovText), label + ': the Sequences overview is one line per sequence, its explanation in a hover');
+  expect(/Sending|Off/.test(ovText) && !/Every automatic email and text/.test(ovText) && /Automations/.test(ovText), label + ': the Automations page is a menu of tiles, its explanation in a hover');
+  expect(await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).count() === 1, label + ': Doctors has its own heading on Automations');
   if (SHOTS) await shoot(page, 'leads-seq-overview-' + label, true);
-  {
-    const sub = page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' });
-    expect(await sub.count() === 1 && await sub.getAttribute('aria-expanded') === 'true', label + ': Doctors is its own open folder in Sequences');
-    await sub.click();
-    expect(await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).getAttribute('aria-expanded') === 'false' && !(await page.locator('#crmSeqs .crm-seq-subg .crm-rows').count()), label + ': the Doctors folder closes');
-    await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).focus();
-    await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('crm-seq-sub') && document.activeElement.getAttribute('aria-expanded') === 'true'), label + ': the folder keeps keyboard focus after it opens');
-  }
   expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
   if (label.startsWith('1360')) {
     const head = page.locator('.crm-tree-head').first();
-    const before = await page.locator('.crm-tree-body').count();
-    await page.locator('.crm-tree-body > .crm-tree-line').first().click();
-    expect(await page.locator('.crm-tree-body').count() < before && await head.getAttribute('aria-expanded') === 'false', label + ': clicking a group line in the Sequences menu folds that group');
     await head.click();
-    expect(await page.locator('.crm-tree-body').count() === before, label + ': clicking the group title opens it again');
+    expect(await head.getAttribute('aria-expanded') === 'true' && await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('crm-tree-head')), label + ': clicking a folder title opens it and keeps focus');
+    await page.locator('.crm-tree-body > .crm-tree-line').first().click();
+    expect(await page.locator('.crm-tree-head').first().getAttribute('aria-expanded') === 'false', label + ': clicking a folder line closes it');
   }
   const seqOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(seqOverflow <= 1, label + ': a sequence screen has no sideways page overflow (' + seqOverflow + 'px)');
   expect(!state.actions.includes('due') && !state.actions.includes('log_send'), label + ': the page never calls the sender-only actions');
 
-  await page.click('[data-crm-nav="pipeline"]');
+  await page.click('#crmTop [data-crm-nav="pipeline"]');
   await page.waitForSelector('.crm-lead[data-crm-card]');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 1, label + ': no sideways page overflow (' + overflow + 'px)');

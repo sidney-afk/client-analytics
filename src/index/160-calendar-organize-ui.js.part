@@ -2595,8 +2595,12 @@ import { svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.j
         if (!field || field.classList.contains('editing')) return;
         const input = field.querySelector('.cal-link-input');
         const placeholder = input ? input.placeholder : (fld === 'thumbnail_url' ? 'Thumbnail URL (Google Drive image)' : 'Video URL (Frame.io / Drive)');
-        if (sxr) field.outerHTML = _sxrLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, post);
-        else field.outerHTML = _calLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, false, post);
+        if (sxr) { field.outerHTML = _sxrLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, post); return; }
+        // A trial card's versions list is drawn again with its Video row (189), never left behind as a second one;
+        // not while a version's link is being typed in it (its save draws the row again).
+        const list = field.nextElementSibling;
+        if (list && list.classList.contains('trl-list')) { if (list.contains(document.activeElement)) return; list.remove(); }
+        field.outerHTML = _calLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, false, post);
     }
     function _calResolveThumbnailFolder(surface, clientSlug, pid, thumbnailUrl, post, opts) {
         if (_isClientLink || !clientSlug || !pid) return;
@@ -3295,6 +3299,10 @@ import { svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.j
         const field = input.closest('.cal-link-field');
         if (!field) return;
         const post = calState.posts.find(p => p.id === input.dataset.pid);
+        // A trial card's Video row is drawn with its versions list after it (189): the list goes with the row, or the
+        // redraw left two lists for a moment (owner, 2026-10-28: the pencil, then Escape).
+        const list = field.nextElementSibling;
+        if (list && list.classList.contains('trl-list')) list.remove();
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
     }
     /* Escape and Enter close a thumbnail or video link box. The box had no key

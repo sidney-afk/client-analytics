@@ -399,7 +399,9 @@ async function run(browser, origin, viewport) {
     expect(await sub.count() === 1 && await sub.getAttribute('aria-expanded') === 'true', label + ': Doctors is its own open folder in Sequences');
     await sub.click();
     expect(await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).getAttribute('aria-expanded') === 'false' && !(await page.locator('#crmSeqs .crm-seq-subg .crm-rows').count()), label + ': the Doctors folder closes');
-    await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).click();
+    await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).focus();
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('crm-seq-sub') && document.activeElement.getAttribute('aria-expanded') === 'true'), label + ': the folder keeps keyboard focus after it opens');
   }
   expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
   if (label.startsWith('1360')) {

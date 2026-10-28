@@ -315,7 +315,13 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
     function _crmToggleSeqMenu() { _crmState.seqMenuOpen = _crmState.seqMenuOpen === false; _crmPaintSide(); }
     /* A sub-group of the Sequences menu folds from its title or its line. */
-    function _crmFoldGroup(title) { const f = _crmState.treeFold || (_crmState.treeFold = {}); f[title] = !f[title]; _crmPaintSide(); if (_crmState.tab === 'sequences') _crmPaintSeqOverview(); }
+    function _crmFoldGroup(title) {
+        const f = _crmState.treeFold || (_crmState.treeFold = {}); f[title] = !f[title];
+        const a = document.activeElement, inSeqs = !!(a && a.closest && a.closest('#crmSeqs')), cls = a && a.className, how = a && a.getAttribute && a.getAttribute('onclick');
+        _crmPaintSide(); if (_crmState.tab === 'sequences') _crmPaintSeqOverview();
+        /* Keep keyboard focus on the folder button that was pressed. */
+        if (how) { const box = document.getElementById(inSeqs ? 'crmSeqs' : 'crmSide'); const b = box && Array.from(box.querySelectorAll('button')).find(n => n.getAttribute('onclick') === how && n.className === cls); if (b) b.focus(); }
+    }
     /* Sequences, all on one screen: each group with one line per sequence. */
     function _crmPaintSeqOverview() {
         const el = document.getElementById('crmSeqs');

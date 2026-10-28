@@ -385,3 +385,12 @@ from, matched by workflow name and calendar.
 - A lead with no typed next step shows a greyed suggestion from its stage.
 - Sequences are grouped: After the ad form (Doctors, Educators, Other calls), After they book (Booked, Before the call), After the call, After they sign. The last two hold the post-call next steps, the agreement and first invoice, and the onboarding email, read from n8n.
 - The side menu leaves room for the page bottom, so the Leads title and search never get pushed up at the end of the page.
+
+## Round 5 (28 Oct 2026): home page and one table
+
+- Leads opens on a home page: the search bar and four tiles (Today, Leads, Report, Automations), each with its key number.
+- Every other page is full width with a top bar: back to Leads home, the four parts, and search. The side menu only shows on Automations, with its folders closed until opened.
+- "Pipeline" is now "Leads" and "Sequences" is now "Automations" on screen. Internal keys (`pipeline`, `sequences`) are unchanged.
+- The Leads list is one table: Name, Stage, Where they came from, Niche, Next step, Due. It splits into Cold leads (Dream 100) and Warm leads (everyone else), and each section folds. Stage, Where they came from, Niche and Due filter when you click their title; Name sorts. Rows alternate a faint background, with faint column lines.
+- Search opens its own results panel (stage, source, niche, contact, next step). A result opens the person.
+- Drag and drop between stages is gone with the stage sections; change a stage in the person panel.

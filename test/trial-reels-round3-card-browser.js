@@ -125,13 +125,20 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await sleep(250);
         await shot(page, 'r3-card-' + label + '-' + theme);
         // ---- 7: the row's pencil, then Escape: one list, never two ----
-        await page.evaluate(() => { window.__lists = []; const step = () => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent && n.querySelector('.cal-link-post.trl-main')); window.__lists.push(c ? c.querySelectorAll('.trl-list').length : -1); if (window.__lists.length < 120) requestAnimationFrame(step); }; requestAnimationFrame(step); });
-        await page.click('#calView .cal-card .cal-link-post.trl-main .cal-link-edit');
-        await sleep(200);
-        await page.keyboard.press('Escape');
-        await sleep(1500);
+        // Escape and a click away, three times over (the Supervisor's ask): the list never doubles.
+        await page.evaluate(() => { window.__lists = []; const step = () => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent && n.querySelector('.cal-link-post.trl-main')); window.__lists.push(c ? c.querySelectorAll('.trl-list').length : -1); if (window.__lists.length < 400) requestAnimationFrame(step); }; requestAnimationFrame(step); });
+        const leaves = [];
+        for (const how of ['Escape', 'click away', 'Escape', 'click away', 'Escape', 'click away']) {
+          await page.click('#calView .cal-card .cal-link-post.trl-main .cal-link-edit');
+          await sleep(200);
+          if (how === 'Escape') await page.keyboard.press('Escape');
+          else await page.mouse.click(3, h - 3);
+          await sleep(600);
+          leaves.push(how + '=' + await lists(page));
+        }
+        await sleep(600);
         const seen = await page.evaluate(() => window.__lists || []);
-        ok(seen.length > 20 && seen.every(n => n === 1) && await lists(page) === 1, `${tag}: the pencil then Escape keep exactly one versions list on every frame (${[...new Set(seen)].join(',')})`);
+        ok(seen.length > 20 && seen.every(n => n === 1) && leaves.every(x => /=1$/.test(x)), `${tag}: the pencil then Escape or a click away, three times each, keep exactly one versions list on every frame (${[...new Set(seen)].join(',')}; ${leaves.join(' ')})`);
         // ---- 1: a client's answer shows on the open card at once (the trial-reels broadcast) ----
         if (theme === 'light') {
           const subscribed = await page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'));

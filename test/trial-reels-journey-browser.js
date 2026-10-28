@@ -384,8 +384,12 @@ const DID = 'del_vid_1';
     ok(W.sw && W.sw.enabled === true && W.ledger.some(r => r.action === 'trial_on'), '2 the card\'s switch: on, with a "trial_on" ledger row');
     let txt = await rowText(page);
     ok(/Video · 5/.test(txt) && /0\/5 approved/.test(txt), `2 the row reads "Video · 5", "0/5 approved" (${txt})`);
+    // Switched on, the list opens at once (#2392); its arrow closes it to today's row.
+    ok(!!(await page.$('.trl-list')), '2 switched on, the versions list opens at once');
+    await page.click('.cal-link-post .trl-chev');
+    await sleep(300);
     let hNow = await heightOf(page);
-    ok(Math.abs(hNow - todayH) < 0.5, `2 collapsed, the card keeps today's height (${todayH} → ${hNow})`);
+    ok(!(await page.$('.trl-list')) && Math.abs(hNow - todayH) < 0.5, `2 collapsed, the card keeps today's height (${todayH} → ${hNow})`);
     let l0 = W.ledger.length;
     await pasteOnCard(page, 'A', LINK('A'));
     ok(W.attaches.length === 1 && W.attaches[0].file_url === LINK('A') && V('A').frame_url === LINK('A'), '2 Video A (on the card): today\'s attach first, then its own link');

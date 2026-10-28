@@ -34853,3 +34853,17 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proof:** screenshots `docs/syncview-design/proofs/trial-polish/` (1440 and 390, light and dark, switch off and on). `node test/trial-reels-polish-browser.js` (new, offline, 1440 and 390, light and dark): each "at once" check, each rollback with its message, the typing guard, no pill, 4.5:1, the name link, the unboxed and undimmed switch, hover changes, row buttons and their targets. On main its speed, switch, row-button, name and dropped checks fail. The five trial-reels browser suites pass (card and empty-card updated: the list is now open after switching on).
 
 **Way back:** revert the pull request.
+
+## 553. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Notes: a trial video did not say it was one (Sidney, session Trials)
+
+- **What Sidney asked:** "It should say that it's a trial video whenever we view it in the review sheet of Kasper, of the client, of the SMM, or in the notes thing." The review pages got their marker in build 4 (OPEN_REPAIRS 549); this is the Notes view.
+- **Fix:**
+  - One quiet "TRIAL" sits under the Notes head's "post name · Video C" line, for any trial card: one version or several, before and after the pick. It is one word, no pill.
+  - `svTrialCardOn` (`src/index/189-trial-reels-card.js.part`) reads the card's switch from the card's own trial read, so there is no second read. `src/index/190-calendar-approval-comments.js.part` draws the word.
+- **Also, a test #2392 left red on main:** with the list now opening on switch-on, `test/trial-reels-journey-browser.js` measured the collapsed card height with the list open (751 → 925, red on main at 7d235e2). The test now checks the list opens, closes it with its arrow, then measures.
+- **Proven:**
+  - `test/trial-reels-notes-browser.js` (23): exactly one "Trial" at 1440 and 390 and after the pick, none with the switch off. Without the fix, 3 checks fail.
+  - The journey test passes (91).
+  - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
+
+**Way back:** revert the pull request.

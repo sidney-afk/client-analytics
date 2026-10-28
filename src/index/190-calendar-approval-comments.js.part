@@ -48,7 +48,7 @@ import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComme
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
-import { svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml } from './189-trial-reels-card.js';
+import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -2933,6 +2933,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
         const trialLetter = svTrialNotesLetter(post);
         const postName = _calEsc(post.name || 'Untitled post') + (trialLetter ? ' · Video ' + _calEsc(trialLetter) : '');
+        // A trial card says so, in one quiet word (Sidney, 2026-10-27: "it should say that it's a trial video").
+        const trialTag = svTrialCardOn(post) ? '<span class="trl-notes-tag">Trial</span>' : '';
 
         const renderFioRow = (c, isReply) => {
             const t = (!isReply && c.time != null && isFinite(c.time)) ? Math.max(0, Number(c.time)) : null;
@@ -3077,7 +3079,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             <div class="cal-comments-head">
                 <div class="cal-comments-head-text">
                     <h3 id="calCommentsTitle">${_calShowResolved ? 'Resolved' : 'Notes'}</h3>
-                    <p>${postName}</p>
+                    <p>${postName}</p>${trialTag}
                 </div>
                 ${histBtn}
                 <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>

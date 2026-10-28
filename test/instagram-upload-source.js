@@ -66,7 +66,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   }
 
   // --- the account must be the one on file for that client
-  eq(L.expectedAccountId({ extra: { postforme_instagram_account_id: ' spc_fixtureInstagram01 ' } }), 'spc_fixtureInstagram01', 'the id on file is read from the synced Clients Info copy');
+  eq(L.expectedAccountId({ extra: { postforme_instagram_account_id: ' spc_fixtureInstagram01 ' } }), 'spc_fixtureInstagram01', 'the id on file is read from the client profile (client_profiles.extra)');
   eq(L.expectedAccountId({ extra: {} }), '', 'no id on file reads as empty');
   eq(L.expectedAccountId(null), '', 'no profile reads as empty');
 

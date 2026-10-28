@@ -40,7 +40,7 @@ export function clientAllowed(client, allowedRaw) {
   return list.split(',').map(clientKey).filter(Boolean).includes(key);
 }
 
-// The Instagram account this client is supposed to post to, from the synced copy of Clients Info
+// The Instagram account this client is supposed to post to, from the client's profile (client_profiles.extra; set through roster-write)
 // (an unknown sheet column is kept in `extra`, under its sheet header).
 // The page sends the client's display name. A few slugs are not the display
 // name with spaces and punctuation taken out ("Dr." is dropped, " and " becomes

@@ -13,10 +13,11 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
        `instagram-upload`, which holds the Post For Me key and keeps the queue in the
        `instagram_uploads` table (owner, 2026-09-30: new server work goes in Supabase).
 
-       The client's Instagram account id (the Post For Me connection id, spc_...) comes
-       from the Clients Info sheet column `postforme_instagram_account_id`, next to the
-       TikTok one (`postforme_account_id`). No id, no post: there is no fallback, so a
-       video can never land on another client's account.
+       The client's Instagram account id (the Post For Me connection id, spc_...) is on
+       the client's SyncView profile as `postforme_instagram_account_id` (set through
+       roster-write; the Clients Info sheet only holds a copy), next to the TikTok one
+       (`postforme_account_id`). No id, no post: there is no fallback, so a video can
+       never land on another client's account.
 
        The TikTok module (300) owns the tab, the platform switch and the shared helpers;
        it hands them in through `deps` so the two files never import each other.
@@ -25,6 +26,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
     const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
     const IG_MAX_CAPTION = 2200;
+    // Client info lives on the SyncView client profile; the Clients Info sheet is only a copy of it.
+    const IG_NO_ACCOUNT_MSG = "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile.";
     const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
     const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
     const IG_COVER_MAX_BYTES = 8 * 1024 * 1024;     // Instagram's own limit for a cover image
@@ -550,7 +553,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
-        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
+        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return IG_NO_ACCOUNT_MSG;
         if (igState.kind === 'carousel') {
             if (igState.items.length < IG_CAROUSEL_MIN) return 'A carousel needs at least ' + IG_CAROUSEL_MIN + ' images or videos.';
             if (igState.items.length > IG_CAROUSEL_MAX) return 'A carousel holds at most ' + IG_CAROUSEL_MAX + ' items.';
@@ -585,7 +588,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (igState.client) {
             accountLine = accountOk
                 ? `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`
-                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> Connect this client's Instagram in Post For Me, then put its <strong>Connection ID</strong> (<code>spc_…</code>) in the <code>${IG_ACCOUNT_COLUMN}</code> column of the Clients Info sheet.</div>`;
+                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}</div>`;
         }
         const media = igState.file
             ? `<div class="tk-file-card">

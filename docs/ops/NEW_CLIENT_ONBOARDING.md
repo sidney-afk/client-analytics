@@ -226,7 +226,7 @@ header name, **not** by a fixed column position.
 | `creative_channel_id` | `C…` channel ID for the **internal `-creative`** Slack channel | Written by the Slack finalizer after it verifies the new public channel. A different field from `slack_channel_id` above — don't conflate the two. A manual-reconciliation case is the only exception to it being auto-written. |
 | `roam_channel_id` | Bare Roam **Group Settings UUIDv4** (legacy) | Left over from the 2026-07-28 → 2026-08-24 Roam chapter. Not written to for new clients; only present on clients onboarded during that window, pending a separate backfill-to-Slack pass. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
-| `postforme_instagram_account_id` | Post For Me **Instagram** account id (`spc_…`) | **Usually blank** — only for Instagram auto‑upload ([`docs/ops/INSTAGRAM_UPLOAD.md`](INSTAGRAM_UPLOAD.md)). A different id from the TikTok one. |
+| `postforme_instagram_account_id` | Post For Me **Instagram** account id (`spc_…`) | **Usually blank** — only for Instagram auto‑upload. A different id from the TikTok one. **Set it on the client's SyncView profile through `roster-write`, not in this Sheet column**: the column is only a copy, and the Instagram upload reads the profile ([`docs/ops/INSTAGRAM_UPLOAD.md`](INSTAGRAM_UPLOAD.md), "Connect a client's Instagram"). |
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` — **no longer needed (2026-08-20)**; it only completed the retired Kasper-card Slack deep link (that deep link stays retired even though `slack_profile_url` on the SMM tab is back in use for a different purpose, §5). `slack_channel_id` and `creative_channel_id` above are DIFFERENT fields and both very much in use. **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
@@ -514,7 +514,9 @@ workflow on 2026-09-30):
 - **Undo.** In n8n restore version `8f194a42-e578-446d-97af-2c30f4f0767a` (brings back the workflow exactly as it was before step A).
 
 ### 6d. Post For Me account (not urgent)
-Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
+For **Instagram** auto‑upload, the Instagram account's `spc_…` id goes on the client's SyncView profile through `roster-write` (not in the Sheet), and works at once: see [`docs/ops/INSTAGRAM_UPLOAD.md`](INSTAGRAM_UPLOAD.md), "Connect a client's Instagram".
+
+The rest of this section is about **TikTok auto‑upload**. It is only needed if the client uses it. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
 
 ### 6f. Create the canonical `clients` row
 

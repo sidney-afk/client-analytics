@@ -17,7 +17,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 | Switch, form, queue (page) | the SyncView page (`src/index/299-instagram-upload.js.part`) |
 | Post For Me key, account check, post creation, status lookups, cancel | Supabase function `instagram-upload` |
 | Queue rows | Supabase table `instagram_uploads` (migration `migrations/2026-09-30-instagram-uploads.sql`) |
-| Client's Instagram account id | Clients Info sheet, column `postforme_instagram_account_id` |
+| Client's Instagram account id | The client's SyncView profile (`client_profiles.extra.postforme_instagram_account_id`), set through `roster-write`; the Clients Info sheet only holds a copy |
 
 ## One-time setup (owner, with Lighthouse)
 
@@ -29,18 +29,18 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 1. In Post For Me, connect the client's Instagram account (the same place TikTok accounts are connected). The Instagram account must be a Business or Creator account.
 2. Copy the new account's **Connection ID** (it starts with `spc_`). It is a different id from the client's TikTok one.
-3. In the **Clients Info** sheet, add a column named exactly `postforme_instagram_account_id` (once, at the end), then paste the id on the client's row.
-4. Reload SyncView. On the Instagram side, the client now shows "Posts to Post For Me account spc_...". Without an id it shows a warning and the button stays off: there is no fallback, so a video can never land on another client's account.
+3. Give the id to Sidney. It goes on the client's SyncView profile, not in the Sheet: a `roster-write` call `{ "action": "set_client_fields", "client": "<client name>", "fields": { "postforme_instagram_account_id": "spc_..." } }` stores it in `client_profiles.extra` and refreshes the Clients Info copy in the same request. The Kasper Clients tab (`client-profile-write`) does not edit this field. Typing it into the Sheet does nothing: the Sheet is only a copy of the profile.
+4. Reload SyncView. On the Instagram side, the client now shows "Posts to Post For Me account spc_...". Without an id it shows "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile." and the button stays off: there is no fallback, so a video can never land on another client's account.
 
 ## Safety switches: who can post, and to which account
 
 - **Nobody can post until you list clients.** The server refuses every Instagram post unless the Supabase secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` names the client (a comma list of client names, or `*` for everyone). Nothing is listed in the repository. Start with the test client only; add a real client when you are ready to try one. Take it back the same way.
-- **The account must be the one on file.** The server checks that the Instagram account sent with a post is the one in the synced copy of Clients Info for that client, and that Post For Me says it is an Instagram account. A caller cannot swap in another client's account.
-- **Heads up: the synced copy refreshes once a day.** After you paste a new ID in the sheet, run the Sheets copy lane (Actions, "sheets-mirror-daily", Run workflow) or wait a day, otherwise the first post is refused with "no Instagram account for this client yet".
+- **The account must be the one on file.** The server checks that the Instagram account sent with a post is the one on the client's profile (`client_profiles.extra.postforme_instagram_account_id`), and that Post For Me says it is an Instagram account. A caller cannot swap in another client's account.
+- **A new id works at once.** The server reads `client_profiles` directly, so there is nothing to refresh after the id is set. With no id on file, a post is refused with "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile."
 
 ## Try one post yourself
 
-1. Do the setup and connect the account as above, refresh the synced copy, and list the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`.
+1. Do the setup and connect the account as above, and list the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`.
 2. TikTok Upload tab, **Instagram**, pick the client, attach a short video, write a caption such as "test, please ignore".
 3. First try **scheduling** 15 minutes ahead (turn off "Post immediately"). The queue shows it as **Scheduled**. Press **Cancel** and check it disappears from Post For Me's own list: that proves cancel works without publishing anything.
 4. Then do it for real: schedule or "Post now". The queue shows **Posting**, then **Posted** with an **Open** link to the reel. If Instagram refuses, the row shows **Failed** with Post For Me's reason.

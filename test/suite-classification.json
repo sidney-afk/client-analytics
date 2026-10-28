@@ -1509,6 +1509,14 @@
       "ci": "representative"
     },
     {
+      "file": "app-update-quiet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the page's update check runs on a locally answered host with a fake clock, no hosted credentials and no live data. Checks that a burst of publishes asks a working tab once, a dismiss holds, a draft is never reloaded away, and the wall still arrives.",
+      "reproduce": "node test/app-update-quiet-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-poll-backoff-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1826,6 +1834,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: a fictional staff member and client), no hosted credentials and no live data. Refreshes staff pages and logs every frame: on desktop the header never moves and only the page's tab is lit before the sliding pill, Kasper never shows a bare Loading line, and on a phone the desktop header never shows before the phone title bar.",
       "reproduce": "node test/staff-first-paint-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "prod-batch-parent-comments-cold-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend read answered locally with an empty list and key-verify fulfilled by the staff gate seed, no hosted credentials and no live data. Opens ?prod=1&d= on a bat_, a b1_b_ and a two-team bat_...::uuid id before any batch row exists and checks the Production comment loader sends no production-comments read and never shows the scope refusal.",
+      "reproduce": "node test/prod-batch-parent-comments-cold-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

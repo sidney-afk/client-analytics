@@ -356,7 +356,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 ${canEdit ? _calCapAiToolsHtml(p) : ''}
             </div>
             ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt" onclick="_calCaptionWrapClick(event,this)">
-                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!(editableText && (_calClientMayEditText(p.id, 'caption_alt') || isBlank)) ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
             </div>` : ''}`;
@@ -372,8 +372,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const vals = {};
         block.querySelectorAll('textarea[data-fld]').forEach(t => { vals[t.dataset.fld] = t.value; });
         const isBlank = _calIsBlankId(pid);
-        const editableText = _calClientMayEditText(pid) || isBlank;
-        block.innerHTML = _calCapBlockHtml(pid, post, editableText, isBlank);
+        const editableCaption = _calClientMayEditText(pid, 'caption') || isBlank;
+        block.innerHTML = _calCapBlockHtml(pid, post, editableCaption, isBlank);
         block.querySelectorAll('textarea[data-fld]').forEach(t => {
             if (vals[t.dataset.fld] != null) t.value = vals[t.dataset.fld];
             _calRefreshCaption(t, false);

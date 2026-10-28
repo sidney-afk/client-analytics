@@ -107,8 +107,8 @@ check('banner has a one-click Reload button that reloads the page',
 // ── The self-reload, and every condition on it ──────────────────────────────
 check('a VISIBLE tab is only ever offered the banner — it is never reloaded out from under someone',
   /document\.hidden && mayAutoReload\(\) && !wouldLoseWork\(\) && stampAutoReload\(\)/.test(NUDGE));
-check('a hidden tab falls back to the banner whenever the self-reload is refused',
-  /if \(!document\.getElementById\('svUpdateBar'\)\) showBar\(t\);/.test(NUDGE));
+check('a hidden tab falls back to the (quiet) banner whenever the self-reload is refused',
+  /if \(document\.getElementById\('svUpdateBar'\)\) return;/.test(NUDGE) && /\bshowBar\(t\);/.test(NUDGE));
 check('uncommitted typing blocks the self-reload — a field moved off its default counts',
   /el\.value == null \? '' : el\.value\)\s*!==\s*String\(el\.defaultValue/.test(NUDGE));
 check('...and so does a non-empty contenteditable',
@@ -161,8 +161,19 @@ check('every reload is either behind a button or behind the guarded self-reload'
   (NUDGE.match(/location\.reload\(\)/g) || []).length === 3);
 check('banner is a dismissible, fixed status bar (role=status)',
   /setAttribute\('role', 'status'\)/.test(NUDGE) && /className = 'sv-up-x'/.test(NUDGE));
-check('dismiss adopts the new token → re-nudges only on a YET newer build',
-  /dismiss\.addEventListener\('click', function\(\)\{ baseline = t; bar\.remove\(\); \}\)/.test(NUDGE));
+/*
+ * Was: "dismiss adopts the new token -> re-nudges only on a YET newer build".
+ * Changed 2026-10-27 (OPEN_REPAIRS 552): a document-stale tab re-showed the bar
+ * on the next poll or focus anyway, and every later publish re-armed it, so
+ * the owner reloaded ten times in one afternoon. Dismiss now holds for every
+ * later publish; the wall is the backstop. Behaviour: app-update-quiet-browser.js.
+ */
+check('dismiss means "not now" for every later publish, not just this build',
+  /dismiss\.addEventListener\('click', function\(\)\{ baseline = t; barDismissed = true; bar\.remove\(\); \}\)/.test(NUDGE));
+check('a visible tab is asked only after BAR_AFTER_MS stale, and never while it holds unsaved work',
+  /if \(!barDue\(Date\.now\(\), newerSince, barDismissed\) \|\| wouldLoseWork\(\)\) return;/.test(NUDGE));
+check("the bar's Reload asks before it would lose a draft",
+  /reload\.addEventListener\('click', reloadUnlessWork\)/.test(NUDGE) && /wouldLoseWork\(\) && !window\.confirm\(/.test(NUDGE));
 
 // ── Cadence ─────────────────────────────────────────────────────────────────
 check('re-checks on an interval and on tab focus / visibility',

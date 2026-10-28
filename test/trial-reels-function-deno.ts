@@ -346,10 +346,10 @@ const p7Client = await step({ action: "answer", post_id: "p7", kind: "approve_al
 ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and the client's Approve all approves them (" + p7Client.status + " " + p7Client.body.error + ")");
 // SPEED (session Swift, OPEN_REPAIRS 554). The owner found every trial action slow: each request waited on about eight
 // database answers one after another, and Production's read on every version link's check (about 2 s live). Here
-// every database answer takes 60 ms, so a request's time counts the answers it waited on in a row. Today: two for a
+// every database answer takes 100 ms, so a request's time counts the answers it waited on in a row. Today: two for a
 // read, four for a write (the card's winner adds one), and a link check never holds a budgeted read past its budget.
 {
-  const RT = 60;
+  const RT = 100;
   tables.calendar_posts.push({ id: "p20", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p20-a", video_deliverable_id: "20202020-2020-4020-8020-202020202020" });
   tables.deliverables.push({ id: "20202020-2020-4020-8020-202020202020", file_url: "https://f.io/p20-a" });
   tables.trial_reel_cards.push({ client: "fixtureclient", post_id: "p20", enabled: true, winner_letter: null });

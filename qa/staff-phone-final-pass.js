@@ -444,7 +444,9 @@ async function verify(page, name, width, theme) {
       await page.waitForFunction(count=>document.querySelectorAll('#wlPopover .workload-popover-item').length===count,count);
       await page.keyboard.press('Escape');
     }
-    await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(150);
+    // Wait for the desktop layout to drop the phone labels (a fixed 150 ms raced a busy runner); still fails if they stay.
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(()=>!document.querySelector('.fph-workload-post'),null,{timeout:5000}).catch(()=>{});
     assert.equal(await page.locator('.fph-workload-post').count(),0,'Desktop removes every phone post label');
     await page.setViewportSize({width,height:heightFor(width,arg('height'))});await settle(page);
   }

@@ -142,7 +142,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        trial cards it holds and reads a match again, that one card. Staff only. A missed message is caught by the 30 s
        refresh. */
     let _trlChannel = null;      // the channel, or a promise of it
-    const _trlHeard = {};        // pid -> timer of the read it asked for
+    const _trlHeard = {};        // client slug|pid -> timer of the read it asked for
     const _trlHashes = new Map(); // pid -> its 12-hex hash
     async function _trlHash(pid) {
         if (_trlHashes.has(pid)) return _trlHashes.get(pid);
@@ -163,17 +163,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     async function _trlHeardHash(h) {
         if (!/^[0-9a-f]{12}$/.test(h)) return;
-        for (const slug of Object.keys(_trlCards)) {
-            for (const pid of Object.keys(_trlCards[slug].cards || {})) {
-                if (await _trlHash(pid) === h && (calState.posts || []).some(p => p.id === pid)) { _trlHeardChange(slug, pid); return; }
-            }
+        // From the cards on screen, each with its own client: a card id is unique only within a client, so another
+        // client's card cached earlier under the same id is never the one read (Codex on PR 2412).
+        for (const post of calState.posts || []) {
+            const slug = _trlSlug(post.client || calState.client), e = slug && _trlCards[slug];
+            if (e && e.cards && e.cards[post.id] && await _trlHash(post.id) === h) _trlHeardChange(slug, post.id);
         }
     }
     function _trlHeardChange(slug, pid) {
         // Several changes in a burst (Approve all) read the card once.
-        clearTimeout(_trlHeard[pid]);
-        _trlHeard[pid] = setTimeout(() => {
-            delete _trlHeard[pid];
+        const key = slug + '|' + pid;
+        clearTimeout(_trlHeard[key]);
+        _trlHeard[key] = setTimeout(() => {
+            delete _trlHeard[key];
             const began = Date.now();
             svTrialCall({ action: 'read', client: slug, post_id: pid }).then(json => {
                 const e = _trlCards[slug];

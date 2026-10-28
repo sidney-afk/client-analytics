@@ -394,11 +394,13 @@ jobs:
           Client review link works on phones (approve + request change)|node docs/syncview-design/tests/client-phone-review-browser.js
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
+          A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
           Notes reopen without a needless skeleton, and a reply sent while loading goes at once (switch unread_badges_v2; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js
+          The new-version bar asks a working tab once per burst of publishes and never reloads a draft away (fake clock; mocked)|node test/app-update-quiet-browser.js
           Caption prompts read and save guard (table read, fallback, pause switch)|node test/caption-prompts-guard-browser.js
           Client approve and request-changes requests are unchanged|node test/client-review-requests-unchanged-browser.js
           A client link made with tab=review opens on the Review view (Calendar and Samples)|node docs/syncview-design/tests/client-link-review-tab-browser.js
@@ -552,6 +554,9 @@ jobs:
           Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
           Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
           Client link Sheet and Notes get the team's unread badges behind the same switch (one Synchro team picture, corner count for new, plain number for a waiting question, own notes never count, no staff names, no inbox read; today's look when off)|node test/client-unread-badges-browser.js
+          Client link notes are read only once on screen (390 waits for the conversation, 1440 at once), a reply in a done thread never counts as new, and the Review page names only the team|node test/client-notes-fixes-browser.js
+          Staff Notes button never counts a reply inside a done thread (history in Notes)|node test/staff-done-thread-badge-browser.js
+          Staff Notes composer offers the client audience as soon as Caption is picked on a Production-linked card (Video stays team only)|node test/notes-caption-composer-browser.js
           Kasper review polish for the staff on unread_badges_v2 (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, old page when off)|node test/review-kasper-polish-browser.js
           Kasper's Tweaks are on Frame and a typed change on a SAMPLE save from his Review Session, polish on and off (OPEN_REPAIRS 539)|node test/review-stage-kasper-sample-frame-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js

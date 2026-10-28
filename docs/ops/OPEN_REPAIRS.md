@@ -34613,6 +34613,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows.
 
+## 520. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every version side by side in Kasper's second layout (session Trials)
+
+- **What:** in Kasper's second layout (`review_stage_kasper_layout2`), a trial card shows every version side by side above the parts (decision 4). Each tile names its version ("Video A"…), with the card's poster and its own Approve, Ask for a change and Drop (no Drop on the version on the card), or its answer once given. "Approve all" sits at the top. A press on a tile puts that version on the player, so only the version on stage loads its video (plan risk 5). The tiles replace the "Video B of 5" bar in that layout only; every other layout keeps the bar. Code in `194`, hooked into `195`'s second layout.
+- **Rules unchanged:** Approve answers that version (trial-reels `answer`), and today's approve on the video part runs once every live version has his OK. A change on a tile selects it and opens today's change box, which records the change on the version and starts "Video C:". Drop goes through trial-reels `version_drop` (only the team drops, Q2).
+- **Proven:** `node test/trial-reels-review-browser.js` (36 checks, now with Kasper's second layout), review-stage-kasper-layout2-browser (188 checks), review-stage-browser, check-modules, no-sending-words and no-hardcoded-colors.
+
+**Way back:** revert the PR; with the switch off nothing shows.
+
 ## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
 
 - **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
@@ -34669,6 +34677,19 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the commit.
 
+## 528. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: tiles bound to the wrong card, and the mock's places (Codex on PR 2366, Probe 10b, K2 to K6, session Trials)
+
+- **Codex P1:** the tiles were drawn again only when their markup changed, so two trial cards with the same versions and poster kept the first card's handlers: Approve, Approve all and Drop could act on a card no longer on screen. The redraw now also follows the card on screen.
+- **Probe 10b:** a change opened on tile C and sent after a press on tile E was Video E's. Fixed by build 4's change box, which remembers the version it opened on. Probe's check is adopted in trial-reels-change-naming-browser.
+- **K2:** on a trial card the video part's own Approve and Ask for change gave way to the tiles. Only "Tweaks are on Frame" stays, naming the version on stage.
+- **K3, K6:** the badge and Finish reviewing follow build 4: "Video A", and versions counted.
+- **K4:** "Approve all" is an outlined button at the top right of the tiles, as in the mock.
+- **K5:** the list on the left says "5 versions" under a trial card.
+- **Kept as built (owner taste):** K1, small tiles with the card's poster and one player below, versus the mock's poster-sized tiles (plan risk 5).
+- **Proven:** `node test/trial-reels-review-browser.js` (47 checks; the P1, K2 and K5 checks fail without the fix), trial-reels-change-naming-browser (6), review-stage-kasper-layout2-browser (188), review-stage-browser, check-modules.
+
+**Way back:** revert the commit.
+
 ## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
 
 - **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
@@ -34697,6 +34718,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert this commit and the card's.
 
+## 532. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: the version on the card drops from its tile too (default (c), session Trials)
+
+- **What:** the tile of the version on the card now has Drop whenever another live version has a link. As on the card (530), today's attach first puts that next version's link on the card, then the old one drops. 189 exports `svTrialMoveCard` (today's attach) for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (48 checks, with Video A dropped from its tile after Video B is attached), trial-reels-change-naming-browser, review-stage-kasper-layout2-browser (188).
+
+**Way back:** revert this commit with 529 and 530.
+
 ## 533. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a refused link or drop on the version on the card left the card on another link (Probe bugs 12, 12b, session Trials)
 
 - **What was wrong:** for the version on the card, the page does today's attach FIRST, then asks the function. When the function refused (a link another version has, a decided version, or a refused drop of the version on the card), the card kept the new link while the page said "did not save".
@@ -34714,6 +34742,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (40 checks; the new E1b and rule-miss 13 checks fail without the fix), trial-reels-change-naming-browser, review-stage-browser, review-stage-kasper-layout2-browser (188), review-stage-client-layout-browser.
 
 **Way back:** revert the commit.
+
+## 535. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: a refused drop of the version on the card puts the card's link back (Probe bug 12b on the tiles, session Trials)
+
+- **What:** the tile's drop of the version on the card attaches the next live version's link first. When the function then refused the drop, the card stayed on that next version. Now the put-back is the card's own (533): what the card carried before, compare-and-swap on this page's attach, then a fresh read. 189 exports `svTrialAttachBack` for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (52 checks, with a refused tile drop), and the other trial suites on this build.
+
+**Way back:** revert the merge's tile change in 194 (svTrialReviewDrop).
 
 ## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
 
@@ -34892,6 +34927,21 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the pull request.
 
+## 555. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Kasper's side-by-side layout: the Trial marker and each tile's Approve name, kept from builds 4 and 5 (session Trials)
+
+- **What:** build 6 replaces the single player bar in Kasper's second layout with one tile per version. That dropped two things merged since:
+  - the quiet "TRIAL" word (549), which sat over the bar;
+  - the version's name on the approve button (551).
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - The tiles' header now reads "TRIAL  5 versions", one muted word.
+  - Each tile's Approve is named "Approve Video A"… for screen readers. Its visible "Approve" sits in a tile already titled "Video A".
+- **Trialtest's note (a)** ("no Approve all beside Finish reviewing in Kasper's layout 2") is answered by build 6 itself: Approve all sits at the top right of the tiles (Probe K4), and an existing check covers it.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (72): exactly one Trial word on Kasper's second layout, and each tile's Approve named A to E. Both fail without the fix.
+  - Screenshot checked at 1440.
+
+**Way back:** revert the pull request.
+
 ## 544. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
 
 - **Why:** the owner turned five staff features on for everybody on 2026-10-27 (`unread_badges_v2`, `phone_polish_staff`, `caption_history_staff`, `thumbnail_title_buttons_staff`, `frame_comments_in_notes_staff`). Those switches only took a list of staff ids, and some readers dropped a `"*"` entry, so the supervisor wrote all 14 active staff ids into each row. Anyone added to the roster later would have been off.
@@ -34921,6 +34971,39 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Server checked first (read only, 2026-10-27).** A client link's card save goes to `calendar-upsert` (`_calUpsertFetchClientLink`, fragment 120). The live function (v94) is the un-gated build: no token check, no per-role field filter, and `caption` is in its `ALLOWED` list. The card-write admission gate is `open`. The `caption_versions_capture` trigger on `calendar_posts` records every caption change whoever makes it, so a client's edit gets a version row like any other. Nothing on the server was changed or widened.
 - **Change (page only, fragments 130 and 170).** `_calClientMayEditText(pid, fld)` now takes the field. On an existing card a client may edit only the fields in `CAL_CLIENT_COLLAB_TEXT_FIELDS` (today just `caption`), and only while Collaborative mode is on. With it off, every text field is read only, as before. The call to action, date, title, alt caption, media and status are unchanged in both modes, and the handler-level blocks still refuse them. Opening the call to action later is one line: add `'cta'` to that set. The review page's own caption edit (`_calClientReviewCaptionEdit`) and blank "suggest a post" cards are untouched.
 - **Proven.** `test/client-calendar-read-only-browser.js` now states the new rule. With collab on, the caption is editable and a typed caption is saved, while the call to action, date and alt caption save nothing however they are reached. With collab off, all of them stay read only. Both modes are checked at 1440 and 390. On main the same test fails 6 checks (the caption is read only with collab on). The nightly probe p52 asserts the gate per field in both modes, and saves a client caption on its own probe card through the client link against the live backend. The Dawn tier-0 check keeps asserting that approve and request changes leave the caption text unchanged; only its label lost "(read-only)".
+- **Way back:** revert the pull request.
+
+## 552. [2026-10-27 UTC, BUILT, NOT MERGED] The "new version" bar asked a working tab after every publish, and again after every dismiss (session Freshness)
+
+- **What happened:** the owner, writing comments on 27 Oct: "10 times I got the toast saying I needed to get the latest version." Eight merges republished the site that day (14:42 to 22:09 UTC, gaps of 24 to 138 minutes), each one a new deploy for every open tab.
+- **How it worked (350 footer):** the page sends a HEAD for `/` every 5 minutes and on every window focus. A newer Last-Modified than the loaded document makes the tab stale. A hidden, clean tab reloads itself (at most once per 30 minutes); a visible one got the bar at once. Dismiss was meant to hold until a newer build, but for a document-stale tab the `t === baseline && !stale` return never applies, so the bar came back on the next poll or the next window focus. After 4 stale hours a clean tab gets the wall; the owner's `app_version_floor` flag walls stale tabs at once. The bar's Reload threw away a typed draft without asking (only the wall and the self-reload checked `wouldLoseWork()`). No server write refuses an old page: the floor flag is the only server-side signal.
+- **Fix:** a visible tab is asked only after it has known about a newer version for an hour; later publishes do not restart that clock. It is not asked while it holds unsaved work (a draft, an open card). Dismiss holds for every later publish. The bar's Reload asks before losing a draft. Unchanged: the hidden-tab self-reload, the wall after 4 stale hours (deferred for unsaved work, with the bar kept up), and the floor flag. The staff page and the client link follow the same rules.
+- **Proof:** `node test/app-update-quiet-browser.js` (new, offline, fake clock, in calendar-unit-tests): a burst of publishes shows the bar once, after an hour; a dismiss holds through five more publishes and focuses; the wall still comes at 4 hours; a draft holds the bar and the Reload asks first; a hidden clean tab still reloads itself and a hidden one with a draft does not. On main's 350 its first check fails. `test/app-update-nudge.js`, `app-update-floor.js` and `app-update-self-reload-behavior.js` pass; `prod-write-gateway-browser.js` and `prod-boot-budget.js` pass.
+
+**Way back:** revert the pull request.
+
+## 543. [2026-10-27 UTC, BUILT, NOT MERGED] production-comments 403s: a cold link to a batch parent asked for a thread that cannot exist (session Comment403)
+
+- **What was seen:** POST production-comments answering 403 at about 7% (27 Oct 14:00 to 15:00 UTC), with nothing in the write-refusal log.
+- **Where they come from:** every one is the `target_forbidden` return in the thread reader (the "missing or out of scope" 403, after the target lookup). The function writes each one to `production_comment_read_audit` (decision `deny`), and that table matches the gateway counts hour by hour. All are staff (key `x-syncview-key`), all from the Production comment loader (`_prodComments.load`, 110-byte body with `include_feedback`); the Workload popover reads all answered 200. No client links, no test client, not the new client.
+- **Two kinds, and neither is new.** The audit shows 5 to 70 of each a day since 6 Oct; 24 to 26 Oct were quiet days, so today is an ordinary weekday rate, not a spike.
+  1. **A batch id read as a deliverable (28 of 43 on 27 Oct).** Six real batches on active clients, all native and two-team. The loader skips a batch parent only when `_prodIssue(id)` already answers the synthetic row, and that row is minted from the batches and deliverables reads. A cold `?prod=1&d=bat_...` link (the Workload parent links) opens the post before those land, so the loader asks, the function answers 403 (no deliverable is ever keyed `bat_`/`b1_b_`: measured, 0 deliverables and 0 comments), and the post keeps "This comment thread is not available to your exact team or client scope." The state is not re-read once the batch loads. Reproduced against the live page read-only: after load the guard holds for all six; a cold deep link reads once and shows the refusal.
+  2. **Another team's thread (15 of 43).** A designer opening a video deliverable, or an editor a graphics one, in Production. `staffTargetAllowed` (policy.mjs) lets a creative key read only its own team: working as designed.
+- **Nothing was lost.** No note lives on a batch id, and the batch parent's composer sends people to the sub-issues. The cross-team reads are refusals by design. They are reads, so the write-refusal log (priority item 4) is not where they belong; the function's own read audit already records every one.
+- **The 500 at 15:12:36** is not this function's code: a `text/plain` answer with no function or execution id, in 149 ms, while the handler only answers JSON. A one-off runtime failure before the handler ran.
+- **Fix (230):** the loader treats an id shaped like a batch (`/^(?:bat|b1_b)_/`, the same test 220 already uses, covering the two-team `bat_...::uuid` node) as a batch parent with no thread, before any read, whether or not the synthetic row has loaded. No function change, no authorization change.
+- **Proven:** `node test/prod-batch-parent-comments-cold-browser.js` (new, mocked, offline): 6 of its 15 checks fail without the fix (2 reads sent and the refusal shown, for each id shape). `test/production-parent-link-hierarchy.js` follows the guard's new text. `prod-comments-browser.js` and `prod-write-gateway-browser.js` pass.
+
+**Way back:** revert the commit.
+
+## 545. [2026-10-27 UTC, BUILT, NOT MERGED] Four Notes fixes found in the live test after 541 (session Notesfix)
+
+- **Why:** a live test of 541 (#2372) found four small bugs. None was caused by 541, but they mattered once the client link had the team's badges.
+- **1. Phone: a note was read before the client saw it.** The client link opens on the Review page, and 195 `_rsChat` marked the post's notes read as soon as it drew the conversation. At 390 the conversation is below the fold, so a new team note never showed as new on the Sheet. Now the notes are marked read only once the conversation is on screen (`_rsCpSeeWhenShown`: at once if it already is, else an IntersectionObserver). At 1440 nothing changes. Staff and Kasper do not share the path: only the client link marks the Review page's notes read.
+- **2. The badge counted a reply hidden in a done thread.** 327 `_svuStateOf` counted a team reply inside a done thread as new, but Notes keeps done threads behind its history button, so the badge said "2 new" while Notes showed one New row. Now nothing in a done thread counts as new or waiting, for the client link and staff alike.
+- **3. The client Review page could name Kasper.** 195 `_rsFirst` returned "Kasper" before its client-link check, and the badges and rows gave him the violet picture. Now, on the client link, every team note reads "Synchro team" with the "S" picture (`_rsKp`). Staff views are unchanged. Measured: the calendar client view already drops Kasper's notes (130 `_calCommentsForView`), so this could not be reached from the mocked backend's data. The order is fixed anyway, and the test is a guard.
+- **4. Staff could not write to the client about the Caption on a Production-linked card.** In 190 `_calSetComposeComp`, picking another part only moved the highlight. Now, when the new part's thread differs (linked Video or Thumbnail are team only, an unlinked Caption is not), the composer is drawn again with the draft kept, so the eye button shows at once.
+- **Proof (all offline):** `node test/client-notes-fixes-browser.js` (1 at 390 vs 1440, 2 on the client Sheet and Notes, 3 at both widths), `node test/staff-done-thread-badge-browser.js` (2 for staff) and `node test/notes-caption-composer-browser.js` (4). All of 1, 2 and 4 fail on main before this fix. Also green: prod-write-gateway-browser, client-unread-badges-browser, unread-badges-v2-browser, review-client-badges and notes, notes-composer-threads, notes-quick-open-reply and the review-stage suites.
 - **Way back:** revert the pull request.
 
 ## 557. [2026-10-28 UTC, BUILT, NOT MERGED] Production polish gate red on every main merge since trial reels build 3: the review packet saw a trial-reels POST and a 409 (session Packet)

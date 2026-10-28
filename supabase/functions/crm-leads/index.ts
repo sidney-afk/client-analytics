@@ -312,6 +312,7 @@ async function todayView(db: SupabaseClient) {
   const now = Date.now();
   const horizon = now + 86400000;
   const sends = evaluateAll(await loadEngine(db), now)
+    .filter(({ person }: any) => !(person && Array.isArray(person.tags) && person.tags.includes("not-a-lead")))
     .filter(({ r }: any) => (r.state === "send" || r.state === "hold" || r.state === "wait") && r.due_at && Date.parse(r.due_at) <= horizon)
     .map(({ enrolment, person, sequence, r }: any) => ({
       enrolment_id: enrolment.id, person_id: enrolment.person_id, display_name: person ? person.display_name : "",

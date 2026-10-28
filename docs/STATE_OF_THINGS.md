@@ -18,6 +18,18 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-28 morning): trial reels all on main, client link polish for all clients, staff features for everyone
+
+- **Trial reels, builds 1 to 7, all merged** (last: #2366 build 6, #2367 build 7, #2403 fixes; OPEN_REPAIRS 514 to 560 range). Still behind `trial_reels_pages` (test client only). Live-checked on the test client by session Trialtest: card, Production Assets, the three review pages, Notes, Kasper's second layout (version tiles), and the client player (every version plays in place; dropped or foreign links refused). Still to check live: picking the winner after a real 24 h trial (throwaway card, about 2026-10-29 09:00 UTC). The owner tests next.
+- **Speed (#2391, OPEN_REPAIRS 554):** trial-reels reads about 170 ms, list about 230 ms, writes about 225 to 350 ms of server work.
+- **Off-card read (#2399, OPEN_REPAIRS 557):** trial-reels answers a read of a card whose switch is off with 200 `{enabled:false}` instead of a 409; the Production review packet counts trial-reels reads as reads. The "Production polish gate (push)" lane was red after every merge from 12e8c87 (27 Oct 22:09 UTC) to this fix (28 Oct 06:3x UTC); green since.
+- **Staff switches take `{"all": true}` (#2374, OPEN_REPAIRS 544): merged.** The five staff features (unread_badges_v2, phone_polish_staff, caption_history_staff, thumbnail_title_buttons_staff, frame_comments_in_notes_staff) read `{"all": true, "staff": [14 ids]}` since 2026-10-28 04:0x UTC; the 3-hourly watcher checks them until 2026-10-29 15:30 UTC, then the supervisor proposes making them permanent.
+- **Client link polish for all clients:** `review_client_polish` = `{"all": true, "clients": [test client]}` since 2026-10-28 06:26:22 UTC, after live checks at 1440 and 390 and the Notes fixes (#2381, OPEN_REPAIRS 545). Watched 3 days (until 2026-10-31 06:30 UTC). Rollback: `{"clients": [test client]}`.
+- **Client captions in Collaborative mode (#2370, OPEN_REPAIRS 540):** a client may type the caption on the Sheet again while Collaborative mode is on; read only when it is off. Live-checked.
+- **Fewer "new version" prompts (#2389, OPEN_REPAIRS 552; #2402, 558):** a tab someone is working in is asked once, an hour after a newer version appears, never mid-draft; Dismiss holds; a signed-out tab follows the same rules unless a role key is typed. Live-checked.
+- **Production comment 403s (#2376, OPEN_REPAIRS 543):** a cold link to a batch parent asks for no thread. Batch-parent denials since the publish: 0 (re-read after midday).
+- **Test races fixed:** Leads No-show touch target (#2401), staff phone final pass and collections (#2400), refresh-skeleton address (#2404).
+
 ## Latest (SyncView stand-in, 2026-10-27 night): own test client on Today, CRM live, trial reels building
 
 - **Own test client on Today (#2350, OPEN_REPAIRS 511):** live. A staff member's own roster row brings their test client onto their Today and "My clients"; nobody else sees it. Measured against the live database client list.

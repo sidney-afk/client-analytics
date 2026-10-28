@@ -25,7 +25,7 @@
  * review pages).
  *
  * KNOWN: checks that fail on main because of a finding not fixed yet are listed in KNOWN with the finding id
- * (OPEN_REPAIRS 566). They print "KNOWN" and do not fail the run, so the rest of the matrix stays a gate. When the
+ * (OPEN_REPAIRS 567). They print "KNOWN" and do not fail the run, so the rest of the matrix stays a gate. When the
  * fix lands, delete its line: a KNOWN check that passes prints "NOW PASSES" so it is easy to see.
  *   MATRIX_ONLY=card,prod,review,notes,tabs   runs only those parts.
  *   MATRIX_STRICT=1                            fails on KNOWN checks too (to watch a fix).
@@ -38,12 +38,12 @@ const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.j
 
 // Finding id -> the check ids it makes fail on main. Trials removes a line when it fixes the finding.
 const KNOWN = {
-  // 566a: the Video row's own pencil, then Escape or a click away, draws the versions list a second time (Sidney's bug).
-  '566a': ['desk', 'phone'].flatMap(sz => ['Escape', 'Escape-later', 'away', 'away-later'].flatMap(st => ['lists', 'open'].map(c => `card.${sz}.main-pencil-${st}.${c}`))),
-  // 566b: a double click on Approve on the review pages answers the next version too.
-  '566b': ['smm.ok-dbl.not-b', 'kasper.ok-dbl.not-b', 'client.desk.ok-dbl.not-b', 'client.phone.ok-dbl.not-b'],
-  // 566c: a refused answer on the client link shows the client the server's code ("request_failed").
-  '566c': ['client.desk.refused.words', 'client.phone.refused.words'],
+  // 567a: the Video row's own pencil, then Escape or a click away, draws the versions list a second time (Sidney's bug).
+  '567a': ['desk', 'phone'].flatMap(sz => ['Escape', 'Escape-later', 'away', 'away-later'].flatMap(st => ['lists', 'open'].map(c => `card.${sz}.main-pencil-${st}.${c}`))),
+  // 567b: a double click on Approve on the review pages answers the next version too.
+  '567b': ['smm.ok-dbl.not-b', 'kasper.ok-dbl.not-b', 'client.desk.ok-dbl.not-b', 'client.phone.ok-dbl.not-b'],
+  // 567c: a refused answer on the client link shows the client the server's code ("request_failed").
+  '567c': ['client.desk.refused.words', 'client.phone.refused.words'],
 };
 const KNOWN_IDS = new Map(Object.entries(KNOWN).flatMap(([f, ids]) => ids.map(id => [id, f])));
 const STRICT = !!process.env.MATRIX_STRICT;

@@ -35129,17 +35129,34 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - A tile with no picture shows a quiet video mark. No version has a picture of its own (frameio-view returns none), so the card's poster is used when it has one.
 - **Proven:** `test/trial-reels-round2-review-browser.js`, light and dark: from the first frame the card has tiles or placeholders, the panes under them never move, and a video mark is in every tile. Each fails on main.
 
-## 566. [2026-10-28 UTC, TEST BUILT, FINDINGS OPEN] Trial reels: every action on every surface, walked and checked after each step (session Allactions)
+## 566. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: a version the client passed on read "waiting" on Kasper's standard layout and the SMM's Review tab, and the client's own dot missed their change (Trialtest, session Trials)
+
+- **What happened:** found live by Trialtest after #2409.
+  - On Kasper's standard layout (390, or any Kasper without the second layout), with Video B on stage on a card where the client passed B: the dot read "Video B, waiting", nothing said "Client passed", the button offered "Approve Video B", and "Approve all (2 waiting)" counted B. The second layout's tile was right. The SMM's Review tab had the same gap.
+  - On the client link, after a change on Video C (Ask for a change, typed, Enter), the server had the change, but the client's own dot for C stayed "waiting" while the box stayed open.
+- **Why:**
+  - `_trvAnswer` (`src/index/194-review-trial-versions.js.part`) knew the pass only for the client's stage.
+  - The client's change waited for the server's answer, and the page holds its redraw while a box has focus (`_rsTyping`, `195`).
+- **Fix:**
+  - For the team, a passed version reads "Client passed" on its dot ("Video B, client passed"). In place of Approve it says "Client passed on Video B: drop it from the card", and Approve all leaves it out.
+  - The change marks the version "change asked" at once, as Approve does.
+  - A trial card's version bar is drawn again even while a box has focus. It holds no input.
+- **Proven:** `test/trial-reels-round2-review-browser.js`:
+  - `TRL_PART=staffpass`: Kasper at 1280 and at 390, and the SMM's Review tab at 1440;
+  - `TRL_PART=clientchg`: the server answers after 1.5 s, the box keeps the focus, and C's dot says change asked within 400 ms.
+  - Each fails on main.
+
+## 567. [2026-10-28 UTC, TEST BUILT, FINDINGS OPEN] Trial reels: every action on every surface, walked and checked after each step (session Allactions)
 
 - **Why:** Sidney pressed an edit pencil on a trial card, did nothing, pressed Escape, and the versions list was drawn twice. No test caught it, because each trial-reels test walks the happy path of one feature. He asked for every action to be tried.
 - **The test:** `test/trial-reels-action-matrix-browser.js`, offline, one in-memory backend that follows `trial-reels/index.ts` and `logic.mjs` for every page. It walks the staff card at 1440 and 390 (switch on and off, add, paste, edit then Escape, edit then click away, edit then Enter with the same link, not https, a foreign host, another version's link, clear, a new link, the version on the card, switching rows mid-edit, the Video row's own pencil, the arrow, drop, bring back, double clicks, slow and refused answers, new cut, the trial, the winner, Undo), Production's Assets rows, the SMM's Review tab, Kasper's two layouts, the client link at 1440 and 390, the Notes player, two tabs at once and a reload during a write. After every step it checks one Video row, at most one list, no version twice, nothing half drawn, the list equal to the backend, the card's one link, the write count and page errors. About 1,250 checks, about 5 minutes. In CI, part 2 of the entry-link lanes.
 - **Findings** (each marked KNOWN in the test with its id, so CI stays a gate; session Trials removes the line when it fixes it):
-  - **566a. The Video row's own pencil, then Escape or a click away, draws the versions list twice** (Sidney's report). Each further time adds one more copy. Cause: `_calOnLinkBlur` (160) replaces only the Video row with `_calLinkFieldHtml`, which for a trial card returns the row and its open list, and leaves the old list in place. The version rows' own pencils are fine. Desktop and phone.
-  - **566b. A double click on Approve on the review pages answers the next version too.** The first click approves the version on screen and the page moves on; the second lands on the next version's Approve. Seen for the SMM, Kasper's standard layout and the client link at 1440 and 390. This may be why Sidney's approve "landed on Video B" (563, open).
-  - **566c. A refused answer on the client link shows the client the server's code**: "The server answered "request_failed". Nothing was changed."
+  - **567a. The Video row's own pencil, then Escape or a click away, draws the versions list twice** (Sidney's report). Each further time adds one more copy. Cause: `_calOnLinkBlur` (160) replaces only the Video row with `_calLinkFieldHtml`, which for a trial card returns the row and its open list, and leaves the old list in place. The version rows' own pencils are fine. Desktop and phone.
+  - **567b. A double click on Approve on the review pages answers the next version too.** The first click approves the version on screen and the page moves on; the second lands on the next version's Approve. Seen for the SMM, Kasper's standard layout and the client link at 1440 and 390. This may be why Sidney's approve "landed on Video B" (563, open).
+  - **567c. A refused answer on the client link shows the client the server's code**: "The server answered "request_failed". Nothing was changed."
 - **Checked and fine:** every version-row action on the card, Production's Edit, Cancel and Save (same link writes nothing, a foreign link is refused in words), Kasper's double-clicked Drop and Approve all write once, Notes' quick version switches end on the version named, two tabs dropping at once, and a reload during a write.
 - **Live, on the test client** (one throwaway card with no sub-issue, made and archived by this session; the prepared test card was not touched; main's page against the live backend, 2026-10-28 about 18:40 UTC):
-  - 566a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
-  - 566b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
+  - 567a confirmed: with the list open, the Video row's pencil then Escape left 2 lists; a click away after that made 3. No trial write was sent. A version row's pencil then Escape left 1.
+  - 567b confirmed: with Video A, B and C OK'd by the SMM and Kasper, the client's double click on Approve on Video A approved A and B, and the page moved to Video C.
   - Two staff tabs dropping Video C at once: C dropped once, both tabs agree; bringing it back from one tab works.
 - **Kept as today, not trial findings:** today's link box saves the card on any close, Escape included (it refreshes a file swapped behind the same link); Production's asset editors do not close on Escape, today's included.

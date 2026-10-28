@@ -242,7 +242,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         _crmPaintSide();
         _crmPaintTop();
         _crmPaintBody();
-        try { history.replaceState(Object.assign({}, history.state, { crmView: _crmViewKey() }), '', _crmViewUrl(_crmViewKey())); } catch (e) {}
+        try { history.replaceState(Object.assign({}, history.state, { crmView: _crmViewKey(), crmIdx: _crmIdx() }), '', _crmViewUrl(_crmViewKey())); } catch (e) {}
         if (_crmState.tab === 'person' && _crmState.openId) _crmOpenPerson(_crmState.openId, { page: true });
         if (!_crmState.loaded) _crmLoad(false); else _crmLoad(true);
         if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences') _crmLoadSequences(!!_crmState.seqs);   // home and the side menu list the automations
@@ -357,7 +357,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const t = _crmState.tab;
         return t === 'seq' ? _crmState.seqKey : t === 'person' ? 'person:' + _crmState.openId : t;
     }
-    function _crmViewUrl(key) { return (!key || key === 'home') ? '#leads' : '?v=' + encodeURIComponent(key) + '#leads'; }
+    function _crmViewUrl(key) { return (!key || key === 'home') ? '?#leads' : '?v=' + encodeURIComponent(key) + '#leads'; }
+    function _crmIdx() { const st = history.state; return st && typeof st.crmIdx === 'number' ? st.crmIdx : 0; }
     function _crmViewFromUrl() {
         try { return new URLSearchParams((window.svRoute ? window.svRoute.search() : location.search) || '').get('v') || ''; } catch (e) { return ''; }
     }
@@ -368,13 +369,12 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         return false;
     }
     function _crmBack() {
-        if (history.state && history.state.crmView && _crmState.depth > 0) history.back(); else _crmGo('home');
+        if (history.state && history.state.crmView && _crmIdx() > 0) history.back(); else _crmGo('home');
     }
     window.addEventListener('popstate', e => {
         const st = e.state;
         if (!st || typeof st.crmView !== 'string' || !document.getElementById('crmBody')) return;
         e.stopImmediatePropagation();
-        _crmState.depth = Math.max(0, (_crmState.depth || 0) - 1);
         _crmGo(st.crmView, { fromHistory: true });
     }, true);
     function _crmGo(key, opts) {
@@ -385,7 +385,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!_crmApplyView(key)) return;
         if (_crmState.tab === 'seq' && _crmState.treeOpen) _crmSeqGroups().forEach(g => g.items.forEach(x => { if (x.key === key) { delete _crmState.treeOpen[g.title]; delete _crmState.treeOpen[g.title + ' / ' + x.sub]; } }));
         if (!(opts && opts.fromHistory) && key !== was) {
-            try { history.pushState(Object.assign({}, history.state, { crmView: key }), '', _crmViewUrl(key)); _crmState.depth = (_crmState.depth || 0) + 1; } catch (e) {}
+            try { const i = _crmIdx() + 1; history.pushState(Object.assign({}, history.state, { crmView: key, crmIdx: i }), '', _crmViewUrl(key)); } catch (e) {}
         }
         _crmState.colMenu = '';
         _crmPaintSide();
@@ -885,7 +885,6 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         // Closing never loses typed text: a started note is kept for that person.
         const note = document.getElementById('crmPNote');
         if (note && _crmState.openId) _crmState.drafts[_crmState.openId] = note.value;
-        if (_crmState.personPage && !fromLayer) { _crmBack(); return true; }
         _crmState.openId = ''; _crmState.person = null; _crmState.events = []; _crmState.editing = false; _crmState.noteOpen = false; _crmState.personPage = false;
         _crmPaintPanel();
         if (!fromLayer && _crmPanelLayer) svLayerRelease(_crmPanelLayer, { focus: true });

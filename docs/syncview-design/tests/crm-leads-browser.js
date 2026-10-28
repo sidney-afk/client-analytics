@@ -427,6 +427,7 @@ async function run(browser, origin, viewport) {
     expect(true, label + ': a reload stays on the same automation');
     await page.click('#crmTop [data-crm-nav="home"]');
     const topHome = await page.locator('#crmTop .crm-crumbs').boundingBox();
+    expect(!/[?&]v=/.test(page.url()), label + ': Home clears the view from the address (' + page.url() + ')');
     expect(topBefore && topHome && Math.abs(topBefore.x - topHome.x) < 2 && Math.abs(topBefore.width - topHome.width) < 2 && topAfter, label + ': the menu row does not move when the left list shows');
     await page.goBack();
     await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');

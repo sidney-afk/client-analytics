@@ -151,7 +151,7 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(/window\._crmOnIdentity\(\)/.test(chrome.slice(0, 3000)), 'the staff chrome refresh re-renders Leads');
   ok(/_crmState\.gen\+\+/.test(frag) && /gen !== _crmState\.gen/.test(frag), 'reads still in flight at an identity change are ignored');
   ok(/if \(_crmState\.openId === p\.id && _crmState\.person && _crmState\.person\.id === p\.id\)/.test(frag), 'a note answer only touches the panel if it still shows that person');
-  ok(/_crmPaintFilters\(\);\s+\/\/ the niche, owner and batch choices/.test(frag), 'filter choices repaint after the list loads');
+  ok(/function _crmColChoices\(key\)[^]*?_crmState\.people\.forEach/.test(frag) && /_crmPaintBoard\(\); _crmPaintHome\(\); _crmPaintResults\(\);/.test(frag), 'column filter choices come from the list just loaded');
   ok(!/\bconfirm\(|\balert\(/.test(frag), 'no native dialogs');
   ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(frag.slice(frag.indexOf('_crmInjectStyles'))), 'styles use theme tokens only');
   ok(/'leads': 'leads'/.test(read('src/index/003-sv-route.html.part')), 'clean route /leads');

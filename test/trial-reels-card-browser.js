@@ -159,7 +159,7 @@ async function shot(page, name) {
       await sleep(300);
       const rows = await page.$$eval('.trl-list .trl-v:not(.trl-add)', ns => ns.map(n => n.innerText.replace(/\s+/g, ' ').trim()));
       ok(rows.length === 5 && rows.every((r, i) => r.startsWith('Video ' + 'ABCDE'[i])), `${label}: the arrow opens Video A to E (${rows.join(' | ')})`);
-      ok(/^Video F/.test(await page.$eval('.trl-list .trl-add', n => n.innerText.trim()).catch(() => '')), `${label}: and offers Video F, to add one by pasting its link`);
+      ok(/^\+ Add version$/.test(await page.$eval('.trl-list .trl-add', n => n.innerText.trim()).catch(() => '')) && /Video F/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))), `${label}: and offers "+ Add version" (Video F, by pasting its link)`);
       ok(/approved/.test(rows[0]) && /change asked/.test(rows[2]) && /dropped/.test(rows[3]) && /waiting/.test(rows[4]) && /Paste the Frame\.io link/.test(rows[4]), `${label}: a mixed review shows each label, and E asks for its link`);
       await shot(page, label + '-review-open');
       ok(!rows.join(' ').includes('Fictional hook') && !(await page.$('.trl-list .hook')), `${label}: no hook text anywhere`);
@@ -210,7 +210,7 @@ async function shot(page, name) {
       await sleep(300);
       await shot(page, label + '-due-open');
       const trialRows = await page.$$eval('.trl-list .trl-v', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), pick: !!n.querySelector('.trl-pick[title="Make this the winner"]') })));
-      ok(trialRows.filter(r => r.pick).length === 4 && trialRows.every(r => !/on trial/.test(r.t)) && /dropped/.test(trialRows[3].t), `${label}: the trophy opens the list: a trophy on each version on trial, no "on trial" labels, "dropped" kept`);
+      ok(trialRows.filter(r => r.pick).length === 4 && trialRows.filter(r => r.pick).every(r => /on trial/.test(r.t)) && /dropped/.test(trialRows[3].t), `${label}: the trophy opens the list: a trophy on each version on trial, each saying "on trial" (owner, 2026-10-28: every row says its state), "dropped" kept`);
       // The winner refused after today's attach moved the card's link: the link goes back to Video A.
       T.refuse = 'winner_set';
       const r0 = T.attaches.length;

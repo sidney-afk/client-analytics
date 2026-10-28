@@ -40,7 +40,7 @@ Mockups (round 2, after the owner looked at the round 1 card on 2026-10-26; see 
   are typed** (owner, Q7): after the trial **the SMM simply picks the winner** (Q6); the others become lost. **The
   winner posts on the card's calendar date and the card turns Posted.** The client sees only the winner, once it is
   picked (Q8).
-- **Only the team can drop a version** (Q2). The client can say "Not this one" on a version (owner, 2026-10-28; OPEN_REPAIRS 562): it records `client_pass_at`, the team sees "Client passed" and drops it, and it no longer holds the client's stage or the card's Approved. **A changed version takes the normal route**: the SMM and Kasper again
+- **Only the team can drop a version** (Q2). The client can say "Not this one" on a version (owner, 2026-10-28; OPEN_REPAIRS 562): it records `client_pass_at`, the team sees "Client dropped" (OPEN_REPAIRS 569) and drops it, and it no longer holds the client's stage or the card's Approved. **A changed version takes the normal route**: the SMM and Kasper again
   before the client (Q3). **The client link works like today, with no token** (Q5). **The SMM always picks one**, so
   SyncView has no "no clear winner" (Q10).
 - **Frame.io links are pasted by people** (Q9): the person who uploads each version to Frame.io pastes its link into
@@ -289,7 +289,7 @@ Not a Section 4 function, so no fingerprint pin; it deploys through the merge la
 | `version_drop` / `version_restore` | staff key | `dropped`, or back to `waiting` |
 | `version_new_cut` | staff key (SMM, admin, or an editor's creative key) | "New cut ready" on a version with a change asked, from the version row's hover tools on the card: Frame.io keeps one link across new uploads, so the new cut is said, not pasted. Like a new link it bumps `revision`, clears the three OKs and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). Default awaiting the owner (2026-10-27, Supervisor's call (b)); one revert |
 | `answer` | staff key (SMM, Kasper) or the client review link, with no token, as today (Q5) | `approve`, `change` (with a note), `approve_all`; stamps the role's `*_ok_at`; returns `stage_done: true` when every non-dropped version has this role's OK |
-| `trial_start` | staff key | every `approved` version becomes `on trial`, stamps `posted_at` and `trial_ends_at` |
+| `trial_start` | staff key | by itself since 2026-10-28 (OPEN_REPAIRS 570): once the card's video is Posted, any read puts every `approved` version `on trial` with `posted_at` = the card's Posted time and `trial_ends_at` 24 h later; asked for by hand before Posted it answers `trial_starts_when_posted`. The winner and Undo work on the Posted card |
 | `winner_set` | staff key (the SMM) | that version `winner`, the other trial versions `lost`; copies the letter onto the switch row |
 
 - **The page switch** `trial_reels_pages` in `syncview_runtime_flags`, `{ "clients": [the test client] }`, read with
@@ -354,6 +354,7 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   `card-due-*` (collapsed), `card-due-open-*` (opened), `card-winner-undo-*` (the moment after, with the toast).
   **Staff only:** the staff card and the phone staff card show it, and the SMM and Kasper can press it; the client
   link never shows it, and `trial-reels` refuses `winner_set` and `winner_undo` from a client link.
+- **Every version row says its state (owner, 2026-10-28, OPEN_REPAIRS 568)**, which replaces the rule that follows for the version labels; only "lost" stays unsaid once there is a winner.
 - **No visual noise (owner, 2026-10-26, applied as a sweep):** a label is shown only where it says something the row
   does not. Removed by this rule:
   - the outlined "Pick winner" pill on the collapsed row (now the trophy alone);

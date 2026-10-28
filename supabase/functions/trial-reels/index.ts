@@ -56,6 +56,7 @@ import {
   trialPatches,
   undoWinnerPatches,
   winnerPatches,
+  autoTrialPatches,
 } from "./logic.mjs";
 
 const FN = "trial-reels";
@@ -92,6 +93,27 @@ function keepRunning(p: Promise<unknown>): void {
   try { rt?.waitUntil?.(p); } catch (_e) { /* the answer is already correct without it */ }
 }
 
+/* Every change is said at once to the staff pages that have the card open (owner, 2026-10-28: "if a client does
+   something on the trial, like approves, it shows immediately on the calendar"). One Realtime broadcast on the fixed
+   channel trial-reels whose only field is the first 12 hex of sha256(post_id): anyone with the publishable key can
+   join a public channel, so it names no client and no card; a staff page hashes the cards it holds and reads only a
+   match through this function. Best effort, after the answer: a page that misses it catches up on its 30 s read. */
+async function cardHash(postId: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(postId));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+}
+function announce(_client: string, postId: string): void {
+  const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key || !postId) return;
+  const sent = cardHash(postId).then((h) => fetch(url.replace(/\/$/, "") + "/realtime/v1/api/broadcast", {
+    method: "POST",
+    headers: { apikey: key, Authorization: "Bearer " + key, "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ topic: "trial-reels", event: "changed", payload: { h } }] }),
+  })).then((r) => { if (!r.ok) console.warn(JSON.stringify({ fn: FN, announce: "http_" + r.status })); })
+    .catch(() => console.warn(JSON.stringify({ fn: FN, announce: "failed" })));
+  keepRunning(sent);
+}
+
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
@@ -117,7 +139,7 @@ async function principalFor(supabase: SupabaseClient, req: Request, client: stri
 
 async function readCard(supabase: SupabaseClient, client: string, postId: string): Promise<JsonMap> {
   const { data, error } = await supabase.from("calendar_posts")
-    .select("id,client,video_status,asset_url,video_deliverable_id")
+    .select("id,client,video_status,video_status_at,asset_url,video_deliverable_id")
     .eq("client", client).eq("id", postId).maybeSingle();
   if (error) throw new Refusal(503, "card_unreadable");
   if (!data) throw new Refusal(404, "card_not_found");
@@ -146,6 +168,26 @@ async function readVersionRows(supabase: SupabaseClient, client: string, postId:
 // Seen through the card's own winner letter (settleWinner): a winner the studio writes on a row is never read.
 async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
   return settleWinner(await readVersionRows(supabase, client, postId), winnerLetter) as Version[];
+}
+
+/* Posted starts the trial (logic.mjs autoTrialPatches): on any request that reads a card whose video is Posted and
+   whose approved versions are not on trial yet, they go on trial here, with a trial_start ledger row and the broadcast.
+   Answers the versions as they now are. A refused write leaves them as read (the next request tries again). */
+async function startIfPosted(supabase: SupabaseClient, client: string, postId: string, versions: Version[], card: JsonMap,
+  who: Principal, winnerLetter: unknown): Promise<Version[]> {
+  const r = autoTrialPatches(versions, { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now() });
+  if (!r.patches.length) return versions;
+  const now = new Date().toISOString();
+  try {
+    await applyChanges(supabase, versions, r.patches as Change[], now);
+  } catch (_e) {
+    console.warn(JSON.stringify({ fn: FN, auto_trial: "not_started", post_id: postId }));
+    return versions;
+  }
+  const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, r.patches as Change[], who, now, "trial_start"));
+  if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
+  announce(client, postId);
+  return await readVersions(supabase, client, postId, winnerLetter);
 }
 
 /* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 554): every read a request may need starts at once and each answer
@@ -355,8 +397,9 @@ Deno.serve(async (req: Request) => {
         const versionsP = begun(readVersions(supabase, client, id, sw.winner_letter));
         const card = await readCard(supabase, client, id).catch(() => null);
         if (!card) return null;
-        const [versions, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
-        if (who.kind === "staff") await healMain(supabase, client, id, versions, link, who);
+        const [read, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
+        if (who.kind === "staff") await healMain(supabase, client, id, read, link, who);
+        const versions = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter);
         return [id, { enabled: true, winner_letter: sw.winner_letter || null,
           ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
       }));
@@ -396,6 +439,7 @@ Deno.serve(async (req: Request) => {
       };
       await Promise.all([event, seed()]);
       outcome = "ok";
+      announce(client, postId);
       return json({ ok: true, enabled });
     }
 
@@ -408,9 +452,10 @@ Deno.serve(async (req: Request) => {
     }
     // Everything else is about the versions of a card whose switch is on.
     if (!sw || sw.enabled !== true) throw new Refusal(409, "trial_reels_off");
-    const versions = settleWinner(await rowsP!, sw.winner_letter) as Version[];
+    const read = settleWinner(await rowsP!, sw.winner_letter) as Version[];
     const link = await linkP!;
-    if (principal.kind === "staff") await healMain(supabase, client, postId, versions, link, principal);
+    if (principal.kind === "staff") await healMain(supabase, client, postId, read, link, principal);
+    const versions = await startIfPosted(supabase, client, postId, read, card, principal, sw.winner_letter);
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
 
     if (action === "version_add") {
@@ -419,6 +464,7 @@ Deno.serve(async (req: Request) => {
       const { ledger } = await insertVersion(supabase, client, card, postId, r.letter, r.link, principal, now);
       const [after] = await Promise.all([readVersions(supabase, client, postId, sw.winner_letter), ledger]);
       outcome = "ok";
+      announce(client, postId);
       return json({ ok: true, changed: [r.letter], winner_letter: sw.winner_letter || null,
         ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
     }
@@ -484,9 +530,9 @@ Deno.serve(async (req: Request) => {
       const v = versions.find((x) => x.letter === letter)!;
       changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
     } else if (action === "trial_start") {
-      const r = trialPatches(versions, Date.now());
-      if (r.error) throw new Refusal(400, r.error);
-      changes = r.patches as Change[];
+      // The trial starts by itself once the card is Posted (above); asked for before that, it is refused.
+      if (clean(card.video_status, 40) !== "Posted") throw new Refusal(409, "trial_starts_when_posted");
+      if (!versions.some((v) => v.status === "on trial")) throw new Refusal(400, trialPatches(versions, Date.now()).error || "nothing_approved");
     } else if (action === "winner_set") {
       const r = winnerPatches(versions, letter, link, { nowMs: Date.now(), cardStatus: card.video_status });
       if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
@@ -516,6 +562,7 @@ Deno.serve(async (req: Request) => {
     const [after] = await Promise.all([afterP, ledger()]);
     const fresh = readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status });
     outcome = "ok";
+    if (changes.length || action === "winner_set" || action === "winner_undo") announce(client, postId);
     return json({ ok: true, changed: changes.map((c) => c.letter), ...extra, ...fresh });
   } catch (e) {
     if (e instanceof Refusal) {

@@ -2286,6 +2286,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-round3-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the owner's third trial-reels round on the staff card: a client's change reaches the open card through the trial-reels broadcast (one fixed channel, a 12-hex hash of the card only) in under 2 s reading only that card, every version row saying its state with who said it per stage in the hover, Client dropped, small-radius tags, no Start the 24 h link, a minimal + Add version that opens the paste field, and the row's pencil then Escape keeping exactly one versions list, at 1440 and 390, light and dark.",
+      "reproduce": "node test/trial-reels-round3-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-notes-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

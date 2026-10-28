@@ -64,6 +64,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     a failed read is one muted line (session Framenotes, 2026-10-26, 187/190). Same
                                     listing rule (id or full name of the signed-in staff member). Never the client
                                     link. Missing, unreadable or the wrong shape: Notes exactly as it was.
+         Every { "staff": [...] } switch above also takes { "all": true } (session Allstaff, 2026-10-27; read by one helper,
+                                    _rsStaffSwitch / _rsStaffOn below): every signed-in staff member, never the client
+                                    link, so a person who joins later needs no edit. Only the exact boolean true counts,
+                                    a "*" entry is not a wildcard, and a list keeps working as a list.
          review_client_polish       { "clients": [...] } or { "all": true }: the client review page's polish (session Porch,
                                     2026-10-24): Approve morphs into a spinner then a check, a sent change keeps its box
                                     open and empty for the next one, a spinner instead of any "Sending" text, a cross on
@@ -83,7 +87,12 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'frame_comments_in_notes_staff', 'trial_reels_pages', 'thumbnail_title_buttons_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
+    let _rsFlags = _rsFlagsOff();
+    // Nothing read yet, or the read failed: every switch off.
+    function _rsFlagsOff() {
+        const n = _rsStaffNone;
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), capHist: n(), ttb: n(), unread: n(), phone: n(), fnotes: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
+    }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -94,25 +103,16 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const c = by.review_stage_client_pages;
         const okObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
         const members = okObj(c) ? (_calRuntimeFlagRawMembers(c) || []) : [];
-        const s = by.review_stage_kasper_staff;
-        const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
-        const w = by.workload_calm_staff;
-        const calm = okObj(w) && Array.isArray(w.staff) ? w.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
-        const calmAll = okObj(w) && w.all === true;
-        const l2 = by.review_stage_kasper_layout2;
-        const layout2 = okObj(l2) && Array.isArray(l2.staff) ? l2.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
-        const fb = by.kasper_fast_boot;
-        const fast = okObj(fb) && Array.isArray(fb.staff) ? fb.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
-        const ub = by.unread_badges_v2;
-        const unread = okObj(ub) && Array.isArray(ub.staff) ? ub.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
-        const ch = by.caption_history_staff;
-        const capHist = okObj(ch) && Array.isArray(ch.staff) ? ch.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
-        const tt = by.thumbnail_title_buttons_staff;
-        const ttb = okObj(tt) && Array.isArray(tt.staff) ? tt.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
-        const pp = by.phone_polish_staff;
-        const phone = okObj(pp) && Array.isArray(pp.staff) ? pp.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
-        const fn = by.frame_comments_in_notes_staff;
-        const fnotes = okObj(fn) && Array.isArray(fn.staff) ? fn.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        // The staff switches, each { "staff": [...] } and/or { "all": true }, read by one helper (_rsStaffSwitch).
+        const staff = _rsStaffSwitch(by.review_stage_kasper_staff);
+        const calm = _rsStaffSwitch(by.workload_calm_staff);
+        const layout2 = _rsStaffSwitch(by.review_stage_kasper_layout2);
+        const fast = _rsStaffSwitch(by.kasper_fast_boot);
+        const unread = _rsStaffSwitch(by.unread_badges_v2);
+        const capHist = _rsStaffSwitch(by.caption_history_staff);
+        const ttb = _rsStaffSwitch(by.thumbnail_title_buttons_staff);
+        const phone = _rsStaffSwitch(by.phone_polish_staff);
+        const fnotes = _rsStaffSwitch(by.frame_comments_in_notes_staff);
         const cpv = by.review_client_polish;
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const trv = by.trial_reels_pages;
@@ -124,16 +124,15 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             loaded: true,
             all: okObj(c) && c.all === true,
             clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
-            staff: new Set(staff),
-            calm: new Set(calm),
-            calmAll,
-            layout2: new Set(layout2),
-            fast: new Set(fast),
-            unread: new Set(unread),
-            phone: new Set(phone),
-            fnotes: new Set(fnotes),
-            capHist: new Set(capHist),
-            ttb: new Set(ttb),
+            staff,
+            calm,
+            layout2,
+            fast,
+            unread,
+            phone,
+            fnotes,
+            capHist,
+            ttb,
             cpAll: okObj(cpv) && cpv.all === true,
             cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             trAll: okObj(trv) && trv.all === true,
@@ -155,7 +154,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.phone.size || next.fnotes.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || [next.staff, next.calm, next.layout2, next.fast, next.capHist, next.ttb, next.unread, next.phone, next.fnotes].some(_rsStaffAny) || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -166,7 +165,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
+            _rsFlags = _rsFlagsOff();
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             svPhonePolishSync();
@@ -186,7 +185,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             }
             if (_rsPendingShown) {
                 _rsPendingShown = false;
-                const drawn = _rsFlags.loaded && (_rsFlags.all || _rsFlags.clients.size || _rsFlags.staff.size);
+                const drawn = _rsFlags.loaded && (_rsFlags.all || _rsFlags.clients.size || _rsStaffAny(_rsFlags.staff));
                 if (!drawn) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
             }
         }
@@ -395,21 +394,11 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     }
     // Kasper's Review Session, only for the staff member the switch names. Until the server has confirmed who is
     // signed in the answer is no.
-    function svRsKasperOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || !_rsFlags.staff.size || _isClientLink) return false;
-        let who = null;
-        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
-        const m = who && who.member;
-        if (!m) return false;
-        const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
-        return (!!id && _rsFlags.staff.has(id)) || (!!name && _rsFlags.staff.has(name));
-    }
+    function svRsKasperOn() { return _rsStaffOn(_rsFlags.staff); }
     // Kasper's second layout (all parts at once, a list on the left): only where his Review Session is already on, and
     // only for the staff member review_stage_kasper_layout2 names. Until both are read the answer is no: today's layout.
     function svRsKasperLayout2On() {
-        if (!svRsKasperOn() || !_rsFlags.layout2.size) return false;
-        return _rsListed(_rsFlags.layout2);
+        return svRsKasperOn() && _rsStaffOn(_rsFlags.layout2);
     }
     /* FAST BOOT FOR KASPER'S TAB (session Quick, 2026-10-20), behind kasper_fast_boot { "staff": [...] }. The last list
        this browser saw is kept as a hint, so the first second of a visit already knows whether this person is on it
@@ -419,29 +408,31 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     // The hint holds both lists: who gets the fast boot, and who the review page's own switch named (the loader below
     // only helps where that page will really come).
     function _rsKasperFastHintSave(f) {
-        try { if (f.fast.size) localStorage.setItem(RS_KASPER_FAST_KEY, JSON.stringify({ fast: Array.from(f.fast), stage: Array.from(f.staff) })); else localStorage.removeItem(RS_KASPER_FAST_KEY); } catch (e) {}
+        // An { "all": true } answer is kept as fastAll / stageAll: a hint for any signed-in staff member, never the client link.
+        try { if (_rsStaffAny(f.fast)) localStorage.setItem(RS_KASPER_FAST_KEY, JSON.stringify({ fast: Array.from(f.fast.list), stage: Array.from(f.staff.list), fastAll: f.fast.all === true, stageAll: f.staff.all === true })); else localStorage.removeItem(RS_KASPER_FAST_KEY); } catch (e) {}
     }
     function _rsKasperFastHintHas(key) {
         try {
             const h = JSON.parse(localStorage.getItem(RS_KASPER_FAST_KEY) || 'null');
-            const list = h && Array.isArray(h[key || 'fast']) ? h[key || 'fast'] : [];
-            return list.length > 0 && _rsListed(new Set(list.filter(x => typeof x === 'string')));
+            if (!h || typeof h !== 'object') return false;
+            const k = key || 'fast';
+            const list = Array.isArray(h[k]) ? h[k].filter(x => typeof x === 'string') : [];
+            const all = h[k + 'All'] === true;
+            return (all || list.length > 0) && _rsStaffWho(new Set(list), all);
         } catch (e) { return false; }
     }
     // Is the fast boot on for the signed-in staff member? The live answer once it is in, the hint until then.
     function svRsKasperFast() {
         if (_isClientLink) return false;
         _rsPrime();
-        if (_rsFlags.loaded) return _rsFlags.fast.size > 0 && _rsListed(_rsFlags.fast);
+        if (_rsFlags.loaded) return _rsStaffOn(_rsFlags.fast);
         // An unreadable switch is an answer of no for this visit; the hint stays for the next one.
         return !_rsFlagFailed && _rsKasperFastHintHas();
     }
     // The caption history icon and pop-up on Calendar cards: only for the staff member caption_history_staff names.
     // Until the switch is read, or when it cannot be read, the answer is no and the caption box is as it was.
     function svCaptionHistoryOn() {
-        if (_isClientLink) return false;
-        _rsPrime();
-        return _rsFlags.loaded && _rsFlags.capHist.size > 0 && _rsListed(_rsFlags.capHist);
+        return _rsStaffOn(_rsFlags.capHist);
     }
     // Called once at boot (260), after the server has said who is signed in and the route is read: on Kasper's tab, start the slow parts now (the
     // review page's code and the player's switch) instead of when the first card paints after the list has loaded.
@@ -477,11 +468,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
        signed in, the answer is no: the old calendar shows and nothing else changes. */
     // The Production thumbnail title buttons (255): only for the staff members the switch lists.
-    function svThumbTitleButtonsOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || !_rsFlags.ttb || !_rsFlags.ttb.size || _isClientLink) return false;
-        return _rsListed(_rsFlags.ttb);
-    }
+    function svThumbTitleButtonsOn() { return _rsStaffOn(_rsFlags.ttb); }
     function _rsListed(set) {
         let who = null;
         try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
@@ -490,8 +477,23 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
         return (!!id && set.has(id)) || (!!name && set.has(name));
     }
-    // { "all": true } reaches any signed-in staff member (the server has said who), never the client link.
-    function _rsCalmWho(set, all) {
+    /* ONE STAFF SWITCH (session Allstaff, 2026-10-27): every { "staff": [...] } switch above also takes { "all": true },
+       the form workload_calm_staff has had since 2026-10-20, so a person who joins later needs no edit. "staff" lists
+       the signed-in staff members by id or full name; only the exact boolean true counts as "all", and "all" means any
+       signed-in staff member (the server has said who), never the client link. A "*" entry is not a wildcard. A missing,
+       unreadable or wrongly shaped row is off: the same answer as before this helper existed. Both forms together: on
+       for everyone. */
+    function _rsStaffNone() { return { all: false, list: new Set() }; }
+    function _rsStaffSwitch(v) {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return _rsStaffNone();
+        const list = Array.isArray(v.staff) ? v.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        return { all: v.all === true, list: new Set(list) };
+    }
+    // Does the switch reach anybody at all (for the "something switched on" redraw and the hints)?
+    function _rsStaffAny(sw) { return !!sw && (sw.all === true || (sw.list instanceof Set && sw.list.size > 0)); }
+    // all: any signed-in staff member (the server has said who), never the client link; else the list.
+    function _rsStaffWho(set, all) {
+        if (_isClientLink) return false;
         if (all) {
             let who = null;
             try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
@@ -499,20 +501,22 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
         return _rsListed(set);
     }
+    // Is this staff switch on for the person on this page? Until the switches are read: no.
+    function _rsStaffOn(sw) {
+        _rsPrime();
+        if (!_rsFlags.loaded || _isClientLink || !_rsStaffAny(sw)) return false;
+        return _rsStaffWho(sw.list, sw.all === true);
+    }
     /* THE ROUND-5 UNREAD BADGES (session Beacon, 2026-10-24, 327): on only for the staff members unread_badges_v2
        names, by id or full name. Until the switch has been read, or the server has said who is signed in: no. */
     function svUnreadBadgesOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.unread.size) return false;
-        return _rsListed(_rsFlags.unread);
+        return _rsStaffOn(_rsFlags.unread);
     }
     /* FRAME COMMENTS IN NOTES (session Framenotes, 2026-10-26, 187/190): on only for the staff members
        frame_comments_in_notes_staff names, by id or full name. Until the switch has been read, or the server has said
        who is signed in: no. Never the client link. */
     function svFrameCommentsInNotesOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.fnotes || !_rsFlags.fnotes.size) return false;
-        return _rsListed(_rsFlags.fnotes);
+        return _rsStaffOn(_rsFlags.fnotes);
     }
     /* KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25): Approve shows its
        check at the click, a sent change keeps its box open, "Sent" at once, a spinner only after 1.2 s, replies threaded
@@ -524,9 +528,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
        with html.sv-phone-polish, and every rule it switches on sits inside a max-width: 767px block (020), so a desktop
        page never changes even for a listed person. */
     function svPhonePolishOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.phone.size) return false;
-        return _rsListed(_rsFlags.phone);
+        return _rsStaffOn(_rsFlags.phone);
     }
     // The switch can come back before the server has said who is signed in: ask again each second for up to 30 s.
     let _ppRetry = 0;
@@ -536,16 +538,13 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         document.documentElement.classList.toggle('sv-phone-polish', on);
         let who = null;
         try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
-        if (!on && _rsFlags.loaded && _rsFlags.phone.size && !_isClientLink && !(who && who.member) && _ppRetry < 30) {
+        if (!on && _rsFlags.loaded && _rsStaffAny(_rsFlags.phone) && !_isClientLink && !(who && who.member) && _ppRetry < 30) {
             _ppRetry++;
             setTimeout(svPhonePolishSync, 1000);
         }
     }
     function svWorkloadCalmOn() {
-        _rsPrime();
-        if (!_rsFlags.loaded || _isClientLink) return false;
-        if (!_rsFlags.calmAll && !_rsFlags.calm.size) return false;
-        return _rsCalmWho(_rsFlags.calm, _rsFlags.calmAll);
+        return _rsStaffOn(_rsFlags.calm);
     }
     /* The last list this browser saw, kept only to avoid a flash: while the read is still on its way and the list named
        this person last time, Workload holds a loader instead of painting the old calendar and then swapping. The hint
@@ -553,7 +552,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
        clears it, so an unreadable switch ends on the old calendar. */
     const WL_CALM_HINT_KEY = 'sv-wl-calm-staff';
     function _wlCalmHintSave(f) {
-        try { if (f.calm.size || f.calmAll) localStorage.setItem(WL_CALM_HINT_KEY, JSON.stringify(f.calmAll ? ['*'].concat(Array.from(f.calm)) : Array.from(f.calm))); else localStorage.removeItem(WL_CALM_HINT_KEY); } catch (e) {}
+        try { if (_rsStaffAny(f.calm)) localStorage.setItem(WL_CALM_HINT_KEY, JSON.stringify(f.calm.all ? ['*'].concat(Array.from(f.calm.list)) : Array.from(f.calm.list))); else localStorage.removeItem(WL_CALM_HINT_KEY); } catch (e) {}
     }
     function _wlCalmHintSet() {
         try {
@@ -561,7 +560,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             return Array.isArray(h) ? new Set(h.filter(x => typeof x === 'string')) : null;
         } catch (e) { return null; }
     }
-    function _wlCalmHintHas() { const set = _wlCalmHintSet(); return !!set && set.size > 0 && _rsCalmWho(set, set.has('*')); }
+    function _wlCalmHintHas() { const set = _wlCalmHintSet(); return !!set && set.size > 0 && _rsStaffWho(set, set.has('*')); }
     let _wlCalmPendingShown = false;
     function svWorkloadCalmPending() {
         if (_isClientLink || _rsFlags.loaded || _rsFlagFailed) return false;
@@ -717,7 +716,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         _rsChrome(document.documentElement.classList.contains('sv-rs-cal'), document.documentElement.classList.contains('sv-rs-full'));
         svArea('reviewstage').then(api => { if (svRsKasperOn()) api.kasper(parts); }, () => {
             document.documentElement.classList.remove('sv-rs-kasper', 'sv-rs-khead');
-            _rsFlags = Object.assign({}, _rsFlags, { staff: new Set() });
+            _rsFlags = Object.assign({}, _rsFlags, { staff: _rsStaffNone() });
             _kasperPaintReview();
         });
         return true;

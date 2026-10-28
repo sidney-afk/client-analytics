@@ -34891,3 +34891,26 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
 
 **Way back:** revert the pull request.
+
+## 544. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
+
+- **Why:** the owner turned five staff features on for everybody on 2026-10-27 (`unread_badges_v2`, `phone_polish_staff`, `caption_history_staff`, `thumbnail_title_buttons_staff`, `frame_comments_in_notes_staff`). Those switches only took a list of staff ids, and some readers dropped a `"*"` entry, so the supervisor wrote all 14 active staff ids into each row. Anyone added to the roster later would have been off.
+- **What (`188` only):** one helper reads every `{ "staff": [...] }` switch in `188-review-stage-switch.js.part`: the five above, plus `review_stage_kasper_staff`, `review_stage_kasper_layout2`, `kasper_fast_boot` and `workload_calm_staff`. Each now also takes `{ "all": true }`, the form `workload_calm_staff` and `calendar_card_write_clients` already had.
+  - `_rsStaffSwitch` parses a row into `{ all, list }`. `_rsStaffOn` answers for the person on the page; it was `_rsCalmWho`, widened.
+  - `"all": true` means any signed-in staff member, once the server has said who. Never the client link. Only the exact boolean `true` counts. A `"*"` entry is still not a wildcard.
+  - A missing, unreadable or malformed row is off, as before. A list keeps working as a list. Both forms together: on for everyone.
+  - The switches are still read once per page through the same bounded read.
+- **Every reader checked:**
+  - The page: 188 is the only place that reads these rows. Every other fragment asks 188's `sv*On()` functions.
+  - Edge Functions: no function reads any of the nine. `thumbnail-titles` reads the separate client switch `thumbnail_titles`, and `production-comments` only mentions `unread_badges_v2` in a comment.
+  - Hints in localStorage:
+    - `sv-kasper-fast` now keeps `fastAll` / `stageAll`. Those turn the fast boot on for any signed-in staff member, and never on a client link (checked in the real client link with a planted all hint). Older hints without them read as before.
+    - `sv-wl-calm-staff` keeps its `"*"` marker, which is unchanged.
+    - `sv-rs-on-clients` is the client switch, not touched.
+- **Proven:**
+  - `node docs/syncview-design/tests/staff-switch-all-browser.js` (new, 273 checks, in the Calendar unit tests lane). For each of the nine switches, `all: true` is on for a staff member in no list, off on the client link, off before sign-in is known, and off for a non-staff caller. The list form works by id and by full name, and an unlisted person stays off. Twelve malformed shapes and a missing row are off. The same is checked in the real page on a staff page and on a client link.
+  - It fails on main: part 1 cannot find the helper, and part 2 gets "off" for `review_stage_kasper_staff { all: true }`.
+  - `test/thumbnail-title-buttons-source.js` now pins the helper instead of the old inline list read. It asserts the same thing.
+- **After merge (supervisor):** write `{"all": true, "staff": [...]}` into the five rows. The list stays as a fallback for any browser still on the old page until it reloads, because the old page ignores `all`.
+
+**Way back:** revert the pull request. Rows written as `{"all": true, "staff": [...]}` keep working on the old code through their list.

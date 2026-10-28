@@ -460,8 +460,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     // ---------- Kasper's second layout ----------
     t = await start('kasper', true, fresh(), { layout2: true });
     ok(await tags(t) === 'Trial x1', 'Kasper, second layout: one "Trial" marker (' + await tags(t) + ')');
-    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const n = r.querySelector('.b-ok[data-ok="video"]'); return n ? n.getAttribute('aria-label') || n.textContent.trim() : ''; });
-    ok(l2ok === 'Approve Video A', 'Kasper, second layout: the approve button names the version on screen (' + l2ok + ')');
+    // Every version has its own tile here (build 6), so each tile's Approve names its own version (Trialtest, 551).
+    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('.trk-ok')].map(n => n.getAttribute('aria-label') || n.textContent.trim()).join('|'); });
+    ok(l2ok === 'Approve Video A|Approve Video B|Approve Video C|Approve Video D|Approve Video E', 'Kasper, second layout: each tile\'s Approve names its version (' + l2ok + ')');
     ok(!t.errors.length, 'Kasper, second layout: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } catch (e) {

@@ -319,14 +319,14 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
         const tiles = vs.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter);
             const acts = a === 'wait'
-                ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
+                ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '" aria-label="Approve Video ' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
                     + '<button type="button" class="trk-ic" data-trk-chg="' + l + '" title="Ask for a change" aria-label="Ask for a change to Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_BACK + '</button>'
                     + (v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>')
                 : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : 'change') + '">' + (a === 'ok' ? 'approved' : 'change asked') + '</span>';
             return '<div class="trk-v' + (v === cur ? ' cur' : '') + '"><button type="button" class="trk-go" data-trk-go="' + l + '" aria-label="Put Video ' + l + ' on stage"' + (v === cur ? ' aria-current="true"' : '') + '>'
                 + '<span class="trk-pic">' + poster + '</span><span class="trk-n">Video ' + l + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
-        return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t">' + vs.length + ' versions</span>'
+        return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t"><span class="trv-tag trk-tag">Trial</span> ' + vs.length + ' versions</span>'
             + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
             + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div></div>';
     }
@@ -370,6 +370,7 @@ import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialMoveCard } fro
 .trk{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
 .trk-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .trk-t{font-size:.78rem;font-weight:700;color:var(--text-secondary)}
+.trk-t .trk-tag{display:inline;padding:0 4px 0 0}
 .trk-all{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);border-radius:10px;background:var(--deck);color:var(--text-primary);font:inherit;font-size:.8rem;font-weight:600;padding:7px 13px;cursor:pointer}
 .trk-all:hover:not([disabled]){background:var(--fill-hover)}
 .ql-r .trv-vn{color:var(--pd-video);font-weight:600;white-space:nowrap}

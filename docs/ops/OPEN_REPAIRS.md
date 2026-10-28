@@ -34902,3 +34902,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
 
 **Way back:** revert the pull request.
+
+## 555. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Kasper's side-by-side layout: the Trial marker and each tile's Approve name, kept from builds 4 and 5 (session Trials)
+
+- **What:** build 6 replaces the single player bar in Kasper's second layout with one tile per version. That dropped two things merged since:
+  - the quiet "TRIAL" word (549), which sat over the bar;
+  - the version's name on the approve button (551).
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - The tiles' header now reads "TRIAL  5 versions", one muted word.
+  - Each tile's Approve is named "Approve Video A"… for screen readers. Its visible "Approve" sits in a tile already titled "Video A".
+- **Trialtest's note (a)** ("no Approve all beside Finish reviewing in Kasper's layout 2") is answered by build 6 itself: Approve all sits at the top right of the tiles (Probe K4), and an existing check covers it.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (72): exactly one Trial word on Kasper's second layout, and each tile's Approve named A to E. Both fail without the fix.
+  - Screenshot checked at 1440.
+
+**Way back:** revert the pull request.

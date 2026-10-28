@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewAnswered } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -1598,7 +1598,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
                 + '<div class="l2h"><div class="l2t"><aside class="side" id="side" aria-label="This post"></aside><div class="sdate" id="sdate"></div></div><div class="l2a" id="l2a"></div></div>'
                 + '<div class="flash" id="flash" role="status"></div>'
-                + '<div id="l2note"></div><div class="l2g" id="l2g"></div>'
+                + '<div id="l2note"></div><div id="l2trv"></div><div class="l2g" id="l2g"></div>'
                 + '</div></section>'
                 + '<aside class="chat" id="chat" aria-label="Conversation"></aside>'
                 + '<section class="recap" id="recap" hidden></section>'
@@ -2231,7 +2231,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         /* The arrows sit on the media box, not inside the player: the poster box (#novid, a version that opens in a new
            tab or has no link yet) clips what overflows it, and the client then saw no arrows at all (Probe E1b). They
            are placed beside the player by its measured width. */
-        const html = trial && box ? svTrialReviewArrowsHtml(m, R.mode) : '';
+        const html = trial && box && !(R.l2 && svTrialReviewTilesHtml(m, R.mode)) ? svTrialReviewArrowsHtml(m, R.mode) : '';
         const key = html ? m.id + '|' + html : '';   // the arrows hold this post: the same arrows of another card are bound again
         const half = () => { const w = box && box.getBoundingClientRect().width; if (w) mb.style.setProperty('--trv-half', Math.round(w / 2) + 'px'); };
         if (box && typeof ResizeObserver === 'function' && mb.__trvBox !== box) {
@@ -2249,14 +2249,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     /* Trial reels (194): above the player only the winner's line; under it "Video B of 5" and the letter dots (Probe E1,
        E2); gone on every other step and card. A phone swipes the video (E3). */
     function _rsTrialBar(m, v) {
-        const html = m && m.trial && v ? svTrialReviewBarHtml(m, R.mode) : '';
+        // Kasper's second layout shows every version side by side above the parts instead (_rsL2Trial).
+        const tiles = !!(m && m.trial && R.l2 && svTrialReviewTilesHtml(m, R.mode));
+        const html = m && m.trial && v && !tiles ? svTrialReviewBarHtml(m, R.mode) : '';
         let bar = v && v.previousElementSibling && v.previousElementSibling.classList.contains('trv-host') ? v.previousElementSibling : null;
         if (!html) { if (bar) bar.remove(); }
         else {
             if (!bar) { bar = document.createElement('div'); bar.className = 'trv-host'; v.before(bar); }
             if (bar.__trvHtml !== html) { bar.__trvHtml = html; bar.innerHTML = html; }
         }
-        const under = m && m.trial && v ? svTrialReviewUnderHtml(m, R.mode) : '';
+        const under = m && m.trial && v && !tiles ? svTrialReviewUnderHtml(m, R.mode) : '';
         let uh = v && v.nextElementSibling && v.nextElementSibling.classList.contains('trv-under-host') ? v.nextElementSibling : null;
         if (!under) { if (uh) uh.remove(); return; }
         if (!uh) { uh = document.createElement('div'); uh.className = 'trv-under-host'; v.after(uh); }
@@ -2442,8 +2444,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
+        /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's
+           own Approve and Ask for change would say the same thing twice (Probe K2). Only "Tweaks are on Frame" stays
+           here, naming the version on stage. */
+        const tiles = R.l2 && x.key === 'video' && R.mode === 'kasper' && !!svTrialReviewTilesHtml(_rsCur(), R.mode);
+        const on = tiles ? ': Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '';
+        const frame = R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame' + on) + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame' + on, 'Frame tweaks' + (tiles ? ' · Video ' + svTrialReviewLetter(_rsCur(), R.mode) : '')) + '</button>' : '';
+        if (tiles) return frame;
         return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsLblAttr(chg ? 'Change asked' : 'Ask for a change') + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? _rsLbl('Change asked', 'Asked') : _rsLbl('Ask for a change', 'Ask for change')) + '</button>'
-            + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame') + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame', 'Frame tweaks') + '</button>' : '');
+            + frame;
     }
     /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
        Easel, 2026-10-20): what a part answered by someone else reads, who can be pinged, the active part's buttons or
@@ -3641,7 +3650,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const urg = m.sec === 'urgent';
         const head = m.sec === 'tweaks' ? _rsKRowHead(m) : '<span class="cn">' + _re(m.title) + '</span>';
         const meta = m.sec === 'tweaks' ? _rsKRowMeta(m)
-            : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+            : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '')
+                + (m.trial && !m.trial.winner && m.trial.versions.length > 1 ? '<span class="trv-vn">' + m.trial.versions.length + ' versions</span>' : '') + _rsDots(m) + '</span>';
         return '<button class="chipp k ql-r' + (on ? ' cur' : '') + (urg ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" tabindex="' + (on ? '0' : '-1') + '" aria-current="' + !!on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + head + meta + '</span></button>';
     }
     // The bell on a card with the editors: the same urgent ping the held card's "Ping editor" sends (_rsPingHtml), shown
@@ -3897,9 +3907,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (active) { if (_rsCalm(act, _rsFinishHtml(m), m)) _rsBindFinish(m, act); }
         else if (_rsCalm(act, '<span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m), m)) _rsBindPing(m, act);
     }
+    /* Trial reels (194, decision 4): every version side by side over the parts, each with Approve, change and drop. */
+    function _rsL2Trial(m) {
+        const el = _rsQ('l2trv');
+        if (!el) return;
+        const html = svTrialReviewTilesHtml(m, R.mode);
+        // The handlers hold this post: identical tiles of another card are bound again (Codex on PR 2366).
+        if (el.__trvHtml === html && el.__trvPid === m.id) return;
+        el.__trvHtml = html;
+        el.__trvPid = m.id;
+        el.innerHTML = html;
+        if (!html) return;
+        const cur = () => _rsModelById(m.id) || m;
+        svTrialReviewBindTiles(el, m, R.mode, {
+            approve: () => _rsApprove(cur(), 'video', ''),
+            change: () => _rsStartChange('video', 'stage'),
+            all: () => svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true),
+        });
+    }
     function _rsL2Render(m) {
         R.S.hinted = true;
         _rsSide(m);
+        _rsL2Trial(m);
         _rsL2Panes(_rsL2Model(m));
         _rsL2Decide();
         _rsChatCalm(m);

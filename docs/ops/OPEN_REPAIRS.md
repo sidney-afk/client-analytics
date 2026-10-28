@@ -34613,6 +34613,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows.
 
+## 520. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every version side by side in Kasper's second layout (session Trials)
+
+- **What:** in Kasper's second layout (`review_stage_kasper_layout2`), a trial card shows every version side by side above the parts (decision 4). Each tile names its version ("Video A"…), with the card's poster and its own Approve, Ask for a change and Drop (no Drop on the version on the card), or its answer once given. "Approve all" sits at the top. A press on a tile puts that version on the player, so only the version on stage loads its video (plan risk 5). The tiles replace the "Video B of 5" bar in that layout only; every other layout keeps the bar. Code in `194`, hooked into `195`'s second layout.
+- **Rules unchanged:** Approve answers that version (trial-reels `answer`), and today's approve on the video part runs once every live version has his OK. A change on a tile selects it and opens today's change box, which records the change on the version and starts "Video C:". Drop goes through trial-reels `version_drop` (only the team drops, Q2).
+- **Proven:** `node test/trial-reels-review-browser.js` (36 checks, now with Kasper's second layout), review-stage-kasper-layout2-browser (188 checks), review-stage-browser, check-modules, no-sending-words and no-hardcoded-colors.
+
+**Way back:** revert the PR; with the switch off nothing shows.
+
 ## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
 
 - **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
@@ -34669,6 +34677,19 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the commit.
 
+## 528. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: tiles bound to the wrong card, and the mock's places (Codex on PR 2366, Probe 10b, K2 to K6, session Trials)
+
+- **Codex P1:** the tiles were drawn again only when their markup changed, so two trial cards with the same versions and poster kept the first card's handlers: Approve, Approve all and Drop could act on a card no longer on screen. The redraw now also follows the card on screen.
+- **Probe 10b:** a change opened on tile C and sent after a press on tile E was Video E's. Fixed by build 4's change box, which remembers the version it opened on. Probe's check is adopted in trial-reels-change-naming-browser.
+- **K2:** on a trial card the video part's own Approve and Ask for change gave way to the tiles. Only "Tweaks are on Frame" stays, naming the version on stage.
+- **K3, K6:** the badge and Finish reviewing follow build 4: "Video A", and versions counted.
+- **K4:** "Approve all" is an outlined button at the top right of the tiles, as in the mock.
+- **K5:** the list on the left says "5 versions" under a trial card.
+- **Kept as built (owner taste):** K1, small tiles with the card's poster and one player below, versus the mock's poster-sized tiles (plan risk 5).
+- **Proven:** `node test/trial-reels-review-browser.js` (47 checks; the P1, K2 and K5 checks fail without the fix), trial-reels-change-naming-browser (6), review-stage-kasper-layout2-browser (188), review-stage-browser, check-modules.
+
+**Way back:** revert the commit.
+
 ## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
 
 - **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
@@ -34697,6 +34718,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert this commit and the card's.
 
+## 532. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: the version on the card drops from its tile too (default (c), session Trials)
+
+- **What:** the tile of the version on the card now has Drop whenever another live version has a link. As on the card (530), today's attach first puts that next version's link on the card, then the old one drops. 189 exports `svTrialMoveCard` (today's attach) for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (48 checks, with Video A dropped from its tile after Video B is attached), trial-reels-change-naming-browser, review-stage-kasper-layout2-browser (188).
+
+**Way back:** revert this commit with 529 and 530.
+
 ## 533. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a refused link or drop on the version on the card left the card on another link (Probe bugs 12, 12b, session Trials)
 
 - **What was wrong:** for the version on the card, the page does today's attach FIRST, then asks the function. When the function refused (a link another version has, a decided version, or a refused drop of the version on the card), the card kept the new link while the page said "did not save".
@@ -34714,6 +34742,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (40 checks; the new E1b and rule-miss 13 checks fail without the fix), trial-reels-change-naming-browser, review-stage-browser, review-stage-kasper-layout2-browser (188), review-stage-client-layout-browser.
 
 **Way back:** revert the commit.
+
+## 535. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: a refused drop of the version on the card puts the card's link back (Probe bug 12b on the tiles, session Trials)
+
+- **What:** the tile's drop of the version on the card attaches the next live version's link first. When the function then refused the drop, the card stayed on that next version. Now the put-back is the card's own (533): what the card carried before, compare-and-swap on this page's attach, then a fresh read. 189 exports `svTrialAttachBack` for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (52 checks, with a refused tile drop), and the other trial suites on this build.
+
+**Way back:** revert the merge's tile change in 194 (svTrialReviewDrop).
 
 ## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
 
@@ -34889,6 +34924,21 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `test/trial-reels-notes-browser.js` (23): exactly one "Trial" at 1440 and 390 and after the pick, none with the switch off. Without the fix, 3 checks fail.
   - The journey test passes (91).
   - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
+
+**Way back:** revert the pull request.
+
+## 555. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Kasper's side-by-side layout: the Trial marker and each tile's Approve name, kept from builds 4 and 5 (session Trials)
+
+- **What:** build 6 replaces the single player bar in Kasper's second layout with one tile per version. That dropped two things merged since:
+  - the quiet "TRIAL" word (549), which sat over the bar;
+  - the version's name on the approve button (551).
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - The tiles' header now reads "TRIAL  5 versions", one muted word.
+  - Each tile's Approve is named "Approve Video A"… for screen readers. Its visible "Approve" sits in a tile already titled "Video A".
+- **Trialtest's note (a)** ("no Approve all beside Finish reviewing in Kasper's layout 2") is answered by build 6 itself: Approve all sits at the top right of the tiles (Probe K4), and an existing check covers it.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (72): exactly one Trial word on Kasper's second layout, and each tile's Approve named A to E. Both fail without the fix.
+  - Screenshot checked at 1440.
 
 **Way back:** revert the pull request.
 

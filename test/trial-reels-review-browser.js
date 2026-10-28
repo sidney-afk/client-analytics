@@ -18,6 +18,7 @@
  *   - one quiet "Trial" marker over the version's name wherever a trial card's video is reviewed: the client link, the
  *     SMM's Review tab and both of Kasper's layouts (Sidney, 2026-10-27), and none on today's page;
  *   - no page errors.
+ * TRIAL_REVIEW_SHOTS=<dir> also writes a screenshot of Kasper's second layout (fictional data only).
  */
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -41,7 +42,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   async function start(mode, flag, versions, extra) {
     // Kasper and the client answer a version only after the SMM (the server holds the order).
     if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at && !((extra && extra.noSmm) || []).includes(v.letter)) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
-    const T = { versions, calls: [] };
+    const T = { versions, calls: [], cards: extra && extra.cards };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.T = T;
@@ -59,9 +60,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       T.calls.push(b);
       const client = mode === 'client';
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
-        L.readShape(T.versions, { client, mainLink: T.versions[0].frame_url, cardStatus: 'Client Approval' }));
+        L.readShape(T.versions, { client, mainLink: T.mainLink || T.versions[0].frame_url, cardStatus: 'Client Approval' }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
-      if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
+      if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
         // A slow line, or one refused answer, when a check asks for it (the page must answer at once all the same).
@@ -72,7 +73,24 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         for (const p of res.patches) Object.assign(T.versions.find(v => v.id === p.id), p.patch);
         return reply(Object.assign({ ok: true }, shape()));
       }
+      if (b.action === 'version_drop' && T.refuseDrop) { T.refuseDrop = false; return reply({ ok: false, error: 'conflict' }, 409); }
+      if (b.action === 'version_drop') {
+        const res = L.dropPatch(T.versions, b.letter, false, T.mainLink || T.versions[0].frame_url);
+        if (res.error) return reply({ ok: false, error: res.error }, res.error === 'attach_first' ? 409 : 400);
+        if (res.patch) Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+        return reply(Object.assign({ ok: true }, shape()));
+      }
       return reply({ ok: false, error: 'unknown_action' }, 400);
+    });
+    // Today's attach onto the card (Production's gateway), for the drop of the version on the card (default (c)).
+    T.attaches = [];
+    await t.ctx.route('**/rest/v1/production_deliverables_browser_v1*', route => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json',
+      body: JSON.stringify([{ id: 'del_rs1', client_slug: SLUG, updated_at: '2026-10-27T09:00:00.000Z' }]) }));
+    await t.ctx.route('**/functions/v1/production-write', route => {
+      let b = {}; try { b = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (b.operation !== 'attachment') return route.fallback();
+      T.attaches.push(b.file_url); T.mainLink = b.file_url;
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: true, native_committed: true, row: { id: 'del_rs1', updated_at: new Date().toISOString() } }) });
     });
     if (mode === 'client') {
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
@@ -340,6 +358,83 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.versions.every(v => v.smm_ok_at) && t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), 'SMM: Approve all, then today\'s save moves the video to Kasper Approval');
     ok(!t.errors.length, 'SMM: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+    // ---------- Kasper's second layout: every version side by side (decision 4) ----------
+    t = await start('kasper', true, fresh(), { layout2: true });
+    const tiles = () => t.page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot;
+      return { names: [...r.querySelectorAll('.trk-v .trk-n')].map(n => n.textContent.trim()), bar: !!r.querySelector('.trv'),
+        ok: r.querySelectorAll('.trk-v [data-trk-ok]').length, cur: ((r.querySelector('.trk-v.cur .trk-n') || {}).textContent || '').trim(),
+        labs: [...r.querySelectorAll('.trk-v')].map(v => ((v.querySelector('.trk-lab') || {}).textContent || '').trim()), hook: /Fictional hook/.test(r.innerHTML),
+        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim(),
+        // Probe K2, K3, K4, K5: the video part's own Approve and Ask for change give way to the tiles (only Frame
+        // tweaks stays, naming the version on stage); the badge names it; Approve all sits at the top right; the list
+        // says "5 versions" under the card.
+        vidOk: !!r.querySelector('.pn-d[data-pd="video"] [data-ok="video"], .pn-d[data-pd="video"] [data-chg="video"]'),
+        frame: ((r.querySelector('.pn-d[data-pd="video"] [data-frame="video"]') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+        badge: ((r.querySelector('#fvHost > .mpill') || {}).textContent || '').trim(),
+        allRight: (() => { const a = r.querySelector('[data-trk-all]'), h = r.querySelector('.trk-h'); if (!a || !h) return false; return h.getBoundingClientRect().right - a.getBoundingClientRect().right < 2; })(),
+        list: ((r.querySelector('#qlList .ql-r.cur .trv-vn') || {}).textContent || '').trim() };
+    });
+    if (process.env.TRIAL_REVIEW_SHOTS) { require('fs').mkdirSync(process.env.TRIAL_REVIEW_SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'kasper-layout2.png') }); }
+    let k = await tiles();
+    ok(k.names.join('|') === 'Video A|Video B|Video C|Video D|Video E' && !k.bar && !k.hook, 'Kasper, second layout: every version side by side, named Video A to E, no bar and no hook text');
+    ok(k.ok === 5 && k.all === 'Approve all' && k.allRight && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top right (Probe K4); Video A is on stage');
+    ok(!k.vidOk && /Video A/.test(k.frame) && k.badge === 'Video A', "the video part's own Approve and Ask for change give way to the tiles; Frame tweaks and the badge name the version on stage (Probe K2, K3: " + k.frame + ' | ' + k.badge + ')');
+    ok(k.list === '5 versions', 'the list says "5 versions" under the trial card (Probe K5: ' + k.list + ')');
+    await inS(t.page, '.trk-v [data-trk-go="C"]').click();
+    await sleep(1200);
+    k = await tiles();
+    ok(k.cur === 'Video C' && t.T.views.includes(LINK('C')), 'a press on Video C puts it on stage, and only its video loads');
+    n0 = t.state.upserts.length;
+    await inS(t.page, '.trk-v [data-trk-ok="B"]').click();
+    await waitFor(async () => t.T.calls.some(c => c.action === 'answer' && c.letter === 'B'));
+    await sleep(900);
+    k = await tiles();
+    ok(!!t.T.versions[1].kasper_ok_at && k.labs[1] === 'approved' && !t.state.upserts.slice(n0).some(u => u.video_status), "Video B's own Approve stamps his OK there and leaves the card waiting");
+    await inS(t.page, '.trk-v [data-trk-drop="D"]').click();
+    await waitFor(async () => t.T.versions[3].status === 'dropped');
+    await sleep(900);
+    k = await tiles();
+    ok(t.T.versions[3].status === 'dropped' && k.names.length === 4, 'the team drops Video D from its tile');
+    // A refused drop of the version on the card puts the card's link back (Probe bug 12b).
+    t.T.refuseDrop = true;
+    await inS(t.page, '.trk-v [data-trk-drop="A"]').click();
+    await waitFor(async () => t.T.attaches.length >= 2);
+    await sleep(900);
+    // (The fixture card carries its own link; the put-back goes to exactly what the card carried before.)
+    ok(t.T.attaches.length === 2 && t.T.attaches[0] === LINK('B') && t.T.attaches[1] !== LINK('B') && t.T.mainLink === t.T.attaches[1] && t.T.versions[0].status !== 'dropped',
+      "a refused drop of Video A from its tile puts the card's link back to what it carried (" + t.T.attaches.join('|') + ')');
+    t.T.mainLink = LINK('A');
+    t.T.attaches = [];
+    await t.page.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('active'); });
+    // Default (c): Video A, on the card, drops too: today's attach first puts the next live version (B) on the card.
+    await inS(t.page, '.trk-v [data-trk-drop="A"]').click();
+    await waitFor(async () => t.T.versions[0].status === 'dropped');
+    await sleep(900);
+    k = await tiles();
+    ok(t.T.attaches.join('|') === LINK('B') && t.T.versions[0].status === 'dropped' && k.names.join('|') === 'Video B|Video C|Video E',
+      "Video A, on the card, drops from its tile after today's attach puts Video B on the card (" + t.T.attaches.join('|') + ')');
+    const gk0 = t.state.gateway.length;
+    await inS(t.page, '[data-trk-all]').click();
+    for (let i = 0; i < 80 && !(t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))); i++) await sleep(100);
+    ok(['B', 'C', 'E'].every(l => !!t.T.versions.find(v => v.letter === l).kasper_ok_at)
+      && (t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))),
+      'Approve all answers the rest, then today\'s approve sends the video on to the client');
+    ok(!t.errors.length, 'Kasper second layout: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // Two trial cards whose tiles look the same (same versions, same poster): the tiles act on the card on screen (Codex
+    // on PR 2366: the drawn tiles kept the first card's handlers).
+    t = await start('kasper', true, fresh(), { layout2: true, cards: ['rs1', 'rs3'] });
+    await inS(t.page, '#qlList [data-id="rs3"]').click();
+    await sleep(1500);
+    if (!(await inS(t.page, '.trk-v [data-trk-ok="B"]').count())) { await t.page.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(1500); }
+    const a0 = t.T.calls.length;
+    await inS(t.page, '.trk-v [data-trk-ok="B"]').click();
+    await waitFor(async () => t.T.calls.slice(a0).some(c => c.action === 'answer'));
+    const asked = t.T.calls.slice(a0).find(c => c.action === 'answer') || {};
+    ok(asked.post_id === 'rs3' && asked.letter === 'B', "a second trial card with the same tiles: its tile's Approve answers that card, not the first (" + asked.post_id + ')');
+    await t.ctx.close();
+
     // ---------- Kasper's Review Session ----------
     t = await start('kasper', true, fresh());
     b = await bar(t);
@@ -365,8 +460,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     // ---------- Kasper's second layout ----------
     t = await start('kasper', true, fresh(), { layout2: true });
     ok(await tags(t) === 'Trial x1', 'Kasper, second layout: one "Trial" marker (' + await tags(t) + ')');
-    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const n = r.querySelector('.b-ok[data-ok="video"]'); return n ? n.getAttribute('aria-label') || n.textContent.trim() : ''; });
-    ok(l2ok === 'Approve Video A', 'Kasper, second layout: the approve button names the version on screen (' + l2ok + ')');
+    // Every version has its own tile here (build 6), so each tile's Approve names its own version (Trialtest, 551).
+    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('.trk-ok')].map(n => n.getAttribute('aria-label') || n.textContent.trim()).join('|'); });
+    ok(l2ok === 'Approve Video A|Approve Video B|Approve Video C|Approve Video D|Approve Video E', 'Kasper, second layout: each tile\'s Approve names its version (' + l2ok + ')');
     ok(!t.errors.length, 'Kasper, second layout: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } catch (e) {

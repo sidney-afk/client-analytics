@@ -487,6 +487,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return json;
         });
     }
+    // Today's attach of one link onto a card, for the review page's tiles (194): the version on the card is dropped there too.
+    async function svTrialMoveCard(post, link) { return _trlSetCardLink(post, link); }
     /* The card's link moves only once the function says yes (Probe bugs 12 and 12b). After a refusal, the link this page
        attached goes back to what the card carried before, as a compare-and-swap on this page's own attach (a link
        someone else attached since stands), and the versions are read again, so the page shows the function's state. */
@@ -501,6 +503,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         await _trlFresh(post);
         _trlRepaintField(post.id);
     }
+    // The same put-back for the review page's tiles (194).
+    async function svTrialAttachBack(post, before, mine, now) { return _trlAttachBack(post, before, mine, now); }
     // The live version after this one that has a link: where "on the card" moves when the version on the card is dropped.
     function _trlNextLive(vs, letter) {
         return (vs || []).find(x => x.letter !== letter && x.status !== 'dropped' && x.frame_url) || null;
@@ -707,6 +711,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialStart, svTrialToggle
     });
 export {
-  svTrialCall, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost,
-  svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
+  svTrialAttachBack, svTrialCall, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

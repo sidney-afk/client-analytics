@@ -960,10 +960,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const head = '<header class="crm-view-head"><h2>Today</h2><p class="crm-sub" role="status">' + _calEsc(dateLine) + (total ? '' : ' · nothing needs you') + '</p></header>';
         const group = (id, title, n, rows, tip) => rows ? '<section class="crm-group crm-day" aria-labelledby="' + id + '"><h3 class="crm-group-title" id="' + id + '"' + (tip ? ' title="' + _calEscAttr(tip) + '"' : '') + '>' + _calEsc(title) + '<span class="crm-group-n">' + n + '</span></h3><ul class="crm-rows">' + rows + '</ul></section>' : '';
         if (!total && !t.sends.length) {
-            const now = new Date().toISOString().slice(0, 10);
+            const now = _crmToday();
             const next = (_crmState.people || []).filter(p => p.next_step_due && p.next_step_due > now).sort((a, b) => String(a.next_step_due).localeCompare(String(b.next_step_due))).slice(0, 3);
             el.innerHTML = '<div class="crm-empty-day"><span class="crm-empty-check" aria-hidden="true">\u2713</span><h2>All caught up</h2><p>No calls to mark and no follow-ups due today.</p>'
-                + (next.length ? '<section class="crm-coming" aria-labelledby="crmComing"><h3 id="crmComing">Coming up next</h3>' + next.map(p => '<button type="button" class="crm-coming-row" onclick="_crmOpenPersonById(' + _jsAttrArg(p.id) + ')"><span><b>' + _calEsc(_crmName(p)) + '</b> ' + _calEsc(p.next_step || 'Next step') + '</span><span class="crm-coming-when">' + _calEsc(_crmWhen(p.next_step_due)) + '</span></button>').join('') + '</section>' : '')
+                + (next.length ? '<section class="crm-coming" aria-labelledby="crmComing"><h3 id="crmComing">Coming up next</h3>' + next.map(p => '<button type="button" class="crm-coming-row" onclick="_crmOpenPersonById(' + _jsAttrArg(p.id) + ')"><span><b>' + _calEsc(_crmName(p)) + '</b> ' + _calEsc(p.next_step || 'Next step') + '</span><span class="crm-coming-when">' + _calEsc(_crmDue(p.next_step_due)) + '</span></button>').join('') + '</section>' : '')
                 + '<div class="crm-empty-btns"><button type="button" class="crm-pill is-main" onclick="_crmGo(\'pipeline\')">Open Leads</button><button type="button" class="crm-pill" onclick="_crmGo(\'sequences\')">See automations</button></div></div>';
             return;
         }

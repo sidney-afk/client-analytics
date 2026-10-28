@@ -2,6 +2,10 @@
 
 -
 
+## Team guide
+
+- [ ] If this PR adds or changes a tab, button, toggle or runtime switch a teammate can see, the [Team guide in `docs/ATLAS.md`](../docs/ATLAS.md#team-guide-every-tab-button-and-switch) is updated in this PR.
+
 ## Production Tab Checklist
 
 If this PR touches `?prod=1`, `_prod*`, `docs/syncview-design/**`, or Production UI behavior:

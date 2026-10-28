@@ -1,7 +1,8 @@
 # Trial reels in SyncView: plan (session Trials, 2026-10-26)
 
-**Status: plan only. Nothing is built, nothing is switched on, nothing is merged.** The supervisor shows this to the
-owner before any building starts. OPEN_REPAIRS 513.
+**Status (updated 2026-10-28): built and merged (builds 1 to 7, last #2366, #2367, #2403), behind `trial_reels_pages`,
+which is on for the test client only.** See the latest block in `docs/STATE_OF_THINGS.md` and the Team guide in
+`docs/ATLAS.md`. The plan text below is kept as written. OPEN_REPAIRS 513.
 
 The owner approved trial reels on 2026-10-26: one video, versions A to G that differ in the text hook, every version
 posted as an Instagram trial reel, and the winner kept after 24 h. This plan covers the SyncView part: the switch on a

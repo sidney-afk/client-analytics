@@ -1,5 +1,7 @@
 # SyncView Atlas
 
+> **Keeping this current.** Any PR that adds, removes, renames or changes what a tab, button, toggle, mode or runtime switch does updates the [Team guide](#team-guide-every-tab-button-and-switch) in the same PR, in plain English: what it does, who sees it, what the client sees, and which switch it sits behind. When a switch's audience is changed live, its row in the switch table changes too. The same rule is in [AGENTS.md](../AGENTS.md) and the PR template. The Team guide was last checked against code and live switches on 2026-10-28; the technical sections below keep their own dates.
+
 Verified 2026-09-30. Repository evidence is pinned to client-analytics main `3caef657e0a832b265af33d67009ac4649c60112` after incorporating concurrent source changes. Live catalog observations are from the read-only pass; source status was refreshed after the rebase. Live catalogs were read during this pass. Nothing was deployed, dispatched, edited or sent in a live system.
 
 Find a name with your browser's Find command, or use the section links below. Each entry points to its owner. [State of things](STATE_OF_THINGS.md) sets priorities; [Find anything](FIND_ANYTHING.md) routes deeper questions; [Open repairs](ops/OPEN_REPAIRS.md) records unresolved work.
@@ -7,6 +9,7 @@ Find a name with your browser's Find command, or use the section links below. Ea
 | Find | Open |
 | --- | --- |
 | Repo boundaries and connections | [Four repos](#four-repos) |
+| How a tab, button or switch works (for teammates) | [Team guide](#team-guide-every-tab-button-and-switch) |
 | A tab, form or screen | [Screens](#screens) |
 | Stored data and browser access | [Tables and views](#tables-and-views) |
 | A backend function | [Edge functions](#edge-functions) |
@@ -19,6 +22,943 @@ Find a name with your browser's Find command, or use the section links below. Ea
 | A broken behavior | [Where do I look when](#where-do-i-look-when) |
 | Migration source | [Table creating migrations](#table-creating-migration-inventory) |
 | What this check proves | [Keeping this true](#verification-limits-and-keeping-this-map-true) |
+
+## Team guide: every tab, button and switch
+
+Written for teammates (SMMs, editors and designers, Kasper), not developers. The brain answers "how does X work in SyncView" from this section. Checked against the page source on main `0674b99` and the live switch values (read-only) on **2026-10-28**. Anything the code did not settle is marked **(unconfirmed)**. Everything after this section is the technical map.
+
+**Roles used below.** **Admin** (Kasper and the owner), **SMM** (social media manager), **Creative** (video editors and graphic designers). A **client link** is the private address a client opens with no login; it never shows staff controls.
+
+**How switches work.** Many features sit behind a runtime switch that the owner or supervisor flips live with no release. A switch can be on for **all** (every signed-in staff member, or every client; a staff switch never reaches the client link), for a short list of named staff or clients, for the **test client only** (the agency's own test account, never a real client), or off. The table at the end of this guide lists every live switch and who has it on.
+
+### Quick answers
+
+- **The YouTube title.** On YouTube posts, the card name is the YouTube title. Turn on **YouTube title review** for a client in the Calendar's ⋮ More menu. A small coloured square then appears left of the card name, with its own review status (In Progress through Approved). It never changes the card's overall status. The client approves the title on their Review page. If they edit it there, the edit goes to the team as a change request ("Please use this title: …") and never renames the post. See [Calendar](#content-calendar-and-the-post-card).
+- **Collaborative mode.** A per-client switch in the Calendar's ⋮ More menu (called "Client collaboration" on a phone). Any staff member can flip it.
+  - **Off (the default):** the client sees only finished posts, read only.
+  - **On:** the client also sees work in progress and unscheduled posts, can **Suggest a post**, and can type the caption on the Sheet.
+  - **Never, in either mode:** the client renames, changes statuses, drags dates or archives.
+- **The intake link vs Submit.** It is the same form.
+  - **Submit** (staff tab, titled "Create production work") is used by a signed-in Admin or SMM to hand in a shoot's footage. It creates a parent issue, a "Video N" and "Thumbnail N" for each video, and one undated Calendar card per video.
+  - **The client upload link** (copied with **Copy upload link** on Submit; titled "Upload your content") is that form for clients and videographers. They need no sign-in, the title box is hidden, the limits are tighter, and every piece is marked as coming from the public link. It works only while `public_intake_enabled` is on (it is).
+- **SyncLinear.** The team's own work tracker, which replaced Linear. The header button says **Linear**, the screen's breadcrumb says **Production**, and its address is `/synclinear` (old `?prod=1` links still work). You cannot create anything there: posts and their sub-issues come only from Create Post on the Calendar or Samples, or from Submit. See [Production / SyncLinear](#production--synclinear-what-it-is-and-what-it-is-called).
+- **Samples.** Trial pieces for a client (a Video plus a Thumbnail, with no caption, date or platforms). They are made by SMMs on the Samples tab, edited in Production like posts, and reviewed by the client on a separate Samples link. See [Samples](#samples-what-they-are-and-how-they-differ-from-calendar-posts).
+- **Trial reels.** One video posted as several versions (A to G) with different text hooks, each as an Instagram trial reel. The winner is kept after 24 h. The card, Production, review and client parts are behind `trial_reels_pages` (**test client only**). The trial reel switch on the **Post** tab is a separate thing: it is there for every staff member, and it posts a single reel as an Instagram trial.
+- **Analytics.** Hidden for everyone right now (owner decision, 2026-10-17). See [Analytics](#analytics-overview-and-client-profile).
+
+### Signing in, the header, Today, Workload, Analytics, clients, Templates, Time Off and weekly reports
+
+Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manager), **Creative** (video and graphic editors). A **client link** is the private link a client opens; it never shows any of the staff controls below.
+
+#### Signing in (staff)
+
+- Every staff page is covered by a sign-in screen until you sign in. Client links, the onboarding forms and the weekly-report form do not ask for it.
+- **Staff sign in** card: pick **Your name** from the team list, type your **Role key** (the eye button shows or hides it), press **Continue**. A wrong key says "That role key does not match the selected name."
+- Your role (Admin, SMM or Creative) comes from the key, and decides what you can do. The key stays saved on that device ("Verified on this device"), so you only sign in once per browser.
+- When a page needs a higher role you get a plain message, for example "Work-day planning requires an Admin or SMM account." Sign out and sign in with the right account.
+
+#### Account menu (person icon, top right)
+
+- Top line: "Signed in as [name] · [role]".
+- **Sign out** (or **Staff sign in** if you are signed out).
+- **Time Off**: your leave page (shown while the `pto_v1` switch is on; it is on).
+- **Onboarding**: the onboarding forms inbox (Admin, SMM, Creative).
+- **Client Credentials**: the client logins vault (Admin, SMM).
+- **Dark mode** on/off, and **Original status colors** (use the classic workflow colour palette). Both are remembered per browser.
+- **Messages** sits beside the menu as its own button, for Admin and SMM only (editors have no inbox).
+
+#### Top navigation
+
+- Order: **Today, Calendar, Samples, Templates, Filming, Post, Analytics** | **Workload, Linear (SyncLinear), Submit, Kasper**.
+- The first group follows the shared client (see the picker below); the second group is about people and ignores it.
+- Every signed-in staff member sees all tabs, except:
+  - **Kasper**: Admin only.
+  - **Samples**: shown unless that browser has opted out.
+  - **Analytics**: currently hidden for everyone (see Analytics below).
+- Each page has a clean address (for example /today, /workload, /templates, /time-off); old links with "#" still work and are forwarded.
+
+#### Shared client picker (small dropdown after the logo)
+
+- One "current client" for the whole site. Calendar, Samples, Templates, Filming Plans, Post and Analytics all open on it, so you pick a client once.
+- Opening it shows **My clients** (your own clients from the SMM roster, always listed, cannot be removed), then **Recent** (up to three; an × removes one, and there is a clear-recent option). Typing searches every current client.
+- It is a per-browser convenience; nothing is saved to the server. Never shown on client links.
+
+#### "My clients": whose clients are whose
+
+- Only current clients count (a client that has left the Clients list disappears).
+- The SMM roster says which clients each SMM owns. Anyone on the roster, admins included, sees their own clients. An admin who is not on the roster sees every client.
+- Staff can also be granted "also sees" clients (another manager's clients, or one client); these show separately as "Also seeing". It never changes who owns the client.
+- Test clients are hidden from everyone, except that your own roster row can list your own test client, which then shows on your Today and in My clients only.
+- The same rule feeds Today and the picker, so they always agree.
+
+#### Quick jump
+
+- Press **/** anywhere (not while typing in a box, and not on SyncLinear, where / opens its own search). On touch screens use the magnifier next to the client picker.
+- Type part of a client and/or a tab, like "cal" or a client name plus "templates", and press Enter. The client becomes current and the tab opens. A tab alone just opens the tab; a client alone opens it on the tab you are on (or the Calendar from a team tab). Arrow keys move, Escape closes.
+
+#### Phone layout
+
+- On a phone-width screen (767 px and narrower) staff pages drop the wide header for one title row: the screen name, **Tabs** (every tab you normally see) and **More** (account, appearance and client controls). Nothing new is added; every row presses the normal control.
+- `phone_polish_staff` (on for all staff): smoother phone design, for example Notes sits right under the statuses on an opened post, a quieter Delete on notes, two-line message previews in Messages, and Production rows that do not wrap. Desktop never changes.
+
+#### Unread badges
+
+- `unread_badges_v2` (on for all staff, desktop only): a card's Notes button shows one round picture per person with something for you, coloured by kind (orange change request, blue client comment, grey team, violet Kasper). A small number on the picture's corner = new; a plain coloured number beside it = already read but still needs you (a change not done, a client comment to answer). At most three people, then "+N"; hover lists who and what.
+- Inside Notes: Slack-style notes with New and "Waiting for your answer" tags; hover a note for Reply (comments only), No reply needed, Mark done, Delete. "No reply needed" and "Mark unread" are remembered in your browser only.
+- Messages: New, To answer and All tabs; the header button counts new only.
+- Clients: with `review_client_polish` (on for all clients) the client link gets the same badges, counting only the team's notes. The team shows as one person, "Synchro team"; no staff names or pictures.
+
+#### "New version" prompt
+
+- SyncView checks for a new release every 5 minutes and when you come back to the tab.
+- A tab in the background reloads itself if nothing is being typed.
+- A tab you are using is asked once, about an hour after a new version appears, and never mid-draft: "A new version of SyncView is available — reload to get the latest." **Reload** or **×** (Dismiss = not now; it will not ask again for later releases).
+- After about 4 hours on an old version (or straight away if the owner forces it), a full-screen reload wall appears; it still waits while you have unsaved work.
+
+#### Today
+
+- One page per person showing what is waiting on **you**. It only reads: no checkboxes. A card leaves by itself when its status moves on and lands in **Cleared today**. A bar shows "X of Y cleared today" and "N this week". Updates live.
+- **SMM and Admin**: a greeting with how many items to clear, chips for **Your clients** (and **Also seeing**; an admin who sees all gets "Every current client"; a chip opens that client's Calendar). Two views:
+  - **Rings**: five jobs. **To approve** (editor work waiting for SMM approval), **Missing links** (posts with no video or thumbnail link), **Captions to write** (captions sent back for tweaks first, with the request's first line, then empty captions), **To schedule** (Approved posts), **Dates to move** (To Do work items whose due date has passed). Click a ring to list its items (12 shown, rest in SyncLinear and Calendar). Sorted by upload date, soonest first.
+  - **Walk-through**: one upcoming post at a time ("Post 3 of 5"), with checks for video link, thumbnail link and caption; **Open card**, open in SyncLinear, and move to the next. Covers the next two weeks.
+- **Editors (Creative)**: their own queue (tweaks first, then urgent, then by due date) as a **List** or a **Deck** (one card at a time, **Skip for now** sends it to the back). Rows open SyncLinear, where editors work.
+- Date pills: red = today or overdue, amber = 1 to 2 days, highlighted = within a week, grey = later.
+- An SMM with no clients listed sees "No clients are listed for you yet. Ask an admin to add yours to the SMM list."
+
+#### Workload
+
+- Team planning board: who works on what, on which day. Open to Admin, SMM and Creative; **planning (dragging and saving work days) and changing due dates are Admin and SMM only**.
+- `workload_calm_staff` (on for all staff): the calm design, with fewer boxes, colour only where it means something (overdue red, due soon amber), the filters tucked behind one **View options** button (a dot shows when a filter is on), client groups inside a day that open and close, and "Needs assignment" and "Needs a work day" folded into quiet rows. What each click saves is unchanged.
+- **Team workload** panel: each person from freest to busiest, with Capacity, Overdue, In progress and Tweaks counts; click a number to see the items.
+- **Work-day calendar** controls: previous / **Today** / next; **Week** or **Month**; **↻** refresh; team **All / Video / Graphics**; **All editors** dropdown; **All clients** search; **Plan only** or **Plan + Due Date** (Month is unavailable while Plan + Due Date is on).
+- How cards are placed automatically: each item starts on the earliest working day from today where that editor still has room, never later than one working day before its due date. Capacity per day: video editors 4 units, graphics 15. A card can count as 1, 2 or 3 units ("Counts as N videos of capacity"). If no day has room, the card sits on its last possible day and the day shows red over-capacity; only a person can fix that (reassign or move the deadline).
+- **Drag a card** to a day to pin it ("Planned by hand. Stays on this day until someone changes it."). **Use automatic plan** removes the pin. A pinned day already in the past shows the card on today, marked "Carried over" (the saved day is not changed).
+- Click a card or a count to open a popover: the items with their tweak comments, the due line (click it to change the due date, Admin/SMM), **Open in Linear** (SyncLinear) and **Open in the content calendar**.
+- Strips under the calendar: **Needs assignment** (no editor) and **Needs a work day or deadline**.
+- Phone: **Agenda / Week / Month** views.
+
+#### Analytics (overview and client profile)
+
+- **Currently hidden for everyone** (owner decision 2026-10-17): no Analytics tab, and client links open their Content Calendar. It comes back when the owner sets the `analytics_hidden` switch to shown; nothing was deleted. The description below is what it shows when on.
+- **Overview (staff)**: every client's numbers as a table or cards, with a Day / Week toggle for gains, and pinned clients (**Pin a client**, **Edit pins**).
+- **Client profile**: tabs **Analytics / Content Calendar / Brief** (clients never see Brief).
+  - Header: last scraped date and what it compares against; **Share** (copy the client link) and a Slack button that posts this week's top reel to the client's Slack channel (staff only; needs the channel set in the client profile).
+  - Gains bars for the last day and the last week; per-platform blocks for Instagram, TikTok and YouTube (followers or subscribers, views); **Followers Over Time** (Total or Daily Change, per platform); **Daily Views Over Time** (All or one platform); **Top Performing** videos per platform (Week or Month).
+  - Content summary: staff press **Generate summary** (a paid AI call, only on click); clients see a summary only if one exists.
+  - **Brief** (staff): the client's Keywords brief, with Overview, Niche Insights, Hook Analysis, Content Directions, The Gap and Sources, plus a date picker when there are several.
+
+#### Client profiles, Create client and the onboarding checklist (Admin)
+
+- Where: **Kasper › More › Pipeline & Admin › Clients**. Admin only. Search a client or open **All clients**; one profile at a time.
+- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Upload-Post), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
+- **HubSpot** band: deal stage, contract and payment state (only for clients the `client_hubspot_sync` switch lists: three today).
+- **Onboarding** section (folded): its header reads "19 of 24 required steps done" or "Onboarded".
+  - **Resources**: found / missing / unknown for each thing the client should have (profile fields, review link, filming plan link, Templates page, Canva link, logins saved, form answers, Calendar cards, Samples, Analytics numbers, Drive folders, HubSpot contact, brain folder, and more). Logins and links show as present or missing only.
+  - **Onboarding checklist** (27 steps): each says who does it (the client, automatic, a Claude session, or by hand), Required or Optional. Buttons: **Mark done** (optional evidence link), **Skip with a note** (optional steps, reason required), **Reopen**.
+- **New client** (Admin): name, social media manager, optional email. It checks the name live and lists exactly what it will make. **Create client** makes the roster row, review link, profile, manager and checklist in one go. Slack channels are made automatically once the client email, the client's onboarding form, the manager's Slack id and the filming plan link are all in. A name starting "ZZ THROWAWAY" makes a removable test client.
+
+#### Onboarding forms (what clients fill in)
+
+- Two private-link forms built from one module: **standard** (/onboarding_form) and **AI avatar** (/ai_onboarding_form). Seven steps each: Basic info, Brand & audience, Style (subtitle style, B-roll, music, references, a live thumbnail-look picker), Sample video (standard only) or AI avatar (AI only), Photos & source, Goals, Account access. The style choices are "direction, not final".
+- Drafts are kept while typing so a submission is not lost.
+- Staff read submissions in the **Onboarding** inbox (account menu or Kasper › Onboarding): Standard, AI avatar and Old forms (the historical Notion forms, shown as-is), with search. Templates shows an **Onboarding ↗** button on a client that has a form. The form readers check for an Admin key on the server, so the inbox may not load for SMM or Creative (unconfirmed).
+
+#### Client Credentials
+
+- The vault for client social logins: account menu › Client Credentials, or the Calendar's ⋯ menu for one client. Admin and SMM.
+- Per client: **Add credential**, **Reveal password**, **Copy password**, copy handle, **Edit**, **Archive**, **History**, **Mark reviewed**. Unmatched or imported rows can be assigned to a client. **Import from onboarding** brings in logins from forms. **Refresh**.
+
+#### Templates
+
+- Per-client working page for editors and SMMs. The index lists clients with a search and pinned "My Clients".
+- A client page shows: the client's Instagram/TikTok/YouTube links; **Links** (filming plans, editor folder, reference reel, client photos, editable Canva); **Latest frame folders** and **Latest raw footage**; **Quick look** (subtitle and thumbnail specs: font, colours, highlight); the **Editor brief** (with a copy button to paste into Claude); **Audience**; and **All facts, with sources**.
+- **Edit links** / **Done**: the working links (reference reel, client photos, Canva, editor folder) are the only things edited here; several links per field are allowed. Which roles may edit them is unconfirmed.
+- Everything else comes from the Synchro Brain. To correct it use **Send a change** (write what is true now); it updates in a minute or two.
+
+#### Filming Plans
+
+- **Filming tab**: one master Google Doc per client. Search, **Refresh**, **Open**, and (Admin, SMM, Creative) **Add / update** and **Edit** (Doc link, notes).
+- **Kasper › Filming Plans** (Admin): which clients need a new plan. Pills **need a plan** (10 or fewer pieces of upcoming content, no Doc, or an overdue plan), **soon** (11 to 20, or a plan due within 14 days), **covered** (21 or more). Content counts every active card that is undated or dated today or later. Each row has Open Doc and Calendar links, and a month grid.
+
+#### Caption prompts
+
+- Calendar › ⋯ menu › **Caption prompt** (any staff, per client). It is used whenever someone clicks Generate caption on that client's cards. Shows whether a custom prompt is saved; edit and **Save**, or **Reset to default**. The transcript is added automatically. Also holds the client's **call to action choices** (one per line). A twin **Thumbnail title prompt** sits in the same menu.
+
+#### Time Off
+
+- Switch `pto_v1` is on. Open from the account menu (no tab). Every staff member: balances (Wellness available, Sick left, floating holiday), **Request time off** (Wellness, Sick, Floating holiday, Unpaid; SyncView counts business days; half-day option), **My requests** (cancel while pending), a **Team calendar** of approved absences and paid holidays, and who is away today.
+- Rules (server side): paid leave starts 60 days after the start date; wellness is earned monthly (capped per year, resets 1 January); 3 sick days a year; one floating holiday a year; only sick leave can be today or in the past; a warning when the start is under 14 days away.
+- **Kasper › Time Off** (Admin): **Pending requests** (**Approve** / **Deny** with a note), team calendar, member balances, **Add adjustment**, and **Member setup** (start date, enabled).
+
+#### SMM weekly reports
+
+- **Form** (/smm-weekly-report, Admin and SMM): one report per client per Monday-to-Sunday week. It asks for the overall status, schedule, content shipped, performance, biggest win, biggest obstacle or risk, whether you need Kasper, client mood, client requests and other notes. **Submit report**, then **Submit another client**. It cannot be edited after you submit, and a second report for the same client and week is refused.
+- **Kasper view** (/smm-weekly-reports, Admin): read-only, filtered by week, SMM, status and client, with an attention count. A weekly reminder email to Kasper is described in the docs; whether it runs is unconfirmed.
+
+### Content Calendar and the post card
+
+#### The Calendar page: client picker, views and toolbar
+- **Who uses it:** SMMs and admins every day; editors and Kasper open cards from it. The client has their own read-mostly copy through their client link (see "What the client sees").
+- **Client picker (tabs along the top):** each client you open becomes a coloured tab. "+" / **Add client** opens a search box ("Search clients…"). The small x on a tab closes it (it does not touch the client's data). The tabs you keep open are remembered in your own browser only.
+- **Four views (staff):** **Review** (your SMM approval queue: cards with a part waiting at For SMM Approval; the badge counts them), **Sheet** (the full card list), **Month** and **Week** (calendar grids).
+  - On Month and Week, staff drag a post onto a day to schedule or move it. Posts with no date sit in a tray you can drag from. Clients can never drag dates.
+- **Toolbar (Sheet view):**
+  - **Organize** menu: **Order**: "Auto-organize by date" (oldest first, unscheduled last) or "Off — your drag order". Your manual order is kept and comes back when you turn auto-organize off. While sorting by date, cards can't be dragged. **Month**: All months, This month, Previous/Next, or Custom. **Content**: All, scheduled only, or unscheduled only (the reserve pile). When a month filter hides cards, a small chip says so.
+  - **Status filter** (funnel): "Show only" or "Hide" cards by their overall status. Clear it with the x.
+  - **Card size** zoom (- / +).
+  - **Globe** ("Open profiles"): opens the client's Instagram, TikTok, YouTube and other profiles.
+  - **Bell** (admins and SMMs only): sends the client one Slack alert that new content is ready for review.
+  - **Select** (checkbox icon): pick several cards, then give them a colour tag or **Archive** them. **Write captions** (the second icon): pick several cards, then **Generate captions** for all of them.
+  - **⋮ More** menu (staff only, never on the client link): **Share with client** (copies the client link), **Caption prompt**, **Thumbnail title prompt**, **Platform** (choose which platforms this client uses; each card can then mark where it is going), **Client credentials** (admins and SMMs only), **Collaborative mode** (switch), **YouTube title review** (switch), **Import → Import from Excel**, and **Archived cards** (admins and SMMs only).
+  - On a phone, "Collaborative mode" is labelled **Client collaboration**.
+
+#### Collaborative mode (per client switch in ⋮ More)
+- **Who can flip it:** any staff member on that client's calendar. The client cannot. It is saved for the whole client, so it applies on every device and for every SMM. It is off unless someone turns it on.
+- **Its own tooltip says:** "Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished."
+- **Off (the default), the client sees:**
+  - On Sheet, Month and Week, only posts where **every** part (video, thumbnail, caption) is Approved, Scheduled or Posted. Empty view text: "Finished posts will appear here."
+  - Only finished status pills. In-progress pills are hidden.
+  - No "Suggest a post" button and no unscheduled tray.
+  - Every field is read only on the Sheet.
+- **On, the client also sees:**
+  - Posts still being worked on, with their in-progress status pills.
+  - The unscheduled posts.
+  - A **Suggest a post** button. It adds a blank card they can name and fill in. It is a calendar card only; no sub-issues are made.
+  - They can edit the **caption** on existing cards. Name, date, call to action, links and statuses stay locked.
+- **What it does NOT change:**
+  - The client never renames a card, never changes a status, never drags dates, and never archives, in either mode.
+  - Their **Review** tab works the same either way: a card is listed only while one of its parts is at Client Approval.
+  - On the review page itself, the client can edit the caption even with the mode off.
+
+#### Creating a post (Create Post dialog)
+- **Who:** staff. Open it with **Create Post** on the Sheet.
+- **Choices in the dialog:**
+  - **Video + Thumbnail**, **Video only** or **Thumbnail only**.
+  - **How many posts?** (1 up to a limit of 100 sub-issues in total).
+  - **Post name(s)**, optional.
+  - **Video editor**: "Assigned automatically" by default, or pick someone. The list shows each editor's open videos and marks one as "(suggested)". "Not assigned" is also offered.
+  - **Batch**: **Start a new batch** (its name is pre-filled and you can change it) or **Add to a previous batch** (searchable).
+  - A preview lists exactly what will be created, for example "Video 3 — name" and "Thumbnail 3 — name".
+  - **Create post** makes the work items in Production and then the calendar card.
+- **Switch:** the dialog is used for clients on the `write_ui_reroute_clients` list (38 clients live). For any other client, Create Post just adds a blank card (unconfirmed which clients are outside the list). `editor_suggest_last` (one staff member listed) puts named editors last in the suggestion order.
+
+#### The post card: every field and button
+- **Grip** (drag to reorder on the Sheet), **link icon** ("Copy a link to this card") and **x** ("Archive"). The link icon and x are staff only.
+- **Title (name):** type to rename the card. If the card is linked to work items, the new name is copied to its sub-issue titles automatically: "Video 2 — old" becomes "Video 2 — new". While this happens the card shows "Name syncing…". If it fails it shows "Name didn't sync · **Retry**". This also works the other way: renaming the sub-issue renames the card. **Switch:** `rename_propagation` (card to sub-issue and sub-issue to card both on). Clients cannot rename cards.
+- **YouTube title square:** a small coloured square left of the title, on YouTube cards. It shows when **YouTube title review** is on for the client, or the title already has a review status.
+  - Click it to set the title's status: In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed or Approved.
+  - The text being reviewed is the card name.
+  - The title status never affects the card's overall status.
+  - Staff only on the card; the client approves the title on their Review page.
+- **Date chip:** "Add date" / the date. Opens a date picker (staff).
+- **Thumbnail URL** and **Video URL (Frame.io / Drive)** fields:
+  - Once filled, each shows an open pill, a pencil to edit and, for thumbnails, "Open the folder this link is in".
+  - A **Compare** icon shows the previous and current thumbnail after a thumbnail has been replaced (switch `thumbnail_revision_v2`, on).
+  - Changing a thumbnail refreshes it for every viewer without a hard refresh.
+- **Caption box:**
+  - **Generate** opens "Generate caption" with Platform, Call to action, "Note for the AI", and a transcript box. The transcript is required if no Frame.io video is linked.
+  - While it runs, the pill shows progress and an x to stop it.
+  - **Regenerate with a note** (circular arrow, shown once a caption exists) opens "Redo with a note".
+  - **Caption history** (clock icon, once the caption has changed): every version, what changed (removed words red, added words green), and **Put this version back**. Restoring saves it as a new version, so nothing is overwritten.
+  - **+ Alt caption** adds a second caption for another platform (for example LinkedIn) as a tab. It is approved together with the main caption.
+  - The client's prompt and call-to-action choices are set in ⋮ More → **Caption prompt** (with **Reset to default**).
+  - **Switches:** `caption_generate_ef_clients` (all clients); `caption_history_staff` (all staff).
+- **Call to action** field.
+- **Notes** button (bottom left). It shows open tweaks and unread replies. It opens the card's Notes:
+  - **About the…** picker: Video, Thumbnail, Caption, or Title when title review is in use.
+  - The send arrow posts a comment. Staff choose who sees it with the lock/eye icon: **Team only** or **To client**.
+  - The arrow beside Send offers **Request change** ("Moves this part to Tweaks Needed. Team only.").
+  - Each note has Reply, Edit, **Mark done** / Reopen, and Delete. Resolved notes are kept under their own filter.
+  - Frame.io comments appear as rows marked "Frame.io". **Switch:** `frame_comments_in_notes_staff` (all staff; never the client).
+- **Frame.io viewer:** Notes, the thumbnail's play icon, the Review preview and Kasper's "Watch here" all open one view, with the video on the left and notes on the right. Opening it never auto-plays. **Switch:** `frame_viewer_clients` (all clients). The client gets the player too, but never the Frame.io comments.
+- **Status row:**
+  - One pill each for **Video**, **Thumbnail** and **Caption**, with the statuses N/A, In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, Scheduled and Posted.
+  - **Set all to…** sets all three at once.
+  - The card's overall status is its *worst* part, so one Tweaks Needed makes the whole card Tweaks Needed. N/A is ignored.
+  - Review statuses are greyed out until there is something to review ("Add the video Frame link before sending it for approval", "Write the caption first"). Use N/A for a part the post will never have.
+  - Video and Thumbnail pills are greyed and read N/A when no sub-issue is linked ("This screen can't create one").
+  - Changing a pill moves the linked Production work item too.
+- **URGENT button:** appears when the Video is at Tweaks Needed (pings the editor), or when any part, including the title, is at Kasper Approval (pings Kasper). Once sent for that round it reads "Sent". The Kasper ping uses the `kasper_urgent_ping_enabled` switch (on).
+- **Save state:** "Save failed · Retry", or "Saved, syncing" with a click to retry. **Switch:** `calendar_card_write_clients` (all clients).
+
+#### Trial reels on the card
+- **What it is:** one video posted as several versions (Video A to G) that differ in the text hook. Each version goes out as an Instagram trial reel, and the winner is kept after 24 h.
+- **On the card:**
+  - A faint **Trial reels** switch sits in the Video row.
+  - When it's on, the row shows "Video · N", a short state ("2/4 approved", "On trial · 17 h left") and an arrow to open the versions.
+  - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**, with Undo).
+  - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
+  - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted.
+  - The client sees only the winner once it is picked.
+- **Switch:** `trial_reels_pages`, **test client only**.
+
+#### Archive and restore
+- **Archive** (the card's x, or Select → Archive) asks "Archive this post?". This is admins and SMMs in every mode; never the client.
+- Archiving removes the card from the calendar and the client's view. Its linked video and thumbnail work items are moved to **Backlog**. If that step fails you get a notice to move them by hand.
+- ⋮ More → **Archived cards** (admins and SMMs only) lists archived cards from the last 30/60/90 days. Restore puts the card back exactly as it was, and each linked work item goes back to the status it had.
+
+#### Auto-posted
+- A post at **Scheduled** turns **Posted** by itself once its scheduled day has ended (US Eastern time). The check runs every 15 minutes, behind the scenes, with no button.
+- A card it has moved once is never moved again, so a person's undo wins.
+- **Switch:** `calendar_auto_posted`, on for **one real client only** (not the test client).
+
+#### Thumbnail titles
+- ⋮ More → **Thumbnail title prompt** edits the client's prompt. A background job uses it to write a title into a new, empty thumbnail sub-issue's description from the client's filming plan. It never overwrites what a person wrote. **Switch:** `thumbnail_titles`, one real client only.
+- The **Thumbnail titles** / **Write title** buttons are on the Production page, not the card (admins and SMMs only). **Switch:** `thumbnail_title_buttons_staff` (all staff).
+
+#### What the client sees when staff act
+- Statuses: in-progress parts are visible only with Collaborative mode on; finished parts always are.
+- A part set to **Client Approval** puts the card in the client's Review tab.
+- Notes marked **To client** are visible to them; **Team only** notes never are.
+- Archiving hides the card from them. Posted / Scheduled shows as such.
+- They never see the Frame.io comments, the YouTube title square, the URGENT buttons or the ⋮ menu.
+
+### The client review link and Samples
+
+#### The client review link: what it is and how it is checked
+- **What it is for:** the one web address a client opens to review their content. They need no login. It opens SyncView in a cut-down "client" form: no staff bar, no client picker, only that client's posts.
+- **Who makes it:** a signed-in staff member, usually the SMM. On the Calendar, use the menu (three dots), then **Share with client** ("Copy the client link for this calendar"). On Samples, the same menu has **Share with client** ("Copy the client link for these samples"). Each copies a link for the client currently open. A Calendar link and a Samples link are separate links.
+- **How it is checked:** the link names the client and carries a secret code. Each time it opens, SyncView asks the server whether the code is valid and still active for that exact client and that kind of page. Only then does it load anything.
+  - If the code is wrong, the link has been tampered with, or extra pieces were added: **"This link isn't valid. Please ask your social media manager for an updated link."** Nothing loads, and saved copies for that client are cleared from the browser.
+  - If the server cannot be reached: **"We could not verify this link"**, with **Try again**.
+  - Pressing Back into a link re-checks it.
+- **What the client can reach:** only their own posts. Analytics is hidden on client links (no Analytics switch row exists, so it stays hidden). An old link that asked for Analytics or Brief opens the Content Calendar instead.
+- **If copying fails,** the SMM sees plain words. For example: "Your staff sign-in is no longer valid. Sign in again, then copy the link", or "This client has no active roster row yet…".
+- **Notify client** (bell button, staff only, on the Calendar and Samples bars) sends the client a Slack alert in their private channel, tagging their linked Slack person if one is set. It needs the client to have a review link already.
+
+#### The client's Calendar link: tabs and header
+- Switch `review_stage_client_pages`: **on for all clients.** This means every client gets the new review page (the "guided stage") and one header.
+- The header shows the client's name, the tabs **Review | Sheet | Month | Week**, a sun/moon button (light or dark), and a **"?"** button.
+- **The "?" help video:** it opens the public start page's "Review content" tutorial in a new tab. It shows only when the switch `review_help_video_url` holds an address. That switch **holds an address live** (set 18 Oct), so the "?" shows for every client.
+- A fresh open always lands on **Review**.
+
+#### Review tab (client side): Approve, Ask for a change, notes
+- **What the client sees:** a strip of posts waiting for them ("N waiting for you"). Each post has a step bar with its parts: **Video, Thumbnail, Caption**, plus **YouTube title** on YouTube posts. A part is waiting for the client when it is at **Client Approval**. A green check means the part is approved. Orange means a change was asked.
+- **Video player:** the same player as the staff Notes view. It never plays on its own; there is a play button, and on desktop a speed button.
+- **Buttons on a waiting part:**
+  - **Approve the video / thumbnail / caption.** It shows "Approved" at once and saves. That part moves to Approved.
+  - **Ask for a change** opens a box ("What should change on the …?"). **Ask for change** sends it and the part goes to Tweaks Needed. The client sees "Change asked" and the words they sent. Since the polish switch, the box stays open with "Sent" so they can add another change.
+  - **Edit the caption** (and the YouTube title). A client's caption edit replaces the caption itself, tells the team in a note (with the old caption), and counts as approving the caption. If the caption changed meanwhile, the client is asked **Replace caption**. A YouTube title edit never renames the post: it goes to the team as a change request ("Please use this title: …").
+  - **Change my mind** on an approved part. The client cannot reopen it; this sends a note to the team ("Your team will reopen it").
+  - **Finish reviewing** saves nothing (each answer is already saved). It opens the next waiting post. It stays off with "Saving…" while an answer is still sending. When all is done: "All done. Your team has everything."
+- **Conversation panel ("Message your team"):** plain notes go to the team, attached to the part on screen. The client never sees team-only notes. "Is this a change?" lets them turn a note into a change on a chosen part, or send it as **Just a note**.
+- **Never lost:** an Approve or change is kept in the browser until the server confirms it. Lost connections are retried for up to 30 minutes. Unsent words are kept per post for 7 days.
+- **Polish (`review_client_polish`, on for all clients since 28 Oct, watched until 31 Oct).** Approve shows its check at the click and is undone, with a reason, if refused. A spinner replaces "Sending". A bare × deletes your own note, after "Delete this note?". Notes appear as quiet rows with day lines. Client replies sit under the team message they answer. Notes have unread badges.
+
+#### Sheet tab (client side)
+- **What it is:** the client's view of every post as cards in a row. This is SyncView's own page, built from the database. It is **not** a Google Sheet.
+- **Read only:** title, call to action, date, video and thumbnail links (open only), and part status pills. No archive, no status changes, no copy-link. The old "Approve post" bar on Sheet cards is switched off in code, so clients approve only on Review.
+- **Video button / thumbnail:** opens the in-app viewer (video on the left, notes on the right). Switch `frame_viewer_clients`: **on for all.** A client never sees Frame.io comments; staff do. A post with no playable Frame.io link falls back to the Frame.io link.
+- **Notes button:** opens the post's notes. The client can write a note, ask for a change, reply, and delete their own notes. They cannot mark things resolved or choose who sees a note.
+- **What shows:** with Collaborative mode off, only finished posts appear (every part Approved, Scheduled or Posted), and in-progress status pills are hidden. Month and Week show undated posts read only under "Not scheduled yet (N)". A client can never drag posts onto days.
+- **The Google Sheet backup:** an older "SyncView Calendar" Google Sheet with per-client Calendar and Samples tabs was a mirror of the database. The onboarding guide calls it a "legacy mirror", and the owner calls the Sheet "a backup only". Clients never see it, and nothing a client does on the Sheet tab is read from it. Whether it is still updated today is (unconfirmed).
+
+#### Collaborative mode (client's side)
+- **Who switches it:** the SMM, from the Calendar's three-dot menu, **Collaborative mode** ("Lets your client see what you're working on and suggest new posts of their own"). It is set per client.
+- **When it is on, the client:**
+  - sees posts still being worked on, with their in-progress pills;
+  - gets **Suggest a post** (a blank card they can fill in);
+  - may type the **caption** on existing Sheet cards (again, since 27 Oct);
+  - may save a drag-reorder of the Sheet.
+- **When it is off:** captions are read only and reordering does not save. The review page's caption edit for a post waiting on the client works either way.
+
+#### Trial reels (client side)
+- Switch `trial_reels_pages`: **test client only.**
+- On a post with several trial versions, the video step shows "Video B of 5" with arrows.
+  - **Approve** answers the version on screen; **Approve all** answers every open version.
+  - **Ask for a change** goes on that version (it is sent as "Video C: …").
+  - **Not this one** tells the team to drop that version.
+- Once a winner is picked, the client sees only that one ("the one we are posting").
+- Samples never have trial reels.
+
+#### Staff counterpart: SMM Review tab and Kasper's Review Session
+- **SMM's Calendar Review tab** (same `review_stage_client_pages` switch, on for all) uses the same page. It has:
+  - **Approve to Kasper** / **Approve to client**, the same switch on Approve that the Samples Review tab uses (below);
+  - Edit;
+  - notes marked **Team only** or **Client can see** (change requests are always team only);
+  - **Change my mind**, which reopens a part as a change.
+- **Kasper's Review Session** (switch `review_stage_kasper_staff`: 3 staff members). Sections: Urgent, Waiting for your review, With the editors. Buttons:
+  - **Approve**, which sends the part to the client;
+  - **Approve after tweaks**, which needs a note; after the fix the post goes straight to the client;
+  - **Ask for a change**, and **Tweaks are on Frame** (a change with no typing);
+  - Message (team only);
+  - **Finish reviewing**;
+  - **Close card**, which only hides the card;
+  - an editor ping for urgent tweaks.
+- **Layout 2** (`review_stage_kasper_layout2`: 3 staff, screens 1360 px and wider):
+  - a list of waiting cards always shown on the left;
+  - every part of the card on stage at once;
+  - Finish and Close at the top right;
+  - **Undo** for a few seconds after Approve.
+- Kasper's click-to-check polish follows `unread_badges_v2` (all staff).
+- Samples appear in Kasper's list with a **Sample** tag and a **Watch the video** link instead of the player.
+
+#### Samples: what they are and how they differ from Calendar posts
+- **What:** trial pieces made for a client, each a **Video** plus a **Thumbnail**. There is no caption, call to action, date, platforms, colour tag, YouTube title, Collaborative mode, or Month/Week.
+- **Extra field:** **Creative direction**, with an eye button that hides it from the client or shows it to them.
+- **Six statuses per part:** In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved. There is no Scheduled or Posted.
+- **Who makes them:** SMMs, from the Samples page (staff menu, per-client tabs). Editors do the work in Production, as for Calendar posts.
+- **Where they appear:** Samples is on for everyone. The old `?sxr=1` opt-in is history.
+
+#### Samples: staff buttons
+- **Toolbar:**
+  - **Review | Sheet** tabs. Review shows a count of samples waiting for SMM approval.
+  - **Notify client**.
+  - card size (zoom out / zoom in).
+  - a select button ("Pick several samples to archive"), then **Archive** / **Done**.
+  - the menu: **Share with client**, and **Archived samples** ("Restore one"; only for staff allowed to restore).
+- **"+" / Add the first sample:**
+  - For clients on the new save path, it opens the same **Create Post** dialog as the Calendar. That dialog creates the batch and the video and thumbnail work items, and offers "Not assigned" for the editor.
+  - For other clients it adds a blank card.
+- **Card:**
+  - name and creative direction (with the eye button);
+  - Thumbnail and Video link fields;
+  - buttons to open each work item in Production (or "Add the missing … to this sample");
+  - a status menu per part, plus **Set all to…**;
+  - Notes;
+  - **Copy a link to this card**;
+  - **Archive**. It asks "Archive this sample?". Archiving also parks its work items in Backlog;
+  - a drag grip to reorder;
+  - **URGENT** pings: to the editor when the Video is at Tweaks Needed, and to Kasper when a part is at Kasper Approval (`kasper_urgent_ping_enabled` is on).
+- **SMM Review tab:**
+  - per part: **Approve**, with Kasper as the default target and Client as the alternative (after Kasper has seen it once, Client becomes the default);
+  - **Comment** (status unchanged), **Request change** (goes to Tweaks Needed);
+  - a **First review** badge;
+  - **Open in Sheet**.
+  - Samples with no video or thumbnail are listed in a notice instead.
+- **Kasper (Samples):** per part:
+  - **Approve**, which goes to Client Approval;
+  - **Comment** (team only);
+  - **Approve after tweaks**;
+  - **Request change**;
+  - plus close-card and urgent ping.
+
+#### Samples: the client's side
+- **The link** is its own Samples link (from Share with client on Samples). It opens a page titled "Sample reviews" with **Review | Sheet** only. It is the older list style, not the new review stage page.
+- **Review:** collapsible cards ("Video needs your review"). For each waiting part:
+  - **Approve video** / **Approve thumbnail**, which moves the part to Approved ("Locked in");
+  - a box, "Add a note or request a change…";
+  - **Comment**, which does not change the status;
+  - **Request change**, which moves the part to Tweaks Needed ("we're working on your tweaks").
+  - The thread shows below.
+- **Sheet:** read-only cards with status pills and links. Creative direction appears unless it is hidden. The client cannot add, edit, archive, reorder or select.
+- **Visibility:** a client sees a sample once any part has left In Progress. They never see archived samples or team-only notes.
+- The Samples link goes through the same link check as the Calendar link. The Calendar link holds an unconfirmed Approve or change in the browser until the server confirms it. Whether a Samples link does the same is (unconfirmed).
+
+### Production (SyncLinear), Submit and the client upload link
+
+#### Production / SyncLinear: what it is and what it is called
+
+- **What it is for:** the team's work tracker. It replaced Linear, which the team no longer uses. Every video edit and every thumbnail/graphic is one "issue" (a work item). Editors see what they need to do, SMMs track and fix work, and Kasper sees what is waiting for their approval.
+- **Who uses it:** staff only (admins, SMMs, editors/designers). Clients never see this screen.
+- **Names, all for the same screen:**
+  - The button in the top bar says **Linear**. Hovering over it shows "SyncLinear".
+  - Its address is `/synclinear`. Older links use `?prod=1`, and those still work.
+  - Inside the screen, the breadcrumb at the top says **Production**. Teammates say "SyncLinear", "Linear" or "Production" and mean the same place.
+- **Switch:** `prod_authority`. Video and Graphics are both set to SyncView, so editing is on for both teams. If a team were ever switched back, its issues would show "… is view only for now".
+
+#### Finding work: sidebar, views, list and board
+
+- **Sidebar:**
+  - **My issues:** what is assigned to you. You must be signed in with your staff account.
+  - **Favorites:** shown only when some issues are marked as favorites. (unconfirmed: how a favorite is added)
+  - **Workspace > Projects:** every client.
+  - **Your teams > Video / Graphics:** each team has its own **Issues** and **Projects** links.
+  - **Search button:** opens the search and command box. You can also press "/" to open it.
+- **Issues list.** It has three tabs:
+  - **Active:** Todo, In Progress, For SMM approval, For Kasper approval, Tweak Needed, For Client Approval and Scheduled. Approved and Posted are hidden.
+  - **Backlog:** Backlog and Triage.
+  - **All issues:** everything.
+- **Projects board:** each client is a "project" card showing its number of issues and a target date. The columns are Backlog, Planned, In Progress, Paused, Completed and Canceled. You can drag cards, select them and open the Status / Lead / Target menus, but **project changes are not saved here**. The app answers "View only for now".
+- **Project page:** click a client card to see that client's issues. "Project details" shows or hides its side panel.
+- **Filter button:**
+  - "Assigned to me".
+  - Status, Assignee or Client, each with a list of values to tick.
+  - Active filters show as pills. Use "Clear filters" to reset.
+  - A pill at the top switches the team scope (All, Video or Graphics).
+- **Display button:**
+  - **Show sub-issues** on/off.
+  - **Group by:** Status, Client/project or Assignee.
+  - **Ordering:** Due date, Updated or Created.
+  - The app remembers these choices in your browser.
+- **Selecting several rows** shows a "N selected" bar with bulk actions: Assign to…, Change status…, Change due date… and Copy issue IDs. Right-clicking a row gives the same menu for that one issue. Two items in those menus always refuse:
+  - **Delete:** "Deleting is not available here, for anyone". Archive the post on the content calendar instead.
+  - **Move to project / another team:** not allowed. An issue's client and team come from where it was created.
+- **Refresh:** a refresh button and a freshness note keep the data current. If live updates fall behind, the note says "Live updates are behind. Refresh to catch up."
+
+#### Parents, sub-issues and the "no creating here" rule
+
+- **How a post is built:** one **parent issue** for the post, with **sub-issues** under it, named "Video 1 — name", "Thumbnail 1 — name" and so on (Samples posts use "Sample Video N"). The parent is a container: its status, assignee, due date and labels cannot be edited. The message is "This is the main card for the post. Open its sub-issues to work on them."
+- **A sub-issue** shows "Sub-issue of" with a link to its parent, plus a **Parent issue** box in the right panel.
+- **A parent** lists its sub-issues under a "Sub-issues N" header.
+- **There is no New issue button and no Add sub-issue button, for anyone.** The owner's rule: posts and their sub-issues are created only from the content calendar (Create Post on the client's Calendar or Samples tab) or from Submit. The point is that nothing exists in SyncLinear that is not also in the calendar.
+- **Recover issue:** this button appears only if a create from an earlier version of the page may have half-finished. It lets the author finish or see that item.
+
+#### An issue's page: properties
+
+- **Status.** The order is Backlog, Todo, In Progress, For SMM approval, For Kasper approval, Tweak Needed, For Client Approval, Approved, Scheduled, Posted, Canceled, Duplicate (plus Triage).
+  - New work starts in **Todo**, and the assignee moves it.
+  - Hovering over the status shows how long the issue has been in it.
+  - Editors may move their own assigned work to any status.
+- **Assignee:** pick a teammate, or leave it unassigned.
+- **Due date:** type a date (for example "Jul 20 2027"), or use Tomorrow, End of this week, In one week, Custom… (a calendar) or Remove due date. Overdue dates are highlighted.
+- **Labels:** search the label list and tick labels. Workload capacity labels such as "3× Workload" also live here.
+- **Priority:** SyncLinear has no priority field.
+- **Project:** the client. Warnings such as "Needs attribution" or "Attribution conflict" mean the issue's client link needs fixing by an admin.
+- **Social media manager:** shows the client's SMM, taken from the roster. Read only.
+- **Open in Calendar:** opens the linked Calendar card in a new tab.
+- **Back to card:** appears when you came from a card, and takes you back to it.
+- **Who may change what:**
+  - **Admins and SMMs:** everything above.
+  - **Editors and designers:**
+    - Can comment on their own team's issues.
+    - Can change the status and the title only on their team's issues that are **assigned to them**.
+    - Can edit the Raw footage, Frame folder and Deliverable/Thumbnail file links on any issue.
+    - Cannot change the assignee, due date, labels or description.
+  - **Blocked controls:** they stay visible but greyed out, and their tooltip gives the reason (for example "This issue is not assigned to you.").
+
+#### Title, description and images
+
+- **Renaming:** click the title of a sub-issue to rename it. The "Video 1 — " part is fixed, and only the name after the dash changes. Enter saves the new name and Escape cancels.
+- **Description:** press **Edit** to write in it. It is Markdown, and you can switch between a formatted view and plain Markdown. **Save** and **Cancel** are at the bottom, and Ctrl/Cmd + Enter also saves.
+  - The parent's description is the post's own text. Each sub-issue has its own brief.
+  - Only admins and SMMs can edit descriptions.
+- **Images in descriptions:** paste or drop an image into the editor to upload and insert it. Switch: `description_image_upload_enabled`, on for everyone.
+
+#### Assets and trial versions
+
+- **The Assets box has four rows:**
+  - **Filming plan:** found from the client automatically. It cannot be edited here.
+  - **Raw footage** and **Frame folder:** shared by the whole post. Editing one changes it on the parent and on every sub-issue.
+  - **Deliverable file:** called **Thumbnail file** on graphics. This is the finished file for this sub-issue. A parent issue normally does not show it.
+- **Status words on each row:** Available, Missing, Not checked, Permission denied, Expired and so on. "Refresh access" checks the sharing again.
+- **"from the content calendar / samples card / client / post"** means the link is borrowed from there. Editing a borrowed link changes what the Calendar shows too.
+- **Trial reels:** when a card has Trial reels on, the video sub-issue shows one "Deliverable file · Video A … E" row per version, each with its own Edit. Switch: `trial_reels_pages`, which is on for the test client only.
+
+#### Comments ("Feedback & tweaks")
+
+- **Writing:** type in the box and press **Comment**.
+- **Each comment has:** Reply, Edit, Resolve/Reopen (on top-level threads) and Delete. Which of these you see depends on your rights.
+- **Labels on each comment:** Internal or Client-visible, where it came from (Native comment, Linear import, Imported feedback, Linked feedback, Calendar or Samples source), Video or Graphics, and "Tweak · Round N" with Open or Resolved.
+- **Who can see a comment:** a new comment is **Internal**. The Internal/Client-visible switch is offered only when a matching Samples card is linked; otherwise it is greyed out with that reason.
+- **Notes from the Calendar card** show up here as feedback.
+
+#### Thumbnail titles
+
+- **Buttons:** **Thumbnail titles** sits on a post's "Sub-issues" header and titles every thumbnail. **Write title** sits next to Edit on a single thumbnail's description and titles just that one.
+- **How a run works:**
+  1. The server reads the client's filming plan. If it cannot tell which plan tab to use, it asks you ("Use this tab" / "Cancel").
+  2. It writes a title only into an empty description, or over the old automatic "Needs info" line.
+  3. If a person already wrote something, it shows Now/New and asks you to choose: Keep mine, Replace (your text stays under the title) or Add title above mine. For an earlier AI title, the choices are Keep the old title or Use new.
+  4. Undo and Use another tab are offered afterwards.
+- **Practical details:** only admins and SMMs can run it. A run continues if you close the tab, and there is one run per post.
+- **Switches:**
+  - `thumbnail_title_buttons_staff` (the buttons): on for all staff.
+  - `thumbnail_titles` (a separate automatic background writer of titles): on for one real client only.
+
+#### How a Calendar card and its Production work item stay in sync
+
+- **Linking:** each Calendar (or Samples) card is linked to its video sub-issue and its thumbnail sub-issue.
+- **Status:** when someone changes a status in Production, the server updates the card's video or graphic status, then works out the card's overall status again (the worst of video, graphic and caption). A status changed on the Calendar writes both sides.
+- **Names (`rename_propagation`):** renaming a card renames its linked sub-issues, keeping the "Video N — " prefix. Renaming a sub-issue renames its card. This happens on the server a moment later and never blocks a save. Older mismatches stay until someone renames one side. The switch is on, with its three parts (card → sub-issue, sub-issue → card, Samples) all on.
+
+#### Submit (staff form, "Create production work")
+
+- **What it is for:** handing a shoot's footage to the team. It creates the post and its work in one step. It is for raw footage uploads; there is no separate "request a graphic" mode. Only admins and SMMs can use it, and they must be signed in.
+- **Fields and buttons, top to bottom:**
+  - **Copy upload link:** copies the client upload link (see the next section).
+  - **Client:** search and pick from the client list.
+  - **Title:** filled in for you as "Client · today's date". You cannot edit it.
+  - **Filming Plans:** found from the client automatically. It may say "Resolved securely when submitted" or warn "No filming plan found for this client". A missing plan never blocks the submission.
+  - **Main folder:** the Google Drive folder for the whole shoot.
+  - **Notes** (optional): notes about the whole shoot.
+  - **Videos:** use − / + or type a number. The form starts at 12 videos (1 on a phone), and the maximum is 24.
+  - **One box per video:**
+    - **Main camera** link.
+    - **Side camera** link (optional).
+    - **Audio** link (optional).
+    - **Notes for this video** (optional).
+  - **Shortcut:** press Shift inside a link box to paste the last link you used.
+  - **Make a thumbnail too:** on by default, and the app remembers your choice. On creates a video and a thumbnail for each video; off creates video only.
+  - **Create deliverables:** sends the form.
+- **What submitting creates:**
+  - One parent issue.
+  - For each video, "Video N" and, if the thumbnail switch is on, "Thumbnail N", all in **Todo**.
+  - Due dates: videos 1–5 are due in 5 working days, videos 6–10 in 10, and so on.
+  - One linked Calendar card per video, with no date set.
+- **If something fails:** what you typed is kept in your browser. A "Saved submission" box offers Restore it, Send it as it was (or Finish it) and Discard it. Pressing the button again never sends the same submission twice.
+- (unconfirmed: who the video sub-issues are assigned to when made through Submit)
+
+#### Public client upload link vs Submit
+
+- **What it is:** the same form, opened from a link ending in `?intake=1`, titled "Upload your content". It has the Synchro Social logo and a "?" link that explains how the page works. The Title field is hidden, but the title is still made and sent.
+- **Who uses it:** clients and videographers sending footage. Neither needs to sign in.
+- **Who sends it:** any staff member with Submit, using **Copy upload link**. It is one shared link and the person picks their client in the form. (unconfirmed: whether the client list on the link is narrowed)
+- **What happens to a submission:** it lands exactly like a staff Submit: a parent, Video and Thumbnail sub-issues, and Calendar cards. Each piece is marked as coming from the public link.
+  - The sender sees "Upload received. Thank you!".
+  - If only the last step failed, they see "We are finishing one last step… press the button again".
+- **Limits:**
+  - At most 50 work items per submission (25 videos when thumbnails are on).
+  - About 12 submissions per client per hour, and 60 per hour across all clients.
+- **Switch:** `public_intake_enabled`, on. When it is off, the link cannot submit.
+- **Background document:** `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` is an older design note (July 2026). The fix it describes is live: a missing filming plan never blocks a client. Its redesign ideas are partly reflected in the current form (one main folder, optional side camera and audio, notes per video).
+
+#### Quiz intake
+
+- **What it is:** the Growth Bottleneck Quiz on the marketing website (synchrosocial.com/quiz) sends answers to SyncView, at most 120 per hour.
+- **Where answers appear:** admins read them in Kasper > More > Pipeline & Admin > **Quiz Leads**. Answers are also passed to the sales automation.
+- **Switch:** `quiz_intake_enabled`, on.
+- It is a marketing lead form, unrelated to footage or Production.
+
+### Post tab, Kasper area, Notes and Messages, Leads, Hiring, Sales Intake and SyncMate
+
+Switch values below are the live values read on 2026-10-28.
+
+#### Post tab (posting to TikTok and Instagram)
+
+**What it's for:** posting a finished video or carousel straight to a client's TikTok or Instagram, either now or at a set time. Open it with the **Post** button in the staff header (on a phone, the screen is titled "Post to TikTok" or "Post to Instagram").
+
+**Who can use it:** any signed-in staff member (admin, SMM, or editor/designer). The server turns away anyone without a staff sign-in. Clients never see this tab.
+
+- **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
+- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account.
+  - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
+  - The Instagram account id is a separate field. The page says it lives in the Clients Info sheet (column for the Instagram Post For Me id).
+- **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
+- **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
+
+**TikTok side**
+- **Media: Video or Photo carousel.**
+  - Video: MP4, MOV or WebM, up to 287 MB.
+  - Photo carousel: 1 to 35 JPEG, PNG or WEBP images, up to 20 MB each. Reorder with the arrows; remove with ×.
+- **Caption:** up to 2,200 characters.
+  - If the video's file name matches exactly one of the client's Calendar cards, that card's caption fills an empty caption box, with an **Undo**.
+  - If the card has a second caption written for this platform, that one is used.
+- **Scheduling:** "Post immediately" is on by default. Switch it off to pick a date, time (with AM/PM) and timezone.
+- **TikTok options** (open with "Show options"):
+  - Privacy: Public, or Private (only me).
+  - Post mode: Direct post, or Send to TikTok drafts.
+  - Cover timestamp in milliseconds: which frame TikTok uses as the thumbnail.
+  - Music: auto-add trending music (photo carousels only).
+  - Disable duet, Disable comments, Disable stitch.
+  - Commercial content: Branded content, Your brand, AI-generated.
+- **Live preview:** shows how the post will look in the For You feed.
+- **Button:** "Post to TikTok" or "Schedule on TikTok". While a post uploads you see a progress bar and a **Cancel** button.
+- **Drafts:** your draft is kept in your browser. After a reload it asks you to re-attach the file.
+
+**Instagram side**
+- **Post type: Reel or Carousel.**
+  - Reel: one MP4 or MOV video.
+  - Carousel: one feed post of 2 to 10 images and videos, mixed. JPEG, PNG, WEBP, MP4 or MOV; images up to 8 MB. Reorder with the arrows; remove with ×. Instagram crops every item to the shape of the first one.
+- **Cover image (Reel only, optional):** choose one of these:
+  - **Image:** upload a JPEG or PNG, 9:16, up to 8 MB.
+  - **Pick a Calendar card:** choose one of the client's Approved or Scheduled cards to use its thumbnail as the cover. Its caption also fills the caption box if that box is empty.
+  - **Frame from video:** drag a slider to choose a frame. At 0 seconds Instagram uses the first frame.
+- **Caption:** up to 2,200 characters, with the same fill-from-Calendar and Undo as TikTok.
+- **Trial reel switch (Reel only):**
+  - The reel is shown to non-followers first. It reaches followers only if someone shares it from the Instagram app.
+  - Not every account can post trial reels. If this one cannot, the post shows as Failed with Instagram's reason.
+  - The switch has no runtime switch of its own and is there for everyone who uses the tab.
+  - A carousel can never be a trial.
+- **Scheduling:** works the same way as TikTok (date, hour, minutes in 5-minute steps, AM/PM, timezone).
+- **Button:** "Post to Instagram" or "Schedule on Instagram".
+  - If SyncView could not confirm the post went through, press the button again. It will not post twice.
+
+**The queue (right side, one per platform)**
+- Three tabs: **Upcoming**, **Failed** (turns red when something failed) and **Done**. "Show more" loads 5 more rows at a time.
+- Each row shows the client, the caption, the status (Uploading, Posting, Scheduled, Posted, Failed, Cancelled) and the type: Reel, Trial reel, Carousel (n) or TikTok.
+- **Cancel** (scheduled posts only) removes the post from Post For Me so it never goes out. The file stays on your computer.
+  - On TikTok, a post that has already published cannot be cancelled.
+- **Open** opens the published post.
+- **TikTok only:**
+  - **Retry** resends a failed post.
+  - **×** (Dismiss) hides a row in your own browser.
+- The queue refreshes by itself: often while something is posting, rarely while posts are only scheduled.
+
+**TikTok Pilot:** a hidden page that posts directly to TikTok, waiting on TikTok's app review. It is not submission-ready and not part of normal work.
+
+#### Kasper area: overview
+
+**Who:** admins only. The **Kasper** button appears in the header only for a verified admin sign-in. The header says "Kasper — Things waiting for your call."
+
+- **Main tabs:** Review Session, Messages and Filming Plans.
+  - For the people the new review page switch lists, the main tabs are only Review and Messages, and Filming Plans moves into More.
+- **More menu** (the ⋯ button; it takes the name of the open section). It has three groups:
+  - **Team:** Editors, Time Off.
+  - **Pipeline & Admin:** Sales Intake, Hiring Process, Onboarding, Leads, Quiz Leads, Client Credentials, Clients, Save problems.
+  - **Analytics:** Ad Performance.
+- **Counts:** tabs show a count of what is waiting (Time Off and Onboarding show one only when it is above zero). The More button adds up the counts of the tabs inside it.
+- **`kasper_fast_boot`** (on for 3 staff members): the Kasper tab opens fast from a saved list. A saved list older than 3 minutes is not shown as if it were current.
+- **`kasper_urgent_ping_enabled`** (on):
+  - On a card part waiting at Kasper Approval, staff get an **URGENT** button. It sends Kasper a Slack ping and puts the card in an **Urgent** section at the top of Kasper's Review Session.
+  - The card leaves Urgent by itself once Kasper decides.
+
+#### Kasper: Review Session
+
+**What it's for:** where Kasper reviews every part (video, thumbnail, caption, title) that is waiting at "Kasper Approval".
+
+**Sections:**
+- **Urgent** (shown only when something was pinged).
+- **Waiting for your review.**
+- **Tweaks pending:** Kasper already asked for changes, and the work is with the SMM or editor.
+- **Approved history:** this also notes any card someone moved past Kasper "without your decision".
+- **"Sent back to you"** marks a card that came back to Kasper after a decision on it.
+
+**Buttons on each part:**
+- **Approve:** sends it on to the client.
+- **Comment:** a team-only note. It does not change the status or tell the editor.
+- **Request change:** moves the part to Tweaks Needed.
+- **Approve after tweaks:** sends the tweak to the editor. After the fix, the part goes straight to the client with no second look from Kasper.
+
+**Buttons on the whole card:**
+- **Finish reviewing:** hands the card to the SMM. Approved parts go to the client, tweaks go to Tweaks pending, and parts Kasper only commented on wait for a reply.
+- **Close (×):** hides the card without a decision. It comes back when a new message arrives.
+- **Ping editor:** sends the editor a Slack ping.
+
+**New review page:**
+- `review_stage_kasper_staff` (3 staff) switches the new review page on. It has Next post, Undo for a few seconds after Approve, and a "With the editors" strip.
+- `review_stage_kasper_layout2` (the same 3 staff, screens 1360 px wide or more) adds a second layout: a list of cards on the left, every part on screen at once, and Finish reviewing and Close card at the top right.
+
+#### Kasper: other subtabs
+
+- **Messages:** the same inbox as the header Messages button (see Messages inbox below).
+- **Editors:** last week, one row per editor.
+  - It shows "on his plate" (load) against "pushed through" (first cuts and tweak rounds handed off), with bars per day.
+  - Click an editor for their timeline. Click a day's bar for that day's clients.
+  - Read-only.
+- **Filming Plans:** one row per client, sorted by who needs a new filming plan soonest.
+  - "Content" counts the client's active Calendar cards that are still available.
+  - The alert turns red when content is very low or a plan is overdue, and amber when content is getting low or a plan is due within 2 weeks.
+- **Time Off:** the team leave calendar.
+  - It shows Away today, Off this month and Pending this month, plus observed holidays.
+  - Pick a day to **Approve** or **Deny** requests on it. There is also an Adjustments section.
+  - This subtab needs the leave-admin right and `pto_v1` (on).
+- **Sales Intake:** see Sales intake below.
+- **Hiring Process:** see Hiring below.
+- **Onboarding:** the full client onboarding inbox, in three sections (Standard, AI, Old forms), with search. It shows names, contact details and account logins.
+- **Client Credentials:** the one place for client Instagram, TikTok, Facebook, LinkedIn, YouTube and other logins.
+  - Buttons: **Add credential**, **Import from onboarding**, **Refresh**.
+  - Every password reveal and every edit is recorded. SMMs can also reach this page outside Kasper.
+- **Clients:** the client roster.
+  - Use **search**, **All clients** and **New client**.
+  - Each client has sections for contact and team (email, Slack channel, creative channel, Slack person to tag), social accounts, publishing (Post for Me, Upload-Post), and a folded Content research section.
+  - SMMs can be assigned here, and values have Copy buttons.
+- **Save problems:** every refused or failed save that reached the server log in the last 30 days.
+  - Filter by Period, Screen (Calendar, Samples, Production) and Who (client links or staff).
+  - Read-only. Some surfaces do not report, so a missing row does not prove a save worked.
+- **Ad Performance:** read-only figures for the agency's own Meta prospecting ads (the ads that bring in sales calls): spend, landing page views, conversion rate, cost per booking, and iClosed bookings.
+  - It has a date-range toggle, a per-ad table, a per-lead list (with phone) and an unfinished-leads section.
+  - Updated twice a day. It is not a per-client feature.
+- **Leads:** opens the Leads page (see below).
+- **Quiz Leads:** a read-only list of Growth Bottleneck Quiz answers from the public quiz, newest first.
+
+#### Notes on cards (how comments flow between client and staff)
+
+**Where:** every Calendar card has a **Notes** panel. Clients open the same panel from their review link.
+
+**Staff writing a new note:**
+- A note is **team only** by default (lock icon). Click the icon to switch to **"The client can see this"** (eye icon). Notes to the client carry a "To client" tag.
+- The arrow next to Send has **Request change**, which moves the part to Tweaks Needed and is always team only.
+- "About the…" picks which part the note is about (Video, Thumbnail, Caption, Title).
+- A reply keeps the audience and part of the thread it answers.
+- **Mark done** closes a change request. Finished threads move to history (icon at the top right).
+- A note to the client is only offered where the client can actually read it.
+
+**Client writing a note:**
+- "This is a… **Comment**" (does not change the status) or "**Request a change**" (moves the card to Tweaks Needed).
+- The client also picks "About the…".
+- The client sees the team as one name, "Synchro team", and never sees staff names or team-only notes.
+
+**Frame.io comments in Notes (`frame_comments_in_notes_staff`, on for all staff):**
+- A card's Frame.io comments appear in its Notes, marked "A comment left in Frame.io. Reply to it there."
+- Only the first comments show; the rest are in Frame.io.
+- Comments on older versions of a version stack are not shown.
+- Never on the client link.
+
+#### Messages inbox and unread badges
+
+**Who:** admins and SMMs. Open it with the header **Messages** button, the phone Tabs menu, or Kasper > Messages.
+- An SMM sees their own clients.
+- An admin who is not on the SMM roster sees every client (the reviewer view).
+- Editors and designers have no inbox.
+- A card drops out once it is posted.
+
+**What's in it:**
+- **New / All** switch, plus **To answer** for badge users.
+- Search conversations.
+- **Reply** under a thread.
+- **Open card** opens the card's Notes in the Calendar.
+- **Mark as unread.**
+- Change requests carry a "Change request" tag. Messages written to the client carry "To client".
+
+**What counts as new:**
+- Automatic records never count.
+- Kasper's inbox counts only staff messages.
+- The badge refreshes by itself.
+
+**Unread badges (`unread_badges_v2`, on for all staff, desktop only):**
+- A card's Notes button shows a small photo of each person with something for you, with a coloured number:
+  - orange: change request
+  - blue: client comment
+  - grey: team
+  - violet: Kasper
+- A filled number means new. A plain coloured number means you have read it but it still needs you.
+- Hovering a note gives Reply, **No reply needed**, Mark done and Delete. "No reply needed" and "Mark unread" are kept only in your browser for now.
+
+**Client link (`review_client_polish`, on for all clients):** the same badges, but only the team's notes count for the client.
+
+#### Leads (CRM)
+
+**What it's for:** everyone we might sell to, where each person stands, and what happens next.
+
+**Where and who:** the page is `/leads` (Kasper > More > Pipeline & Admin > Leads). It is admin only. **Nothing in Leads sends a message.**
+
+**Home page:** a search bar and four colour tiles, each with its key number: **Today**, **Leads**, **Report**, **Automations**. Every other page has a fixed menu row with these sections and search. Browser Back, Forward and reload keep your place.
+
+**Leads (the list):**
+- One table with the columns Name, Stage, Where they came from, Niche, Next step and Due.
+- Click a column title to filter (Stage, Source, Niche, Due) or sort (Name). "Show everyone" clears the filters.
+- People are split into **Cold leads** (Dream 100, people we picked to reach out to) and **Warm leads** (ad leads, past calls, email list, referrals). Each section folds.
+- An **All / Cold / Warm** toggle shows one or both.
+- Overdue next steps are marked.
+
+**Stages:** To contact, Contacted, Replied, Call 1 booked, No-show, Call 1 done, Call 2 done, Gone quiet, Won, Lost. Hover a stage name for its meaning.
+
+**Changing a stage:** drag and drop between stages was removed. Change a stage on the person's page.
+
+**Person page:**
+- Opens from a row or a search result.
+- **Edit** changes the stage, next step and due date. If they were lost, you also pick why it didn't close (Price, Trust, Timing, Budget, No-show).
+- "What's happened" is the timeline. Use **Add a note** to write down what happened on a call or in a message.
+- Lists the automations they are in, with pause and resume, **Skip next**, **Stop**, and adding them to one.
+- "Also in Leads as" offers **Merge** for a same-name duplicate.
+- With no next step typed, a greyed suggestion from the stage shows.
+
+**Today:**
+- Next steps due today or overdue.
+- "Did they show?" for calls that have passed: **Showed** moves the person to Call 1 done. **No-show** moves them to No-show and adds them to the No-show automation.
+- Automatic sends due in the next 24 hours, with their state.
+
+**Report:** one row per source, with People, Booked, Showed up and Signed. It also has "Same person twice?" for merging.
+
+**Automations:**
+- Every email and text a lead gets by itself, grouped by when it starts.
+- SyncView's own sequences start **off**, and every step is a **draft** until an admin presses **Approve**. Use **Edit** and then "Save as draft" to change a step.
+- n8n automations show read-only, word for word.
+
+#### Hiring Process (briefly)
+
+- **Where and who:** Kasper > More > Hiring Process, admin only.
+- **Roles:** applications come in from iClosed for two roles: Client Success & Content Manager, and Video Editor (which adds a practical-test stage).
+- **Status filters:** New, In review, On hold, Invited, All.
+- **What Kasper does:**
+  - **Mark in review**, or mark an applicant as not moving forward (this sends no email).
+  - See an **Email preview**.
+  - Queue an **Interview invitation**, or for editors a **practical test**, then record its verdict. A pass unlocks the final interview invite.
+- **Switches:** `hiring_invites_enabled` and `hiring_practical_tests_enabled` are both on, so these emails send automatically. The owner plans to switch them off once the hire closes.
+
+#### Sales Intake (briefly)
+
+- **Where and who:** Kasper > More > Sales Intake, filled in by Kasper after closing a deal on a call.
+- **Fields:** client name, who closed it, Instagram, email, phone, start date, deliverables, billing type, payment processor (Stripe or Commas, with no default), payment link, termination clause, and referred by.
+- **Buttons:** **Generate agreement preview**, then **Create agreement & send**. This creates the e-signature agreement and emails the client the agreement and the invoice link.
+- Whether the earlier safety gaps noted in the design doc are fixed is unconfirmed.
+
+#### SyncMate (the team's AI assistant connector)
+
+**What it is:** SyncMate, formerly "the Connector", is a connector you add to your own Claude (or ChatGPT) chat. It is for everyone on the team, mainly SMMs, editors and designers.
+
+**How you get it:**
+- Each teammate has a personal link with their own pass. There is also a shared Team link, which asks for your first name so the log shows who did what.
+- Apps that only accept a sign-in use SyncMate's sign-in page, where you type your pass once.
+- Who issues passes is unconfirmed (ask the owner).
+- After SyncMate's tools change, use "Refresh tool list" in the connector settings and start a new chat.
+
+**What you can do:**
+- **Make AI images and videos** with Higgsfield's models.
+  - GPT Image is used for photo edits, thumbnails and new photos. Nano Banana is switched off.
+  - It picks a model and sensible settings: vertical 9:16, about 1080p.
+- **Price check before every create:** it always shows a plan card (model, every setting, the exact price, other options) and waits for you to say "go". Changing anything re-prices it.
+- **Recipes:**
+  - Thumbnail expression fix.
+  - B-roll as photo first, then video. You approve the still image, then that exact image is animated.
+  - Batches of thumbnails from screenshots.
+- **Client brains:** reads what the Synchro Brain knows about a client, and saves new lasting facts.
+- **Client style** for thumbnail titles.
+- **Filming plans:** reads a client's filming plan.
+- **Studio tools:**
+  - The Synchro video studio download, and client video profiles.
+  - **Review notes** for doing a client's tweaks.
+  - Trial reel versions.
+  - Shared tools and kits.
+  - Voice clean-up (removes background noise).
+  - Transcription.
+  - Feedback notes on the filming pipeline.
+- **Files:** turns Drive and Dropbox links into links the models can read.
+- **Team usage:** shows this month's spend.
+
+**What it never does:**
+- Never makes anything without showing the price first.
+- Never goes past the team's monthly budget cap.
+- Never changes SyncView, code, n8n, ads or Slack. It says that is the owner's job.
+- Never offers tools from other connectors.
+
+### Every live switch, and who has it on
+
+Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every signed-in staff member and never the client link. "All clients" means every client link. A switch the page reads but that has no row live is at its default: `analytics_hidden` has no row, so Analytics is hidden.
+
+| Switch | What a teammate notices | Who has it on |
+| --- | --- | --- |
+| `analytics_hidden` | The Analytics tab and client Analytics | No row: hidden for everyone |
+| `calendar_auto_posted` | Scheduled posts turn Posted by themselves after their day ends | One real client (not the test client) |
+| `calendar_card_write_clients` | Card saves use the newer save path | All clients |
+| `write_ui_reroute_clients`, `calendar_upsert_ef_clients`, `sample_review_ef_clients`, `settings_ef_clients` | Create Post opens the dialog, and saves and settings go through the server (for other clients, Create Post adds a blank card) | A list of 38 clients, including the test client |
+| `caption_generate_ef_clients` | Generate caption | All clients |
+| `caption_history_staff` | Caption history (clock icon) | All staff |
+| `frame_viewer_clients` | The in-page Frame.io player | All clients (and staff) |
+| `frame_comments_in_notes_staff` | Frame.io comments inside Notes | All staff |
+| `unread_badges_v2` | Unread pictures on Notes, and New / To answer in Messages | All staff |
+| `phone_polish_staff` | Smoother phone layout | All staff |
+| `thumbnail_title_buttons_staff` | **Thumbnail titles** and **Write title** buttons in Production | All staff |
+| `thumbnail_titles` | Background job that writes titles into new thumbnail sub-issues | One real client (not the test client) |
+| `thumbnail_revision_v2` | Compare old and new thumbnail on the card | On |
+| `workload_calm_staff` | Calm Workload design | All staff |
+| `review_stage_client_pages` | The guided client Review page and the SMM Review tab | All clients |
+| `review_client_polish` | Client link polish: instant Approve, quiet notes, unread badges | All clients (watched until 2026-10-31) |
+| `review_help_video_url` | The "?" help video on the client link | Set |
+| `review_stage_kasper_staff` | Kasper's new Review Session page | 3 staff members |
+| `review_stage_kasper_layout2` | Kasper's second layout (wide screens) | 3 staff members |
+| `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
+| `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
+| `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Test client only |
+| `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
+| `description_image_upload_enabled` | Paste images into Production descriptions | On |
+| `editor_suggest_last` | Puts some editors last in Create Post's editor suggestions | 1 staff member listed |
+| `prod_authority` | SyncLinear can edit Video and Graphics work | Both on SyncView |
+| `public_intake_enabled` | The client upload link can submit | On |
+| `quiz_intake_enabled` | The marketing quiz feeds Quiz Leads | On |
+| `pto_v1` | Time Off | On |
+| `hiring_invites_enabled`, `hiring_practical_tests_enabled` | Hiring emails send automatically | On |
+| `client_hubspot_sync` | HubSpot band on a client profile | 3 clients, including the test client |
+| `tiktok_upload_source` | TikTok uploads run through SyncView's own server | SyncView |
+| `analytics_metrics_collect`, `analytics_top_videos_collect` | SyncView's own analytics collector | Off |
+| `linear_outbound_enabled`, `linear_legacy_parity_enabled` | Old Linear sync | Off (Linear is no longer used) |
+
+Background switches with nothing to click (`auth_enforcement`, `client_comment_gateway_enabled`, `client_profiles_authority`, `analytics_mirror_*`, `filming_plan_tabs_source`, `native_*`, `production_native_*`, `write_ui_overdue_due_bump`) are covered in the technical sections below and in [State of things](STATE_OF_THINGS.md).
+
+### Still unconfirmed
+
+- How an issue is added to SyncLinear's Favorites.
+- Who the video sub-issues are assigned to when the work comes in through Submit or the upload link.
+- Whether the upload link's client list is narrower than the staff one.
+- Whether the Onboarding inbox loads for SMM and Creative (the menu shows it; the server reader checks for Admin).
+- Which roles may use **Edit links** on Templates.
+- Whether the weekly SMM report reminder email to Kasper runs.
+- Whether the old "SyncView Calendar" Google Sheet backup is still being written. Clients never see it either way.
+- Whether a client's answer on a Samples link is held in the browser until the server confirms it, as it is on Calendar links.
+- Which clients are on the server allow-list for Instagram posting.
+- Who issues SyncMate passes (ask the owner).
+- Whether the safety gaps listed in the Sales Intake design doc are closed.
 
 ## Four repos
 

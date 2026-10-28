@@ -35233,3 +35233,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - two staff tabs dropping Video C at once: dropped once, both tabs agree, and brought back from one tab;
   - the client's double click on Approve on Video A: A approved, B still waiting, the page on Video B.
 - **Kept as today, not trial findings:** today's link box saves the card on any close, Escape included (it refreshes a file swapped behind the same link); Production's asset editors do not close on Escape, today's included.
+
+## 577. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: a version only the client approved showed the team a plain Approve; a dropped version with no link still asked for one (Trialtest, session Trials)
+
+- **What happened (Trialtest's live walk of #2412):**
+  - A version the client approved before anyone on the team had answered (a card sent straight to Client Approval) showed the SMM's Review tab and Kasper's pages nothing about the client's OK: the SMM saw a plain Approve, and Kasper's tile said "change asked". Sidney asked that approved things show as approved.
+  - A version dropped before its link was pasted still showed the grey "Paste the Frame.io link" between its name and "dropped" on the staff card.
+- **Fix:**
+  - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
+  - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).

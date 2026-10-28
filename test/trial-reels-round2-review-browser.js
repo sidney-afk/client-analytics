@@ -11,6 +11,9 @@
  *      in, a row of tile placeholders holds their place, so nothing under it moves when the tiles land; a card with no
  *      picture shows a video mark in each tile, never a black square.
  *   2. On the review page too, switching versions never shows a wide box while the next version loads.
+ * Follow-up (Trialtest's live walk, 2026-10-28): a version only the client approved (a card sent straight to Client
+ *   Approval) says "Client approved" to the team on the SMM's Review tab and Kasper's two layouts, and the team's own
+ *   answer works as before; a tile still with the SMM says "with the team", never "change asked".
  * At 1440 and 390, light and dark. TRIAL_R2_SHOTS=<dir> writes screenshots (fictional data only).
  */
 const path = require('node:path');
@@ -118,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -311,6 +314,57 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await sleep(1500);
       const said = await t.page.evaluate(() => ((document.getElementById('confirmOverlay') || {}).innerText || '').replace(/\s+/g, ' '));
       ok(/not approved/.test(said) && !/answered|request_failed|write_failed|"/.test(said), `client: a refused approve says it in plain words, no server code ("${said.slice(0, 140)}")`);
+      await t.ctx.close();
+    }
+
+    // ---------- Follow-up: a version only the client approved says so to the team, and the team's Approve works ----------
+    // A card sent straight to Client Approval: nobody on the team has answered, the client approved Video A.
+    const clientOnly = () => three().map(v => Object.assign(v, { kasper_ok_at: null, smm_ok_at: null }, v.letter === 'A' ? { status: 'approved', client_ok_at: '2026-10-28T10:00:00.000Z' } : {}));
+    for (const [mode, w, h, label] of [['kasper', 1280, 860, 'kasper standard'], ['smm', 1440, 900, 'SMM review'], ['smm', 390, 844, 'SMM review 390']].filter(() => part('cok'))) {
+      for (const th of ['light', 'dark']) {
+        const t = await start(mode, true, clientOnly(), Object.assign({ width: w, height: h, noSmm: ['A', 'B', 'C'] }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+        await theme(t, th);
+        const d = await dec(t);
+        const mark = await R(t, `const n = r.querySelector('.trv-under .trv-cok'); if (!n || !n.offsetParent) return null; const s = getComputedStyle(n); return { t: n.textContent.trim(), bg: s.backgroundColor, fg: s.color, title: n.title };`);
+        const aria = await R(t, `const b = r.querySelector('[data-trv-go="A"]'); return b ? b.getAttribute('aria-label') : '';`);
+        ok(mark && mark.t === 'Client approved' && /Video A/.test(mark.title), `${label} ${th}: Video A, approved by the client only, says "Client approved" (${JSON.stringify(mark)})`);
+        ok(/client approved/.test(aria), `${label} ${th}: A's dot names the client's OK ("${aria}")`);
+        // The SMM answers first, so the SMM's Approve is there; Kasper's page says the SMM looks at it first (stage order).
+        ok(mode === 'smm' ? /^Approve/.test(d.ok) && !d.overflow : /With the team/.test(d.said) && !d.overflow, `${label} ${th}: the team's own answer stays as before ("${d.ok}" | "${d.said}", overflow ${d.overflow})`);
+        await shot(t, 'cok-' + label.replace(/\s+/g, '-') + '-' + th);
+        if (th === 'light' && mode === 'smm') {
+          await press(t, '[data-ok="video"]');
+          await waitFor(async () => t.T.calls.some(c => c.action === 'answer'), 40);
+          const a = t.T.calls.find(c => c.action === 'answer') || {};
+          ok(a.letter === 'A' && a.kind === 'approve' && a.stage === 'smm', `${label}: the SMM's Approve answers Video A for the SMM (${JSON.stringify(a)})`);
+          // B, which nobody has answered, has no such mark.
+          await sleep(900);
+          await press(t, '[data-trv-go="B"]');
+          await sleep(400);
+          ok(!(await R(t, `return !!r.querySelector('.trv-under .trv-cok');`)), `${label}: Video B, not approved by the client, has no "Client approved" mark`);
+        }
+        ok(!t.errors.length, `${label} ${th}: no page errors (${t.errors.join(' | ')})`);
+        await t.ctx.close();
+      }
+    }
+    if (part('cok')) {
+      // One live version left (the team dropped the others): the tag still shows (Codex on #2418).
+      const vs = clientOnly().map(v => v.letter === 'A' ? v : Object.assign(v, { status: 'dropped' }));
+      const t = await start('smm', true, vs, { noSmm: ['A', 'B', 'C'] });
+      const mark = await R(t, `const n = r.querySelector('.trv-under .trv-cok'); return n && n.offsetParent ? n.textContent.trim() : '';`);
+      const d = await dec(t);
+      ok(mark === 'Client approved' && /^Approve/.test(d.ok), `SMM review, one version left: "Client approved" shows and the SMM's Approve stays ("${mark}" | "${d.ok}")`);
+      await t.ctx.close();
+    }
+    if (part('cok')) {
+      // Kasper's second layout: A's tile says it too, and keeps its Approve.
+      const t = await start('kasper', true, clientOnly(), { layout2: true, noSmm: ['A', 'B', 'C'] });
+      const tile = await R(t, `const v = [...r.querySelectorAll('.trk-v')].find(n => /Video A/.test(n.innerText)); const b = [...r.querySelectorAll('.trk-v')].find(n => /Video B/.test(n.innerText));
+        return { a: v ? v.innerText.replace(/\s+/g, ' ') : '', b: b ? !!b.querySelector('.trv-cok') : true, wide: [...r.querySelectorAll('.trk-v, .trk-go')].filter(n => n.scrollWidth > n.clientWidth + 1).map(n => n.className + ':' + n.scrollWidth + '>' + n.clientWidth).join(' ') };`);
+      ok(/Client approved/.test(tile.a) && !tile.b && !tile.wide, `kasper tiles: A's tile says "Client approved", B's does not, nothing spills (${JSON.stringify(tile)})`);
+      // A version the SMM has not looked at is "with the team" on its tile, never "change asked".
+      ok(/with the team/.test(tile.a) && !/change asked/.test(tile.a), `kasper tiles: a version still with the SMM says "with the team", not "change asked" ("${tile.a}")`);
+      await shot(t, 'cok-kasper-tiles');
       await t.ctx.close();
     }
 

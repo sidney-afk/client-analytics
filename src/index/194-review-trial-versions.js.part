@@ -81,6 +81,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
         return ready ? 'wait' : 'team';
     }
+    /* The client approved a version this staff reviewer has not answered yet (a card sent straight to Client Approval):
+       the team sees that, and its own Approve still works (owner, 2026-10-28: approved things show as approved). */
+    const _trvClientOk = (v, stage) => stage !== 'client' && !!v.client_ok_at && !v.client_pass_at && ['wait', 'team'].includes(_trvAnswer(v, stage));
     function _trvCurOf(m, mode) {
         const vs = m.trial.versions;
         const had = vs.find(v => v.letter === _trvCur[m.id]);
@@ -119,6 +122,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_trvAnswer(cur, 'client') !== 'wait') return false;
         return m.trial.versions.some(v => v.letter !== cur.letter && _trvLive(v) && !v.client_pass_at);
     }
+    function svTrialReviewClientOk(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvClientOk(_trvCurOf(m, mode), _trvStage(mode)));
+    }
     function svTrialReviewPassed(m, mode) {
         if (!m || !m.trial || m.trial.winner) return false;
         const a = _trvAnswer(_trvCurOf(m, mode), _trvStage(mode));
@@ -147,15 +153,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
         const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
-        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
+        const cok = _trvClientOk(cur, stage) ? '<span class="trv-cok" title="The client approved Video ' + _calEscAttr(cur.letter) + '">Client approved</span>' : '';
+        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + cok + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + (_trvClientOk(v, stage) ? ', client approved' : '') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
+            + cok
             + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
     }
     // The two arrows beside the player ('' with one version). They hide on a phone (CSS): there the video is swiped.
@@ -405,9 +413,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 ? '<button type="button" class="trk-ok" data-trk-ok="' + l + '" aria-label="Approve Video ' + l + '"' + (busy ? ' disabled' : '') + '>Approve</button>'
                     + '<button type="button" class="trk-ic" data-trk-chg="' + l + '" title="Ask for a change" aria-label="Ask for a change to Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_BACK + '</button>'
                     + dropBtn
-                : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : 'change') + '">' + (a === 'ok' ? 'approved' : 'change asked') + '</span>';
+                // A version the SMM has not looked at is with the team, never "change asked" (follow-up, 2026-10-28).
+                : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : a === 'team' ? 'team' : 'change') + '">' + (a === 'ok' ? 'approved' : a === 'team' ? 'with the team' : 'change asked') + '</span>';
             return '<div class="trk-v' + (v === cur ? ' cur' : '') + '"><button type="button" class="trk-go" data-trk-go="' + l + '" aria-label="Put Video ' + l + ' on stage"' + (v === cur ? ' aria-current="true"' : '') + '>'
-                + '<span class="trk-pic">' + poster + '</span><span class="trk-n">Video ' + l + '</span></button><div class="trk-acts">' + acts + '</div></div>';
+                + '<span class="trk-pic">' + poster + '</span><span class="trk-nm"><span class="trk-n">Video ' + l + '</span>'
+                + (_trvClientOk(v, stage) ? '<span class="trv-cok" title="The client approved Video ' + l + '">Client approved</span>' : '') + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t"><span class="trv-tag trk-tag">Trial</span> ' + vs.length + ' versions</span>'
             + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
@@ -485,6 +495,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trk-ok[disabled],.trk-ic[disabled]{opacity:.6;cursor:default}
 .trk-lab{border-radius:4px;padding:2px 8px;font-size:.7rem;font-weight:700;background:var(--fill);color:var(--text-secondary)}
 .trk-lab[data-l="approved"]{background:var(--ok-soft-2);color:var(--ok-ink)}
+.trv-cok{border-radius:4px;padding:1px 6px;font-size:.68rem;font-weight:700;white-space:nowrap;background:var(--ok-soft-2);color:var(--ok-ink)}
+.trk-nm{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.trk-nm .trv-cok{font-size:.6rem;padding:1px 4px}
+.trk-go:has(.trv-cok){gap:5px}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
 .trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .trk-acts:has(>.trk-lab[data-l="passed"]){justify-content:space-between}

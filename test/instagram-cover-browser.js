@@ -62,7 +62,7 @@ async function pickSv(page, id, value) {
         if (body.action === 'mint') { const n = ++calls.mints; return ok({ upload_url: `https://storage.fixture.test/put/${n}`, media_url: `https://data.postforme.dev/m/${n}` }); }
         if (body.action === 'create') {
           calls.creates.push(body);
-          return ok({ id: body.idempotencyKey, status: 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: 'processing', placement: 'reels', created_at: new Date().toISOString(), error: '', instagram_url: '' } });
+          return ok({ id: body.idempotencyKey, status: 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: 'processing', placement: 'reels', trial: !!(body.options && body.options.trial_reel_type), created_at: new Date().toISOString(), error: '', instagram_url: '' } });
         }
         return route.fulfill({ status: 400, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
       }
@@ -195,6 +195,18 @@ async function pickSv(page, id, value) {
     c = calls.creates[3];
     assert.equal(c.coverUrl, '', 'no cover, no image'); checks++;
     assert.equal(c.options.cover_timestamp_ms, 0, 'no cover, no frame time'); checks++;
+    assert.ok(!('trial_reel_type' in c.options), 'trial reel off: no trial field is sent'); checks++;
+
+    // --- trial reel: the switch sends manual only, the queue row says so, and the switch resets after posting
+    await attachVideo();
+    await page.fill('#igTitle', 'Trial caption');
+    await page.click('label:has(#igTrial)');
+    assert.match(await page.innerText('#igFormCol'), /non-followers first/, 'the trial switch explains what it does'); checks++;
+    await submitAndWait();
+    c = calls.creates[4];
+    assert.equal(c.options.trial_reel_type, 'manual', 'trial reel on: manual is sent'); checks++;
+    assert.equal(await page.isChecked('#igTrial'), false, 'the trial switch is off again for the next post'); checks++;
+    assert.match(await page.innerText('#igQueueCol'), /Trial reel/, 'the queue row says Trial reel'); checks++;
 
     assert.equal(await page.locator('#igFormCol select, #igFormCol input[type="range"][style*="display:none"]').count(), 0, 'no native select menus on the form'); checks++;
     assert.deepEqual(errors, [], 'no page errors'); checks++;

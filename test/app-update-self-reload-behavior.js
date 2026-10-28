@@ -100,6 +100,9 @@ const DIALOGS = '[role="dialog"], [aria-modal="true"], dialog[open]';
 
 const built = new Function('document', 'window', `
   var EDIT_MARK = 'svUnsavedEdit';
+  var SIGN_IN_ID = 'staffIdentityForm';
+  var SIGN_IN_KEY_ID = 'staffIdentityKey';
+  ${lift('signInCardOnly')}
   ${lift('visibleEl')}
   ${lift('onRenderedSurface')}
   ${lift('markEdited')}
@@ -204,6 +207,24 @@ ok(wouldLoseWork() === false, 'an unfiltered one reloads normally');
 NODES = [dialog({ tagName: 'DIV', offsetParent: null, _w: 480, _h: 320 })];
 ok(wouldLoseWork() === true,
   'a position:fixed modal (offsetParent === null) is still seen as open');
+
+// --- 9. The staff sign-in card is not work (OPEN_REPAIRS 558) ---------------
+/* A signed-out tab shows the sign-in card, a role=dialog, and was read as busy
+ * forever: no self-reload, and no bar until the 4-hour wall. Only a typed role
+ * key counts as something to lose. */
+{
+  const card = el({ tagName: 'FORM', id: 'staffIdentityForm', _w: 420, _h: 360, _selectors: [DIALOGS] });
+  const name = field({ type: 'hidden', id: 'staffIdentityMember', value: 'm1', defaultValue: 'm1', _display: 'none', _w: 0, _h: 0, parentElement: Object.assign({}, VISIBLE_PARENT, { parentElement: card }) });
+  const key = field({ type: 'password', id: 'staffIdentityKey', value: '', defaultValue: '', parentElement: Object.assign({}, VISIBLE_PARENT, { parentElement: card }) });
+  NODES = [card, name, key];
+  ok(wouldLoseWork() === false, 'a signed-out tab showing only the sign-in card is clean');
+  markEdited({ target: name });
+  ok(wouldLoseWork() === false, 'a name picked on the sign-in card is not work');
+  key.value = 'typed';
+  ok(wouldLoseWork() === true, 'a typed role key is');
+  NODES = [dialog({ tagName: 'DIV', id: 'someOtherDialog' })];
+  ok(wouldLoseWork() === true, 'every other open dialog still counts');
+}
 
 console.log(failures === 0
   ? '\nAll self-reload safety-condition checks passed.'

@@ -37,7 +37,7 @@ const real = ms => new Promise(r => setTimeout(r, ms));
 let checks = 0;
 function ok(cond, label) { assert.ok(cond, label); checks++; console.log('  ok  ' + label); }
 
-async function open(browser) {
+async function open(browser, extra) {
   const deploy = { lm: T0 - H, loads: 0 };
   const context = await browser.newContext();
   await context.route('https://syncview.test/**', route => {
@@ -45,7 +45,7 @@ async function open(browser) {
     const headers = { 'last-modified': new Date(deploy.lm).toUTCString(), etag: '"' + deploy.lm + '"', 'content-type': 'text/html' };
     if (req.method() === 'HEAD') return route.fulfill({ status: 200, headers, body: '' });
     deploy.loads++;
-    return route.fulfill({ status: 200, headers, body: '<!doctype html><html><head></head><body><textarea id="draft"></textarea>' + SCRIPT + '</body></html>' });
+    return route.fulfill({ status: 200, headers, body: '<!doctype html><html><head></head><body><textarea id="draft"></textarea>' + (extra || '') + SCRIPT + '</body></html>' });
   });
   const page = await context.newPage();
   await page.addInitScript(() => {
@@ -124,6 +124,27 @@ async function open(browser) {
       await t.tick(5 * MIN);
       ok(t.deploy.loads === 2, 'a hidden clean tab takes the publish by itself, unseen');
       await t.context.close();
+    }
+    // 4. A signed-out tab: the staff sign-in card is open (OPEN_REPAIRS 558).
+    {
+      const CARD = '<form id="staffIdentityForm" role="dialog" aria-modal="true" style="display:block;width:400px;height:300px">'
+        + '<input type="hidden" id="staffIdentityMember" value=""><input id="staffIdentityKey" type="password"></form>';
+      const v = await open(browser, CARD);
+      await v.page.evaluate(() => { const m = document.getElementById('staffIdentityMember'); m.value = 'm1'; m.dispatchEvent(new Event('change', { bubbles: true })); });
+      await v.publish(); await v.tick(65 * MIN);
+      ok((await v.state()).bars === 1, 'a visible signed-out tab (name picked, no key) gets the one bar after the hour, like a clean tab');
+      await v.context.close();
+      const h = await open(browser, CARD);
+      await h.page.evaluate(() => { window.__hidden = true; });
+      await h.publish(); await h.tick(10 * MIN);
+      ok(h.deploy.loads === 2, 'a hidden signed-out tab reloads itself');
+      await h.context.close();
+      const k = await open(browser, CARD);
+      await k.page.evaluate(() => { window.__hidden = true; });
+      await k.page.fill('#staffIdentityKey', 'typed key');
+      await k.publish(); await k.tick(10 * MIN);
+      ok(k.deploy.loads === 1, 'but not once a role key has been typed into it');
+      await k.context.close();
     }
   } finally {
     await browser.close();

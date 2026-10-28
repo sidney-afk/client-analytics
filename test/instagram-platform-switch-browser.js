@@ -115,7 +115,8 @@ const SERVER_ROWS = [
     assert.ok(NO_ACCOUNT_CLIENT, 'the roster has another client'); checks++;
     await pickSv(page, 'igClient', NO_ACCOUNT_CLIENT);
     assert.match(await page.innerText('#igFormCol'), /No Instagram account/, 'a client with no id is flagged'); checks++;
-    assert.match(await page.innerText('#igFormCol'), /postforme_instagram_account_id/, 'the flag names the sheet column'); checks++;
+    assert.match(await page.innerText('#igFormCol'), /No Instagram account on file for this client yet\. Ask Sidney to add its Post For Me Connection ID \(spc_\.\.\.\) to the client's profile\./, 'the flag sends people to the client profile'); checks++;
+    assert.doesNotMatch(await page.innerText('#igFormCol'), /Clients Info|postforme_instagram_account_id/, 'and no longer to the Sheet column'); checks++;
     await page.setInputFiles('#igFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not really a video') });
     await page.fill('#igTitle', 'Should not post');
     assert.equal(await page.isDisabled('#igSubmit'), true, 'no id means the button stays off'); checks++;

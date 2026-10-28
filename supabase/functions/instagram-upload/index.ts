@@ -14,7 +14,7 @@
 //   POST { action: "cancel", id }                    { ok, row }            only a still-scheduled post
 //
 // Safety: a staff role key is required; the account must be an Instagram account according to Post For Me itself;
-// the account must be the one on file for that client (synced Clients Info); and only the clients in
+// the account must be the one on file for that client (client_profiles.extra); and only the clients in
 // INSTAGRAM_UPLOAD_ALLOWED_CLIENTS can post (nobody until it is set; "*" = everyone).
 //
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, POST_FOR_ME_API_KEY, a staff role key secret
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       const { data: profiles, error: pErr } = await db.from("client_profiles").select("slug,display_name,extra").is("archived_at", null);
       if (pErr) throw pErr;
       const expected = expectedAccountId(findClientProfile(profiles || [], row.client));
-      if (!expected) return json({ ok: false, error: "The synced Clients Info copy has no Instagram account for this client yet. It refreshes daily; run the Sheets copy lane to refresh it now." }, 409);
+      if (!expected) return json({ ok: false, error: "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile." }, 409);
       if (expected !== row.account_id) return json({ ok: false, error: "That account is not the one on file for this client." }, 403);
 
       // Post For Me must say this account is an Instagram one. Fail closed on anything else.

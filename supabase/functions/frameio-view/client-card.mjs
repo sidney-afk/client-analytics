@@ -9,6 +9,10 @@
 //   4. the client must be switched on in the frame_viewer_clients flag (a missing row, a bad shape or a failed
 //      read all mean no).
 // Only reads, and only through the `rest` function the handler passes in.
+// Trial reels: a link in the request plays only when it is one of this card's own versions the client may see
+// (trialVersionLink below); anything else is refused like a link that is not the card's.
+
+import { parseFrameLink } from './logic.mjs';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const SAFE_CARD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
@@ -74,7 +78,47 @@ export async function authorizeClientCard({ token, cardId, link }, rest) {
   if (!card || normalizeClient(card.client) !== slug) throw refuse('not_found', 404);
   const cardLink = clean(card.asset_url);
   if (!cardLink) throw refuse('not_found', 404);
-  // A link in the request is never used, but if one is sent it has to be this card's own.
-  if (clean(link) && !cardLink.includes(clean(link))) throw refuse('not_found', 404);
+  // A link in the request is never used, but if one is sent it has to be this card's own, or (trial reels) one of
+  // this card's own versions that the client may see.
+  if (clean(link) && !cardLink.includes(clean(link))) {
+    const version = await trialVersionLink({ slug, cardId: id, link: clean(link) }, rest);
+    if (!version) throw refuse('not_found', 404);
+    return { slug, link: version };
+  }
   return { slug, link: cardLink };
+}
+
+/*
+ * TRIAL REELS (docs/features/TRIAL_REELS_PLAN.md, section 10 item 1): the client's review page plays the version on
+ * screen. A requested link plays only when every one of these holds, all read here:
+ *   - the trial_reels_pages switch lists this client (a missing row, a bad shape or a failed read all mean no);
+ *   - this card's Trial reels switch is on (trial_reel_cards);
+ *   - the link is the frame_url of one of THIS card's versions that is not dropped, and once a winner is picked
+ *     only the winner's (the client sees only the winner, Q8). The winner is the card's own winner_letter, never a
+ *     "winner" or "lost" the studio wrote on a version's row (owner, 2026-10-27; trial-reels settleWinner).
+ * Anything else answers exactly like a link that is not this card's.
+ */
+const TRIAL_FLAG_KEY = 'trial_reels_pages';
+const likeExact = (text) => String(text).replace(/[\\%_]/g, '\\$&');
+export async function trialVersionLink({ slug, cardId, link }, rest) {
+  try {
+    const flags = await rest('syncview_runtime_flags?select=value&key=eq.' + TRIAL_FLAG_KEY + '&limit=1');
+    if (!flagAllows(Array.isArray(flags) && flags[0] ? flags[0].value : null, slug)) return '';
+    const sw = await rest('trial_reel_cards?select=enabled,winner_letter&client=eq.' + encodeURIComponent(slug) + '&post_id=eq.' + encodeURIComponent(cardId) + '&limit=1');
+    if (!Array.isArray(sw) || !sw[0] || sw[0].enabled !== true) return '';
+    const rows = await rest('studio_trial_versions?select=letter,status,frame_url&post_id=eq.' + encodeURIComponent(cardId) + '&client=ilike.' + encodeURIComponent(likeExact(slug)));
+    const versions = Array.isArray(rows) ? rows : [];
+    const pick = clean(sw[0].winner_letter).toUpperCase();
+    const winner = pick ? versions.find((v) => v && clean(v.letter).toUpperCase() === pick) : null;
+    // With no winner letter nothing is decided, so a studio-written "lost" still plays (it reads as on trial).
+    const seen = pick ? (winner ? [winner] : []) : versions.filter((v) => v && v.status !== 'dropped');
+    // Compared as Frame.io links, not as text: the page asks with the link the player reads (a short link without its
+    // trailing slash or query), while the version may have been saved with them (Codex on PR 2367).
+    const key = (x) => { const p = parseFrameLink(x); return p ? JSON.stringify(p) : clean(x); };
+    const want = key(link);
+    const hit = seen.find((v) => clean(v.frame_url) && key(v.frame_url) === want);
+    return hit ? clean(hit.frame_url) : '';
+  } catch {
+    return '';
+  }
 }

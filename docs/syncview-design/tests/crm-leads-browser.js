@@ -324,9 +324,20 @@ async function run(browser, origin, viewport) {
   const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
   expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
   await callRow.locator('[data-crm-outcome="no_show"]').waitFor({ state: 'visible' });
-  await page.waitForFunction(() => { const b = document.querySelector('[data-crm-outcome="no_show"]'); return b && b.getBoundingClientRect().height >= 36; }, null, { timeout: 3000 }).catch(() => {});
-  const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
-  expect(box && box.height >= 36, label + ': the No-show button is a real touch target');
+  // Measured inside the page in one read of the live node: Today can redraw the
+  // row under a loaded runner, and a separate boundingBox() then caught the old
+  // node going away (null) instead of the button's size. The rule is unchanged.
+  const noShowSel = '[data-crm-call="00000000-0000-4000-8000-000000000003"] [data-crm-outcome="no_show"]';
+  const noShowH = await page.waitForFunction((sel) => {
+    const b = document.querySelector(sel);
+    if (!b || !b.isConnected) return false;
+    const h = b.getBoundingClientRect().height;
+    return h >= 36 ? h : false;
+  }, noShowSel, { timeout: 10000 }).then(h => h.jsonValue()).catch(() => page.evaluate((sel) => {
+    const b = document.querySelector(sel);
+    return b ? b.getBoundingClientRect().height : -1;
+  }, noShowSel));
+  expect(noShowH >= 36, label + ': the No-show button is a real touch target (' + Math.round(noShowH) + ' px)');
   await callRow.locator('[data-crm-outcome="no_show"]').click();
   await page.waitForFunction(() => !document.querySelector('[data-crm-call="00000000-0000-4000-8000-000000000003"]'));
   expect(state.outcomes.length === 1 && state.outcomes[0].outcome === 'no_show' && Number.isInteger(state.outcomes[0].expected_version), label + ': No-show sends one call outcome with the version it had');

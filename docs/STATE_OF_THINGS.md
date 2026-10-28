@@ -18,6 +18,23 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-28 evening): trial reels rounds 2 and 3, Instagram trial reels and carousels, a returning client
+
+- **Trial reels round 2 (#2409, OPEN_REPAIRS 561 to 565; #2410, 566) and round 3 (#2412, 567 to 575):** the owner's feedback rounds. Round 3:
+  - a client's answer reaches the staff card at once (a fixed broadcast channel carrying a hashed card id; measured 0.4 to 0.8 s);
+  - "Approved" on each approved version, and "Client dropped" wording;
+  - the 24 h trial starts by itself when the card goes Posted (no start link), and winner and Undo work on a Posted card;
+  - "+ Add" instead of the paste row; pencil then Escape no longer draws the list twice;
+  - a double click on Approve answers one version only; plain words for the client on an error.
+  Migration `trial_reels_client_pass` (studio_trial_versions.client_pass_at) applied live. Follow-ups (#2418, 577): "Client approved" for the team on a version only the client approved; no paste placeholder on a dropped row. Action matrix (#2413, 576): about 1,267 checks over every action on every surface. All live-checked on the test client; still behind `trial_reels_pages` (test client only). Winner after a real 24 h trial: checked about 2026-10-29 09:00 UTC.
+- **Instagram upload:**
+  - live for real clients on the allow-list (the server secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`, edited by the owner in the Supabase dashboard);
+  - "Trial reel" switch (#2417): Post For Me `trial_reel_type: "manual"` only, so a trial reaches followers only when someone shares it in the Instagram app; Instagram refuses accounts that cannot post trials;
+  - Carousel (#2419): 2 to 10 images and videos as one feed post (placement `timeline`). That this makes one Instagram carousel is unproven until the first real post.
+  - The account id is read from `client_profiles.extra.postforme_instagram_account_id`, not the Sheet; the page's old "put it in the Sheet" advice is being reworded.
+- **A returning client** (signed in June, quiet since July, back 22 Oct) was created through Create client with its SMM and 27-step checklist; brain and ideas pipeline being set up. Contract and payment not proven in HubSpot.
+- **Team handbook:** `docs/ATLAS.md` is being made the full "how SyncView works" map for the brain (session Atlas).
+
 ## Latest (SyncView supervisor, 2026-10-28 morning): trial reels all on main, client link polish for all clients, staff features for everyone
 
 - **Trial reels, builds 1 to 7, all merged** (last: #2366 build 6, #2367 build 7, #2403 fixes; OPEN_REPAIRS 514 to 560 range). Still behind `trial_reels_pages` (test client only). Live-checked on the test client by session Trialtest: card, Production Assets, the three review pages, Notes, Kasper's second layout (version tiles), and the client player (every version plays in place; dropped or foreign links refused). Still to check live: picking the winner after a real 24 h trial (throwaway card, about 2026-10-29 09:00 UTC). The owner tests next.

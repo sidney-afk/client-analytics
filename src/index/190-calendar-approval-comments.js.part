@@ -1907,7 +1907,16 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     function _calSetComposeComp(val) {
         const post = calState.posts.find(p => p.id === _calOpenCommentsPid);
         const allowed = post ? _calComponentsFor(post) : CAL_COMPONENTS;
+        const was = _calComposeComp;
         _calComposeComp = (allowed.indexOf(val) >= 0) ? val : 'video';
+        // Each part has its own thread: a Production-linked Video or Thumbnail is team only, an unlinked Caption can
+        // go to the client. When the new part's thread differs, the box is drawn again so the eye button (and Send's
+        // wait for a canonical read) match it at once (session Notesfix, 2026-10-27).
+        if (post && was !== _calComposeComp && !_calReplyTarget && !_calEditTarget
+            && document.querySelector('#calCommentsModal .cal-cm-composer[data-cm-staff-root]')) {
+            const gate = c => { try { const g = _prodCanonicalCommentGate(post, c); return [!!g.linked, !!g.ready, !!g.client, g.status].join('|'); } catch (e) { return ''; } };
+            if (gate(was) !== gate(_calComposeComp)) { _calCaptureModalDrafts(); _calRenderCommentsModal(); return; }
+        }
         const seg = document.querySelector('[data-cm-toggle="comp"]');
         if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
             b.classList.toggle('is-active', b.dataset.comp === _calComposeComp));

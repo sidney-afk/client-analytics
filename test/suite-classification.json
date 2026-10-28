@@ -2093,6 +2093,30 @@
       "ci": "representative"
     },
     {
+      "file": "client-notes-fixes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks the client link behind review_client_polish: on the Review page a post's notes are marked read at once at 1440 but at 390 only once its conversation scrolls on screen (the Sheet keeps the corner count until then); a team reply inside a done thread never counts as new on the Sheet, matching the New rows Notes shows; every team note on the Review page reads Synchro team with the S picture, never a staff name or the Kasper picture.",
+      "reproduce": "node test/client-notes-fixes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "staff-done-thread-badge-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (docs/syncview-design/tests/lost-work-lib.js: one fictional card), no hosted credentials and no live data. Checks that a staff member's Notes button on unread_badges_v2 never counts a client reply inside a done change request, which Notes keeps behind its history button, while a new client comment outside it still counts.",
+      "reproduce": "node test/staff-done-thread-badge-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "notes-caption-composer-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (docs/syncview-design/tests/lost-work-lib.js: one fictional card whose Video and Thumbnail are linked to Production deliverables), no hosted credentials and no live data. Checks the staff Notes composer: the linked Video is team only, picking Caption shows the eye button for writing to the client at once with the draft kept, and picking Video again takes it away.",
+      "reproduce": "node test/notes-caption-composer-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-kasper-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2240,7 +2264,7 @@
       "file": "trial-reels-review-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the review page behind trial_reels_pages: today's page for an unlisted client, \"Video A of 5\" with a dot per version and arrows and no hook text, the version on screen playing (in a new tab on a client link when it is not the card's link), Approve answering one version and saving nothing on the card until every version has this reviewer's OK, Approve all then today's approve, a change recorded on its version with today's change request starting \"Video C:\", Kasper's Tweaks are on Frame word for word, and only the winner for the client after the pick, on the client link, the SMM's Review tab and Kasper's Review Session.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the review page behind trial_reels_pages: today's page for an unlisted client, \"Video A of 5\" with a dot per version and arrows and no hook text, the version on screen playing (in a new tab on a client link when it is not the card's link), Approve answering one version and saving nothing on the card until every version has this reviewer's OK, Approve all then today's approve, a change recorded on its version with today's change request starting \"Video C:\", Kasper's Tweaks are on Frame word for word, only the winner for the client after the pick, and in Kasper's second layout every version side by side with its own Approve, change and drop, on the client link, the SMM's Review tab and Kasper's Review Session.",
       "reproduce": "node test/trial-reels-review-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

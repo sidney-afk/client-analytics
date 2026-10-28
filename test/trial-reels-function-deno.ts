@@ -119,7 +119,10 @@ async function step(body: Row, who: "smm" | "admin" | "creative" | "client-token
   try { return await call(body, who); } finally { console.log = q; }
 }
 const off = await step({ action: "read" });
-ok(off.status === 409 && off.body.error === "trial_reels_off", "a card whose switch is off answers trial_reels_off");
+ok(off.status === 200 && off.body.ok === true && off.body.enabled === false && !("versions" in off.body),
+  "a read of a card whose switch is off answers enabled: false with no versions (no 409 in Production's console)");
+const offWrite = await step({ action: "version_add", link: "https://f.io/x" });
+ok(offWrite.status === 409 && offWrite.body.error === "trial_reels_off", "any other action on a card whose switch is off still answers trial_reels_off");
 const on = await step({ action: "switch_set", enabled: true });
 ok(on.body.ok === true && tables.trial_reel_cards.length === 1, "switch_set turns the card's switch on");
 const listed = await step({ action: "list", post_id: "" });

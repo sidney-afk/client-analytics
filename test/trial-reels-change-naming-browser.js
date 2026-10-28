@@ -1,12 +1,13 @@
 'use strict';
 /*
  * TRIAL REELS: A CHANGE IS ABOUT THE VERSION IT WAS ASKED ON, in a real browser, fully offline. Session Probe,
- * 2026-10-27 (findings 10 and 11 in Probe's report, draft PR 2365); adopted by session Trials with the fixes (build 4).
+ * 2026-10-27 (findings 10, 10b and 11 in Probe's report, draft PR 2365); adopted by session Trials with the fixes (build 4).
  *
  * The review page (test/fixtures/review-stage-fixture.js, fictional data) with the trial-reels function answered by its
  * own rules (logic.mjs). What must hold:
  *   - the client opens "Ask for a change" on Video C, then looks at Video D before sending: the change is Video C's
  *     (the version marked, and today's request starting "Video C:");
+ *   - Kasper's second layout: "Ask for a change" on tile C, then a press on tile E to look at it, then send: Video C's;
  *   - Kasper's "Approve after tweaks" on a trial card records which version the editor must fix (the version on stage
  *     is marked "change asked"), as every other change on a trial card does.
  */
@@ -86,6 +87,22 @@ const OK_AT = '2026-10-27T08:00:00.000Z';
     ok(changes(t).join(',') === 'C' && t.T.versions[2].status === 'change asked' && t.T.versions[3].status !== 'change asked',
       '10 client: the change asked on Video C is recorded on C, though ' + onScreen + ' was on screen when it was sent (marked: ' + (changes(t).join(',') || 'none') + ')');
     ok(/Video C: Fictional note/.test(sentText(t, n0, g0)) && !/Video D: Fictional note/.test(sentText(t, n0, g0)), '10 client: today\'s change request starts "Video C:"');
+    await t.ctx.close();
+
+    // ---------- 10b: Kasper's tiles: change on C, a press on tile E, then send ----------
+    t = await start('kasper', { layout2: true });
+    n0 = t.state.upserts.length; g0 = t.state.gateway.length;
+    await inS(t.page, '.trk-v [data-trk-chg="C"]').click();
+    await sleep(400);
+    await inS(t.page, '#ta').fill('Fictional note: the hook word lands late.');
+    await inS(t.page, '.trk-v [data-trk-go="E"]').click();
+    await sleep(800);
+    if (await inS(t.page, '#sendBtn').count()) await inS(t.page, '#sendBtn').click();
+    await until(() => changes(t).length > 0 && /hook word lands late/.test(sentText(t, n0, g0)));
+    await sleep(600);
+    ok(changes(t).join(',') === 'C' && t.T.versions[2].status === 'change asked' && t.T.versions[4].status !== 'change asked',
+      '10b Kasper tiles: the change opened on tile C is Video C\'s, though tile E was on stage when it was sent (marked: ' + (changes(t).join(',') || 'none') + ')');
+    ok(/Video C: Fictional note: the hook/.test(sentText(t, n0, g0)), '10b Kasper tiles: today\'s note starts "Video C:"');
     await t.ctx.close();
 
     // ---------- 11: Kasper's "Approve after tweaks" on a trial card ----------

@@ -399,6 +399,13 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, enabled });
     }
 
+    // A read of a card whose switch is off is an answer, not a refusal: Production asks on every video sub-issue of a
+    // listed client, and a 409 there was a red console error for every ordinary card (session Packet, OPEN_REPAIRS
+    // 557). No versions key, so a page from before this reads it as no versions here, today's single row.
+    if (action === "read" && (!sw || sw.enabled !== true)) {
+      outcome = "ok";
+      return json({ ok: true, enabled: false });
+    }
     // Everything else is about the versions of a card whose switch is on.
     if (!sw || sw.enabled !== true) throw new Refusal(409, "trial_reels_off");
     const versions = settleWinner(await rowsP!, sw.winner_letter) as Version[];

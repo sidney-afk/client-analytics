@@ -134,6 +134,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const s = { change: 0, comment: 0, staff: 0, kasper: 0, open: 0, waiting: 0, items: [], newIds: new Set(), waitingIds: new Set(), openIds: new Set(), notes };
         for (const n of notes) {
             if (_svuIsMine(n.m) || _svuIsAuto(n.m)) continue;
+            // A done thread is history in Notes (190, behind the history button): nothing in it counts as new, so the
+            // badge never says more than Notes shows (session Notesfix, 2026-10-27; client and staff alike).
+            if (n.root.done) continue;
             if (String(n.m.created_at) > seen) { const k = _svuKindOf(n); s[k]++; s.newIds.add(n.m.id); s.items.push({ kind: k, n }); }
         }
         if (_isClientLink) { _svuClientWaiting(s, notes); s.items.sort((a, b) => String(b.n.m.created_at).localeCompare(String(a.n.m.created_at))); return s; }
@@ -161,7 +164,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         threads.forEach(ts => {
             const root = ts[0].root, last = ts[ts.length - 1];
-            if (_svuIsTweak(root) || _svuIsTweak(last.m) || _svuIsMine(last.m) || s.newIds.has(last.m.id)) return;
+            if (root.done || _svuIsTweak(root) || _svuIsTweak(last.m) || _svuIsMine(last.m) || s.newIds.has(last.m.id)) return;
             if (String(last.m.body || '').indexOf('?') < 0) return;
             s.waiting++; s.waitingIds.add(last.m.id); s.items.push({ kind: 'waiting', n: last });
         });

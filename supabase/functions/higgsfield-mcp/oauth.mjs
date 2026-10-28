@@ -74,16 +74,13 @@ export function redirectAllowed(uri) {
   return u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
 }
 
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 // True for a token this module made (so the caller sends it here, not to the pass lookup).
 export function isOAuthToken(token) {
   return String(token || "").startsWith(PREFIX.access);
 }
 
 // deps: { secret, baseUrl (public URL of the function, no trailing slash),
+//         signinPage (URL of the static sign-in form),
 //         checkPass(pass) -> Promise<boolean>, now?() -> seconds }
 export function makeOAuth(deps) {
   const now = deps.now || (() => Math.floor(Date.now() / 1000));
@@ -140,29 +137,16 @@ export function makeOAuth(deps) {
     });
   }
 
-  function page(p, message) {
-    const host = (() => { try { return new URL(p.redirect_uri).host; } catch { return ""; } })();
-    const hidden = ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "scope", "resource"]
-      .map((k) => `<input type="hidden" name="${k}" value="${esc(p[k])}">`).join("");
-    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sign in to SyncMate</title><style>
-body{font:16px/1.5 system-ui,sans-serif;background:#f5f5f4;color:#1c1917;margin:0;display:grid;place-items:center;min-height:100vh}
-main{background:#fff;max-width:420px;width:calc(100% - 32px);padding:28px;border-radius:14px;box-shadow:0 2px 12px #0001}
-h1{font-size:20px;margin:0 0 8px}p{margin:0 0 14px;color:#57534e}.app{font-weight:600;color:#1c1917}
-input[type=password]{width:100%;box-sizing:border-box;padding:10px;font-size:16px;border:1px solid #d6d3d1;border-radius:8px}
-button{margin-top:14px;width:100%;padding:11px;font-size:16px;border:0;border-radius:8px;background:#1c1917;color:#fff;cursor:pointer}
-.err{color:#b91c1c}</style></head><body><main>
-<h1>Sign in to SyncMate</h1>
-<p><span class="app">${esc(p.client_name || "An app")}</span> wants to use SyncMate as you. After you sign in you go back to <span class="app">${esc(host)}</span>. Only continue if you started this yourself.</p>
-${message ? `<p class="err">${esc(message)}</p>` : ""}
-<form method="post" action="${esc(base)}/oauth/authorize">${hidden}
-<label for="pass">Your personal pass (the part after <code>key=</code> in your SyncMate link)</label>
-<input id="pass" name="pass" type="password" autocomplete="off" required autofocus>
-<button type="submit">Sign in</button></form></main></body></html>`;
-    return new Response(html, {
-      status: message ? 401 : 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' " + new URL(base).origin + "; frame-ancestors 'none'" },
-    });
+  // The sign-in page itself lives on an HTML-capable site (deps.signinPage):
+  // Supabase's default host turns text/html GET replies into plain text.
+  const FIELDS = ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "scope", "resource"];
+  function toPage(p, error) {
+    const u = new URL(deps.signinPage);
+    for (const k of FIELDS) if (p[k]) u.searchParams.set(k, String(p[k]));
+    u.searchParams.set("app", p.client_name || "An app");
+    try { u.searchParams.set("host", new URL(p.redirect_uri).host); } catch { /* checked before */ }
+    if (error) u.searchParams.set("error", "1");
+    return new Response(null, { status: 302, headers: { Location: u.toString(), "Cache-Control": "no-store" } });
   }
 
   async function authParams(p) {
@@ -180,13 +164,13 @@ ${message ? `<p class="err">${esc(message)}</p>` : ""}
       const p = Object.fromEntries(url.searchParams);
       const problem = await authParams(p);
       if (problem) return new Response(problem, { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
-      return page(p, "");
+      return toPage(p, false);
     }
     const form = Object.fromEntries(new URLSearchParams(await req.text()));
     const problem = await authParams(form);
     if (problem) return new Response(problem, { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     const pass = String(form.pass || "").trim();
-    if (!(await deps.checkPass(pass))) return page(form, "That pass was not recognised. Check it and try again.");
+    if (!(await deps.checkPass(pass))) return toPage(form, true);
     const code = await seal(await keys(), PREFIX.code, {
       p: pass, c: form.client_id, r: form.redirect_uri, x: form.code_challenge, e: now() + CODE_TTL_S,
     });

@@ -1725,6 +1725,7 @@ async function memberForPass(pass: string): Promise<string | null> {
 const OAUTH = makeOAuth({
   secret: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
   baseUrl: String(Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "") + "/functions/v1/higgsfield-mcp",
+  signinPage: "https://synchrosocial.com/syncmate-signin/",
   checkPass: async (pass: string) => !!(await memberForPass(pass)),
 });
 

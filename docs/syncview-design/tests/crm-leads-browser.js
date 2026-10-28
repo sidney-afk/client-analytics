@@ -173,6 +173,9 @@ async function run(browser, origin, viewport) {
         state.toggles.push(body);
         const s = state.seqs.find(x => x.id === body.sequence_id); s.active = body.active; return json({ ok: true, sequence: s });
       }
+      if (body.action === 'report') return json({ ok: true, sources: [{ id: 's1', name: 'Made-up batch', kind: 'csv_import' }], rows: [{ source_id: 's1', people: 4, booked: 2, showed: 1, won: 1, won_value: 0 }] });
+      if (body.action === 'duplicates') return json({ ok: true, groups: state.merged ? [] : [[state.people[0], Object.assign({}, state.people[1], { id: '00000000-0000-4000-8000-000000000009', display_name: state.people[0].display_name })]] });
+      if (body.action === 'merge') { state.merged = body; return json({ ok: true, person: state.people[0] }); }
       if (body.action === 'due' || body.action === 'log_send') return json({ ok: false, error: 'unauthorized' }, 401);
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
@@ -195,7 +198,9 @@ async function run(browser, origin, viewport) {
   expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': every stage has a section, four of them open with people');
   expect(await page.locator('.crm-stage.is-empty').count() === 6 && await page.locator('.crm-stage.is-empty .crm-stage-toggle:disabled').count() === 6, label + ': empty stages stay as folded titles');
   expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-hint').innerText() === 'We have not reached out yet', label + ': each stage says in plain words what it means');
-  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Owner\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles');
+  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles, with no Owner column');
+  expect(!(await page.locator('.crm-lead-owner').count()) && !/Nobody/.test(await page.locator('.crm-board').innerText()), label + ': no owner on the lines');
+  expect(!!(await page.locator('.crm-cols span', { hasText: 'Next step' }).getAttribute('title')), label + ': the Next step title explains itself on hover');
   await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
   await page.waitForFunction(() => !document.querySelector('[data-crm-stage="to_contact"] .crm-stage-body'));
   expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a stage section folds');
@@ -207,9 +212,29 @@ async function run(browser, origin, viewport) {
   expect(/Dream 100/.test(text) && /Made-up batch/.test(text), label + ': a lead line says where they came from (' + text.replace(/\s+/g, ' ') + ')');
   expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on the Pipeline');
   expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
+  await page.fill('#crmSearch', 'kitchen');
+  expect(await page.locator('[data-crm-card]').count() === 1 && /1 match/.test(await page.locator('#crmSummary').innerText()), label + ': search narrows the Pipeline as you type');
+  await page.fill('#crmSearch', 'nobody-like-this');
+  expect(/Nobody matches/.test(await page.locator('.crm-board-wrap').innerText()), label + ': search with no match says so');
+  await page.fill('#crmSearch', '');
+  expect(await page.locator('[data-crm-card]').count() >= 3, label + ': clearing the search brings everyone back');
+  await page.click('[data-crm-nav="report"]');
+  await page.waitForSelector('.crm-report tbody tr');
+  expect(/Made-up batch\s+4\s+2\s+1\s+1/.test(await page.locator('.crm-report tbody').innerText()), label + ': the Report shows people, booked, showed and signed per source');
+  if (SHOTS) await shoot(page, label + '-report');
+  expect(await page.locator('.crm-report thead th').count() === 5, label + ': the Report has column titles');
+  const mergeBtn = page.locator('#crmReport .crm-btn', { hasText: 'Merge' });
+  expect(await mergeBtn.count() === 1, label + ': the Report lists the same person twice with a Merge button');
+  await mergeBtn.click();
+  expect(await page.locator('#crmReport .crm-btn', { hasText: 'Yes, merge' }).count() === 1, label + ': Merge asks once before it merges');
+  await page.locator('#crmReport .crm-btn', { hasText: 'Yes, merge' }).click();
+  await page.waitForFunction(() => !document.querySelector('#crmReport .crm-btn'));
+  expect(true, label + ': a merge removes the pair from the list');
+  await page.click('[data-crm-nav="pipeline"]');
+  await page.waitForSelector('[data-crm-card]');
   expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
   // Filters behind one View button, with a dot while one is on.
-  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 4, label + ': the four filters are tucked behind View');
+  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 3, label + ': the three filters are tucked behind View');
   await page.click('#crmViewBtn');
   await page.waitForSelector('#crmViewMenu:not([hidden])');
   if (SHOTS) await shoot(page, 'leads-view-menu-' + label);
@@ -224,6 +249,14 @@ async function run(browser, origin, viewport) {
   expect(await first.evaluate(n => n.classList.contains('is-overdue')) && /Overdue/.test(text), label + ': an overdue next step is marked');
   expect(!(await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').evaluate(n => n.classList.contains('is-overdue'))), label + ': a future step is not overdue');
   if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
+  if (viewport.width >= 500) {
+    await page.evaluate(() => { const b = document.querySelector('.crm-stage-body'); for (let i = 0; i < 60; i++) b.insertAdjacentHTML('beforeend', '<div class="crm-lead crm-pad" style="height:28px"></div>'); });
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await page.waitForTimeout(150);
+    const stuck = await page.evaluate(() => { const s = document.getElementById('crmSide').getBoundingClientRect(); const c = document.querySelector('.crm-cols').getBoundingClientRect(); return { side: s.top, cols: c.top, y: window.scrollY }; });
+    expect(stuck.y > 300 && stuck.side >= 0 && stuck.side < 140 && stuck.cols >= 0 && stuck.cols < 140, label + ': the side menu and the column titles stay in view while the list scrolls (' + JSON.stringify(stuck) + ')');
+    await page.evaluate(() => { document.querySelectorAll('.crm-pad').forEach(n => n.remove()); window.scrollTo(0, 0); });
+  }
 
   if (viewport.width >= 500) {
     // Drag a card to Replied: one update with the version it had.
@@ -265,6 +298,8 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.querySelector('#crmPStageLabel') && document.querySelector('#crmPStageLabel').textContent === 'Nurture');
   expect(await page.inputValue('#crmPStep') === 'Call prep', label + ': a lost race shows the stored copy, not the typed one');
   state.refuse = '';
+  expect(!(await page.locator('#crmPNote').count()), label + ': the note box stays closed until Add a note');
+  await page.locator('#crmPanel button', { hasText: 'Add a note' }).click();
   await page.fill('#crmPNote', 'Half-written made-up note');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
@@ -279,7 +314,7 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-nav="today"]');
   await page.waitForSelector('#crmTodayCalls');
   const todayText = await page.locator('#crmToday').innerText();
-  expect(/Made Up Owner/.test(todayText) && /Second Made Up/.test(todayText), label + ': Today groups due steps by owner');
+  expect(/First DM/.test(todayText) && /Follow up/.test(todayText) && !/Made Up Owner/.test(todayText), label + ': Today lists each next step due, with no owner');
   expect(await page.locator('#crmToday .crm-row.is-overdue').count() >= 1, label + ': an overdue step is marked on Today');
   expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#crmToday .crm-group-title')).map(n => n.id); return ids.join() === 'crmTodayCalls,crmTodayDue,crmTodaySends'; }), label + ': Today runs calls, then follow-ups, then automatic sends');
   expect(await page.locator('#crmToday .crm-sheet').count() === 0 && !/\b0 /.test(todayText) && !/Nothing is sent from this page/.test(todayText), label + ': Today has no boxes, no zero counts and no filler line');
@@ -288,6 +323,8 @@ async function run(browser, origin, viewport) {
   if (SHOTS) await shoot(page, 'leads-today-' + label, true);
   const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
   expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
+  await callRow.locator('[data-crm-outcome="no_show"]').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => { const b = document.querySelector('[data-crm-outcome="no_show"]'); return b && b.getBoundingClientRect().height >= 36; }, null, { timeout: 3000 }).catch(() => {});
   const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
   expect(box && box.height >= 36, label + ': the No-show button is a real touch target');
   await callRow.locator('[data-crm-outcome="no_show"]').click();

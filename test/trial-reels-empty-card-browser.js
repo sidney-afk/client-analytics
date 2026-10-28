@@ -132,9 +132,8 @@ const LINK = l => 'https://f.io/fixture-empty-' + l.toLowerCase();
       await sleep(1200);
       ok(T.versions.length === 1 && T.versions[0].frame_url === LINK('main'), `${label}: a card with a link starts with Video A, its link`);
       ok(/Video · 1/.test(await rowText(page)), `${label}: its row reads "Video · 1" ("${await rowText(page)}")`);
-      await page.click('.trl-chev');
-      await sleep(400);
-      ok(/Video A/.test(await listText(page)) && /Video B/.test(await listText(page)) && !!(await page.$('.trl-add .trl-paste')), `${label}: its list shows Video A and offers Video B`);
+      // The list opens by itself when the switch goes on (owner, 2026-10-27), so the paste row is right there.
+      ok(/Video A/.test(await listText(page)) && /Video B/.test(await listText(page)) && !!(await page.$('.trl-add .trl-paste')), `${label}: its list is open by itself, shows Video A and offers Video B`);
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

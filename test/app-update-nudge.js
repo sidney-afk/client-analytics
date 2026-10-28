@@ -163,7 +163,7 @@ check('banner is a dismissible, fixed status bar (role=status)',
   /setAttribute\('role', 'status'\)/.test(NUDGE) && /className = 'sv-up-x'/.test(NUDGE));
 /*
  * Was: "dismiss adopts the new token -> re-nudges only on a YET newer build".
- * Changed 2026-10-27 (OPEN_REPAIRS 547): a document-stale tab re-showed the bar
+ * Changed 2026-10-27 (OPEN_REPAIRS 552): a document-stale tab re-showed the bar
  * on the next poll or focus anyway, and every later publish re-armed it, so
  * the owner reloaded ten times in one afternoon. Dismiss now holds for every
  * later publish; the wall is the backstop. Behaviour: app-update-quiet-browser.js.

@@ -104,6 +104,22 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(!('watchNextVideos' in r.slimResult('youtube.video', { id: 'a', channel: { handle: 'h' }, watchNextVideos: [1] })), 'a YouTube video drops the watch-next list');
   eq(r.slimResult('youtube.video', { id: 'a', channel: { handle: 'h' }, watchNextVideos: [1] }).channel, { handle: 'h' }, 'a YouTube video keeps its channel');
 
+  // ---- watch: Gemini watches a video (2026-10-28) ------------------------------
+  const wi = r.buildRequest('watch', { url: 'https://www.instagram.com/reel/abc/' });
+  eq([wi.ok, wi.path, wi.watch, wi.counts, wi.maxSeconds], [true, '/v1/instagram/post', true, true, 180], 'watch on Instagram finds the file through the post endpoint, 3 minutes by default');
+  eq(r.buildRequest('watch', { url: 'https://www.tiktok.com/@a/video/1' }).path, '/v2/tiktok/video', 'watch on TikTok uses the video endpoint');
+  const wy = r.buildRequest('watch', { url: 'https://www.youtube.com/shorts/abc' });
+  eq([wy.path, wy.counts], ['', false], 'watch on YouTube needs no ScrapeCreators call');
+  eq(r.buildRequest('watch', { url: 'https://evil.example/v.mp4' }).ok, false, 'watch refuses other hosts');
+  eq(r.buildRequest('watch', { url: 'https://www.instagram.com/reel/abc/', max_seconds: 9999 }).ok, false, 'watch refuses a length limit over 10 minutes');
+  eq(r.mediaFrom('instagram', { data: { xdt_shortcode_media: { video_url: 'https://cdn/x.mp4', video_duration: 41.2 } } }), { url: 'https://cdn/x.mp4', seconds: 41.2 }, 'Instagram: the file and its length');
+  eq(r.mediaFrom('tiktok', { aweme_detail: { video: { duration: 30500, play_addr: { url_list: ['https://v16/x.mp4'] } } } }), { url: 'https://v16/x.mp4', seconds: 30.5 }, 'TikTok: the file and its length in seconds');
+  eq(r.watchCost({ promptTokenCount: 7911, candidatesTokenCount: 598 }), 0.003868, 'the cost comes from Gemini\'s own count (the 86 second test: about 0.4 cents)');
+  const gb = r.geminiBody({ fileUri: 'https://www.youtube.com/shorts/abc' });
+  ok(gb.contents[0].parts[0].file_data.file_uri.includes('youtube') && gb.generationConfig.responseMimeType === 'application/json', 'YouTube goes to Gemini as a link, the answer as JSON');
+  ok(/GEMINI_API_KEY/.test(src) && /x-goog-api-key/.test(src) && !/json\([^)]*gKey/.test(src), 'the Gemini key comes only from the Supabase secret and only goes in the header to Google');
+  ok(src.indexOf('seconds > max') > 0 && src.indexOf('seconds > max') < src.indexOf('generativelanguage'), 'a video over the length limit is refused before Gemini is called');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
   ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');

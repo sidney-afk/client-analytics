@@ -7,7 +7,7 @@
  * working in got the bar after each one, and again after every dismiss: once a
  * tab was document-stale, the next poll (5 min) or window focus skipped the
  * dismissed-build return and showed the bar again. The bar's Reload also threw
- * away a half-written comment without asking. OPEN_REPAIRS 547.
+ * away a half-written comment without asking. OPEN_REPAIRS 552.
  *
  * This runs the real update-check script from the built index.html in Chromium,
  * on a page served from a non-loopback host (the script stays silent on

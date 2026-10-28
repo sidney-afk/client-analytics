@@ -385,7 +385,7 @@ Deno.serve(async (req: Request) => {
     if (action === "answer") {
       // A client link answers only as the client; staff say which stage they answer for.
       const stage = principal.kind === "client" ? "client" : clean(body.stage, 10).toLowerCase();
-      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note }, now);
+      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "version_link_set") {

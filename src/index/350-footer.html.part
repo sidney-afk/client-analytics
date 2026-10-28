@@ -101,7 +101,7 @@
      */
     var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
     /*
-     * ONE QUIET PROMPT, NOT ONE PER PUBLISH (owner, 2026-10-27, OPEN_REPAIRS 547):
+     * ONE QUIET PROMPT, NOT ONE PER PUBLISH (owner, 2026-10-27, OPEN_REPAIRS 552):
      * "while I was doing my comments, I had to refresh 10 times". Eight
      * publishes landed that afternoon, and a tab someone was working in got
      * the bar after each one -- and again after every dismiss, because a

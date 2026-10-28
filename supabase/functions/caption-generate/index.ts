@@ -229,11 +229,30 @@ async function readVoice(job: Job): Promise<{ source: string; text: string }> {
     if (!folder) return { source: "none", text: "" };
     const r = await gh(`contents/clients/${folder}/voice.md?ref=${ref}`, "application/vnd.github.raw+json");
     if (!r.ok) { await r.body?.cancel(); return { source: "none", text: "" }; }
-    return voiceGuide(parseBrainFacts(await r.text(), "voice"));
+    const guide = voiceGuide(parseBrainFacts(await r.text(), "voice"));
+    // dreams.md (POLICY/dreamer.md in the brain): its Audience and Voice lines, always labelled as dreamt, not facts.
+    let dreams = "";
+    try {
+      const d = await gh(`contents/clients/${folder}/dreams.md?ref=${ref}`, "application/vnd.github.raw+json");
+      dreams = d.ok ? dreamsForCaption(await d.text()) : (await d.body?.cancel(), "");
+    } catch (_e) {
+      console.warn("[caption-generate] brain dreams read failed; writing with the voice guide only");
+    }
+    return dreams ? { source: guide.source, text: `${guide.text}${guide.text ? "\n\n" : ""}${dreams}` } : guide;
   } catch (_e) {
     console.warn("[caption-generate] brain voice read failed; writing without it");
     return { source: "none", text: "" };
   }
+}
+
+// The Audience and Voice sections of a client's dreams.md, citations dropped, under a label that says they are the
+// brain's own read, not facts. "" when there is none.
+export function dreamsForCaption(md: string): string {
+  const keep = String(md || "").split(/^## /m).slice(1).filter((s) => /^(audience|voice)/i.test(s));
+  const lines = keep.flatMap((s) => s.split("\n").filter((l) => l.startsWith("- ")))
+    .map((l) => l.replace(/\s*\[[^\]]*\]/g, "").trim()).filter(Boolean);
+  if (!lines.length) return "";
+  return `Dreamt by the brain (our read of this client, not facts; background for tone and audience, never quote it or state it as fact):\n${lines.join("\n").slice(0, 2000)}`;
 }
 
 // The client's own call-to-action keywords (caption_cta_options), staff-edited with the caption prompt. A client with

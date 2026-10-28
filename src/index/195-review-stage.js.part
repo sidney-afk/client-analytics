@@ -12,6 +12,7 @@ import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtComment
 import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
+import { _sxrKasperState } from './290-samples-writes-review.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -2349,7 +2350,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSaving(m, k) {
         if (R.S && R.S.editSaving[m.id + '|' + k]) return true;
-        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? (window._sxrKasperState && window._sxrKasperState.saving && window._sxrKasperState.saving[m.id + '|' + k]) : (it._saving && it._saving[k]))); }
+        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? !!_sxrKasperState.saving[m.id + '|' + k] : (it._saving && it._saving[k]))); }
         return !!_calReviewState.saving[m.id + '|' + k];
     }
     function _rsError(m, k) {
@@ -2416,11 +2417,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         S.cpOk[key] = Date.now();
         setTimeout(() => { if (R.S === S) _rsRender(); }, RS_CP_CHECK_MS + 20);
     }
-    function _rsSplit(x, busy) {
+    function _rsSplit(x, busy, trialWord) {
         const k = x.key, n = _rsLname(k), open = !busy && R.S.menu === k;
         // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
         // at once; a refused save puts the part back and says so (speed pass, session Swift).
-        const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
+        const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : (trialWord || 'Approve the ' + n);
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';
@@ -2441,7 +2442,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
-        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
+        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's
            own Approve and Ask for change would say the same thing twice (Probe K2). Only "Tweaks are on Frame" stays
@@ -3099,7 +3100,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {
-                window._sxrKasperState.drafts[m.id + '|' + comp] = text;
+                _sxrKasperState.drafts[m.id + '|' + comp] = text;
                 if (opts.aat) window._sxrKasperApproveAfterTweaksComp(m.id, comp); else window._sxrKasperRequestTweakComp(m.id, comp);
             } else {
                 const it = _rsItem(m);
@@ -3260,7 +3261,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsSendNoteNow(m, comp, text, vis, parent) {
         delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
         if (R.mode === 'kasper') {
-            if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
+            if (m.sample) { _sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);
             if (!it._drafts) it._drafts = { video: '', graphic: '', caption: '' };
             // A card that left his lists (m.gone) is no longer where his own save path looks it up by id, so it would

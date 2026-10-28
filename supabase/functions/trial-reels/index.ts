@@ -31,8 +31,11 @@ import {
 } from "../_shared/browser-write-auth.ts";
 import {
   ACTIONS,
+  addVersion,
   answerPatches,
   clean,
+  cleanLink,
+  deliverableUuid,
   CLIENT_ACTIONS,
   dropPatch,
   newCutPatch,
@@ -41,6 +44,7 @@ import {
   healMainPatch,
   LETTERS,
   ledgerRows,
+  oneRowPerLetter,
   staffAllows,
   likeExact,
   linkPatch,
@@ -124,7 +128,22 @@ async function mainLink(supabase: SupabaseClient, card: JsonMap): Promise<string
 async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
   const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", likeExact(client));
   if (error) throw new Refusal(503, "versions_unreadable");
-  return settleWinner(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter))), winnerLetter) as Version[];
+  return settleWinner(oneRowPerLetter(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)))), winnerLetter) as Version[];
+}
+
+/* A version row SyncView adds itself (addVersion). The studio's table keys a row by (client, batch, video, letter), so a
+   row made here takes the card's id as its batch and "card" as its video; post_id is what every read goes by. */
+async function insertVersion(supabase: SupabaseClient, client: string, card: JsonMap, postId: string, letter: string, link: string, principal: Principal, now: string): Promise<void> {
+  if (postId.length > 80) throw new Refusal(400, "post_id_too_long");
+  const { error } = await supabase.from("studio_trial_versions").insert({
+    id: crypto.randomUUID(), client, batch: postId, video: "card", letter, post_id: postId,
+    deliverable_id: deliverableUuid(card.video_deliverable_id), frame_url: link, status: "waiting", revision: 0,
+    member: clean(principal.actor, 80) || "syncview", created_at: now, updated_at: now,
+  });
+  // Two staff adding at once reach the same letter: the table's unique key refuses the second.
+  if (error) throw (error as { code?: string }).code === "23505" ? new Refusal(409, "conflict") : new Refusal(500, "write_failed");
+  const { error: ledger } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, [{ id: "", letter, from: "", patch: { status: "waiting" } }], principal, now, "version_add"));
+  if (ledger) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
 }
 
 /* A staff read catches the main version's copy up with the card's one link (logic.mjs healMainPatch). Best effort: a
@@ -312,6 +331,17 @@ Deno.serve(async (req: Request) => {
         client, post_id: postId, ts: now, actor: principal.actor, role: principal.role, action: enabled ? "trial_on" : "trial_off",
         component: "video", source: FN, payload: null,
       });
+      // A card switched on with no version yet starts with Video A: the video it already carries (best effort; the
+      // list then offers "Add Video B").
+      if (enabled) {
+        try {
+          const had = await readVersions(supabase, client, postId, null);
+          const first = cleanLink(await mainLink(supabase, card)).link;
+          if (!had.length && first) await insertVersion(supabase, client, card, postId, "A", first, principal, now);
+        } catch (_e) {
+          console.warn(JSON.stringify({ fn: FN, seed: "skipped", post_id: postId }));
+        }
+      }
       outcome = "ok";
       return json({ ok: true, enabled });
     }
@@ -322,6 +352,16 @@ Deno.serve(async (req: Request) => {
     const link = await mainLink(supabase, card);
     if (principal.kind === "staff") await healMain(supabase, client, postId, versions, link, principal);
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
+
+    if (action === "version_add") {
+      const r = addVersion(versions, body.link, link);
+      if (r.error || !r.letter || !r.link) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error || "version_has_no_link");
+      await insertVersion(supabase, client, card, postId, r.letter, r.link, principal, now);
+      const after = await readVersions(supabase, client, postId, sw.winner_letter);
+      outcome = "ok";
+      return json({ ok: true, changed: [r.letter], winner_letter: sw.winner_letter || null,
+        ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
+    }
 
     if (action === "read") {
       const out: JsonMap = { ok: true, enabled: true, winner_letter: sw.winner_letter || null, ...shape() };
@@ -345,7 +385,7 @@ Deno.serve(async (req: Request) => {
     if (action === "answer") {
       // A client link answers only as the client; staff say which stage they answer for.
       const stage = principal.kind === "client" ? "client" : clean(body.stage, 10).toLowerCase();
-      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note }, now);
+      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "version_link_set") {

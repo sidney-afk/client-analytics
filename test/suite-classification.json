@@ -785,7 +785,8 @@
     "write-ui-writer-durability.js",
     "client-request-linked-status-push.js",
     "staff-phone-css-scope.js",
-    "finch-phone-css-scope.js"
+    "finch-phone-css-scope.js",
+    "crm-gmail.js"
   ],
   "profiles": [
     {
@@ -2068,11 +2069,27 @@
       "ci": "representative"
     },
     {
+      "file": "client-unread-badges-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks the client link's Sheet and Notes behind review_client_polish: the team's one Synchro team picture with a corner count for new notes and the plain number for a read team question still waiting, the client's own notes and change requests never counting, no staff names, New on open, no No reply needed and no inbox read; today's look with the switch off; the staff Calendar unchanged.",
+      "reproduce": "node test/client-unread-badges-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-kasper-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks Kasper's Review Session with the polish for the staff members on unread_badges_v2, in his second layout: Approve shows its check at the click, settles as Approved and then Undo, and a refusal takes the check back with the reason and Try again; two change requests in a row say Sent at once, keep the box open and both arrive in order; a quick note shows no spinner; Reply only under a team-only message, saved with it as the parent and shown indented; and his page unchanged when he is not on the list.",
       "reproduce": "node test/review-kasper-polish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-kasper-sample-frame-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus one fictional sample answered by the test), no hosted credentials and no live data. Checks Kasper's Review Session in his second layout on a sample: Tweaks are on Frame and a typed Ask for a change each save the change request and move the video to Tweaks Needed, with the polish (unread_badges_v2) on and off, and no page error (OPEN_REPAIRS 539).",
+      "reproduce": "node test/review-stage-kasper-sample-frame-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {
@@ -2145,6 +2162,22 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the staff card behind trial_reels_pages: off for an unlisted client, a faint switch in the Video row, the collapsed row and its versions at today's card height, pasting a link, dropping a version, the muted trophy after 24 h, the winner through today's attach with today's Undo toast, and Undo, at desktop and 390 pixel width.",
       "reproduce": "node test/trial-reels-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-polish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (writes held 1.5 s), no hosted credentials and no live data. Checks the trial card's owner polish round: switch on, a new or changed link, the version on the card, drop and bring back each show at once and a refusal puts the row back with a message; the list opens by itself on switch on; dropped is plain text; the version name is a link; the switch and the row buttons are unboxed and undimmed with hover on the icon only and unchanged targets; at 1440 and 390, light and dark.",
+      "reproduce": "node test/trial-reels-polish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-empty-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Starts trial reels on a card with no version rows, as found live on 2026-10-27: switching on opens a place to paste the first link, Video A goes on the card first through today's attach and is then added, Video B is added on its own, a link another version has is refused, and a card that already has a link starts with Video A, at desktop and 390 pixel width.",
+      "reproduce": "node test/trial-reels-empty-card-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

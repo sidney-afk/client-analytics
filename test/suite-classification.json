@@ -36,6 +36,7 @@
     "higgsfield-studio-transcribe.js",
     "higgsfield-client-questions.js",
     "higgsfield-client-brain.js",
+    "higgsfield-oauth.js",
     "higgsfield-private-ip.js",
     "higgsfield-video-cards.js",
     "higgsfield-shared-tools.js",

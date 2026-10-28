@@ -1433,3 +1433,19 @@ Calendar" is unchanged. Proof: `docs/syncview-design/tests/open-in-calendar-brow
 (same card, different card, Samples origin, opened directly, moving between work
 items, Back to card then the browser Back button, 390px light and dark).
 Rollback: revert the PR.
+
+## 2026-10-27 - one Deliverable file row per trial reel version (Trials)
+
+Behind `trial_reels_pages` (today: the test client only). On the card's own video
+sub-issue, once its card has Trial reels on, the Assets panel's single
+Deliverable file row becomes one "Deliverable file · Video X" row per version
+(owner, decision 6 of the trial reels plan, docs/features/TRIAL_REELS_PLAN.md).
+The version on the card (Video A, then the winner) is today's row: its link,
+its state and its Edit (today's attach) are unchanged, only its label gains
+"· Video A" and the version's own label. Every other version has its own row,
+in the same columns, with its own Edit (the trial-reels function's
+`version_link_set`, behind the same write gate as today's attach) and its own
+state in today's words. The graphics sub-issue, every other client and the
+Production list rows are unchanged. Proof: `test/trial-reels-production-browser.js`
+(desktop and 390, light and dark). Rollback: revert the PR; with the switch off
+nothing shows.

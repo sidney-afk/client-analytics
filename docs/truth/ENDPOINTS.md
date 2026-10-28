@@ -475,6 +475,7 @@ secret possession can still export the corpus; retire that fallback behind indiv
   wrong, honors the backend `thumbnail_revision_v2` off/test/on scope, and exposes aggregate counts
   only. `THUMBNAIL_REVISION_SCAN_ENABLED=true` is live; scheduled run `29370658087` completed green
   with 239 checked, 239 unchanged, and 0 failed.
+- `crm-gmail` — Leads CRM Gmail reader, server key only, read only (`docs/features/CRM_LEADS.md`, "Gmail"). POST `{action}`: `probe`, `sent_recipients`. The browser never calls it.
 
 These are documented separately by design. Do not add them to the literal endpoint set checked by
 `test/truth-sync.js` until `index.html` actually calls them.

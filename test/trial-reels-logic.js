@@ -39,6 +39,24 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order' && L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order',
     'Kasper and the client answer a version only after the SMM has');
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve_all' }, NOW).patches.length === 0, 'Approve all skips every version not yet through the SMM');
+  // A card the team sent on today's way (today's Approve before the trial page, or the status menu) with no version the
+  // SMM has looked at: each version counts as through the SMM for the stage the card was sent to (Sidney, 2026-10-27:
+  // sent for approval, the client link must show the versions to answer). One unseen among seen ones stays with the team.
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'B'
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.length === 5,
+    'a card sent to the client with no version through the SMM: the client answers each version, and Approve all takes them all');
+  ok(L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).patches.length === 1
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).error === 'stage_order',
+    'sent to Kasper: Kasper answers, the client still waits for its turn');
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Tweaks Needed' }, NOW).error === 'stage_order',
+    'a card the team has not sent on keeps the order');
+  const someSeen = () => five().map(x => x.letter === 'A' ? Object.assign(x, { smm_ok_at: NOW }) : x);
+  ok(L.answerPatches(someSeen(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).error === 'stage_order'
+    && L.answerPatches(someSeen(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'A',
+    'once the SMM has looked at one version, one it has not seen stays with the team (Probe rule-miss 13)');
+  ok(L.readShape(five(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.every(x => x.ready === true)
+    && L.readShape(someSeen(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.map(x => x.ready).join() === 'true,false,false,false,false',
+    'the read says the same: ready on a card sent on whole, the SMM\'s own looks otherwise');
   const noLink = smmDone(); noLink[1].frame_url = null;
   ok(L.answerPatches(noLink, { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'version_has_no_link'
     && L.answerPatches(noLink, { stage: 'client', kind: 'approve_all' }, NOW).patches.every(p => p.letter !== 'B'), 'a version with no link is never approved: nothing to watch');
@@ -141,6 +159,28 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
 
   ok(L.likeExact('fixture_client') === 'fixture\\_client' && L.likeExact('a%b\\c') === 'a\\%b\\\\c' && L.likeExact('plain') === 'plain', 'a client slug is escaped before ILIKE, so `_` and `%` match only themselves');
 
+  // A version link: only the providers today's Production attach takes for a Deliverable file
+  ok(L.cleanLink('https://f.io/x').link === 'https://f.io/x' && L.cleanLink('https://drive.google.com/file/d/abc/view').link && L.cleanLink('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k').link, 'Frame.io, Drive and Dropbox links are taken');
+  ok(L.cleanLink('https://example.com/x').error === 'link_host_unsupported' && L.cleanLink('https://docs.google.com/document/d/x').error === 'link_host_unsupported'
+    && L.cleanLink('https://u:p@f.io/x').error === 'link_host_unsupported' && L.cleanLink('https://f.io/').error === 'link_host_unsupported', 'any other host, a Google Doc, a credential in the address or a bare host is refused (a winner must be able to become the card\'s link)');
+
+  // The sharing check: Production's own rule and words
+  ok(L.probeUrl('https://drive.google.com/file/d/abc_1/view?usp=sharing') === 'https://drive.google.com/uc?export=download&id=abc_1'
+    && /[?&]raw=1/.test(L.probeUrl('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k&dl=0')) && !/dl=0/.test(L.probeUrl('https://www.dropbox.com/scl/fi/x/y.mp4?rlkey=k&dl=0')), 'a Drive file is checked at its download address and a Dropbox share at its raw one, as Production does');
+  ok(L.probeHostAllowed('https://f.io/x') && L.probeHostAllowed('https://lh3.googleusercontent.com/x') && L.probeHostAllowed('https://dl.dropboxusercontent.com/x')
+    && !L.probeHostAllowed('http://f.io/x') && !L.probeHostAllowed('https://accounts.frame.io/login') && !L.probeHostAllowed('https://127.0.0.1/x') && !L.probeHostAllowed('https://evil.example/f.io'), 'the check opens only the providers and their own file hosts, redirects included');
+  const pv = (o) => L.probeVerdict(Object.assign({ status: 200, contentType: 'text/html', sample: '<html>Frame</html>' }, o));
+  ok(pv({}) === 'available' && pv({ contentType: 'video/mp4', sample: '' }) === 'available' && pv({ contentType: 'text/plain' }) === 'unavailable', 'a live provider page or a media file is available; anything else is not');
+  ok(pv({ status: 403 }) === 'permission_denied' && pv({ status: 404 }) === 'expired' && pv({ status: 500 }) === 'unavailable' && pv({ sample: '<form>Sign in to continue</form>' }) === 'permission_denied' && pv({ sample: '' }) === 'unavailable', 'a sign-in or request-access wall, a gone link and a server error each say so');
+
+  // The copy of the card's one link, caught up after Production's own attach
+  const healed = L.healMainPatch(five(), 'https://f.io/fixture-a2');
+  ok(healed && healed.letter === 'A' && healed.patch.frame_url === 'https://f.io/fixture-a2', "a new Deliverable file saved in Production is copied to the main version's link");
+  ok(L.healMainPatch(five(), A_LINK) === null && L.healMainPatch(five(), '') === null, 'nothing to copy when they agree or the card has no link');
+  ok(L.healMainPatch(five(), 'https://f.io/fixture-c') === null, "never while the card's link is another version's (between today's attach and the winner pick or its Undo)");
+  const heal2 = L.healMainPatch([v('A', { status: 'change asked', change_by: 'client', revision: 1 }), v('B')], 'https://f.io/fixture-a3');
+  ok(heal2.patch.status === 'waiting' && heal2.patch.revision === 2 && heal2.patch.change_by === null, 'a change asked on the main version starts again when its new file lands through Production (Q3)');
+
   // The winner is SyncView's alone (owner, 2026-10-27): only trial_reel_cards.winner_letter decides it.
   const studioWin = [v('A', { status: 'on trial' }), v('B', { status: 'winner' }), v('C', { status: 'lost' })];
   const none = L.settleWinner(studioWin, null);
@@ -151,6 +191,19 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(picked.find(x => x.letter === 'A').status === 'winner' && picked.filter(x => x.letter !== 'A').every(x => x.status === 'lost'), "the card's letter makes Video A the winner, whatever the rows say");
   ok(L.mainLetter(picked, '') === 'A' && L.undoWinnerPatches(L.settleWinner(studioWin, null), A_LINK, {}).error === 'no_winner', 'the version on the card and Undo follow the card\'s letter only');
   ok(studioWin[1].status === 'winner', 'settleWinner leaves the rows as read (it returns copies)');
+
+  // A version added from SyncView (found live, 2026-10-27: a card the AI editor had not logged had nowhere to paste).
+  ok(L.ACTIONS.includes('version_add') && L.staffAllows('creative', 'version_add') && !L.staffAllows('automation', 'version_add'), 'version_add: admin, SMM and an editor; never the automation key');
+  ok(L.addVersion([], 'https://f.io/x', 'https://f.io/x').letter === 'A' && L.addVersion([], 'https://f.io/x', '').error === 'attach_first', 'the first version is the one on the card, so the card must carry its link first');
+  ok(L.addVersion([v('A'), v('B', { status: 'dropped' })], 'https://f.io/new', A_LINK).letter === 'C', 'the next free letter, dropped ones included');
+  ok(L.addVersion([v('A')], A_LINK, A_LINK).error === 'link_used_by_another_version' && L.addVersion([v('A')], '', A_LINK).error === 'version_has_no_link' && L.addVersion([v('A')], 'http://f.io/x', A_LINK).error === 'link_not_https', 'a link another version has, no link, or not https: refused');
+  ok(L.addVersion(['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(l => v(l, { frame_url: 'https://f.io/' + l })), 'https://f.io/h', A_LINK).error === 'no_letter_left' && L.addVersion([v('A', { status: 'on trial' })], 'https://f.io/n', A_LINK).error === 'version_on_trial', 'seven at most, and none once the trial has started');
+
+  const dupA = L.oneRowPerLetter([v('A', { id: 'studio-a', created_at: '2026-10-27T16:00:00Z' }), v('A', { id: 'card-a', created_at: '2026-10-27T15:13:12Z' }), v('B', { created_at: '2026-10-27T16:00:00Z' })]);
+  ok(dupA.length === 2 && dupA.find(x => x.letter === 'A').id === 'card-a', 'two rows for one letter (SyncView seeded A, then the studio logged its own A): the earliest is the version, the other is never read (Codex on PR 2373)');
+
+  ok(L.deliverableUuid('del_4676B09E-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111' && L.deliverableUuid('4676b09e-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111'
+    && L.deliverableUuid('del_notauuid') === null && L.deliverableUuid('') === null && L.deliverableUuid(null) === null, "the card's del_<uuid> sub-issue becomes the uuid the studio's column takes; anything else is null");
 
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');

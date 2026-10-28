@@ -232,6 +232,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b = await bar(t);
     ok(/^Video B of 5/.test(b.text) && b.dots[0] === 'ok' && fast < 600 && t.T.versions[0].status === 'waiting',
       'client, slow line: Approve shows Video A approved and moves to Video B at once, before the server answers (' + fast + ' ms)');
+    // A person looks at Video B before approving it; a press within 0.7 s of the move is a double click and is held
+    // back (Allactions, 2026-10-28). A's answer is still on the slow line (1.5 s) when B is approved.
+    await sleep(800);
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => /^Video C of 5/.test((await bar(t)).text), 40);
     ok(/^Video C of 5/.test((await bar(t)).text), 'client, slow line: a second Approve right after is taken too, not lost');
@@ -241,6 +244,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b = await bar(t);
     ok(b.dots[0] === 'ok' && b.dots[1] === 'ok' && !t.state.upserts.slice(n0).some(u => u.video_status), 'client, slow line: A and B stay approved once the server agrees, and the card waits');
     t.T.delay = 300; t.T.failAnswer = 1;
+    await sleep(800);
     await inS(t.page, '[data-ok="video"]').click();
     await sleep(100);
     const early = (await bar(t)).dots[2];

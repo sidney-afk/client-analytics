@@ -35196,3 +35196,20 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Why:** `_calOnLinkBlur` (`src/index/160-calendar-organize-ui.js.part`) replaced the Video row with `_calLinkFieldHtml`, which for a trial card draws the row and its open list, but left the old list after it. `_calRefreshLinkField` had the same gap.
 - **Fix:** both remove the old list before redrawing the row. `_calRefreshLinkField` does not redraw while a version's link is being typed in that list.
 - **Proven:** `test/trial-reels-round3-card-browser.js`, every frame for about 2 s after the pencil and Escape: exactly one list (main: 1 then 2).
+
+## 574. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: a double click on Approve answered the next version too (Allactions, session Trials)
+
+- **What happened:** found by session Allactions' action sweep (#2413), and live: the client double-clicked "Approve Video A", and A and B were both approved. The first press moved the page to Video B at once (Approve answers at once since 2026-10-27), and the second landed on B's Approve. It happened on the SMM's Review tab, Kasper's standard layout and the client link, at 1440 and 390. This is very likely why Sidney's approve "landed on Video B" (563).
+- **Fix:** `src/index/194-review-trial-versions.js.part` ignores an Approve, or a "Not this one", pressed within 0.7 s of an answer moving the page to the next version. A deliberate pick of a version (a dot, an arrow, a swipe, a tile in Kasper's second layout) clears that hold, so each tile's own Approve still answers at once. Approve all is never held.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`):
+  - a double click answers only A on the client link at 1440 and 390, Kasper's standard layout and the SMM's Review tab;
+  - Kasper's tiles A then B, pressed quickly, answer both.
+  - It fails on main (A, then B).
+  - `trial-reels-review-browser.js`'s slow-line check now presses B 0.8 s after the move, as a person looking at B does; A's answer is still on the slow line then.
+
+## 575. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels: the client was shown a server code (Allactions, session Trials)
+
+- **What happened:** a refused approve on the client link read: Video C was not approved: The server answered "request_failed". Nothing was changed.
+- **Fix:** `svTrialErrorText` (`src/index/189-trial-reels-card.js.part`) gives a client link plain words only. A few states have their own sentence (it changed a moment ago, it waits for its new cut, the team is still looking at it, it is already out, the team took it out). Anything else reads "This did not save. Check your connection and try again in a moment." Staff wording is unchanged.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=dblclick`): a `request_failed` refusal says "not approved" with no code and no quotation marks. It fails on main.
+- Allactions' third finding (the versions list drawn twice after the Video row's pencil and Escape) is 573 in this PR.

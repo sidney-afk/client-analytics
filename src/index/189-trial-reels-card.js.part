@@ -97,8 +97,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         return json;
     }
+    // What a client is told: plain words, never a server code or the team's words (Allactions, 2026-10-28).
+    const TRL_CLIENT_ERRORS = {
+        conflict: 'This changed a moment ago. It has been reloaded; try again.',
+        change_open: 'This version is waiting for its new cut.',
+        stage_order: 'Your team is still looking at this version.',
+        version_on_trial: 'This version is already out, so it cannot change now.',
+        version_dropped: 'Your team took this version out.',
+    };
     function svTrialErrorText(e) {
         const code = String((e && e.code) || (e && e.message) || 'request_failed');
+        if (_isClientLink) return TRL_CLIENT_ERRORS[code] || 'This did not save. Check your connection and try again in a moment.';
         return TRL_ERRORS[code] || ('The server answered "' + code + '". Nothing was changed.');
     }
     function _trlSay(e, what) {

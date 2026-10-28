@@ -276,6 +276,44 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
+    // ---------- Allactions (567b, 567c): a double click on Approve answers one version; the client never sees a code ----------
+    for (const [mode, w, h, label] of [['client', 1440, 900, 'client 1440'], ['client', 390, 844, 'client 390'], ['kasper', 1280, 860, 'kasper standard'], ['smm', 1440, 900, 'SMM review']].filter(() => part('dblclick'))) {
+      const vs = three().map(v => Object.assign(v, mode === 'kasper' ? { kasper_ok_at: null } : mode === 'smm' ? { kasper_ok_at: null, smm_ok_at: null } : {}));
+      const t = await start(mode, true, vs, Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      t.T.delay = 400;
+      // Two presses as fast as a double click: the first moves the page to B at once, the second must not answer B.
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-ok="video"]'); b.click(); setTimeout(() => { const b2 = r.querySelector('[data-ok="video"]'); if (b2) b2.click(); }, 60); });
+      await sleep(2500);
+      const answered = t.T.calls.filter(c => c.action === 'answer').map(c => c.letter || c.kind).join(',');
+      ok(answered === 'A', `${label}: a double click on Approve Video A answers A only (${answered})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+    if (part('dblclick')) {
+      // Kasper's tiles: each tile's own Approve names its version, so A then B pressed quickly answers both.
+      const vs = three().map(v => Object.assign(v, { kasper_ok_at: null }));
+      const t = await start('kasper', true, vs, { layout2: true });
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; r.querySelector('[data-trk-ok="A"]').click(); setTimeout(() => { const b = r.querySelector('[data-trk-ok="B"]'); if (b) b.click(); }, 120); });
+      await sleep(2500);
+      const answered = t.T.calls.filter(c => c.action === 'answer').map(c => c.letter || c.kind).join(',');
+      ok(answered === 'A,B', `kasper tiles: A's Approve then B's, pressed quickly, answer both (${answered})`);
+      await t.ctx.close();
+    }
+    if (part('dblclick')) {
+      // A refused approve on the client link: plain words, never the server's code.
+      const t = await start('client', true, three());
+      await t.ctx.route('**/functions/v1/trial-reels', async route => {
+        const b = JSON.parse(route.request().postData() || '{}');
+        if (b.action === 'answer') return route.fulfill({ status: 500, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'request_failed' }) });
+        return route.fallback();
+      });
+      await press(t, '[data-ok="video"]');
+      await sleep(1500);
+      const said = await t.page.evaluate(() => ((document.getElementById('confirmOverlay') || {}).innerText || '').replace(/\s+/g, ' '));
+      ok(/not approved/.test(said) && !/answered|request_failed|write_failed|"/.test(said), `client: a refused approve says it in plain words, no server code ("${said.slice(0, 140)}")`);
+      await t.ctx.close();
+    }
+
     // ---------- 2: the review page keeps the reel's shape while the next version loads ----------
     for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('shape'))) {
       const t = await start('client', true, three(), Object.assign({ beforeOpen: async t2 => {

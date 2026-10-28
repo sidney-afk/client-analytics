@@ -184,12 +184,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return false;
         const vs = m.trial.versions, next = vs[vs.indexOf(_trvCurOf(m, mode)) + d];
         if (!next) return false;
-        _trvCur[m.id] = next.letter; _trvRepaint();
+        _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = 0; _trvRepaint();
         return true;
     }
     function svTrialReviewBind(el, m, mode, onAll) {
         if (!el || !m || !m.trial || m.trial.winner) return;
-        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvRepaint(); }));
+        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvMovedAt[m.id] = 0; _trvRepaint(); }));
         el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => svTrialReviewStep(m, mode, Number(b.dataset.trvStep))));
         el.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => onAll()));
     }
@@ -259,14 +259,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return stage === 'client' ? !!json.card_approvable : !!(json.stages_done && json.stages_done[stage]);
     }
     /* Approve the version on screen. `proceed` is today's approve on the video part; it runs only once the stage is done. */
+    /* A second press right after the page moved on (a double click) lands on the next version's button: it is ignored
+       for a moment, so one press answers one version (Allactions, 2026-10-28: a double click approved A and B; the
+       likely reason Sidney's approve landed on Video B). */
+    const TRV_SETTLE_MS = 700;
+    const _trvMovedAt = {};   // post id -> when an answer last moved the page to the next version
+    const _trvJustMoved = m => Date.now() - (_trvMovedAt[m.id] || 0) < TRV_SETTLE_MS;
     async function svTrialReviewApprove(m, mode, proceed, all) {
+        if (!all && _trvJustMoved(m)) return;
         const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
         const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
         const local = _trvLocal(m, mode, body);
         if (local) {
             // On to the next version still waiting for this reviewer, now.
             const next = local.versions.filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
-            if (next) _trvCur[m.id] = next.letter;
+            if (next) { _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = Date.now(); }
             _trvRepaint();
         }
         let json;
@@ -292,7 +299,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        waiting. A refused pass puts the version back and says so. Once every other version is approved, `proceed` is
        today's approve on the video part (a passed version does not hold the card back). */
     async function svTrialReviewPass(m, mode, proceed) {
-        if (!svTrialReviewCanPass(m, mode)) return;
+        if (_trvJustMoved(m) || !svTrialReviewCanPass(m, mode)) return;
         const letter = _trvCurOf(m, mode).letter, slug = m.trial.slug;
         const e = _trv[slug], card = e && e.cards[m.id];
         let before = null;
@@ -302,7 +309,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const versions = card.versions.map(v => v.letter === letter ? Object.assign({}, v, { client_pass_at: now }) : v);
             e.cards[m.id] = Object.assign({}, card, { versions });
             const next = versions.filter(_trvLive).find(v => _trvAnswer(v, 'client') === 'wait');
-            if (next) _trvCur[m.id] = next.letter;
+            if (next) { _trvCur[m.id] = next.letter; _trvMovedAt[m.id] = Date.now(); }
             _trvRepaint();
         }
         let json;
@@ -414,7 +421,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function svTrialReviewBindTiles(el, m, mode, on) {
         if (!el || !m || !m.trial) return;
-        const pick = letter => { _trvCur[m.id] = letter; };
+        // A press on a tile names its own version, so it is never held back as a double click.
+        const pick = letter => { _trvCur[m.id] = letter; _trvMovedAt[m.id] = 0; };
         el.querySelectorAll('[data-trk-go]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkGo); _trvRepaint(); }));
         el.querySelectorAll('[data-trk-ok]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkOk); on.approve(); }));
         el.querySelectorAll('[data-trk-chg]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkChg); _trvRepaint(); on.change(); }));

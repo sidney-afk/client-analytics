@@ -122,7 +122,7 @@ async function shot(page, name) {
     const rgba = c => { const m = String(c).match(/rgba?\(([^)]+)\)/); if (!m) return [0, 0, 0, 0]; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
     const over = (t, u) => { const a = t[3] + u[3] * (1 - t[3]); return a ? [0, 1, 2].map(i => (t[i] * t[3] + u[i] * u[3] * (1 - t[3])) / a).concat(a) : [0, 0, 0, 0]; };
     const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
-    return [...document.querySelectorAll('.trl-prod-v .trl-lab, .trl-prod-v .trl-oncard, .trl-prod-v .prod-asset-label')].filter(n => n.offsetParent).map(el => {
+    return [...document.querySelectorAll('.trl-prod-v .trl-lab, .trl-prod-v .sv-dropped-note, .trl-prod-v .trl-oncard, .trl-prod-v .prod-asset-label')].filter(n => n.offsetParent).map(el => {
       const layers = []; for (let n = el; n; n = n.parentElement) layers.push(rgba(getComputedStyle(n).backgroundColor));
       const bg = layers.reverse().reduce((acc, c) => over(c, acc), [255, 255, 255, 1]);
       const fg = over(rgba(getComputedStyle(el).color), bg);
@@ -151,10 +151,20 @@ async function shot(page, name) {
     ok(vr[1].state === 'Permission denied' && vr[2].state === 'Not checked' && vr[3].state === 'Available' && vr[4].state === 'Missing' && /Not provided/.test(vr[4].value),
       "each other version's state in Production's own words: Permission denied, Not checked (the check could not look), Available, Missing");
     ok(/approved/.test(vr[0].value) && /change asked/.test(vr[2].value) && /dropped/.test(vr[3].value) && /waiting/.test(vr[4].value), 'with a mixed review each row says where it stands');
+    // "dropped" is said as plain muted text, never a pill (owner, 2026-10-27): the shared sv-dropped-note class.
+    const dropLook = await page.evaluate(() => {
+      const row = document.querySelector('.trl-prod-v[data-trl-slot="D"]');
+      const n = row && row.querySelector('.sv-dropped-note');
+      if (!n) return null;
+      const cs = getComputedStyle(n);
+      return { pill: !!row.querySelector('.trl-lab[data-l="dropped"]'), bg: cs.backgroundColor, pad: cs.paddingLeft, radius: cs.borderTopLeftRadius };
+    });
+    ok(dropLook && !dropLook.pill && /rgba\(0, 0, 0, 0\)|transparent/.test(dropLook.bg) && dropLook.pad === '0px' && dropLook.radius === '0px',
+      'Video D says "dropped" as plain text with no pill (no fill, padding or rounding): ' + JSON.stringify(dropLook));
     ok(T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), "the read names the sub-issue's card and asks for the link states");
     ok(T.calls.filter(c => c.action === 'read').length === 1 && Number(T.calls.find(c => c.action === 'read').probe_budget_ms) > 0,
       "one read on opening, and it does not wait on the providers past its budget");
-    // The providers are slow (OPEN_REPAIRS 550): the rows draw at once, then one more read brings the states.
+    // The providers are slow (OPEN_REPAIRS 554): the rows draw at once, then one more read brings the states.
     {
       T.pending = true; T.calls = [];
       const slow = await open(1440, 900);

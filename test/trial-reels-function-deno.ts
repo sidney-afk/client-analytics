@@ -344,7 +344,7 @@ const p7Read = await step({ action: "read", post_id: "p7" }, "client-none");
 ok(((p7Read.body.versions || []) as Row[]).length === 2 && ((p7Read.body.versions || []) as Row[]).every((r) => r.ready === true), "sent on to the client: a client read says both versions are ready");
 const p7Client = await step({ action: "answer", post_id: "p7", kind: "approve_all" }, "client-none");
 ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and the client's Approve all approves them (" + p7Client.status + " " + p7Client.body.error + ")");
-// SPEED (session Swift, OPEN_REPAIRS 550). The owner found every trial action slow: each request waited on about eight
+// SPEED (session Swift, OPEN_REPAIRS 554). The owner found every trial action slow: each request waited on about eight
 // database answers one after another, and Production's read on every version link's check (about 2 s live). Here
 // every database answer takes 60 ms, so a request's time counts the answers it waited on in a row. Today: two for a
 // read, four for a write (the card's winner adds one), and a link check never holds a budgeted read past its budget.

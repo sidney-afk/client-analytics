@@ -1,7 +1,7 @@
 import { svBusyHtml } from './040-shared-briefs.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialCall, svTrialErrorText, svTrialLabelShown } from './189-trial-reels-card.js';
+import { svTrialCall, svTrialErrorText, svTrialLabelHtml, svTrialLabelShown } from './189-trial-reels-card.js';
 import { _prodCanWrite, _prodIssue, _prodToast, _prodWriteGateText } from './220-production-attribution-views.js';
 import { _prodRender } from './260-production-refresh-boot.js';
     /* TRIAL REELS IN PRODUCTION'S ASSETS (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
@@ -31,7 +31,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
     const _trlProdClient = issue => String((issue.raw && issue.raw.client_slug) || '').trim();
     /* The first read waits at most this long for the version links' checks (about 2 s live for a Frame.io link), so
        the rows draw at once with their state still "checking"; when the function says checks are still running, one
-       more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 550). */
+       more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 554). */
     const TRL_PROD_PROBE_BUDGET_MS = 250;
     function _trlProdLoad(issue, full) {
         const e = _trlProdEntry(issue.id);
@@ -84,7 +84,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
         // Today's row just saved a new file: read again, so the version rows and their states follow it.
         if (h.mainUrl && String(main.frame_url || '') !== h.mainUrl && !e.promise && Date.now() - e.at > 1500) _trlProdLoad(issue);
         const labelHtml = v => svTrialLabelShown(vs, v)
-            ? ' <span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '';
+            ? ' ' + svTrialLabelHtml(v.status) : '';
         const rowHtml = v => {
             const url = String(v.frame_url || '').trim();
             const state = url ? _trlProdState(shape, v.letter) : 'missing';

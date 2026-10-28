@@ -2,7 +2,7 @@
 // scripts/crm-import.js). No I/O, so test/crm-leads.js runs every branch
 // offline. Model: docs/features/CRM_LEADS.md.
 
-export const LEAD_TYPES = ['dream100', 'ad_lead', 'past_call', 'email'];
+export const LEAD_TYPES = ['dream100', 'ad_lead', 'past_call', 'email', 'referral'];
 export const STAGES = ['to_contact', 'contacted', 'replied', 'call1_booked', 'no_show', 'call1_done', 'call2_done', 'nurture', 'won', 'lost'];
 export const LOST_REASONS = ['price', 'trust', 'timing', 'budget', 'no_show'];
 export const NOTE_MAX = 4000;

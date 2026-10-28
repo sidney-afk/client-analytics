@@ -148,7 +148,7 @@ async function readVersions(supabase: SupabaseClient, client: string, postId: st
   return settleWinner(await readVersionRows(supabase, client, postId), winnerLetter) as Version[];
 }
 
-/* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 550): every read a request may need starts at once and each answer
+/* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 554): every read a request may need starts at once and each answer
    is looked at in the old order, so a request is refused for exactly the same reason as before; only the waiting
    overlaps. A read started and never looked at (a refused request) must not surface as an unhandled rejection. */
 function begun<T>(p: Promise<T>): Promise<T> {

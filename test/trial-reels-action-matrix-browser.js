@@ -114,6 +114,14 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
       Object.assign(W.versions.find(v => v.id === c.id), c.patch, { updated_at: now });
       W.writes.push({ action: 'heal', letter: c.letter });
     };
+    // Round 3 (#2412): a read of a Posted card starts the trial of its approved versions (logic.mjs autoTrialPatches).
+    const autoStart = () => {
+      if (!L.autoTrialPatches || !W.sw || !W.sw.enabled) return;
+      const r = L.autoTrialPatches(L.settleWinner(W.versions, W.sw.winner_letter), { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now() });
+      for (const c of r.patches) Object.assign(W.versions.find(v => v.id === c.id), c.patch, { updated_at: stamp() });
+      if (r.patches.length) W.writes.push({ action: 'auto_trial_start', letters: r.patches.map(c => c.letter) });
+    };
+    autoStart();
     if (action === 'list') {
       const cards = {};
       if (W.sw && W.sw.enabled) { if (!isClient) heal(); cards[PID] = Object.assign({ enabled: true, winner_letter: W.sw.winner_letter || null }, shape()); }
@@ -578,8 +586,17 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
       page = await openCal(w, h);
       await openList(page);
       m = mark();
-      await page.click('.trl-list .trl-start'); await sleep(1300);
-      await inv(page, P + '.start', `${sz} start the 24 h`, { open: true, n0: m.n0, writes: 1 });
+      if (await page.$('.trl-list .trl-start')) {
+        await page.click('.trl-list .trl-start'); await sleep(1300);
+        await inv(page, P + '.start', `${sz} start the 24 h`, { open: true, n0: m.n0, writes: 1 });
+      } else {
+        // Round 3 (#2412): the card set to Posted starts the 24 h by itself.
+        S.setCardField(PID, { video_status: 'Posted', status: 'Posted' }, 'posted');
+        await page.close();
+        page = await openCal(w, h);
+        await openList(page);
+        await inv(page, P + '.start', `${sz} the card is Posted: the 24 h start by themselves`, { open: true, n0: m.n0, writes: 1 });
+      }
       ok(P + '.start.all', W.versions.every(v => v.status === 'on trial'), `${sz} every version on trial`);
       W.versions.forEach(v => { v.trial_ends_at = new Date(Date.now() - 60000).toISOString(); });
       await page.close();
@@ -607,6 +624,7 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
         await inv(page, P + '.decided-pencil-esc', `${sz} a decided version's pencil, Escape`, { open: true, n0: m.n0, writes: 0 });
       }
       await page.close();
+      S.setCardField(PID, { video_status: 'In Progress', status: 'In Progress' }, 'reset');
     } catch (e) { failures.push('card ' + sz + ' threw: ' + String(e && e.message || e).split('\n')[0]); console.error('FAIL  card ' + sz + ' threw', e); }
 
     // =====================================================================================================

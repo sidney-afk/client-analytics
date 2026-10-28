@@ -149,7 +149,11 @@ async function shot(page, name) {
       ok(T.calls.some(c => c.action === 'switch_set' && c.enabled === true && c.post_id === 'p_t1'), `${label}: the switch sends switch_set on`);
       let txt = await rowText(page);
       ok(/Video · 5/.test(txt) && /2\/4 approved/.test(txt), `${label}: the row reads "Video · 5" and "2/4 approved" (${txt})`);
-      ok(Math.abs((await heightOf(page)) - todayH) < 0.5, `${label}: switched on and collapsed, still today's height`);
+      // Switched on, the list opens by itself (owner, 2026-10-27); the arrow folds it, and the card is today's height.
+      ok(!!(await page.$('.trl-list')) && await page.$eval('.cal-link-post .trl-chev', b => b.getAttribute('aria-expanded')) === 'true', `${label}: switched on, the versions list opens by itself`);
+      await page.click('.cal-link-post .trl-chev');
+      await sleep(300);
+      ok(!(await page.$('.trl-list')) && Math.abs((await heightOf(page)) - todayH) < 0.5, `${label}: switched on and collapsed, still today's height`);
       await shot(page, label + '-review');
       await page.click('.cal-link-post .trl-chev');
       await sleep(300);

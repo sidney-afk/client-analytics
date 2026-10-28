@@ -34832,3 +34832,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/review-stage-kasper-sample-frame-browser.js` (new; Kasper in layout 2 presses Tweaks are on Frame, and types a change, on a fictional sample, with unread_badges_v2 on and off; 4 runs, each fails on main with the TypeError and no save, all pass with the fix), added to the calendar unit-test lane. The stopgap of 18:12 UTC (Kasper taken off `unread_badges_v2`) did not help, because the bug did not depend on the polish; he can go back on once this merges.
 
 **Way back:** revert this commit.
+
+## 551. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: Kasper's approve button did not name the version it approves (Trialtest, session Trials)
+
+- **What happened:** checked live on build 4. On a trial card, Kasper's button read "Approve the video" in both of his layouts, while the client's reads "Approve Video A". Kasper approves only the version on screen, so he could think he was approving the whole video.
+- **Fix:** Kasper's split approve button takes the same words as the client's ("Approve Video A"). The change is in `_rsSplit`, `src/index/195-review-stage.js.part`. On the second layout's narrow column the short form stays "Approve". The SMM's button still reads "Approve to Kasper", as designed.
+- **Proven:** `test/trial-reels-review-browser.js` checks both of Kasper's layouts (60; both checks fail without the fix). These also pass: `review-stage-kasper-layout2` (188 checks), `review-stage-browser`, `staff-layout`, `instant`, `save`, and the trial journey (90).
+
+**Way back:** revert the pull request.

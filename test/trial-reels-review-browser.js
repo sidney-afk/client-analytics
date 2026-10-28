@@ -345,6 +345,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b = await bar(t);
     ok(/^Video A of 5/.test(b.text), 'Kasper: the same bar (' + b.text + ')');
     ok(await tags(t) === 'Trial x1', 'Kasper: one "Trial" marker (' + await tags(t) + ')');
+    // Kasper approves only the version on screen, so his button names it, as the client's does (Trialtest, 2026-10-28).
+    ok(b.ok === 'Approve Video A', 'Kasper: the approve button names the version on screen (' + b.ok + ')');
     n0 = t.state.upserts.length;
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => t.T.calls.some(c => c.action === 'answer'));
@@ -363,6 +365,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     // ---------- Kasper's second layout ----------
     t = await start('kasper', true, fresh(), { layout2: true });
     ok(await tags(t) === 'Trial x1', 'Kasper, second layout: one "Trial" marker (' + await tags(t) + ')');
+    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const n = r.querySelector('.b-ok[data-ok="video"]'); return n ? n.getAttribute('aria-label') || n.textContent.trim() : ''; });
+    ok(l2ok === 'Approve Video A', 'Kasper, second layout: the approve button names the version on screen (' + l2ok + ')');
     ok(!t.errors.length, 'Kasper, second layout: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } catch (e) {

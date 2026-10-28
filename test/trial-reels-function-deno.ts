@@ -48,8 +48,11 @@ function matches(row: Row, params: URLSearchParams): boolean {
 }
 
 const moved = { id: "" };
+// Each answer of the stand-in database can be made to take this long (the speed checks at the end).
+const latency = { ms: 0 };
 const realServe = Deno.serve.bind(Deno);
 const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (req) => {
+  if (latency.ms) await new Promise((r) => setTimeout(r, latency.ms));
   const u = new URL(req.url);
   const t = u.pathname.replace(/^\/rest\/v1\//, "");
   const rows = tables[t];
@@ -62,6 +65,11 @@ const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (r
   }
   if (req.method === "POST") {
     const body = await req.json();
+    // studio_trial_versions.deliverable_id is a uuid column: Postgres refuses anything else (22P02), as live does.
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (t === "studio_trial_versions" && (Array.isArray(body) ? body : [body]).some((r: Row) => r.deliverable_id != null && !uuid.test(String(r.deliverable_id)))) {
+      return out({ code: "22P02", message: "invalid input syntax for type uuid" }, 400);
+    }
     for (const r of Array.isArray(body) ? body : [body]) rows.push({ ...r });
     return out(Array.isArray(body) ? body : [body], 201);
   }
@@ -282,6 +290,114 @@ const cwRows = (cardWins.body.versions || []) as Row[];
 ok(cwRows.length === 1 && cwRows[0].letter === "C" && cardWins.body.main_letter === "C", "the studio writing winner on Video A changes nothing: the card's letter (C) is the winner");
 const staffWins = await step({ action: "read" });
 ok(((staffWins.body.versions || []) as Row[]).find((r) => r.letter === "A")?.status === "lost", "staff see Video A as lost, as the card says");
+
+// A card the AI editor has not logged (found live, 2026-10-27): SyncView adds its versions itself.
+tables.calendar_posts.push({ id: "p4", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p4-main", video_deliverable_id: null });
+tables.calendar_posts.push({ id: "p5", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "", video_deliverable_id: null });
+const p4 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p4");
+await step({ action: "switch_set", enabled: true, post_id: "p4" });
+ok(p4().length === 1 && p4()[0].letter === "A" && p4()[0].frame_url === "https://f.io/p4-main" && p4()[0].batch === "p4" && p4()[0].video === "card",
+  "a card switched on with no version starts with Video A, the link it already carries");
+const addB = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" }, "creative");
+ok(addB.body.ok === true && p4().some((r) => r.letter === "B" && r.frame_url === "https://f.io/p4-b" && r.status === "waiting")
+  && ((addB.body.versions || []) as Row[]).length === 2, "version_add adds Video B with its link (an editor's key may), and answers the two versions");
+const addDup = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" });
+ok(addDup.status === 400 && addDup.body.error === "link_used_by_another_version", "a link another version already has is refused");
+const addClient = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-c" }, "client-token");
+ok(addClient.status === 403 && p4().length === 2, "a client link cannot add a version");
+await step({ action: "switch_set", enabled: true, post_id: "p5" });
+const addFirst = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst.status === 409 && addFirst.body.error === "attach_first" && !tables.studio_trial_versions.some((r) => r.post_id === "p5"),
+  "with no link on the card, the first version waits until the card carries its link (the page saves it first)");
+tables.calendar_posts.find((r) => r.id === "p5")!.asset_url = "https://f.io/p5-a";
+const addFirst2 = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst2.body.ok === true && (addFirst2.body.changed as string[])[0] === "A", "then Video A is added");
+
+// The studio logs this card after SyncView seeded its Video A: still one Video A (Codex on PR 2373).
+tables.studio_trial_versions.push({ ...p4()[0], id: "studio-p4-a", batch: "Fixture batch", video: "9", frame_url: "https://f.io/p4-studio-a", created_at: "2099-01-01T00:00:00.000Z" });
+const afterStudio = await step({ action: "read", post_id: "p4" });
+const asRows = (afterStudio.body.versions || []) as Row[];
+ok(asRows.filter((r) => r.letter === "A").length === 1 && asRows.find((r) => r.letter === "A")!.id !== "studio-p4-a", "a later studio row for the same letter is not a second Video A");
+
+// A card whose video sub-issue is named as live names it, "del_<uuid>" (found live, 2026-10-27: every add answered
+// write_failed, because studio_trial_versions.deliverable_id is a uuid column).
+tables.calendar_posts.push({ id: "p6", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p6-main", video_deliverable_id: "del_66666666-6666-4666-8666-666666666666" });
+tables.deliverables.push({ id: "del_66666666-6666-4666-8666-666666666666", file_url: "https://f.io/p6-main" });
+const p6 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p6");
+await step({ action: "switch_set", enabled: true, post_id: "p6" });
+ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66666666-6666-4666-8666-666666666666", "a card with a del_ sub-issue starts with Video A, its sub-issue stored as the uuid");
+const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
+ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
+
+// Sent for approval today's way, before any version went through the SMM (Sidney, 2026-10-27): the card is at Client
+// Approval, so the client link answers each version, and a staff read says each one is ready for the client.
+tables.calendar_posts.push({ id: "p7", client: "fixtureclient", video_status: "Kasper Approval", asset_url: "https://f.io/p7-main", video_deliverable_id: null });
+const p7 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p7");
+await step({ action: "switch_set", enabled: true, post_id: "p7" });
+await step({ action: "version_add", post_id: "p7", link: "https://f.io/p7-b" });
+const p7Early = await step({ action: "answer", post_id: "p7", kind: "approve", letter: "B" }, "client-none");
+ok(p7Early.status === 400 && p7Early.body.error === "stage_order", "a card still at Kasper Approval: the client waits for its turn");
+const p7Kasper = await step({ action: "answer", post_id: "p7", stage: "kasper", kind: "approve", letter: "B" }, "admin");
+ok(p7Kasper.body.ok === true && !!p7().find((r) => r.letter === "B")!.kasper_ok_at, "sent to Kasper with no version through the SMM: Kasper answers Video B");
+tables.calendar_posts.find((r) => r.id === "p7")!.video_status = "Client Approval";
+const p7Read = await step({ action: "read", post_id: "p7" }, "client-none");
+ok(((p7Read.body.versions || []) as Row[]).length === 2 && ((p7Read.body.versions || []) as Row[]).every((r) => r.ready === true), "sent on to the client: a client read says both versions are ready");
+const p7Client = await step({ action: "answer", post_id: "p7", kind: "approve_all" }, "client-none");
+ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and the client's Approve all approves them (" + p7Client.status + " " + p7Client.body.error + ")");
+// SPEED (session Swift, OPEN_REPAIRS 554). The owner found every trial action slow: each request waited on about eight
+// database answers one after another, and Production's read on every version link's check (about 2 s live). Here
+// every database answer takes 100 ms, so a request's time counts the answers it waited on in a row. Today: two for a
+// read, four for a write (the card's winner adds one), and a link check never holds a budgeted read past its budget.
+{
+  const RT = 100;
+  tables.calendar_posts.push({ id: "p20", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p20-a", video_deliverable_id: "20202020-2020-4020-8020-202020202020" });
+  tables.deliverables.push({ id: "20202020-2020-4020-8020-202020202020", file_url: "https://f.io/p20-a" });
+  tables.trial_reel_cards.push({ client: "fixtureclient", post_id: "p20", enabled: true, winner_letter: null });
+  ["A", "B", "C"].forEach((l, i) => tables.studio_trial_versions.push({ ...v("A"), id: "p20" + l, letter: l, post_id: "p20", status: "waiting",
+    frame_url: "https://f.io/p20-" + l.toLowerCase(), smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, created_at: "2026-10-27T09:00:0" + i + ".000Z", updated_at: "2026-10-27T09:00:0" + i + ".000Z" }));
+  // The providers answer slowly here (live: about 2 s for a Frame.io link and its redirects).
+  const slowFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = ((input: Request | URL | string, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname === "127.0.0.1") return slowFetch(input, init);
+    providerCalls++;
+    return new Promise<Response>((r) => setTimeout(() => r(new Response("<html>Frame.io review</html>", { status: 200, headers: { "content-type": "text/html" } })), 1500));
+  }) as typeof fetch;
+  latency.ms = RT;
+  const timed = async (body: Row, who: "smm" | "admin" = "admin") => {
+    const t0 = performance.now();
+    const r = await step({ post_id: "p20", ...body }, who);
+    return { ...r, trips: (performance.now() - t0) / RT };
+  };
+  const plan: [string, Row, number][] = [
+    ["read", { action: "read" }, 2.5],
+    ["list", { action: "list", post_id: "" }, 3.5],
+    ["drop", { action: "version_drop", letter: "C" }, 4.5],
+    ["restore", { action: "version_restore", letter: "C" }, 4.5],
+    ["paste a link", { action: "version_link_set", letter: "B", link: "https://f.io/p20-b2" }, 4.5],
+    ["approve", { action: "answer", stage: "smm", kind: "approve", letter: "B" }, 4.5],
+    ["add a version", { action: "version_add", link: "https://f.io/p20-d" }, 4.5],
+    ["switch", { action: "switch_set", enabled: true }, 3.5],
+  ];
+  for (const [name, body, most] of plan) {
+    const r = await timed(body);
+    ok(r.body.ok === true && r.trips <= most, name + ": answers after " + r.trips.toFixed(1) + " database answers in a row (at most " + most + "; " + r.status + " " + (r.body.error || "") + ")");
+  }
+  const first = await timed({ action: "read", probe: true, probe_budget_ms: 250 });
+  const fs = (first.body.link_states || {}) as Record<string, Row>;
+  ok(first.body.ok === true && first.trips * RT < 2 * RT + 250 + 150 && first.body.probe_pending === true && fs.A?.state === "checking",
+    "Production's first read answers within its budget (" + Math.round(first.trips * RT) + " ms), the links it is still checking as \"checking\"");
+  const callsAfterFirst = providerCalls;
+  const second = await timed({ action: "read", probe: true });
+  const ss = (second.body.link_states || {}) as Record<string, Row>;
+  ok(ss.A?.state === "available" && !second.body.probe_pending && providerCalls === callsAfterFirst,
+    "its follow-up read joins the checks already running instead of starting them again, and gets their verdicts");
+  const third = await timed({ action: "read", probe: true, probe_budget_ms: 250 });
+  ok(!third.body.probe_pending && (third.body.link_states as Record<string, Row>).A?.state === "available" && third.trips <= 2.5, "a page reopened at once gets the kept verdicts in the first read");
+  latency.ms = 0;
+  globalThis.fetch = slowFetch;
+}
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

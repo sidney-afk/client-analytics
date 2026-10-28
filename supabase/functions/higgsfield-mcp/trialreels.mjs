@@ -6,6 +6,7 @@
 // the log (one row per version in studio_trial_versions). It never posts.
 // Plain JavaScript with no Deno parts; index.ts passes the database as deps:
 //   deps.insert(rows), deps.list({client, batch, video}), deps.get(id), deps.find({client, batch, video, letter}),
+//   deps.findByPost({post_id, letter}),
 //   deps.update(id, patch), deps.author
 // insert drops post_id and deliverable_id itself when those columns are not there yet (SyncView adds them).
 
@@ -16,7 +17,10 @@ const LETTER_RE = /^[A-G]$/;
 export const TEST_CLIENT_RE = /^sidney[\s_-]*laruel$/i;
 const TEST_ONLY = "Refused: trial reels run only on the test client until Sidney says otherwise.";
 // Once a version is on a SyncView card (post_id), approving, change requests and dropping belong to SyncView.
-const CARD_OWNED = ["approved", "change asked", "dropped", "waiting", "no clear winner"];
+const CARD_OWNED = ["approved", "change asked", "dropped", "waiting"];
+// The winner is picked only on the SyncView card (Sidney, 2026-10-27): the studio never writes these.
+const CARD_ONLY = ["winner", "lost", "no clear winner"];
+const NO_WINNER = "the winner is picked on the SyncView card, never by the studio";
 
 export const GUIDE = `Trial reels, step by step (studio_action "trial_reels"). Test client only until Sidney says otherwise.
 1. Read the client: client_brain, studio_profile (hook_style, music) and the base rules.
@@ -27,7 +31,7 @@ export const GUIDE = `Trial reels, step by step (studio_action "trial_reels"). T
 6. Picks get "pick": true and one other change each ("music": a Music Bank file, with --voice the voice-only mix, or "first_frame": seconds). trial_reels.py render (the hook stays the whole video), then pre_send_check.py check with --base (a version's own *_base.mp4 when listed) and verify on every file.
 7. Log: trial_reels.py rows, add post_id and deliverable_id from review_notes when the video has a card, then studio_action "trial_reels" {"step": "log", "rows": [...]}. A new cut of a version after a change was asked: the same row with "replace": true. Each rejected hook's reason becomes a rule: the client's (brain_change) or everyone's (feedback_note "FEEDBACK base rule").
 8. Whoever uploads to Frame.io pastes the links on the SyncView card; approvals and change requests happen on the card. The studio never writes links or approvals.
-After posting, the SMM sets each version to "on trial", and after 24 hours picks the winner: "winner" for one, "lost" for the rest. No numbers are needed.`;
+After posting, the SMM sets each version to "on trial". After 24 hours the winner is picked on the SyncView card, never here. No numbers are needed.`;
 
 const text = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
 const int = (v) => (v === "" || v == null ? null : Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : NaN);
@@ -44,6 +48,7 @@ export function cleanRow(r, author) {
   if (hook && hook.length > 300) return { error: `version ${letter}: hook is over 300 characters` };
   const status = text(r.status || "waiting", 20);
   if (!STATUSES.includes(status)) return { error: `status "${status}" is not one of: ${STATUSES.join(", ")}` };
+  if (CARD_ONLY.includes(status)) return { error: `version ${letter}: "${status}" cannot be logged, ${NO_WINNER}` };
   if (!TEST_CLIENT_RE.test(client)) return { error: TEST_ONLY.replace("Refused: ", "") };
   const ids = {};
   if (r.post_id != null && text(r.post_id, 121)) ids.post_id = text(r.post_id, 120);
@@ -82,13 +87,28 @@ export async function trialReels(deps, args) {
       if (have.status !== "change asked") return `Refused, nothing logged: version ${r.letter} is "${have.status}"; a new cut replaces a version only after a change was asked.`;
       swaps.push({ id: have.id, patch: { hook: r.hook, hook_type: r.hook_type, other_change: r.other_change, updated_at: new Date().toISOString() } });
     }
+    // SyncView adds Video A itself when a card is switched on (batch = post_id, video "card"),
+    // so a version already on that card is filled in, not added a second time.
+    const fresh = [], fills = [];
+    for (const { __replace, ...r } of clean.filter((x) => !x.__replace)) {
+      const have = r.post_id ? await deps.findByPost({ post_id: r.post_id, letter: r.letter }) : null;
+      if (have && have.missing) return "The trial reels log is not switched on yet (its table is waiting to be applied). Nothing logged.";
+      if (!have) { fresh.push(r); continue; }
+      if (!TEST_CLIENT_RE.test(String(have.client))) return "Refused, nothing logged: " + TEST_ONLY.replace("Refused: ", "");
+      // Only a row SyncView seeded and nobody filled in yet; a changed cut goes through replace.
+      if (have.hook || have.hook_type) return `Refused, nothing logged: version ${r.letter} on this card is already logged; a new cut needs "replace": true after a change was asked.`;
+      const patch = { hook: r.hook, hook_type: r.hook_type, other_change: r.other_change, updated_at: new Date().toISOString() };
+      if (r.deliverable_id) patch.deliverable_id = r.deliverable_id;
+      fills.push({ id: have.id, letter: r.letter, patch });
+    }
     for (const sw of swaps) await deps.update(sw.id, sw.patch);
-    const fresh = clean.filter((x) => !x.__replace).map(({ __replace, ...r }) => r);
-    if (!fresh.length) return `Replaced ${swaps.length} version${swaps.length === 1 ? "" : "s"} after a change was asked: ${clean.map((r) => r.letter).join(", ")}.`;
+    for (const f of fills) await deps.update(f.id, f.patch);
+    const filled = fills.length ? `; filled in ${fills.map((f) => f.letter).join(", ")} already on the card` : "";
+    if (!fresh.length) return swaps.length ? `Replaced ${swaps.length} version${swaps.length === 1 ? "" : "s"} after a change was asked: ${swaps.length === clean.length ? clean.map((r) => r.letter).join(", ") : clean.filter((x) => x.__replace).map((r) => r.letter).join(", ")}${filled}.` : `Nothing new to add${filled}.`;
     const res = await deps.insert(fresh);
     if (res && res.missing) return "The trial reels log is not switched on yet (its table is waiting to be applied). Nothing logged; keep the rows file and log it later.";
     if (res && res.duplicate) return "Refused, nothing logged: a version with that client, batch, video and letter is already logged. Use step update with its id.";
-    return `Logged ${fresh.length} version${fresh.length === 1 ? "" : "s"} for ${fresh[0].client} ${fresh[0].batch} video ${fresh[0].video}: ${fresh.map((r) => r.letter).join(", ")}${swaps.length ? `; replaced ${swaps.length}` : ""}.`;
+    return `Logged ${fresh.length} version${fresh.length === 1 ? "" : "s"} for ${fresh[0].client} ${fresh[0].batch} video ${fresh[0].video}: ${fresh.map((r) => r.letter).join(", ")}${swaps.length ? `; replaced ${swaps.length}` : ""}${filled}.`;
   }
   if (step === "list") {
     const client = text(args.client, 81);
@@ -109,7 +129,8 @@ export async function trialReels(deps, args) {
     if (args.status != null) {
       const s = text(args.status, 20);
       if (!STATUSES.includes(s)) return `status must be one of: ${STATUSES.join(", ")}.`;
-      if (row.post_id && CARD_OWNED.includes(s)) return `Refused: version ${row.letter} is on a SyncView card, so "${s}" is set on the card, not here. The studio sets only on trial, winner and lost.`;
+      if (CARD_ONLY.includes(s)) return `Refused: ${NO_WINNER}.`;
+      if (row.post_id && CARD_OWNED.includes(s)) return `Refused: version ${row.letter} is on a SyncView card, so "${s}" is set on the card, not here. The studio sets only "on trial" and the numbers.`;
       patch.status = s;
       if (s === "on trial") patch.posted_at = new Date().toISOString();
     }

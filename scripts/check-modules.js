@@ -131,7 +131,7 @@ const writeWindowExports = args.includes('--write-window-exports');
 const KNOWN_DEAD_GUARDS = new Set(['_sxrSyncStatusFromLinear']);
 
 const HOST_GLOBALS = new Set(['document', 'window', 'navigator', 'performance', 'indexedDB', 'requestAnimationFrame',
-  'AbortController', 'AbortSignal', 'MutationObserver', 'ResizeObserver', 'Chart']);
+  'AbortController', 'AbortSignal', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'Chart']);
 
 
 const failures = [];

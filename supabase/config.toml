@@ -183,6 +183,10 @@ verify_jwt = false
 [functions.crm-leads]
 verify_jwt = false
 
+# Leads CRM Gmail reader: read-only, server key only (docs/features/CRM_LEADS.md).
+[functions.crm-gmail]
+verify_jwt = false
+
 # Manual-only Slack notification sender. SQL writes durable intents first; this
 # endpoint requires NOTIFY_RUNNER_KEY and has no schedule or browser caller.
 [functions.notify]

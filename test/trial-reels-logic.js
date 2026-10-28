@@ -39,6 +39,24 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order' && L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order',
     'Kasper and the client answer a version only after the SMM has');
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve_all' }, NOW).patches.length === 0, 'Approve all skips every version not yet through the SMM');
+  // A card the team sent on today's way (today's Approve before the trial page, or the status menu) with no version the
+  // SMM has looked at: each version counts as through the SMM for the stage the card was sent to (Sidney, 2026-10-27:
+  // sent for approval, the client link must show the versions to answer). One unseen among seen ones stays with the team.
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'B'
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.length === 5,
+    'a card sent to the client with no version through the SMM: the client answers each version, and Approve all takes them all');
+  ok(L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).patches.length === 1
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).error === 'stage_order',
+    'sent to Kasper: Kasper answers, the client still waits for its turn');
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Tweaks Needed' }, NOW).error === 'stage_order',
+    'a card the team has not sent on keeps the order');
+  const someSeen = () => five().map(x => x.letter === 'A' ? Object.assign(x, { smm_ok_at: NOW }) : x);
+  ok(L.answerPatches(someSeen(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).error === 'stage_order'
+    && L.answerPatches(someSeen(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'A',
+    'once the SMM has looked at one version, one it has not seen stays with the team (Probe rule-miss 13)');
+  ok(L.readShape(five(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.every(x => x.ready === true)
+    && L.readShape(someSeen(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.map(x => x.ready).join() === 'true,false,false,false,false',
+    'the read says the same: ready on a card sent on whole, the SMM\'s own looks otherwise');
   const noLink = smmDone(); noLink[1].frame_url = null;
   ok(L.answerPatches(noLink, { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'version_has_no_link'
     && L.answerPatches(noLink, { stage: 'client', kind: 'approve_all' }, NOW).patches.every(p => p.letter !== 'B'), 'a version with no link is never approved: nothing to watch');
@@ -174,12 +192,28 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.mainLetter(picked, '') === 'A' && L.undoWinnerPatches(L.settleWinner(studioWin, null), A_LINK, {}).error === 'no_winner', 'the version on the card and Undo follow the card\'s letter only');
   ok(studioWin[1].status === 'winner', 'settleWinner leaves the rows as read (it returns copies)');
 
+  // A version added from SyncView (found live, 2026-10-27: a card the AI editor had not logged had nowhere to paste).
+  ok(L.ACTIONS.includes('version_add') && L.staffAllows('creative', 'version_add') && !L.staffAllows('automation', 'version_add'), 'version_add: admin, SMM and an editor; never the automation key');
+  ok(L.addVersion([], 'https://f.io/x', 'https://f.io/x').letter === 'A' && L.addVersion([], 'https://f.io/x', '').error === 'attach_first', 'the first version is the one on the card, so the card must carry its link first');
+  ok(L.addVersion([v('A'), v('B', { status: 'dropped' })], 'https://f.io/new', A_LINK).letter === 'C', 'the next free letter, dropped ones included');
+  ok(L.addVersion([v('A')], A_LINK, A_LINK).error === 'link_used_by_another_version' && L.addVersion([v('A')], '', A_LINK).error === 'version_has_no_link' && L.addVersion([v('A')], 'http://f.io/x', A_LINK).error === 'link_not_https', 'a link another version has, no link, or not https: refused');
+  ok(L.addVersion(['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(l => v(l, { frame_url: 'https://f.io/' + l })), 'https://f.io/h', A_LINK).error === 'no_letter_left' && L.addVersion([v('A', { status: 'on trial' })], 'https://f.io/n', A_LINK).error === 'version_on_trial', 'seven at most, and none once the trial has started');
+
+  const dupA = L.oneRowPerLetter([v('A', { id: 'studio-a', created_at: '2026-10-27T16:00:00Z' }), v('A', { id: 'card-a', created_at: '2026-10-27T15:13:12Z' }), v('B', { created_at: '2026-10-27T16:00:00Z' })]);
+  ok(dupA.length === 2 && dupA.find(x => x.letter === 'A').id === 'card-a', 'two rows for one letter (SyncView seeded A, then the studio logged its own A): the earliest is the version, the other is never read (Codex on PR 2373)');
+
+  ok(L.deliverableUuid('del_4676B09E-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111' && L.deliverableUuid('4676b09e-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111'
+    && L.deliverableUuid('del_notauuid') === null && L.deliverableUuid('') === null && L.deliverableUuid(null) === null, "the card's del_<uuid> sub-issue becomes the uuid the studio's column takes; anything else is null");
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   ok(!/video_status\s*:/.test(code) && !/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'the function never writes the card (no status, no link)');
   ok(!/\.from\("deliverables"\)\s*\.(update|insert|upsert)/.test(code) && !/production-write|production_artifact_write/.test(code), 'the function never writes the sub-issue or calls a Section 4 function');
-  ok((code.match(/await readVersions\(/g) || []).length >= 3 && !/await readVersions\(supabase, client, (postId|id)\)/.test(code) && /return settleWinner\(/.test(code),
+  // Since OPEN_REPAIRS 554 the reads start together, so they are not all awaited where they are made: every one still
+  // names a winner letter, and the rows read with the card are settled against the card's own.
+  ok((code.match(/readVersions\(supabase, client, (postId|id),/g) || []).length >= 3 && !/readVersions\(supabase, client, (postId|id)\)/.test(code)
+    && /return settleWinner\(/.test(code) && /settleWinner\(await rowsP!, sw\.winner_letter\)/.test(code),
     "every versions read passes the card's winner letter through settleWinner");
   ok(/assertSwitchOn\(supabase, client\)/.test(code) && /CLIENT_ACTIONS\.includes\(action\)/.test(code), 'every request checks the switch; a client link may only read and answer');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261027090000_trial_reels.sql'), 'utf8');

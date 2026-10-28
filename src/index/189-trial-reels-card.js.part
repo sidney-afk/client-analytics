@@ -55,12 +55,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         trial_not_over: 'The 24 h trial is not over yet.',
         card_posted: 'This post is already Posted, so the winner cannot change.',
         role_not_allowed: 'Your key cannot do this. Ask the SMM.',
+        no_letter_left: 'This card already has seven versions, Video A to Video G.',
+        post_id_too_long: 'This card cannot take versions. Tell the SyncView team.',
     };
 
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
     const _trlOpen = new Set();  // pids whose versions list is open
     const _trlEditing = {};      // pid -> letter being edited
     const _trlBusy = new Set();  // pid|action in flight
+    /* Every action answers at once (owner, 2026-10-27: "everything should feel fast"). The row is drawn from the last
+       server answer with the changes still in flight laid over it; a change leaves the list when its answer lands, so
+       a refusal puts the row back by itself, and the refusal is said in words (never a silent success). The writes of
+       one card go out one after another, in click order. */
+    const _trlPending = {};      // pid -> [{ apply(shape) -> shape }] changes shown but not answered yet
+    const _trlQueue = {};        // pid -> the card's write chain
+    const _trlWroteAt = {};      // pid -> when its last write was answered (an older list read must not undo it)
+    const _trlDirty = new Set(); // pids whose repaint waits for the link being typed in their list
 
     function _trlSlug(client) {
         try { return calClientSlug(String(client || '')); } catch (e) { return ''; }
@@ -96,8 +106,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
+        const began = Date.now();
         e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
-            .then(json => { e.cards = (json && json.cards) || {}; e.at = Date.now(); return e; })
+            .then(json => {
+                const cards = (json && json.cards) || {};
+                // A card with a write in flight, or one answered after this read began, keeps its newer answer.
+                for (const pid of Object.keys(e.cards)) {
+                    if ((_trlPending[pid] || []).length || (_trlWroteAt[pid] || 0) > began) { if (e.cards[pid]) cards[pid] = e.cards[pid]; else delete cards[pid]; }
+                }
+                e.cards = cards; e.at = Date.now(); return e;
+            })
             .catch(() => { e.at = Date.now(); return e; })
             .finally(() => { e.promise = null; _trlRepaintAll(slug); _trlNotesChanged(''); });
         return e.promise;
@@ -105,15 +123,58 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlShape(post) {
         const slug = _trlSlug(post.client || calState.client);
         const e = _trlCards[slug];
-        if (!e || !e.at) { if (slug) _trlLoad(slug); return null; }
+        if (!e || !e.at) { if (slug) _trlLoad(slug); return _trlView(null, post.id); }
         if (Date.now() - e.at > TRL_LIST_TTL_MS) _trlLoad(slug);
-        return e.cards[post.id] || null;
+        return _trlView(e.cards[post.id] || null, post.id);
+    }
+    // The last answer with the changes in flight laid over it (each change is written to be applied twice safely).
+    function _trlView(base, pid) {
+        const ops = _trlPending[pid];
+        if (!ops || !ops.length) return base;
+        let s = base ? JSON.parse(JSON.stringify(base)) : null;
+        for (const op of ops) s = op.apply(s) || s;
+        return s;
+    }
+    /* Show `apply` now, run `task` after the card's earlier writes, and drop the change when it settles: kept by the
+       answer the task stored, or gone with the refusal (the task says it in words). Answers the task's result. */
+    function _trlOptimistic(pid, apply, task) {
+        const op = { apply };
+        (_trlPending[pid] || (_trlPending[pid] = [])).push(op);
+        _trlRepaintField(pid);
+        const run = () => Promise.resolve().then(task).catch(() => null).then(res => {
+            const ops = _trlPending[pid] || [];
+            const i = ops.indexOf(op);
+            if (i >= 0) ops.splice(i, 1);
+            _trlWroteAt[pid] = Date.now();
+            _trlRepaintField(pid);
+            return res;
+        });
+        const next = (_trlQueue[pid] || Promise.resolve()).then(run, run);
+        _trlQueue[pid] = next;
+        return next;
+    }
+    const _trlFind = (s, letter) => ((s && s.versions) || []).find(x => x.letter === letter) || null;
+    /* What the function would refuse about a link in any case, said before anything moves (no flash of a link that then
+       goes away). The same hosts as logic.mjs cleanLink (LINK_HOSTS). */
+    const TRL_LINK_HOSTS = ['frame.io', 'app.frame.io', 'next.frame.io', 'f.io', 'drive.google.com', 'dropbox.com', 'www.dropbox.com'];
+    function _trlLinkError(link) {
+        if (!link) return '';
+        if (link.length > 2048 || !/^https:\/\/[^\s<>"']+$/i.test(link)) return 'link_not_https';
+        let u;
+        try { u = new URL(link); } catch (e) { return 'link_not_https'; }
+        if (u.username || u.password || !TRL_LINK_HOSTS.includes(u.hostname.toLowerCase().replace(/\.$/, '')) || u.pathname === '/') return 'link_host_unsupported';
+        return '';
     }
     function _trlRepaintField(pid) {
         const post = (calState.posts || []).find(p => p.id === pid);
         const field = document.querySelector('.cal-link-field[data-pid-wrap="' + pid + '"][data-fld-wrap="asset_url"]');
         if (!post || !field || field.classList.contains('editing')) return;
         const list = field.nextElementSibling;
+        // A link being typed in this list is never wiped by an answer landing for an earlier change: the repaint
+        // waits for its save (which repaints).
+        const typing = document.activeElement;
+        if (list && list.classList.contains('trl-list') && typing && typing.classList.contains('trl-link-input') && list.contains(typing)) { _trlDirty.add(pid); return; }
+        _trlDirty.delete(pid);
         if (list && list.classList.contains('trl-list')) list.remove();
         const input = field.querySelector('.cal-link-input');
         field.outerHTML = _calLinkFieldHtml(pid, 'asset_url', post.asset_url, input ? input.placeholder : 'Video URL (Frame.io / Drive)', false, false, post);
@@ -149,6 +210,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return new Set(vs.filter(TRL_LIVE).map(x => x.status)).size > 1;
     }
 
+    /* A version's label: a pill, except "dropped", which is plain muted text (owner, 2026-10-27: still said, never a
+       pill). sv-dropped-note is the one shared class; the card, Production and the review pages all use it. */
+    function svTrialLabelHtml(status) {
+        const s = String(status || '');
+        if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
+        return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '">' + _calEsc(s) + '</span>';
+    }
+
     /* The switch alone, for a card whose switch is off (today's row plus this, faint until hover). '' when the page
        switch does not list the client, on a client link, or before the switch read is in. */
     function svTrialSwitchHtml(pid, post) {
@@ -166,13 +235,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!shape || !shape.enabled) return null;
         const vs = shape.versions || [];
         const winner = vs.find(x => x.status === 'winner');
-        const open = _trlOpen.has(pid);
+        // With no version yet, the list stands open: its only row is where the first link is pasted.
+        const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);
         const main = winner ? 'Video ' + winner.letter : 'Video · ' + vs.length;
         const p = _calEscAttr(pid);
         // The row's parts are sibling buttons, styled as one row: the link (opens the video on the card), the state's
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
-        const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url">'
+        const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
+        const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
             + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="Open the video">' + parts.extIco
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
             + (tiny.text ? '<span class="trl-state">' + _calEsc(tiny.text) + '</span>' : '') + '</span></button>'
@@ -196,9 +267,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + l + '"></div>';
             }
             const link = v.frame_url ? '<a class="trl-go" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">' + TRL_GO + '</a>' : '';
-            const name = v.frame_url ? '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>'
+            // The name opens the version too, not only the small icon (owner, 2026-10-27).
+            const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span><button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>';
-            const label = svTrialLabelShown(vs, v) ? '<span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '<span class="trl-lab-gap"></span>';
+            const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status) : '<span class="trl-lab-gap"></span>';
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -215,7 +287,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // After the client's OK on every version, the SMM posts them as trial reels by hand and starts the 24 h here.
         const start = shape.card_approvable && !vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))
             ? '<button type="button" class="trl-start" onclick="svTrialStart(\'' + p + '\')">Posted as trial reels? Start the 24 h</button>' : '';
-        return '<div class="trl-list">' + rows + start + '</div>';
+        return '<div class="trl-list">' + rows + _trlAddHtml(pid, vs) + start + '</div>';
+    }
+    /* The next free letter (A to G), to add a version by pasting its link. Until 2026-10-27 a card listed only the
+       versions the AI editor had logged, so a card it had not logged had nowhere to paste a link. Gone once the trial
+       starts. */
+    function _trlAddHtml(pid, vs) {
+        if (vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))) return '';
+        const used = new Set(vs.map(v => v.letter));
+        const next = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].find(l => !used.has(l));
+        if (!next) return '';
+        const p = _calEscAttr(pid);
+        if (_trlEditing[pid] === '+') {
+            return '<div class="trl-v trl-editing trl-add"><span class="trl-l">Video ' + next + '</span>'
+                + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="" data-pid="' + p + '" data-letter="+"'
+                + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + next + '"></div>';
+        }
+        return '<div class="trl-v trl-add"><span class="trl-l">Video ' + next + '</span>'
+            + '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'+\')">Paste the Frame.io link</button></div>';
     }
 
     // ---- actions -----------------------------------------------------------------------------------------------
@@ -231,7 +320,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (json.versions) e.cards[pid] = Object.assign({}, e.cards[pid] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
             return json;
         } catch (e) {
-            if (e && e.code === 'conflict') _trlLoad(slug, true);
+            // This one card read again now (a list read would keep the change still in flight over it).
+            if (e && e.code === 'conflict') await _trlFresh(post);
             _trlSay(e, what);
             return null;
         } finally {
@@ -239,15 +329,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trlRepaintField(pid);
         }
     }
-    async function svTrialToggle(pid, on) {
+    /* On: the row and its versions list show at once, the list open by itself so the paste row for the next version is
+       right there (owner, 2026-10-27), seeded as the function seeds it (Video A is the card's link); then the one card
+       is read, not the whole client's list. Off: today's row at once. A refusal puts the row back and says so. */
+    function svTrialToggle(pid, on) {
         const post = _trlPost(pid);
-        if (!post) return;
+        if (!post) return Promise.resolve(null);
         const slug = _trlSlug(post.client || calState.client);
-        const json = await _trlRun(pid, 'switch', { action: 'switch_set', enabled: !!on }, 'Trial reels');
-        if (!json) return;
-        const e = _trlCards[slug];
-        if (!on) { if (e) delete e.cards[pid]; _trlOpen.delete(pid); _trlRepaintField(pid); return; }
-        await _trlLoad(slug, true);
+        const seed = String(post.asset_url || '').trim();
+        const wasOpen = _trlOpen.has(pid);
+        if (on) _trlOpen.add(pid); else _trlOpen.delete(pid);
+        return _trlOptimistic(pid, s => {
+            if (!on) return Object.assign(s || { versions: [] }, { enabled: false });
+            if (s && s.enabled) return s;
+            return { enabled: true, winner_letter: null, versions: seed && !_trlLinkError(seed) ? [{ letter: 'A', status: 'waiting', frame_url: seed, on_card: true }] : [] };
+        }, async () => {
+            const json = await _trlRun(pid, 'switch', { action: 'switch_set', enabled: !!on }, 'Trial reels');
+            if (!json) { if (wasOpen) _trlOpen.add(pid); else _trlOpen.delete(pid); return null; }
+            const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
+            if (!on) { delete e.cards[pid]; return json; }
+            if (!(await _trlFresh(post))) await _trlLoad(slug, true);
+            return json;
+        });
     }
     function svTrialOpen(pid, force) {
         if (force || !_trlOpen.has(pid)) _trlOpen.add(pid); else _trlOpen.delete(pid);
@@ -325,31 +428,64 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const v = vs.find(x => x.status !== 'dropped');
         return String((v && v.frame_url) || '');
     }
-    async function svTrialLinkSave(input) {
+    function svTrialLinkSave(input) {
         const pid = input.dataset.pid, letter = input.dataset.letter;
         const cancel = input.dataset.cancel === '1';
         delete _trlEditing[pid];
         const post = _trlPost(pid);
         const shape = post && _trlShape(post);
-        const v = shape && (shape.versions || []).find(x => x.letter === letter);
+        const v = shape && _trlFind(shape, letter);
         const link = String(input.value || '').trim();
+        if (letter === '+') { if (cancel || !post || !shape || !link) { _trlRepaintField(pid); return; } return _trlAdd(post, shape, link); }
         if (cancel || !post || !v || link === String(v.frame_url || '')) { _trlRepaintField(pid); return; }
-        if (v.on_card) {
-            // The version on the card: today's path first, then the copy (the function checks they agree). What the
-            // function would refuse anyway is said before anything moves (Probe bug 12): a link another version has,
-            // and a version already decided (on trial, winner, lost).
-            const what = 'Video ' + letter + "'s link";
-            if (link && (shape.versions || []).some(x => x.letter !== letter && String(x.frame_url || '') === link)) { _trlSay({ code: 'link_used_by_another_version' }, what); _trlRepaintField(pid); return; }
-            if (['on trial', 'winner', 'lost'].includes(v.status)) { _trlSay({ code: 'version_on_trial' }, what); _trlRepaintField(pid); return; }
+        // What the function would refuse anyway is said before anything moves (Probe bug 12): a link it does not take,
+        // a link another version has, and a version already decided (on trial, winner, lost).
+        const what = 'Video ' + letter + "'s link";
+        const bad = _trlLinkError(link)
+            || ((shape.versions || []).some(x => x.letter !== letter && String(x.frame_url || '') === link) ? 'link_used_by_another_version' : '')
+            || (['on trial', 'winner', 'lost'].includes(v.status) ? 'version_on_trial' : '');
+        if (bad) { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
+        const apply = s => { const x = _trlFind(s, letter); if (x) x.frame_url = link || null; return s; };
+        if (!v.on_card) return _trlOptimistic(pid, apply, () => _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what));
+        // The version on the card: today's path first, then the copy (the function checks they agree).
+        return _trlOptimistic(pid, apply, async () => {
             const before = String(post.asset_url || '');
             let mine = '';
             try { mine = await _trlSetCardLink(post, link); }
-            catch (e) { _trlSay(e, what); _trlRepaintField(pid); return; }
+            catch (e) { _trlSay(e, what); return null; }
             const json = await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what);
             if (!json) await _trlAttachBack(post, before, mine, link);
-            return;
-        }
-        await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, 'Video ' + letter + "'s link");
+            return json;
+        });
+    }
+    /* A new version. The first live one is the version on the card, so the card's link moves to it first through
+       today's path (as for Video A), and goes back if the function then refuses. */
+    function _trlAdd(post, shape, link) {
+        const pid = post.id, vs = shape.versions || [];
+        const what = 'The new version';
+        _trlOpen.add(pid);   // the list stays open on the next "Add" (with no version it was open only for being empty)
+        const used = new Set(vs.map(v => v.letter));
+        const letter = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].find(l => !used.has(l));
+        const bad = _trlLinkError(link) || (vs.some(x => String(x.frame_url || '') === link) ? 'link_used_by_another_version' : '') || (letter ? '' : 'no_letter_left');
+        if (bad) { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
+        const first = !vs.some(x => x.status !== 'dropped');
+        return _trlOptimistic(pid, s => {
+            const out = s || { enabled: true, winner_letter: null, versions: [] };
+            out.versions = out.versions || [];
+            if (!out.versions.some(x => x.frame_url === link)) out.versions.push({ letter, status: 'waiting', frame_url: link, on_card: first });
+            return out;
+        }, async () => {
+            const before = String(post.asset_url || '');
+            const move = first && link !== before;
+            let mine = '';
+            if (move) {
+                try { mine = await _trlSetCardLink(post, link); }
+                catch (e) { _trlSay(e, what); return null; }
+            }
+            const json = await _trlRun(pid, 'link', { action: 'version_add', link }, what);
+            if (!json && move) await _trlAttachBack(post, before, mine, link);
+            return json;
+        });
     }
     // Today's attach of one link onto a card, for the review page's tiles (194): the version on the card is dropped there too.
     async function svTrialMoveCard(post, link) { return _trlSetCardLink(post, link); }
@@ -375,37 +511,69 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* Dropping the version on the card (default (c), awaiting the owner): today's attach first puts the next live
        version's link on the card, so it becomes the one on the card, then the old one drops. */
-    async function svTrialDrop(pid, letter, restore) {
+    function svTrialDrop(pid, letter, restore) {
         const post = _trlPost(pid);
         const shape = post && _trlShape(post);
-        const v = shape && (shape.versions || []).find(x => x.letter === letter);
-        if (!restore && v && v.on_card) {
+        const v = shape && _trlFind(shape, letter);
+        if (!v) return;
+        const what = 'Video ' + letter;
+        if (!restore && v.on_card) {
             const next = _trlNextLive(shape.versions, letter);
             if (!next) { showNotify('Video ' + letter + ' was not dropped', 'It is the only version with a link. Paste another version\'s link first.'); return; }
-            const before = String(post.asset_url || '');
-            let mine = '';
-            try { mine = await _trlSetCardLink(post, next.frame_url); }
-            catch (e) { _trlSay(e, 'Video ' + letter); return; }
-            const json = await _trlRun(pid, 'drop', { action: 'version_drop', letter }, 'Video ' + letter);
-            if (!json) await _trlAttachBack(post, before, mine, next.frame_url);
-            return;
+            const to = next.frame_url, onto = next.letter;
+            return _trlOptimistic(pid, s => {
+                const a = _trlFind(s, letter), b = _trlFind(s, onto);
+                if (a) Object.assign(a, { status: 'dropped', on_card: false });
+                if (b) b.on_card = true;
+                return s;
+            }, async () => {
+                const before = String(post.asset_url || '');
+                let mine = '';
+                try { mine = await _trlSetCardLink(post, to); }
+                catch (e) { _trlSay(e, what); return null; }
+                const json = await _trlRun(pid, 'drop', { action: 'version_drop', letter }, what);
+                if (!json) await _trlAttachBack(post, before, mine, to);
+                return json;
+            });
         }
-        await _trlRun(pid, 'drop', { action: restore ? 'version_restore' : 'version_drop', letter }, 'Video ' + letter);
+        if (!restore && !(shape.versions || []).some(x => x.letter !== letter && x.status !== 'dropped')) { _trlSay({ code: 'last_live_version' }, what); return; }
+        return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) x.status = restore ? 'waiting' : 'dropped'; return s; },
+            () => _trlRun(pid, 'drop', { action: restore ? 'version_restore' : 'version_drop', letter }, what));
     }
-    async function svTrialNewCut(pid, letter) {
-        const json = await _trlRun(pid, 'newcut', { action: 'version_new_cut', letter }, 'Video ' + letter);
-        if (json) showToast('Video ' + letter + ' goes back to the SMM, then Kasper');
+    function svTrialNewCut(pid, letter) {
+        return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) x.status = 'waiting'; return s; }, async () => {
+            const json = await _trlRun(pid, 'newcut', { action: 'version_new_cut', letter }, 'Video ' + letter);
+            if (json) showToast('Video ' + letter + ' goes back to the SMM, then Kasper');
+            return json;
+        });
     }
-    async function svTrialStart(pid) {
-        await _trlRun(pid, 'start', { action: 'trial_start' }, 'The trial');
+    function svTrialStart(pid) {
+        const ends = new Date(Date.now() + 24 * 3600000).toISOString();
+        return _trlOptimistic(pid, s => {
+            for (const x of (s && s.versions) || []) if (x.status === 'approved') Object.assign(x, { status: 'on trial', trial_ends_at: ends });
+            if (s) s.trial_ends_at = s.trial_ends_at || ends;
+            return s;
+        }, () => _trlRun(pid, 'start', { action: 'trial_start' }, 'The trial'));
     }
     /* The winner, at once; today's toast offers Undo (no confirm, owner 2026-10-26). */
     /* Two staff can pick at once (Probe, bug 9). The pick reads the versions now and stops if a winner is already
        picked or this version is no longer on trial; and if the function still refuses the winner after the attach,
        the put-back is a compare-and-swap on the sub-issue (below), so a stale page never overwrites another pick. */
-    async function svTrialPick(pid, letter) {
+    function svTrialPick(pid, letter) {
+        if (!_trlPost(pid)) return;
+        // The winner shows at once; the race guard, the attach and the function follow (a refusal puts it back).
+        return _trlOptimistic(pid, s => {
+            for (const x of (s && s.versions) || []) {
+                if (x.letter === letter) Object.assign(x, { status: 'winner', on_card: true });
+                else { x.on_card = false; if (x.status === 'on trial') x.status = 'lost'; }
+            }
+            if (s) s.winner_letter = letter;
+            return s;
+        }, () => _trlPickNow(pid, letter));
+    }
+    async function _trlPickNow(pid, letter) {
         const post = _trlPost(pid);
-        if (!post) return;
+        if (!post) return null;
         const fresh = await _trlFresh(post);
         const v = fresh && (fresh.versions || []).find(x => x.letter === letter);
         if (!fresh) { showNotify('The winner was not picked', 'The versions could not be read. Try again.'); return; }
@@ -417,8 +585,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
         // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
         // so the card and the versions never disagree (the refusal is already on screen).
-        if (!json) { await _trlPutBack(post, mine, v.frame_url); return; }
+        if (!json) { await _trlPutBack(post, mine, v.frame_url); return null; }
         showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid) });
+        return json;
     }
     function _trlStale(pid) {
         _trlRepaintField(pid);
@@ -439,9 +608,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         _trlRepaintField(post.id);
     }
-    async function _trlUndoPick(pid) {
+    function _trlUndoPick(pid) {
+        if (!_trlPost(pid)) return;
+        return _trlOptimistic(pid, s => {
+            const first = ((s && s.versions) || []).find(x => x.status !== 'dropped');
+            for (const x of (s && s.versions) || []) {
+                if (x.status === 'winner' || x.status === 'lost') x.status = 'on trial';
+                x.on_card = x === first;
+            }
+            if (s) s.winner_letter = null;
+            return s;
+        }, () => _trlUndoNow(pid));
+    }
+    async function _trlUndoNow(pid) {
         const post = _trlPost(pid);
-        if (!post) return;
+        if (!post) return null;
         const fresh = await _trlFresh(post);
         if (!fresh) { showNotify('Undo did not happen', 'The versions could not be read. Try again.'); return; }
         if (!fresh.winner_letter) { _trlStale(pid); return; }
@@ -455,6 +636,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
         if (json) showToast('Back on trial');
         else await _trlPutBack(post, mine, link);   // the winner stands, so its link does too
+        return json;
     }
 // Production's Assets (245) read and write the same versions through the same calls and labels.
 
@@ -482,6 +664,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const v = vs.find(x => x.on_card) || vs[0];
         _trlNotesCur[post.id] = v.letter;
         return v;
+    }
+    /* A trial card the staff are looking at (any number of versions, before or after the pick): Notes marks it "Trial". */
+    function svTrialCardOn(post) {
+        if (!_trlStaffOn(post)) return false;
+        const shape = _trlShape(post);
+        return !!(shape && shape.enabled);
     }
     /* The letter on screen in the Notes view, or '' on every other card. */
     function svTrialNotesLetter(post) {
@@ -523,6 +711,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialStart, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialMoveCard, svTrialLabelShown, svTrialErrorText, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml,
-  svTrialSwitchHtml, svTrialVideoRowHtml
+  svTrialAttachBack, svTrialCall, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

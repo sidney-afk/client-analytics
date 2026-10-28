@@ -12,6 +12,7 @@ import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtComment
 import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
+import { _sxrKasperState } from './290-samples-writes-review.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -2349,7 +2350,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSaving(m, k) {
         if (R.S && R.S.editSaving[m.id + '|' + k]) return true;
-        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? (window._sxrKasperState && window._sxrKasperState.saving && window._sxrKasperState.saving[m.id + '|' + k]) : (it._saving && it._saving[k]))); }
+        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? !!_sxrKasperState.saving[m.id + '|' + k] : (it._saving && it._saving[k]))); }
         return !!_calReviewState.saving[m.id + '|' + k];
     }
     function _rsError(m, k) {
@@ -2416,11 +2417,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         S.cpOk[key] = Date.now();
         setTimeout(() => { if (R.S === S) _rsRender(); }, RS_CP_CHECK_MS + 20);
     }
-    function _rsSplit(x, busy) {
+    function _rsSplit(x, busy, trialWord) {
         const k = x.key, n = _rsLname(k), open = !busy && R.S.menu === k;
         // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
         // at once; a refused save puts the part back and says so (speed pass, session Swift).
-        const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
+        const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : (trialWord || 'Approve the ' + n);
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';
@@ -2441,7 +2442,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
-        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
+        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy, trialWord);
         const chg = busy === 'chg', fr = busy === 'frame';
         /* Kasper's second layout on a trial card: each version's tile carries its own Approve and change, so the video's
            own Approve and Ask for change would say the same thing twice (Probe K2). Only "Tweaks are on Frame" stays
@@ -2671,6 +2672,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsCpSeenFrom(m);
         try { _notesMarkSeen(m.id); } catch (e) {}
     }
+    /* A post's notes are read only once its conversation is on screen (session Notesfix, 2026-10-27). On a wide
+       screen it is, the moment it is drawn, so they are marked at once as before; on a phone the conversation sits
+       below the post, so they are marked when it scrolls into view, and a new team note stays "new" on the Sheet until
+       then. Only the client link marks the review page's notes read (staff and Kasper never do here). */
+    function _rsCpOnScreen(el) {
+        if (!el || !el.getClientRects().length) return false;
+        const r = el.getBoundingClientRect(), h = window.innerHeight || document.documentElement.clientHeight;
+        return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < h;
+    }
+    function _rsCpSeeWhenShown(m, el) {
+        if (R.cpSeenIO) { R.cpSeenIO.disconnect(); R.cpSeenIO = null; }
+        if (!R.cp || R.mode !== 'client' || !m || !m.id || R.host.hidden) return;
+        _rsCpSeenFrom(m);
+        if (_rsCpOnScreen(el) || typeof IntersectionObserver !== 'function') { _rsCpMarkSeen(m); return; }
+        const io = new IntersectionObserver(es => {
+            if (!es.some(e => e.isIntersecting) || R.cpSeenIO !== io) return;
+            io.disconnect(); R.cpSeenIO = null;
+            _rsCpMarkSeen(m);
+        });
+        R.cpSeenIO = io;
+        io.observe(el);
+    }
     function _rsCpBadge(m) {
         let seen = '';
         try { seen = String(_notesGetSeen(m.id) || ''); } catch (e) { seen = ''; }
@@ -2694,7 +2717,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!people.length) return { html: '', said: '' };
         const said = people.map(g => _rsFirst(g.t) + ': ' + (g.nNew ? g.nNew + ' new' : g.nOpen + (g.nOpen > 1 ? ' messages' : ' message') + ' waiting for your answer')).join(', ');
         const html = '<span class="cpbs" aria-hidden="true">' + shown.map(g => {
-            const av = '<span class="cpm-av' + (g.t.role === 'kasper' ? ' kp' : '') + '">' + _re(_rsFirst(g.t).charAt(0).toUpperCase()) + '</span>';
+            const av = '<span class="cpm-av' + (_rsKp(g.t) ? ' kp' : '') + '">' + _re(_rsFirst(g.t).charAt(0).toUpperCase()) + '</span>';
             return '<span class="cpb' + (g.nNew ? ' new' : '') + '">' + av + (g.nNew ? '<b class="cpb-n cpb-c num">' + g.nNew + '</b>' : '<b class="cpb-n num">' + g.nOpen + '</b>') + '</span>';
         }).join('') + (rest ? '<span class="cpb-more">+' + rest + '</span>' : '') + '</span>';
         return { html, said };
@@ -2710,12 +2733,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        and the cross on one's own note. */
     function _rsFirst(t) {
         if (t.you) return 'You';
-        if (t.role === 'kasper') return 'Kasper';
         const n = String(t.who || '').trim();
-        // A client link never names the staff: their notes read as the team ("Synchro team", 190), kept whole.
-        if (R.mode === 'client' && t.role !== 'client') return n || 'Team';
+        // A client link never names the staff, Kasper included: their notes read as the team ("Synchro team", 190),
+        // kept whole, with the team's "S" picture (_rsKp).
+        if (R.mode === 'client' && t.role !== 'client') return n || 'Synchro team';
+        if (t.role === 'kasper') return 'Kasper';
         return n ? n.split(/\s+/)[0] : (t.role === 'client' ? 'Client' : 'Team');
     }
+    // Kasper's own (violet) picture, for staff only: on the client link he is the team.
+    const _rsKp = t => t.role === 'kasper' && R.mode !== 'client';
     function _rsAgo(iso) {
         const t = Date.parse(iso || '');
         if (!isFinite(t)) return '';
@@ -2777,7 +2803,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             ? '<div class="cpm-x">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
               + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
             : '<div class="cpm-x bt' + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>';
-        const av = '<span class="cpm-av' + (t.you ? ' me' : t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '" aria-hidden="true">' + _re(t.you ? 'Y' : _rsFirst(t).charAt(0).toUpperCase()) + '</span>';
+        const av = '<span class="cpm-av' + (t.you ? ' me' : t.role === 'client' ? ' cl' : _rsKp(t) ? ' kp' : '') + '" aria-hidden="true">' + _re(t.you ? 'Y' : _rsFirst(t).charAt(0).toUpperCase()) + '</span>';
         const name = '<b' + (!t.you && _rsFirst(t) !== String(t.who || '').trim() ? ' title="' + _re(t.who) + '"' : '') + '>' + _re(_rsFirst(t)) + '</b>';
         const fresh = R.cpNewFrom !== null && R.cpNewFrom !== undefined && _rsCpIsNew(t, R.cpNewFrom) ? '<span class="cpm-k new" title="New since you last looked">New</span>' : '';
         const head = cont ? '' : '<div class="cpm-h">' + name + kind + done + fresh + when + acts + part + '</div>';
@@ -2801,7 +2827,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cpx = R.cp && t.canDelete && t.id && !asking ? '<button class="cp-x" type="button" data-cp-del="' + _re(t.id) + '" aria-label="Delete note" title="Delete note">' + RI.x + '</button>' : '';
         const cpAsk = asking ? '<div class="cp-ask" role="group" aria-label="Delete this note?"><span>Delete this note?</span><button class="cp-yes" type="button" data-cp-yes="' + _re(t.id) + '">Delete</button><button class="cp-no" type="button" data-cp-no="1">Cancel</button></div>' : '';
         const when = R.cp && t.sending ? _rsSpinner('Sending') : '<span>' + (t.spin ? svSpinHtml('Sending') : _re(t.time)) + '</span>';
-        const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
+        const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : _rsKp(t) ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
         const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
         const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
         return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + (asking ? ' cp-asking' : '') + '"' + (cpx ? ' data-cp-note="' + _re(t.id) + '"' : '') + '>' + av + '<div class="bb">' + cpx + '<div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + when + '</div>' + (t.edit
@@ -2844,7 +2870,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsChat(m) {
         const S = R.S, c = _rsQ('chat');
-        _rsCpMarkSeen(m);
+        // what was read when the post came on screen (its "New" marks); the notes are marked read once they show
+        if (R.cp && R.mode === 'client' && m && m.id) _rsCpSeenFrom(m);
         const th = _rsThreadHtml(m);
         const dk = !!S.note.part && S.note.where === 'stage';
         const foot = dk ? '<div class="ch-quiet">Your change shows up here when you send it.</div>' : _rsComposer(m);
@@ -2853,7 +2880,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : R.mode === 'smm'
                 ? '<span class="avs"><span class="av cl">' + _re(String(calState.client || '?').charAt(0)) + '</span><span class="av kp">K</span></span><span class="who"><b>Conversation</b><span>' + _re(calState.client || '') + ' (client), the editors and Kasper</span></span>'
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
-        if (!_rsCalm(c, '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>', m)) return;
+        const drew = _rsCalm(c, '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>', m);
+        _rsCpSeeWhenShown(m, _rsQ('tscroll') || c);
+        if (!drew) return;
         _rsBindThread(c, m);
         if (!dk) _rsBindComposer(c);
         const ts = _rsQ('tscroll'); if (ts) ts.scrollTop = ts.scrollHeight;
@@ -3099,7 +3128,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {
-                window._sxrKasperState.drafts[m.id + '|' + comp] = text;
+                _sxrKasperState.drafts[m.id + '|' + comp] = text;
                 if (opts.aat) window._sxrKasperApproveAfterTweaksComp(m.id, comp); else window._sxrKasperRequestTweakComp(m.id, comp);
             } else {
                 const it = _rsItem(m);
@@ -3260,7 +3289,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsSendNoteNow(m, comp, text, vis, parent) {
         delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
         if (R.mode === 'kasper') {
-            if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
+            if (m.sample) { _sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);
             if (!it._drafts) it._drafts = { video: '', graphic: '', caption: '' };
             // A card that left his lists (m.gone) is no longer where his own save path looks it up by id, so it would

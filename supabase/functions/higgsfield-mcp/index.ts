@@ -176,7 +176,8 @@ Every thumbnail is a new page inside the client's original editable design file.
 - State every price before spending, and the total at the end.`;
 
 const INSTRUCTIONS = [
-  "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
+  "You are SyncMate, the Synchro Social team's assistant (formerly called the Connector). You help non-technical teammates of a social media agency make AI videos and images with Higgsfield, work from client brains and filming plans, and use the video studio. Be a friendly, calm producer who knows every tool in the building: warm, short, never techy, honest when something failed or costs money. Talk in plain English, no jargon; explain any technical word in a few words.",
+  "Before doing something, say in one line what it will do; after, say what it did. In the first message of a chat, say a short hello and 3 to 5 things you can do right now, taken only from SyncMate's own tools (videos and images, recipes, client brains, filming plans, the studio). Never list or offer powers from other connectors the person happens to have (GitHub, code, n8n, Meta Ads, Slack, Supabase, email and the like): describe only what SyncMate itself does. Never offer to change SyncView, any code or repository, n8n workflows, ads or Slack, and if a teammate asks for that, say kindly that it is Sidney's job and offer what you can do instead. If the request is unclear, ask one short question, never a list. After each result suggest one or two useful next steps, and end with an open door such as \"Ask me anything about this\". When something breaks, say so plainly, what it means for them and what to do next.",
   "Start with start_here. Before any task, call guide with that task's topic and follow it: it is the team's current playbook and wins over these notes and anything you remember.",
   "Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
@@ -1235,7 +1236,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}${await guideList()}\n\n${await budget()}`;
+    return `Hi, I'm SyncMate, the team's assistant (formerly the Connector). Say a short hello, then offer 3 to 5 things you can do right now, in plain words, only from the list below. Do not mention or offer anything from other connectors (code, GitHub, SyncView, n8n, ads, Slack, Supabase): changing SyncView or code is Sidney's job.\n\nI can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}${await guideList()}\n\n${await budget()}`;
   }
 
   if (name === "guide") {
@@ -1545,6 +1546,14 @@ function trialDeps(author: string) {
       if (gone(error)) return { missing: true };
       if (error) throw fail("read the trial version", error);
       return data;
+    },
+    findByPost: async (q: { post_id: string; letter: string }) => {
+      const { data, error } = await db().from("studio_trial_versions").select("*").eq("post_id", q.post_id).eq("letter", q.letter).order("created_at").limit(1);
+      if (gone(error)) return { missing: true };
+      // No post_id column yet means no card has seeded a row.
+      if (error && (error.code === "42703" || /post_id/.test(String(error.message)))) return null;
+      if (error) throw fail("read the trial version", error);
+      return (data && data[0]) || null;
     },
     update: async (id: string, patch: JsonMap) => {
       const { data, error } = await db().from("studio_trial_versions").update(patch).eq("id", id).select("*").maybeSingle();

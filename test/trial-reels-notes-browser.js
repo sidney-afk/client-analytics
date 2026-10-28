@@ -14,6 +14,8 @@
  *   - a note about the video written while C is on screen starts "Video C:";
  *   - a version whose link cannot play here (Google Drive) keeps the switch, so another one can be picked again;
  *   - once a winner is picked: today's player, no switch;
+ *   - a trial card says so: one quiet "Trial" in the Notes head (Sidney, 2026-10-27), before and after the pick, and
+ *     none with the switch off;
  *   - no page errors.
  * TRIAL_NOTES_SHOTS=<dir> also writes screenshots (fictional data only).
  */
@@ -91,6 +93,8 @@ const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-cl
       letters: sw ? [...sw.querySelectorAll('.cal-cm-aud-btn')].map(b => b.textContent.trim()).join('') : '',
       active: sw ? ((sw.querySelector('.is-active') || {}).textContent || '').trim() : '',
       sub: ((modal.querySelector('.cal-comments-head-text p') || {}).textContent || '').trim(),
+      tag: [...modal.querySelectorAll('.cal-comments-head .trl-notes-tag')].filter(n => n.getClientRects().length).map(n => n.textContent.trim()).join('|'),
+      trials: ((modal.querySelector('.cal-comments-head') || {}).innerText || '').split(/\s+/).filter(w => /^trial$/i.test(w)).length,
       topic: topic ? topic.textContent.trim() : '',
       feed: (document.getElementById('calCommentsFeed') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -103,6 +107,7 @@ const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-cl
     let page = await open(1440, 900);
     let v = await look(page);
     ok(!v.sw && !/· Video/.test(v.sub), 'switch off: today\'s Notes view, no version switch');
+    ok(!v.tag && !v.trials, 'switch off: no Trial marker (' + v.tag + ')');
     await page.close();
 
     T.flag = true;
@@ -111,6 +116,7 @@ const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-cl
       page = await open(w, h);
       v = await look(page);
       ok(v.sw && v.letters === 'ABCDE' && v.active === 'A' && T.views.includes(LINK('A')), `${label}: a "Video A B C D E" switch, Video A (the card's link) on first and playing`);
+      ok(v.tag === 'Trial' && v.trials === 1, `${label}: one quiet "Trial" in the Notes head (${v.tag} x${v.trials})`);
       ok(label === 'desktop' ? v.inFoot : v.inBar, `${label}: the switch sits ${label === 'desktop' ? 'beside Open in Frame.io' : 'in a slim bar of its own under the player'}`);
       await page.click('#calNotesShell .trl-notes-sw .cal-cm-aud-btn:nth-child(3)');
       await sleep(1800);
@@ -150,6 +156,7 @@ const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-cl
     page = await open(1440, 900);
     v = await look(page);
     ok(!v.sw && !/· Video/.test(v.sub), 'after the pick: today\'s player, no switch');
+    ok(v.tag === 'Trial' && v.trials === 1, 'after the pick: still the one "Trial" in the Notes head (' + v.tag + ' x' + v.trials + ')');
     await page.close();
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));

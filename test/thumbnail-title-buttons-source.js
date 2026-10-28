@@ -145,7 +145,9 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); checks++; };
 
   const page = read('src/index/255-production-thumbnail-titles.js.part');
   const sw = read('src/index/188-review-stage-switch.js.part');
-  ok(/'thumbnail_title_buttons_staff'\]/.test(sw) && /function svThumbTitleButtonsOn\(\)[\s\S]{0,200}_rsListed\(_rsFlags\.ttb\)/.test(sw), 'the switch lists staff by id or full name; missing means off');
+  // Since session Allstaff (2026-10-27) every staff switch is read by one helper: a list by id or full name, or { "all": true }
+  // for any signed-in staff member; missing or malformed means off (docs/syncview-design/tests/staff-switch-all-browser.js runs it).
+  ok(/'thumbnail_title_buttons_staff'\]/.test(sw) && /const ttb = _rsStaffSwitch\(by\.thumbnail_title_buttons_staff\)/.test(sw) && /function svThumbTitleButtonsOn\(\)[\s\S]{0,200}_rsStaffOn\(_rsFlags\.ttb\)/.test(sw), 'the switch lists staff by id or full name, or all staff; missing means off');
   ok(/svThumbTitleButtonsOn\(\)/.test(page) && /_isClientLink/.test(page), 'the page draws nothing unless the switch lists the person, and never on a client link');
   ok(/svLayerOpen\(\{ key: 'prod-tt-review'/.test(page) && /svLayerRelease\('prod-tt-review'/.test(page), 'the review sheet joins the shared pop-up layers (Escape, outside click, focus back)');
   const keepAt = page.indexOf("_jsAttrArg('keep') + ')\">Keep mine</button>'");

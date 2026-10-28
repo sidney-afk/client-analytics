@@ -1,12 +1,15 @@
 'use strict';
 /*
- * THE CLIENT LINK'S CALENDAR IS READ ONLY, AND ITS VIDEO DOOR OPENS THE IN-APP VIEWER. Session Pane, 2026-10-18.
+ * THE CLIENT LINK'S CALENDAR IS READ ONLY (BUT FOR THE CAPTION IN COLLABORATIVE MODE), AND ITS VIDEO DOOR OPENS THE
+ * IN-APP VIEWER. Session Pane, 2026-10-18; caption reopened by session Capedit, 2026-10-27.
  * A real browser against the real page and a mocked backend (fictional client, cards and tokens), fully offline.
  *
  * Owner decisions, 2026-10-18, for the CLIENT LINK only (?c=...&t=...):
- *   1. A client cannot edit a caption or a call to action on the Sheet (Collaborative mode or not), and cannot drag a
+ *   1. A client cannot edit a call to action or a date on the Sheet (Collaborative mode or not), and cannot drag a
  *      post on Month or Week (nor from the "Unscheduled" list). Notes still work. The review page's own caption edit
  *      (for a post waiting on the client) is a different path and is covered by review-stage-browser.js.
+ *      Owner, 2026-10-27: with Collaborative mode ON a client may type the caption on an existing card, and it saves;
+ *      with it OFF the caption stays read only.
  *   2. The Sheet's video button opens the in-app viewer (video on the left, notes on the right) like the SMM
  *      Calendar, behind the same frame_viewer_clients switch; switched off it is the old link.
  * The staff Calendar must not change at all: its caption and call to action stay editable, its Month and Week still
@@ -47,7 +50,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch();
   try {
-    // ---------- the client Sheet: caption and call to action are read only, Collaborative mode on or off ----------
+    // ---------- the client Sheet: the caption opens in Collaborative mode, everything else stays read only ----------
     for (const collab of [true, false]) {
       console.log('--- client Sheet, Collaborative mode ' + (collab ? 'on' : 'off') + ' ---');
       const t = await openClient(browser, origin, { flags: 'off', collab, unscheduled: true, finished: true });
@@ -58,37 +61,62 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         const ctas = Array.from(document.querySelectorAll('input[data-fld="cta"]'));
         const dates = Array.from(document.querySelectorAll('.cal-fld-date-wrap'));
         return {
-          caps: caps.length, capsRo: caps.every(e => e.readOnly), ctas: ctas.length, ctasRo: ctas.every(e => e.readOnly),
+          caps: caps.length, capsRo: caps.every(e => e.readOnly), capsRw: caps.every(e => !e.readOnly),
+          ctas: ctas.length, ctasRo: ctas.every(e => e.readOnly),
           dates: dates.length, datesRo: dates.every(e => e.classList.contains('is-readonly') && !e.querySelector('input[type="date"]')),
           capCursor: caps[0] && getComputedStyle(caps[0]).cursor, ctaCursor: ctas[0] && getComputedStyle(ctas[0]).cursor,
         };
       });
-      expect(sheet.caps > 0 && sheet.capsRo, label + ': every caption box is read only (' + sheet.caps + ')');
+      if (collab) {
+        expect(sheet.caps > 0 && sheet.capsRw, label + ': every caption box is editable (' + sheet.caps + ')');
+        expect(sheet.capCursor === 'text', label + ': a text cursor over the caption (' + sheet.capCursor + ')');
+      } else {
+        expect(sheet.caps > 0 && sheet.capsRo, label + ': every caption box is read only (' + sheet.caps + ')');
+        expect(sheet.capCursor !== 'text', label + ': no text cursor over the caption (' + sheet.capCursor + ')');
+      }
       expect(sheet.ctas > 0 && sheet.ctasRo, label + ': every call-to-action box is read only (' + sheet.ctas + ')');
       expect(sheet.dates > 0 && sheet.datesRo, label + ': every date is a plain chip with no date picker (' + sheet.dates + ')');
-      expect(sheet.capCursor !== 'text' && sheet.ctaCursor !== 'text', label + ': no text cursor over them (' + sheet.capCursor + ', ' + sheet.ctaCursor + ')');
+      expect(sheet.ctaCursor !== 'text', label + ': no text cursor over the call to action (' + sheet.ctaCursor + ')');
       await shot(t, 'after-client-sheet-1440-light' + (collab ? '-collab' : ''));
 
       // Every way in: the keyboard, a paste, a drop, a blur, and the page's own handlers called directly.
       const n0 = t.state.upserts.length;
-      const cap = t.page.locator('textarea[data-fld="caption"]').first();
-      const cta = t.page.locator('input[data-fld="cta"]').first();
-      await cap.click(); await t.page.keyboard.type('typed by a client'); await t.page.keyboard.press('Control+V'); await t.page.keyboard.press('Backspace');
+      const pid = await t.page.evaluate(() => document.querySelector('.cal-card textarea[data-fld="caption"]').dataset.pid);
+      const before = Object.assign({}, t.state.cards.find(c => c.id === pid));
+      const cap = t.page.locator(`.cal-card[data-pid="${pid}"] textarea[data-fld="caption"]`).first();
+      const cta = t.page.locator(`.cal-card[data-pid="${pid}"] input[data-fld="cta"]`).first();
+      await cap.click(); await t.page.keyboard.press('Control+End'); await t.page.keyboard.type(' Typed by a client.'); await t.page.keyboard.press('Control+V');
       await cta.click(); await t.page.keyboard.type('typed by a client'); await t.page.keyboard.press('Tab');
-      await t.page.evaluate(() => {
-        const ta = document.querySelector('textarea[data-fld="caption"]'), ci = document.querySelector('input[data-fld="cta"]'), di = document.querySelector('input[type="date"]');
-        const data = new DataTransfer(); data.setData('text/plain', 'dropped text');
-        ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
-        ta.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
-        // The page's own handlers, as a script or an extension would call them with a value forced in.
-        ta.value = 'forced caption'; _calOnCaptionInput(ta); _calOnCaptionBlur(ta);
-        ci.value = 'forced cta'; _calOnFieldInput(ci); _calOnFieldBlur(ci);
-        if (di) { di.value = '2026-12-01'; _calOnDateChange(di); }
-        const alt = document.createElement('textarea'); alt.dataset.pid = ta.dataset.pid; alt.dataset.fld = 'caption_alt'; alt.value = 'forced alt'; _calOnAltCapInput(alt); _calOnFieldBlur(alt);
-      });
       await sleep(2500);
-      expect(textWrites(t, n0).length === 0, label + ': nothing is saved by typing, pasting, dropping, blurring or calling the handlers (' + JSON.stringify(textWrites(t, n0)).slice(0, 160) + ')');
-      expect(t.state.cards.find(c => c.id === 'rs1').caption.startsWith('Most people'), label + ': the card still has its caption');
+      const typed = t.state.upserts.slice(n0).filter(u => u.id === pid && 'caption' in u);
+      if (collab) {
+        expect(typed.some(u => String(u.caption).endsWith(' Typed by a client.')), label + ': the typed caption is saved (' + typed.length + ' save(s))');
+        expect(t.state.cards.find(c => c.id === pid).caption.endsWith(' Typed by a client.'), label + ': the card now has the client\'s caption');
+        await cap.click(); await shot(t, 'after-client-sheet-1440-light-collab-typed');
+      } else {
+        expect(typed.length === 0, label + ': typing in the caption saves nothing');
+      }
+      const n1 = t.state.upserts.length;
+      await t.page.evaluate(([pid, collabOn]) => {
+        const ta = document.querySelector(`.cal-card[data-pid="${pid}"] textarea[data-fld="caption"]`), ci = document.querySelector(`.cal-card[data-pid="${pid}"] input[data-fld="cta"]`);
+        const di = document.createElement('input'); di.type = 'date'; di.dataset.pid = pid; di.dataset.fld = 'scheduled_date';
+        const data = new DataTransfer(); data.setData('text/plain', 'dropped text');
+        if (!collabOn) {
+          ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+          ta.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+          // The page's own handlers, as a script or an extension would call them with a value forced in.
+          ta.value = 'forced caption'; _calOnCaptionInput(ta); _calOnCaptionBlur(ta);
+        }
+        ci.value = 'forced cta'; _calOnFieldInput(ci); _calOnFieldBlur(ci);
+        di.value = '2026-12-01'; _calOnDateChange(di); _calOnFieldBlur(di);
+        const alt = document.createElement('textarea'); alt.dataset.pid = pid; alt.dataset.fld = 'caption_alt'; alt.value = 'forced alt'; _calOnAltCapInput(alt); _calOnFieldBlur(alt);
+      }, [pid, collab]);
+      await sleep(2500);
+      const blocked = t.state.upserts.slice(collab ? n1 : n0).filter(u => 'cta' in u || 'caption_alt' in u || 'scheduled_date' in u || (!collab && 'caption' in u));
+      expect(blocked.length === 0, label + ': the call to action, date' + (collab ? '' : ', caption') + ' and alt caption save nothing, however they are reached (' + JSON.stringify(blocked).slice(0, 160) + ')');
+      const card = t.state.cards.find(c => c.id === pid);
+      if (!collab) expect(card.caption === before.caption, label + ': the card still has its caption');
+      expect(String(card.cta || '') === String(before.cta || '') && String(card.scheduled_date || '') === String(before.scheduled_date || '') && String(card.caption_alt || '') === String(before.caption_alt || ''), label + ': the card still has its call to action, date and alt caption');
       expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
@@ -98,8 +126,9 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       console.log('--- client Sheet, new review page on ---');
       const t = await openClient(browser, origin, { flags: 'on', collab: true, finished: true });
       await ready(t, 'organizer');
-      const ro = await t.page.evaluate(() => { const f = Array.from(document.querySelectorAll('textarea[data-fld="caption"], input[data-fld="cta"]')); return { n: f.length, ro: f.every(e => e.readOnly) }; });
-      expect(ro.n > 0 && ro.ro, 'review page on: caption and call to action are read only (' + ro.n + ')');
+      const ro = await t.page.evaluate(() => { const c = Array.from(document.querySelectorAll('textarea[data-fld="caption"]')), f = Array.from(document.querySelectorAll('input[data-fld="cta"]')); return { c: c.length, rw: c.every(e => !e.readOnly), n: f.length, ro: f.every(e => e.readOnly) }; });
+      expect(ro.c > 0 && ro.rw, 'review page on, collab on: the caption is editable (' + ro.c + ')');
+      expect(ro.n > 0 && ro.ro, 'review page on, collab on: the call to action is read only (' + ro.n + ')');
       await t.page.locator('.cal-card[data-pid="rf1"] .cal-link-post a.cal-link-pill-open').first().click();
       await t.page.locator('.fv-player').first().waitFor({ timeout: 20000 });
       expect(await t.page.locator('#calNotesStage .fv-player').count() === 1, 'review page on: the Video button opens the in-app viewer');
@@ -328,13 +357,18 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
     // (covered end to end by test/review-stage-browser.js: "a caption edit saves the new caption on the card")
 
     // ---------- phone width ----------
-    {
-      console.log('--- client Sheet at 390 ---');
-      const t = await openClient(browser, origin, { flags: 'off', collab: true, width: 390, height: 844 });
+    for (const collab of [true, false]) {
+      console.log('--- client Sheet at 390, Collaborative mode ' + (collab ? 'on' : 'off') + ' ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab, finished: true, width: 390, height: 844 });
       await ready(t, 'organizer');
-      const ro = await t.page.evaluate(() => Array.from(document.querySelectorAll('textarea[data-fld="caption"], input[data-fld="cta"]')).every(e => e.readOnly));
-      expect(ro, 'phone: caption and call to action are read only');
-      await shot(t, 'after-client-sheet-390-light');
+      const ro = await t.page.evaluate(() => ({
+        cap: Array.from(document.querySelectorAll('textarea[data-fld="caption"]')).map(e => e.readOnly),
+        cta: Array.from(document.querySelectorAll('input[data-fld="cta"]')).every(e => e.readOnly),
+      }));
+      expect(ro.cap.length > 0 && ro.cap.every(r => r === !collab), 'phone, collab ' + (collab ? 'on: the caption is editable' : 'off: the caption is read only'));
+      expect(ro.cta, 'phone, collab ' + (collab ? 'on' : 'off') + ': the call to action is read only');
+      if (collab && SHOTS) { const c = t.page.locator('textarea[data-fld="caption"]').first(); await c.scrollIntoViewIfNeeded(); await c.click(); await t.page.keyboard.press('Control+End'); await t.page.keyboard.type(' Typed by a client.'); }
+      await shot(t, 'after-client-sheet-390-light' + (collab ? '-collab' : ''));
       await t.ctx.close();
     }
 

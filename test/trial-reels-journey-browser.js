@@ -131,7 +131,7 @@ const DID = 'del_vid_1';
     let changes = [], extra = {}, r;
     if (action === 'answer') {
       const stage = isClient ? 'client' : L.clean(b.stage, 10).toLowerCase();
-      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note }, now);
+      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note, cardStatus: card.video_status }, now);
       if (r.error) return refuse(400, r.error);
       changes = r.patches;
     } else if (action === 'version_link_set') {
@@ -226,7 +226,7 @@ const DID = 'del_vid_1';
   });
   const heightOf = page => page.evaluate(() => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent); return c ? Math.round(c.getBoundingClientRect().height * 10) / 10 : 0; });
   const rowText = page => page.evaluate(() => { const f = [...document.querySelectorAll('.cal-link-field.cal-link-post')].find(n => n.offsetParent); return f ? f.innerText.replace(/\s+/g, ' ').trim() : ''; });
-  const listRows = page => page.$$eval('.trl-list .trl-v', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), lab: ((n.querySelector('.trl-lab') || {}).textContent || '').trim(),
+  const listRows = page => page.$$eval('.trl-list .trl-v:not(.trl-add)', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), lab: ((n.querySelector('.trl-lab') || {}).textContent || '').trim(),
     href: (n.querySelector('.trl-go') || {}).href || '', pick: !!n.querySelector('.trl-pick') })));
   async function shot(page, name) {
     if (!SHOTS) return;
@@ -384,8 +384,12 @@ const DID = 'del_vid_1';
     ok(W.sw && W.sw.enabled === true && W.ledger.some(r => r.action === 'trial_on'), '2 the card\'s switch: on, with a "trial_on" ledger row');
     let txt = await rowText(page);
     ok(/Video · 5/.test(txt) && /0\/5 approved/.test(txt), `2 the row reads "Video · 5", "0/5 approved" (${txt})`);
+    // Switched on, the list opens at once (#2392); its arrow closes it to today's row.
+    ok(!!(await page.$('.trl-list')), '2 switched on, the versions list opens at once');
+    await page.click('.cal-link-post .trl-chev');
+    await sleep(300);
     let hNow = await heightOf(page);
-    ok(Math.abs(hNow - todayH) < 0.5, `2 collapsed, the card keeps today's height (${todayH} → ${hNow})`);
+    ok(!(await page.$('.trl-list')) && Math.abs(hNow - todayH) < 0.5, `2 collapsed, the card keeps today's height (${todayH} → ${hNow})`);
     let l0 = W.ledger.length;
     await pasteOnCard(page, 'A', LINK('A'));
     ok(W.attaches.length === 1 && W.attaches[0].file_url === LINK('A') && V('A').frame_url === LINK('A'), '2 Video A (on the card): today\'s attach first, then its own link');

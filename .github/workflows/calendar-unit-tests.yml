@@ -394,11 +394,13 @@ jobs:
           Client review link works on phones (approve + request change)|node docs/syncview-design/tests/client-phone-review-browser.js
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
+          A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
           Notes reopen without a needless skeleton, and a reply sent while loading goes at once (switch unread_badges_v2; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js
+          The new-version bar asks a working tab once per burst of publishes and never reloads a draft away (fake clock; mocked)|node test/app-update-quiet-browser.js
           Caption prompts read and save guard (table read, fallback, pause switch)|node test/caption-prompts-guard-browser.js
           Client approve and request-changes requests are unchanged|node test/client-review-requests-unchanged-browser.js
           A client link made with tab=review opens on the Review view (Calendar and Samples)|node docs/syncview-design/tests/client-link-review-tab-browser.js
@@ -486,6 +488,8 @@ jobs:
           Trial reels: a change is about the version it was asked on, and Approve after tweaks names it|node test/trial-reels-change-naming-browser.js
           Trial reels: one card's whole journey across the card, Production, the SMM, Kasper and the client link (Probe's check)|node test/trial-reels-journey-browser.js
           Trial reels: a refused link or drop on the version on the card puts the card's link back|node test/trial-reels-link-guard-browser.js
+          Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
+          Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           LANES
 
 
@@ -549,7 +553,12 @@ jobs:
           Client review page polish behind its switch (Approve spinner then check, no wait cursor, a sent change keeps its box open, no Sending text, delete cross with a confirm, old page when off)|node test/review-client-polish-browser.js
           Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
           Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
+          Client link Sheet and Notes get the team's unread badges behind the same switch (one Synchro team picture, corner count for new, plain number for a waiting question, own notes never count, no staff names, no inbox read; today's look when off)|node test/client-unread-badges-browser.js
+          Client link notes are read only once on screen (390 waits for the conversation, 1440 at once), a reply in a done thread never counts as new, and the Review page names only the team|node test/client-notes-fixes-browser.js
+          Staff Notes button never counts a reply inside a done thread (history in Notes)|node test/staff-done-thread-badge-browser.js
+          Staff Notes composer offers the client audience as soon as Caption is picked on a Production-linked card (Video stays team only)|node test/notes-caption-composer-browser.js
           Kasper review polish for the staff on unread_badges_v2 (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, old page when off)|node test/review-kasper-polish-browser.js
+          Kasper's Tweaks are on Frame and a typed change on a SAMPLE save from his Review Session, polish on and off (OPEN_REPAIRS 539)|node test/review-stage-kasper-sample-frame-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js
           Calendar and Samples, an edit stays with its client|node test/calendar-edit-stays-with-its-client-browser.js
@@ -601,6 +610,7 @@ jobs:
           Calm Workload view behind its switch (one click to details, saves once)|node docs/syncview-design/tests/workload-calm-browser.js
           Calm Workload switch off leaves the old Workload byte-identical|node docs/syncview-design/tests/workload-calm-off-browser.js
           Calm Workload for everyone (workload_calm_staff all:true, hint holds the loader, old staff list still works)|node docs/syncview-design/tests/workload-calm-all-browser.js
+          Every staff switch takes all:true (on for staff in no list, never the client link, a list still a list, a bad row off)|node docs/syncview-design/tests/staff-switch-all-browser.js
           Calm Workload, every click (pills, chips, one Open link, close three ways, folds, filters, weeks, dark, phone)|node docs/syncview-design/tests/workload-calm-interactions-browser.js
           Calm Workload, no flashing warning on refresh, plan-origin marks, editor name colour|node docs/syncview-design/tests/workload-calm-five-browser.js
           Calm Workload, a client row with 3+ days of buffer keeps its green dot (red, orange, mixed grey, dark)|node docs/syncview-design/tests/workload-calm-buffer-dot-browser.js

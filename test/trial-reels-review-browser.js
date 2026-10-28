@@ -16,6 +16,8 @@
  *   - Ask for a change records the change on the version on screen and sends today's change request starting
  *     "Video C:";
  *   - once a winner is picked the client sees only "Video C: the one we are posting";
+ *   - one quiet "Trial" marker over the version's name wherever a trial card's video is reviewed: the client link, the
+ *     SMM's Review tab and both of Kasper's layouts (Sidney, 2026-10-27), and none on today's page;
  *   - no page errors.
  * TRIAL_REVIEW_SHOTS=<dir> also writes a screenshot of Kasper's second layout (fictional data only).
  */
@@ -65,7 +67,10 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
-        const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note }, new Date().toISOString());
+        // A slow line, or one refused answer, when a check asks for it (the page must answer at once all the same).
+        if (T.delay) await new Promise(res => setTimeout(res, T.delay));
+        if (T.failAnswer > 0 && b.kind !== 'change') { T.failAnswer--; return reply({ ok: false, error: 'write_failed' }, 500); }
+        const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note, cardStatus: 'Client Approval' }, new Date().toISOString());
         if (res.error) return reply({ ok: false, error: res.error }, 400);
         for (const p of res.patches) Object.assign(T.versions.find(v => v.id === p.id), p.patch);
         return reply(Object.assign({ ok: true }, shape()));
@@ -102,11 +107,20 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
       await t.page.evaluate(() => onCalViewChange('smmreview'));
     }
+    // Kasper's second layout has no steps: it is ready once its list of parts is drawn.
     if (extra && extra.layout2) await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
     else await waitNew(t);
     await sleep(1500);
     return t;
   }
+  // The "Trial" marker (Sidney, 2026-10-27: one small marker, not a pill pile): the marker on screen, and how many times
+  // the word shows on the page in all.
+  const tags = t => t.page.evaluate(() => {
+    const r = document.getElementById('svReviewStage').shadowRoot;
+    const on = [...r.querySelectorAll('.trv-tag')].filter(n => n.getClientRects().length).map(n => n.textContent.trim()).join('|');
+    const all = ([...r.children].map(c => c.innerText || '').join(' ').match(/\btrial\b/gi) || []).length;
+    return on + ' x' + all;
+  });
   const bar = t => t.page.evaluate(() => {
     const r = document.getElementById('svReviewStage').shadowRoot;
     const b = r.querySelector('.trv');
@@ -138,12 +152,14 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     let t = await start('client', false, fresh());
     let b = await bar(t);
     ok(!b.text && !t.T.calls.length && /Approve the video/.test(b.ok), 'switch off: today\'s page, no version bar, the function never asked');
+    ok(await tags(t) === ' x0', 'switch off: no Trial marker (' + await tags(t) + ')');
     await t.ctx.close();
 
     // ---------- the client link ----------
     t = await start('client', true, fresh());
     b = await bar(t);
     b.link = t.T.views[t.T.views.length - 1] || '';
+    ok(await tags(t) === 'Trial x1', 'client: one "Trial" marker on the video (' + await tags(t) + ')');
     ok(/Video A of 5/.test(b.text) && b.dots.length === 5 && b.letters === 'ABCDE', 'client: "Video A of 5" with a letter dot per version (' + b.text + ')');
     ok(b.under && b.sides === 'beside', 'client: the name and dots sit under the player and an arrow on each side of it (Probe E1; arrows ' + b.sides + ')');
     ok(b.all === 'Approve all (5 waiting)' && b.finish === '0 of 7', 'client: "Approve all (5 waiting)" beside Finish reviewing, which counts the versions (Probe E4, E5: ' + b.all + ' | ' + b.finish + ')');
@@ -190,6 +206,48 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await sleep(700);
     const teamRow = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { ok: !!r.querySelector('[data-ok="video"]'), txt: ((r.getElementById('drow') || {}).innerText || '').replace(/\s+/g, ' ') }; });
     ok(!teamRow.ok && /With the team: the SMM looks at Video B first/.test(teamRow.txt), 'client: on Video B no Approve, only "With the team" (' + teamRow.txt.slice(0, 80) + ')');
+    await t.ctx.close();
+
+    // ---------- sent for approval today's way, no version through the SMM: the client answers them (Sidney, 2026-10-27) ----------
+    t = await start('client', true, fresh(), { noSmm: ['A', 'B', 'C', 'D', 'E'] });
+    b = await bar(t);
+    ok(/^Video A of 5/.test(b.text) && b.ok === 'Approve Video A' && b.all === 'Approve all (5 waiting)' && b.dots.every(d => d === 'wait'),
+      'client: a card sent to the client with no version through the SMM shows every version to answer (' + b.text + ' / ' + b.ok + ' / ' + b.all + ' / ' + b.dots.join(',') + ')');
+    await inS(t.page, '[data-ok="video"]').click();
+    await sleep(900);
+    ok(t.T.versions[0].status === 'approved', 'client: and Approve answers Video A');
+    ok(!t.errors.length, 'client: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- Approve answers at once on a slow line, in order, and a refused one goes back (Sidney: "everything should feel fast") ----------
+    t = await start('client', true, fresh());
+    t.T.delay = 1500;
+    n0 = t.state.upserts.length;
+    let t0 = Date.now();
+    await inS(t.page, '[data-ok="video"]').click();
+    await waitFor(async () => /^Video B of 5/.test((await bar(t)).text) && (await bar(t)).dots[0] === 'ok', 40);
+    const fast = Date.now() - t0;
+    b = await bar(t);
+    ok(/^Video B of 5/.test(b.text) && b.dots[0] === 'ok' && fast < 600 && t.T.versions[0].status === 'waiting',
+      'client, slow line: Approve shows Video A approved and moves to Video B at once, before the server answers (' + fast + ' ms)');
+    await inS(t.page, '[data-ok="video"]').click();
+    await waitFor(async () => /^Video C of 5/.test((await bar(t)).text), 40);
+    ok(/^Video C of 5/.test((await bar(t)).text), 'client, slow line: a second Approve right after is taken too, not lost');
+    await waitFor(async () => t.T.versions[1].status === 'approved', 60);
+    ok(t.T.versions[0].status === 'approved' && t.T.versions[1].status === 'approved' && t.T.calls.filter(c => c.action === 'answer').map(c => c.letter).join('') === 'AB',
+      'client, slow line: both answers reach the server, in order (' + t.T.calls.filter(c => c.action === 'answer').map(c => c.letter).join('') + ')');
+    b = await bar(t);
+    ok(b.dots[0] === 'ok' && b.dots[1] === 'ok' && !t.state.upserts.slice(n0).some(u => u.video_status), 'client, slow line: A and B stay approved once the server agrees, and the card waits');
+    t.T.delay = 300; t.T.failAnswer = 1;
+    await inS(t.page, '[data-ok="video"]').click();
+    await sleep(100);
+    const early = (await bar(t)).dots[2];
+    await waitFor(async () => (await bar(t)).dots[2] === 'wait' && /^Video C of 5/.test((await bar(t)).text), 40);
+    b = await bar(t);
+    ok(early === 'ok' && b.dots[2] === 'wait' && /^Video C of 5/.test(b.text) && t.T.versions[2].status === 'waiting',
+      'client, refused: Video C reads approved at once, then goes back to waiting, on Video C (' + early + ' then ' + b.dots[2] + ', ' + b.text + ')');
+    ok(await t.page.evaluate(() => /Video C was not approved/.test(document.body.innerText)), 'client, refused: and the page says Video C was not approved');
+    ok(!t.errors.length, 'client, slow line: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // ---------- a version this reviewer already approved shows its approved state (Probe rule-miss 14) ----------
@@ -280,12 +338,14 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     t = await start('client', true, fresh({ A: { status: 'lost' }, B: { status: 'lost' }, C: { status: 'winner' }, D: { status: 'lost' }, E: { status: 'lost' } }));
     b = await bar(t);
     ok(b.text === 'Video C: the one we are posting' && !b.dots.length, 'client after the pick: only "Video C: the one we are posting" (' + b.text + ')');
+    ok(await tags(t) === 'Trial x1', 'client after the pick: still the one "Trial" marker (' + await tags(t) + ')');
     await t.ctx.close();
 
     // ---------- the SMM's Review tab ----------
     t = await start('smm', true, fresh());
     b = await bar(t);
     ok(/^Video A of 5/.test(b.text) && /Approve to Kasper/.test(b.ok), 'SMM: the same bar, and today\'s Approve to Kasper (' + b.ok + ')');
+    ok(await tags(t) === 'Trial x1', 'SMM: one "Trial" marker (' + await tags(t) + ')');
     await inS(t.page, '.trv [data-trv-go="D"]').click();
     await sleep(1200);
     ok(t.T.views.includes(LINK('D')) && (await bar(t)).player, 'SMM: a staff page plays Video D in place (the player asks for its own link)');
@@ -382,6 +442,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     t = await start('kasper', true, fresh());
     b = await bar(t);
     ok(/^Video A of 5/.test(b.text), 'Kasper: the same bar (' + b.text + ')');
+    ok(await tags(t) === 'Trial x1', 'Kasper: one "Trial" marker (' + await tags(t) + ')');
+    // Kasper approves only the version on screen, so his button names it, as the client's does (Trialtest, 2026-10-28).
+    ok(b.ok === 'Approve Video A', 'Kasper: the approve button names the version on screen (' + b.ok + ')');
     n0 = t.state.upserts.length;
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => t.T.calls.some(c => c.action === 'answer'));
@@ -396,6 +459,14 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.versions[2].status === 'change asked' && /"body":"Tweaks are on Frame/.test(sent()) && !/Video C: Tweaks are on Frame/.test(sent()),
       'Kasper: Tweaks are on Frame on Video C records the change there and sends today\'s note word for word');
     ok(!t.errors.length, 'Kasper: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // ---------- Kasper's second layout ----------
+    t = await start('kasper', true, fresh(), { layout2: true });
+    ok(await tags(t) === 'Trial x1', 'Kasper, second layout: one "Trial" marker (' + await tags(t) + ')');
+    // Every version has its own tile here (build 6), so each tile's Approve names its own version (Trialtest, 551).
+    const l2ok = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('.trk-ok')].map(n => n.getAttribute('aria-label') || n.textContent.trim()).join('|'); });
+    ok(l2ok === 'Approve Video A|Approve Video B|Approve Video C|Approve Video D|Approve Video E', 'Kasper, second layout: each tile\'s Approve names its version (' + l2ok + ')');
+    ok(!t.errors.length, 'Kasper, second layout: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));

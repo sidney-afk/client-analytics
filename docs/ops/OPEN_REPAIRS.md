@@ -34542,6 +34542,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
 - **Way back:** delete the switch row, or revert the pull request.
 
+## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, a 24 h trial and the SMM's winner pick (session Trials)
+
+- **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
+- **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. The per-version rows and the 24 h log are one table, `studio_trial_versions` from #2349 (the studio half), with SyncView's columns added; one small new table for the card's switch (`trial_reel_cards`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.
+- **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
+- **Owner answers (2026-10-26):** all ten questions answered and folded in (no numbers typed, the SMM picks the winner, people paste the Frame.io links, the client sees only the winner). The build PR also carries a follow-up migration on `studio_trial_versions` and three small `trialreels.mjs` changes (#2349 merged without them).
+- **Round 2 (owner's look at the card, 2026-10-26):** the versions are collapsed inside today's Video row (the card keeps its exact height, measured), named "Video A"… with no hook text, the winner takes the one link (card and Production Deliverable file, set through `production-write`'s existing `attachment`), and the Notes player gets a version switch. Pictures on the real page in `docs/features/trial-reels/real/`.
+- **Owner answers to round 2 (2026-10-26):** all seven settled; each version is its own "Deliverable file · Video X" row in Production Assets, one store per version (`frame_url`) written from the card or Production, and `file_url` stays the one link of the version on the card, written only through today's `attachment`. The schema is settled (plan, section 3) and handed to the AI editor lane for its `trialreels.mjs` follow-up.
+- **Waiting on:** the owner's go to build.
+
+**Way back:** nothing is built; close the pull request.
+
 ## 517. [2026-10-27 UTC, BUILT, NOT MERGED] The unread-badges browser test went red just after midnight UTC; the fixture and the page now share one pinned clock (session Midnight)
 
 - **What failed.** `calendar-unit-tests` on #2356 (a backend-only PR), job `entry-links-boot (3)`, 00:03:41 UTC on 2026-10-27: `FAIL  H. day lines say "Today": Yesterday` in `docs/syncview-design/tests/unread-badges-v2-browser.js`. Reproduced here at 00:18 UTC on unchanged main: `Yesterday, Today`. Any PR, and main, run in the first ~40 minutes after midnight UTC hit it.
@@ -34774,3 +34786,230 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (91 checks: 6 new, failing without the fix) and the Deno function test (40: 4 new, failing without the fix). The type ratchet adds no new errors. The frameio-view client-link check gets the same rule in build 7.
 
 **Way back:** revert this commit.
+
+## 542. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, found live: a card the AI editor had not logged showed no versions and nowhere to paste a link (session Trials)
+
+- **What happened:** with builds 1 and 2 merged and `trial_reels_pages` listing the test client, the owner switched trial reels on for a card (`trial_reel_cards` row and `trial_on` event, 15:13 UTC). The row then read "Video · 0", "Show the versions" opened nothing, and there was no way to paste a Frame.io link.
+- **Why:** the card listed only the rows the AI editor's studio log writes to `studio_trial_versions`, and SyncView had no way to add one. The test client had none. The card test started from five logged versions, so it never saw an empty card.
+- **Fix:**
+  - New `trial-reels` action `version_add`, for staff keys (admin, SMM and editor). It adds the next free letter, A to G, with its link. It refuses a link another version has, a missing or non-https link, an eighth version, and any addition once the trial has started.
+  - The first live version is the one on the card, so its link must already be the card's (`attach_first`).
+  - The row's key in the studio's table is batch = the card's id and video = `card`. `post_id` is what every read goes by.
+  - Switching a card on with no version starts it with Video A, the link the card already carries.
+  - On the card, the list ends with "Video X · Paste the Frame.io link" until the trial starts, and stands open while there is no version. The first version goes on the card first through today's path, as Video A does, and goes back if the function then refuses.
+- **Proven:**
+  - `node test/trial-reels-empty-card-browser.js` (30 checks, desktop and 390). It starts as the live card did, with no version rows; on main's code it fails at the first look, with nothing to paste into.
+  - The Deno function test (46, with the seed, the add and its refusals). The logic test (96).
+  - Also passing: trial-reels-card-browser (60), race and link-guard browser tests, the type ratchet, prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618), write-path-refusal-coverage, check-lazy-safety.
+
+**Way back:** revert the pull request. Rows already added stay as ordinary version rows.
+
+## 541. [2026-10-27 UTC, BUILT, NOT MERGED] The client link's Sheet and Notes get the team's unread badges, behind `review_client_polish` (session Clientbadges)
+
+- **Owner, 2026-10-27:** "Even on my test client, I still see the old badges thing for the notes. The way I experience notes on my account should be the same for the clients, at least on my test client first."
+- **What was missing:** the client review page already had the round-8 badges (498, 500). The client link's Calendar did not: the Sheet's Notes button still showed the old dot and "N open", and Notes the old rows, because 327 ran only for staff on `unread_badges_v2` (`svUnreadBadgesOn()` is false on every client link).
+- **Built (327, browser only, no server change):** 327 now also runs on a client link that `review_client_polish` lists (only the test client today; no new switch, no new row). The Sheet's Notes button gets the team's picture with a corner count for new and the plain number for waiting, the hover lists the lines, and Notes gets the team's rows, "New" tags, quiet "Change request" and no Reply on a change request. Read state is the store the client link already used (`syncview_notes_seen_v1`, this browser, set when Notes opens), so no new browser write privileges.
+- **Differences kept on purpose (client link vs staff), one line each:**
+  - Only the team's notes count: the client's own notes, comments and change requests are the client's, so they are never "new" or "to answer".
+  - "Waiting for your answer" is a read team comment that asks something ("?") and still has the last word in its thread, never a change request: the client review page's rule (500), so the Sheet and the Review page agree.
+  - No count of the client's own change requests not done yet (today's "N open"): they wait on the team, not on the client; Notes still says "Change request" and "Done".
+  - The team is one picture and one name, "Synchro team", with an "S": the client link has never named staff (190 `_calNoteAuthorName`), so no first names, initials or Slack photos.
+  - Kasper's notes count as the team's (no violet "Kasper" bubble), for the same reason; his team-only notes never reach a client link.
+  - The client's own notes read "You", as on the client review page.
+  - No "No reply needed" and no "Mark unread": both are this browser's own lists on the staff side; a client's question waits until they answer.
+  - No Messages button, inbox or inbox read: Messages is the team's.
+  - The phone gets it too (staff phones keep their own phone design; a client's phone shows the same calendar as a wide screen).
+  - Team-only notes and Frame.io staff comments never show or count (unchanged: the client link's Notes never had them).
+- **Caveat for the owner's own test:** `syncview_notes_seen_v1` is one store per browser, so opening a card's Notes as staff marks it read on the test client's link in the same browser too (true before this change).
+- **Proof:** `node test/client-unread-badges-browser.js` (new, offline, in calendar-unit-tests): switch on, the corner count, the plain number, nothing for answered questions or statements or the client's own change request, "Synchro team" only, no staff names, New on open, no "No reply needed", no inbox read, 390 wide; switch off, today's "1 open", dot and Notes; the staff Calendar unchanged. On main's 327, 11 checks fail. Screenshots: `docs/syncview-design/proofs/client-unread-badges/` (1440 and 390, light and dark, on and off).
+
+## 546. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, found live after #2373: adding a version failed on every card with a video sub-issue (session Trials)
+
+- **What happened:** on the test card, Trialtest pasted the card's own link as Video A. `version_add` answered `500 write_failed` and wrote nothing. The switch-on seed of Video A had failed the same way, silently (it is best effort).
+- **Why:** `insertVersion` wrote the card's `video_deliverable_id`, which the card stores as `del_<uuid>`, into `studio_trial_versions.deliverable_id`, a uuid column. Postgres refused it with 22P02. The test fixtures used bare uuids for the sub-issue and their mock database did not enforce the column type, so the tests passed.
+- **Fix:** the row gets the uuid part of the sub-issue id (`deliverableUuid` in `supabase/functions/trial-reels/logic.mjs`), or null when it has none. The AI editor's log already stores the bare uuid in that column.
+- **Proven:**
+  - The Deno function test's mock now refuses a non-uuid `deliverable_id` as Postgres does. A card named as live (`del_…`) is seeded with Video A and takes Video B. Both checks fail without the fix (47 of 49).
+  - The logic test (98).
+  - The type ratchet adds no errors.
+
+**Way back:** revert the pull request.
+
+## 548. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a card sent for approval before any version went through the SMM showed the client nothing to answer (session Trials)
+
+- **What happened:** Sidney sent a trial card for client approval live, before build 4's per-version review page was on main. That send was today's Approve, which records no SMM answer on any version. With build 4, the client link would show every version "with the team" with no Approve, and the server would refuse the client's answers (`stage_order`). The card could not move. A card moved to Client Approval from the status menu hits the same thing.
+- **Fix:** the team sending the card on now counts. When the card is at the stage's own step (Kasper Approval for Kasper; Client Approval or later for the client) and the SMM has looked at no version, every version is ready for that stage. `sentOnWhole` in `supabase/functions/trial-reels/logic.mjs` decides it, and both the answer and the read's `ready` use it. Once the SMM has looked at one version, one it has not seen stays with the team, as before (Probe rule-miss 13).
+- **Proven:**
+  - `test/trial-reels-logic.js` (113).
+  - The Deno function test runs a card sent to Kasper and then to the client (60; 3 fail without the fix).
+  - `test/trial-reels-review-browser.js`: on the client link, such a card shows "Approve Video A" and "Approve all (5 waiting)", and Approve answers (44; fails without the fix).
+  - The other trial browser suites pass.
+  - The type ratchet adds no errors.
+
+**Way back:** revert the pull request.
+
+## 549. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels review page: a trial video did not say it was one, and Approve waited for the server (session Trials)
+
+- **What Sidney asked:**
+  - "It should say that it's a trial video whenever we view it" in the review pages.
+  - "Everything should feel fast."
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - A small muted "TRIAL" now sits over the version's name ("Video A of 5"). It shows on the client link, the SMM's Review tab and both of Kasper's layouts. It is one word and no pill. It does not go on the player's badge, because the page hides that badge on a narrow 9:16 player. On a phone the swipe hint moves under the dots, so the word sits right over the name.
+  - Approve and Approve all now answer at once. The version reads approved and the page moves to the next one before the server answers.
+  - One card's answers go to the server one at a time, in order. Only the latest reply is drawn, so a second Approve right after the first is never undone by the first one's reply.
+  - A refused answer puts the version back, says "Video C was not approved", and reloads the card from the server.
+  - Today's approve on the card still runs only once the server says the stage is done.
+- **Proven:** `test/trial-reels-review-browser.js` (58). Without the fix it failed:
+  - the marker on all four surfaces;
+  - Approve answering in under 600 ms on a 1.5 s line;
+  - two quick Approves both reaching the server in order;
+  - a refused one going back.
+- **Notes player marker:** that comes with build 5 (#2364), the Notes player's version switch.
+
+**Way back:** revert the pull request.
+
+## 539. [2026-10-27 UTC, BUILT, NOT MERGED] Kasper could not press "Tweaks are on Frame" (or send any change) on a sample from his Review Session (session Frametweak)
+
+- **Why:** reported by Kasper through the owner on 2026-10-27. Pressing "Tweaks are on Frame" on a sample did nothing, and no refusal reached the write-refusal log. The cause was not the Review Session polish: the review stage wrote his words into `window._sxrKasperState.drafts`, and the Samples module keeps `_sxrKasperState` as a module constant it never puts on `window`. So every change from the stage on a sample threw a TypeError before any save started: "Tweaks are on Frame", a typed "Ask for a change", "Approve after tweaks" and a team note. The saving flag check read the same missing object, so a sample's busy state never showed either. Calendar posts were never affected. It came in with #2317 (2026-10-24). Reproduced offline with the polish on and off.
+- **What:** `195-review-stage` imports `_sxrKasperState` from `290-samples-writes-review` (it was already exported) instead of reading it off `window`. The review-stage fixture gains `opt.samples` (saving Samples on for the fixture client).
+- **Proven:** `node test/review-stage-kasper-sample-frame-browser.js` (new; Kasper in layout 2 presses Tweaks are on Frame, and types a change, on a fictional sample, with unread_badges_v2 on and off; 4 runs, each fails on main with the TypeError and no save, all pass with the fix), added to the calendar unit-test lane. The stopgap of 18:12 UTC (Kasper taken off `unread_badges_v2`) did not help, because the bug did not depend on the polish; he can go back on once this merges.
+
+**Way back:** revert this commit.
+
+## 551. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels review page: Kasper's approve button did not name the version it approves (Trialtest, session Trials)
+
+- **What happened:** checked live on build 4. On a trial card, Kasper's button read "Approve the video" in both of his layouts, while the client's reads "Approve Video A". Kasper approves only the version on screen, so he could think he was approving the whole video.
+- **Fix:** Kasper's split approve button takes the same words as the client's ("Approve Video A"). The change is in `_rsSplit`, `src/index/195-review-stage.js.part`. On the second layout's narrow column the short form stays "Approve". The SMM's button still reads "Approve to Kasper", as designed.
+- **Proven:** `test/trial-reels-review-browser.js` checks both of Kasper's layouts (60; both checks fail without the fix). These also pass: `review-stage-kasper-layout2` (188 checks), `review-stage-browser`, `staff-layout`, `instant`, `save`, and the trial journey (90).
+
+## 550. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the staff card: every action answers at once, "dropped" is plain text, unboxed row buttons and switch (session Trialpolish)
+
+- **Owner, 2026-10-27, from the test client's card:** every trial action felt slow (pasting a Frame.io link, dropping a version, the trial switch); "dropped" must not be a pill; a version's name should open its link; the trial switch looked dimmed and sat in a box; the row buttons (open the folder, edit link) should have no box either, with a hover that changes only the icon; and the versions list should open by itself when the switch goes on.
+- **Measured before (live, test client only, from the function's own timing log and the gateway log of the owner's session, plus read-only and refused calls from here):** nothing on the card changed until every call had answered.
+  - Switch on: `switch_set` 376-582 ms, then the whole client's `list` 107-474 ms (946 ms once): about 1 s.
+  - A version's link: `version_link_set` 531-877 ms. The version on the card (Video A) goes through Production's attach first: a sub-issue read, then `production-write` `attachment` (0.7-5.8 s in the same window), then `version_link_set`: 2-4 s typical.
+  - Drop / bring back: 514-894 ms / 461-579 ms. A dropped version on the card: plus the attach.
+- **Built (189, browser only; no function change):** the card draws each change at once over the last server answer, and the change leaves when its answer lands, so a refusal puts the row back by itself and is said in words ("… did not save"). One card's writes go out one after another, in click order. Applies to the switch (on and off), pasting or changing a link (the version on the card included, still through today's attach first), adding a version, drop and bring back, "New cut ready", starting the trial, the winner and its Undo. Switch on reads only that card (`read`, 130-220 ms live) instead of the client's whole `list`. A list read that began before a write was answered no longer undoes it on screen, and an answer landing while a link is being typed no longer wipes what is typed (both found while building this). Links the function never takes (another host, not https) are refused before anything shows.
+- **Measured after (browser, the server held to 1.5 s, slower than live):** switch on with the list open 2-20 ms; a new version, a changed link, the version on the card, a drop, bring back and switch off each under 20 ms. The server's own times are unchanged (the same calls), except switch on, whose second call is now the one card's read.
+- **Look:** "dropped" is plain muted text through one shared class, `sv-dropped-note` (helper `svTrialLabelHtml`), on the card and in Production's version rows (Trials told, for the review pages). "Video A" is a link to its video in a new tab; the small icon stays. The switch, the trophy and the arrow sit beside the link with no fill and full strength; a hover changes only the switch's own track (or the icon). The row buttons on every link row (Thumbnail's folder, compare and edit, Video's edit; the Samples cards too) have no fill and no divider, the link keeps its own rounded fill, and a hover changes only the icon; their targets are unchanged (32x29 desktop, 44x44 phone, measured on main and after). On the phone card the outline is now the link's own, with the buttons outside it. The list opens by itself when the switch goes on.
+- **Also fixed (found on the screenshots, not from this change):** on the staff phone card, a thumbnail that is a link rather than a picture (a Frame.io page or an image folder: 14 and 125 live cards, 3 on the test client) drew its "Open thumbnail" / "Open folder" placeholder over the 56 px tool bar, under the play button and the icons. Its placeholder now takes 176 px of its own above the tools, as the no-thumbnail fallback does; with a video, the play button sits in its middle and the words under it. Phone only (`html.sv-staff-phone`); the desktop card is unchanged. Checked at 390 for both kinds (five overlaps on main, none now); `qa/staff-phone-design-browser.js` still 16 of 16.
+- **Proof:** screenshots `docs/syncview-design/proofs/trial-polish/` (1440 and 390, light and dark, switch off and on). `node test/trial-reels-polish-browser.js` (new, offline, 1440 and 390, light and dark): each "at once" check, each rollback with its message, the typing guard, no pill, 4.5:1, the name link, the unboxed and undimmed switch, hover changes, row buttons and their targets. On main its speed, switch, row-button, name and dropped checks fail. The five trial-reels browser suites pass (card and empty-card updated: the list is now open after switching on).
+
+## 554. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every action answers in about half the time, and Production's versions draw without waiting on the link checks (session Swift)
+
+- **Owner, 2026-10-27:** every trial action felt slow (paste, drop, switch), and the new Production rows must not slow anything.
+- **Measured live first (read-only, test client only):** #2359 did not slow SyncLinear or Production. First rows took 1785 ms before and 1793 ms after (medians of 5). Production boot made 59-60 requests either way. A task's Assets drew in about 100 ms either way. The one new request is one trial-reels read, on the test client's trial video task only. But that read took about 2 s, and every action was slow on the server itself.
+- **Where the time went (the function's own `ms` log, last 24 h, server time, medians):**
+  - Writes waited on about eight database answers one after another: drop 555 ms, restore 467, paste a link 601, add a version 649, switch 508, approve 375. Before any write it read the page switch, then the card, its switch row, its versions and the card's link, each in turn; then it wrote the versions one by one, then the ledger line, then read the versions back.
+  - `list` read every card in turn: 418 ms with one card, growing with each card.
+  - Production's read with `probe: true` waited on every version link's check at Frame.io and its redirects: 1.5 to 2.9 s.
+  - Not the cold start: the worker boots in 29 ms (median; at most 65). But 205 boots served 249 requests, so the five-minute keep of link verdicts in memory rarely helps.
+- **Fix (`supabase/functions/trial-reels/index.ts`, no rule changed):**
+  - Every read a request may need starts at once. Their answers are looked at in the old order, so every refusal is the same as before, for the same reason.
+  - A set of version writes goes out together. All or nothing is kept: the rows already written are put back on a conflict.
+  - The ledger line and the read-back go out together. The winner's card row still goes before the ledger, so a refused winner write still leaves no ledger line.
+  - `list` reads its cards side by side, and its switch rows with the page switch.
+  - Production's first read waits at most `probe_budget_ms` (250 ms). A link still being checked answers "checking", `probe_pending` is set, and the check runs on. A link already being checked is joined, not checked again.
+  - A read without the budget waits for every check, as before, so an older page is unchanged.
+- **Page (`src/index/245-production-trial-versions.js.part`):** the versions draw from the first read, with a skeleton pill where a state is still being checked. One more read, without a budget, fills the states in. That is one extra request, only when the providers are slow.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts`: every database answer of the stand-in takes 60 ms, so the time of each action counts the answers it waited on in a row. Now: read 2.1, list 3.3, drop, restore, paste, approve and add 4.2, switch 3.2. The budgeted read answers in 378 ms against 1.5 s providers. On main's function the same checks fail 10 times: read 5.3, list 19.8, writes 8.3, switch 7.3, budgeted read 1814 ms.
+  - `test/trial-reels-production-browser.js`: one budgeted read on opening; with slow providers, exactly one more read brings the states.
+  - All of these pass: the card, race, link-guard, empty-card and logic tests, `prod-boot-budget.js`, `prod-write-gateway-browser.js`, and the Deno type ratchet (no new errors).
+- **Expected live:** writes about 280 ms server time (4 answers in a row at the measured ~70 ms each), reads about 150 ms, `list` about 240 ms. To be checked in the function's own `ms` log after the merge lane deploys it. trial-reels is not a Section 4 function.
+- **Still open:** a fresh worker on most requests means the follow-up read usually checks the links again (about 2 s, while the rows are already drawn). Keeping verdicts across workers would need a table.
+
+**Way back:** revert the pull request.
+
+## 553. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Notes: a trial video did not say it was one (Sidney, session Trials)
+
+- **What Sidney asked:** "It should say that it's a trial video whenever we view it in the review sheet of Kasper, of the client, of the SMM, or in the notes thing." The review pages got their marker in build 4 (OPEN_REPAIRS 549); this is the Notes view.
+- **Fix:**
+  - One quiet "TRIAL" sits under the Notes head's "post name · Video C" line, for any trial card: one version or several, before and after the pick. It is one word, no pill.
+  - `svTrialCardOn` (`src/index/189-trial-reels-card.js.part`) reads the card's switch from the card's own trial read, so there is no second read. `src/index/190-calendar-approval-comments.js.part` draws the word.
+- **Also, a test #2392 left red on main:** with the list now opening on switch-on, `test/trial-reels-journey-browser.js` measured the collapsed card height with the list open (751 → 925, red on main at 7d235e2). The test now checks the list opens, closes it with its arrow, then measures.
+- **Proven:**
+  - `test/trial-reels-notes-browser.js` (23): exactly one "Trial" at 1440 and 390 and after the pick, none with the switch off. Without the fix, 3 checks fail.
+  - The journey test passes (91).
+  - Also passing: review (60), card (62), empty-card (30), polish (127), production (25), race (15), link-guard (4), change-naming (4), notes, logic (113), Deno (60), kasper-layout2 (188), staff-calendar-expanded and check-modules.
+
+**Way back:** revert the pull request.
+
+## 555. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Kasper's side-by-side layout: the Trial marker and each tile's Approve name, kept from builds 4 and 5 (session Trials)
+
+- **What:** build 6 replaces the single player bar in Kasper's second layout with one tile per version. That dropped two things merged since:
+  - the quiet "TRIAL" word (549), which sat over the bar;
+  - the version's name on the approve button (551).
+- **Fix, in `src/index/194-review-trial-versions.js.part`:**
+  - The tiles' header now reads "TRIAL  5 versions", one muted word.
+  - Each tile's Approve is named "Approve Video A"… for screen readers. Its visible "Approve" sits in a tile already titled "Video A".
+- **Trialtest's note (a)** ("no Approve all beside Finish reviewing in Kasper's layout 2") is answered by build 6 itself: Approve all sits at the top right of the tiles (Probe K4), and an existing check covers it.
+- **Proven:**
+  - `test/trial-reels-review-browser.js` (72): exactly one Trial word on Kasper's second layout, and each tile's Approve named A to E. Both fail without the fix.
+  - Screenshot checked at 1440.
+
+**Way back:** revert the pull request.
+
+## 544. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
+
+- **Why:** the owner turned five staff features on for everybody on 2026-10-27 (`unread_badges_v2`, `phone_polish_staff`, `caption_history_staff`, `thumbnail_title_buttons_staff`, `frame_comments_in_notes_staff`). Those switches only took a list of staff ids, and some readers dropped a `"*"` entry, so the supervisor wrote all 14 active staff ids into each row. Anyone added to the roster later would have been off.
+- **What (`188` only):** one helper reads every `{ "staff": [...] }` switch in `188-review-stage-switch.js.part`: the five above, plus `review_stage_kasper_staff`, `review_stage_kasper_layout2`, `kasper_fast_boot` and `workload_calm_staff`. Each now also takes `{ "all": true }`, the form `workload_calm_staff` and `calendar_card_write_clients` already had.
+  - `_rsStaffSwitch` parses a row into `{ all, list }`. `_rsStaffOn` answers for the person on the page; it was `_rsCalmWho`, widened.
+  - `"all": true` means any signed-in staff member, once the server has said who. Never the client link. Only the exact boolean `true` counts. A `"*"` entry is still not a wildcard.
+  - A missing, unreadable or malformed row is off, as before. A list keeps working as a list. Both forms together: on for everyone.
+  - The switches are still read once per page through the same bounded read.
+- **Every reader checked:**
+  - The page: 188 is the only place that reads these rows. Every other fragment asks 188's `sv*On()` functions.
+  - Edge Functions: no function reads any of the nine. `thumbnail-titles` reads the separate client switch `thumbnail_titles`, and `production-comments` only mentions `unread_badges_v2` in a comment.
+  - Hints in localStorage:
+    - `sv-kasper-fast` now keeps `fastAll` / `stageAll`. Those turn the fast boot on for any signed-in staff member, and never on a client link (checked in the real client link with a planted all hint). Older hints without them read as before.
+    - `sv-wl-calm-staff` keeps its `"*"` marker, which is unchanged.
+    - `sv-rs-on-clients` is the client switch, not touched.
+- **Proven:**
+  - `node docs/syncview-design/tests/staff-switch-all-browser.js` (new, 273 checks, in the Calendar unit tests lane). For each of the nine switches, `all: true` is on for a staff member in no list, off on the client link, off before sign-in is known, and off for a non-staff caller. The list form works by id and by full name, and an unlisted person stays off. Twelve malformed shapes and a missing row are off. The same is checked in the real page on a staff page and on a client link.
+  - It fails on main: part 1 cannot find the helper, and part 2 gets "off" for `review_stage_kasper_staff { all: true }`.
+  - `test/thumbnail-title-buttons-source.js` now pins the helper instead of the old inline list read. It asserts the same thing.
+- **After merge (supervisor):** write `{"all": true, "staff": [...]}` into the five rows. The list stays as a fallback for any browser still on the old page until it reloads, because the old page ignores `all`.
+
+**Way back:** revert the pull request. Rows written as `{"all": true, "staff": [...]}` keep working on the old code through their list.
+
+## 540. [2026-10-27 UTC, BUILT, NOT MERGED] A client may type the caption on the Sheet again, in Collaborative mode only (session Capedit)
+
+- **Owner's ask (2026-10-27).** On the client link's Sheet a client could no longer type a caption on an existing card. That was the owner's own rule from #2208 (train #2209, 2026-10-18): caption, call to action and date read only for a client, Collaborative mode on or off. The owner now wants the caption open again, at least in Collaborative mode.
+- **Server checked first (read only, 2026-10-27).** A client link's card save goes to `calendar-upsert` (`_calUpsertFetchClientLink`, fragment 120). The live function (v94) is the un-gated build: no token check, no per-role field filter, and `caption` is in its `ALLOWED` list. The card-write admission gate is `open`. The `caption_versions_capture` trigger on `calendar_posts` records every caption change whoever makes it, so a client's edit gets a version row like any other. Nothing on the server was changed or widened.
+- **Change (page only, fragments 130 and 170).** `_calClientMayEditText(pid, fld)` now takes the field. On an existing card a client may edit only the fields in `CAL_CLIENT_COLLAB_TEXT_FIELDS` (today just `caption`), and only while Collaborative mode is on. With it off, every text field is read only, as before. The call to action, date, title, alt caption, media and status are unchanged in both modes, and the handler-level blocks still refuse them. Opening the call to action later is one line: add `'cta'` to that set. The review page's own caption edit (`_calClientReviewCaptionEdit`) and blank "suggest a post" cards are untouched.
+- **Proven.** `test/client-calendar-read-only-browser.js` now states the new rule. With collab on, the caption is editable and a typed caption is saved, while the call to action, date and alt caption save nothing however they are reached. With collab off, all of them stay read only. Both modes are checked at 1440 and 390. On main the same test fails 6 checks (the caption is read only with collab on). The nightly probe p52 asserts the gate per field in both modes, and saves a client caption on its own probe card through the client link against the live backend. The Dawn tier-0 check keeps asserting that approve and request changes leave the caption text unchanged; only its label lost "(read-only)".
+- **Way back:** revert the pull request.
+
+## 552. [2026-10-27 UTC, BUILT, NOT MERGED] The "new version" bar asked a working tab after every publish, and again after every dismiss (session Freshness)
+
+- **What happened:** the owner, writing comments on 27 Oct: "10 times I got the toast saying I needed to get the latest version." Eight merges republished the site that day (14:42 to 22:09 UTC, gaps of 24 to 138 minutes), each one a new deploy for every open tab.
+- **How it worked (350 footer):** the page sends a HEAD for `/` every 5 minutes and on every window focus. A newer Last-Modified than the loaded document makes the tab stale. A hidden, clean tab reloads itself (at most once per 30 minutes); a visible one got the bar at once. Dismiss was meant to hold until a newer build, but for a document-stale tab the `t === baseline && !stale` return never applies, so the bar came back on the next poll or the next window focus. After 4 stale hours a clean tab gets the wall; the owner's `app_version_floor` flag walls stale tabs at once. The bar's Reload threw away a typed draft without asking (only the wall and the self-reload checked `wouldLoseWork()`). No server write refuses an old page: the floor flag is the only server-side signal.
+- **Fix:** a visible tab is asked only after it has known about a newer version for an hour; later publishes do not restart that clock. It is not asked while it holds unsaved work (a draft, an open card). Dismiss holds for every later publish. The bar's Reload asks before losing a draft. Unchanged: the hidden-tab self-reload, the wall after 4 stale hours (deferred for unsaved work, with the bar kept up), and the floor flag. The staff page and the client link follow the same rules.
+- **Proof:** `node test/app-update-quiet-browser.js` (new, offline, fake clock, in calendar-unit-tests): a burst of publishes shows the bar once, after an hour; a dismiss holds through five more publishes and focuses; the wall still comes at 4 hours; a draft holds the bar and the Reload asks first; a hidden clean tab still reloads itself and a hidden one with a draft does not. On main's 350 its first check fails. `test/app-update-nudge.js`, `app-update-floor.js` and `app-update-self-reload-behavior.js` pass; `prod-write-gateway-browser.js` and `prod-boot-budget.js` pass.
+
+**Way back:** revert the pull request.
+
+## 543. [2026-10-27 UTC, BUILT, NOT MERGED] production-comments 403s: a cold link to a batch parent asked for a thread that cannot exist (session Comment403)
+
+- **What was seen:** POST production-comments answering 403 at about 7% (27 Oct 14:00 to 15:00 UTC), with nothing in the write-refusal log.
+- **Where they come from:** every one is the `target_forbidden` return in the thread reader (the "missing or out of scope" 403, after the target lookup). The function writes each one to `production_comment_read_audit` (decision `deny`), and that table matches the gateway counts hour by hour. All are staff (key `x-syncview-key`), all from the Production comment loader (`_prodComments.load`, 110-byte body with `include_feedback`); the Workload popover reads all answered 200. No client links, no test client, not the new client.
+- **Two kinds, and neither is new.** The audit shows 5 to 70 of each a day since 6 Oct; 24 to 26 Oct were quiet days, so today is an ordinary weekday rate, not a spike.
+  1. **A batch id read as a deliverable (28 of 43 on 27 Oct).** Six real batches on active clients, all native and two-team. The loader skips a batch parent only when `_prodIssue(id)` already answers the synthetic row, and that row is minted from the batches and deliverables reads. A cold `?prod=1&d=bat_...` link (the Workload parent links) opens the post before those land, so the loader asks, the function answers 403 (no deliverable is ever keyed `bat_`/`b1_b_`: measured, 0 deliverables and 0 comments), and the post keeps "This comment thread is not available to your exact team or client scope." The state is not re-read once the batch loads. Reproduced against the live page read-only: after load the guard holds for all six; a cold deep link reads once and shows the refusal.
+  2. **Another team's thread (15 of 43).** A designer opening a video deliverable, or an editor a graphics one, in Production. `staffTargetAllowed` (policy.mjs) lets a creative key read only its own team: working as designed.
+- **Nothing was lost.** No note lives on a batch id, and the batch parent's composer sends people to the sub-issues. The cross-team reads are refusals by design. They are reads, so the write-refusal log (priority item 4) is not where they belong; the function's own read audit already records every one.
+- **The 500 at 15:12:36** is not this function's code: a `text/plain` answer with no function or execution id, in 149 ms, while the handler only answers JSON. A one-off runtime failure before the handler ran.
+- **Fix (230):** the loader treats an id shaped like a batch (`/^(?:bat|b1_b)_/`, the same test 220 already uses, covering the two-team `bat_...::uuid` node) as a batch parent with no thread, before any read, whether or not the synthetic row has loaded. No function change, no authorization change.
+- **Proven:** `node test/prod-batch-parent-comments-cold-browser.js` (new, mocked, offline): 6 of its 15 checks fail without the fix (2 reads sent and the refusal shown, for each id shape). `test/production-parent-link-hierarchy.js` follows the guard's new text. `prod-comments-browser.js` and `prod-write-gateway-browser.js` pass.
+
+**Way back:** revert the commit.
+
+## 545. [2026-10-27 UTC, BUILT, NOT MERGED] Four Notes fixes found in the live test after 541 (session Notesfix)
+
+- **Why:** a live test of 541 (#2372) found four small bugs. None was caused by 541, but they mattered once the client link had the team's badges.
+- **1. Phone: a note was read before the client saw it.** The client link opens on the Review page, and 195 `_rsChat` marked the post's notes read as soon as it drew the conversation. At 390 the conversation is below the fold, so a new team note never showed as new on the Sheet. Now the notes are marked read only once the conversation is on screen (`_rsCpSeeWhenShown`: at once if it already is, else an IntersectionObserver). At 1440 nothing changes. Staff and Kasper do not share the path: only the client link marks the Review page's notes read.
+- **2. The badge counted a reply hidden in a done thread.** 327 `_svuStateOf` counted a team reply inside a done thread as new, but Notes keeps done threads behind its history button, so the badge said "2 new" while Notes showed one New row. Now nothing in a done thread counts as new or waiting, for the client link and staff alike.
+- **3. The client Review page could name Kasper.** 195 `_rsFirst` returned "Kasper" before its client-link check, and the badges and rows gave him the violet picture. Now, on the client link, every team note reads "Synchro team" with the "S" picture (`_rsKp`). Staff views are unchanged. Measured: the calendar client view already drops Kasper's notes (130 `_calCommentsForView`), so this could not be reached from the mocked backend's data. The order is fixed anyway, and the test is a guard.
+- **4. Staff could not write to the client about the Caption on a Production-linked card.** In 190 `_calSetComposeComp`, picking another part only moved the highlight. Now, when the new part's thread differs (linked Video or Thumbnail are team only, an unlinked Caption is not), the composer is drawn again with the draft kept, so the eye button shows at once.
+- **Proof (all offline):** `node test/client-notes-fixes-browser.js` (1 at 390 vs 1440, 2 on the client Sheet and Notes, 3 at both widths), `node test/staff-done-thread-badge-browser.js` (2 for staff) and `node test/notes-caption-composer-browser.js` (4). All of 1, 2 and 4 fail on main before this fix. Also green: prod-write-gateway-browser, client-unread-badges-browser, unread-badges-v2-browser, review-client-badges and notes, notes-composer-threads, notes-quick-open-reply and the review-stage suites.
+- **Way back:** revert the pull request.

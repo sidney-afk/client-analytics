@@ -326,6 +326,22 @@ ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66
 const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
 ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
 
+// Sent for approval today's way, before any version went through the SMM (Sidney, 2026-10-27): the card is at Client
+// Approval, so the client link answers each version, and a staff read says each one is ready for the client.
+tables.calendar_posts.push({ id: "p7", client: "fixtureclient", video_status: "Kasper Approval", asset_url: "https://f.io/p7-main", video_deliverable_id: null });
+const p7 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p7");
+await step({ action: "switch_set", enabled: true, post_id: "p7" });
+await step({ action: "version_add", post_id: "p7", link: "https://f.io/p7-b" });
+const p7Early = await step({ action: "answer", post_id: "p7", kind: "approve", letter: "B" }, "client-none");
+ok(p7Early.status === 400 && p7Early.body.error === "stage_order", "a card still at Kasper Approval: the client waits for its turn");
+const p7Kasper = await step({ action: "answer", post_id: "p7", stage: "kasper", kind: "approve", letter: "B" }, "admin");
+ok(p7Kasper.body.ok === true && !!p7().find((r) => r.letter === "B")!.kasper_ok_at, "sent to Kasper with no version through the SMM: Kasper answers Video B");
+tables.calendar_posts.find((r) => r.id === "p7")!.video_status = "Client Approval";
+const p7Read = await step({ action: "read", post_id: "p7" }, "client-none");
+ok(((p7Read.body.versions || []) as Row[]).length === 2 && ((p7Read.body.versions || []) as Row[]).every((r) => r.ready === true), "sent on to the client: a client read says both versions are ready");
+const p7Client = await step({ action: "answer", post_id: "p7", kind: "approve_all" }, "client-none");
+ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and the client's Approve all approves them (" + p7Client.status + " " + p7Client.body.error + ")");
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

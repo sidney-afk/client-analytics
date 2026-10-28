@@ -480,7 +480,10 @@ jobs:
           Client credentials dialog shows and edits only its own client|node test/credentials-modal-client-switch-browser.js
           Trial reels on the staff card behind its switch: today's height, versions, trophy, winner through today's attach, Undo|node test/trial-reels-card-browser.js
           Trial reels in Production's Assets: one Deliverable file row per version, its state and its Edit|node test/trial-reels-production-browser.js
+          Trial reels on the review page: Video B of 5, one version at a time, today's saves once a stage is done|node test/trial-reels-review-browser.js
           Trial reels: two staff picking a winner at once never leave the card on another version's link|node test/trial-reels-race-browser.js
+          Trial reels: a change is about the version it was asked on, and Approve after tweaks names it|node test/trial-reels-change-naming-browser.js
+          Trial reels: one card's whole journey across the card, Production, the SMM, Kasper and the client link (Probe's check)|node test/trial-reels-journey-browser.js
           Trial reels: a refused link or drop on the version on the card puts the card's link back|node test/trial-reels-link-guard-browser.js
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
           LANES

@@ -386,6 +386,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         el.innerHTML = '<header class="crm-home-head"><h1>Leads</h1></header>' + _crmSearchHtml()
             + '<div class="crm-tiles crm-home-tiles">' + CRM_HOME_TILES.map(x => { const f = _crmHomeFact(x[0]); return '<button type="button" class="crm-tile crm-home-tile" data-crm-nav="' + x[0] + '" onclick="_crmGo(' + _jsAttrArg(x[0]) + ')"><span class="crm-tile-name">' + _calEsc(x[1]) + '</span><span class="crm-tile-desc">' + _calEsc(x[2]) + '</span>' + (f ? '<span class="crm-tile-fact">' + _calEsc(f) + '</span>' : '') + '</button>'; }).join('') + '</div>';
         if (keep) { const n = document.getElementById('crmSearch'); if (n) { n.focus({ preventScroll: true }); n.setSelectionRange(n.value.length, n.value.length); } }
+        _crmPaintResults();
     }
     function _crmPaintBody() {
         const body = document.getElementById('crmBody');
@@ -524,7 +525,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     function _crmColValue(p, key) {
         if (key === 'stage') return p.stage || '';
         if (key === 'src') return p.source_id || ('type:' + (p.lead_type || ''));
-        if (key === 'niche') return p.niche || '';
+        if (key === 'niche') return p.niche || 'none:';
         if (key === 'due') return _crmOverdue(p) ? 'overdue' : _crmSoon(p) ? 'soon' : p.next_step_due ? 'later' : 'none';
         return '';
     }
@@ -532,7 +533,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (key === 'stage') return _crmLabel(CRM_STAGES, v);
         if (key === 'src') return v.startsWith('type:') ? _crmLabel(CRM_LEAD_TYPES, v.slice(5)) || 'Unknown' : (_crmSourceName(v) || 'Unknown');
         if (key === 'due') return { overdue: 'Overdue', soon: 'Due in the next 2 days', later: 'Due later', none: 'No date' }[v] || v;
-        return v || 'None';
+        return (v && v !== 'none:') ? v : 'None';
     }
     function _crmColChoices(key) {
         const seen = new Map();

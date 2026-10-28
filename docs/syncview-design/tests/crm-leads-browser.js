@@ -364,11 +364,25 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-nav="n8n:didnt_book_doctors"]');
   await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
   const n8nText = await page.locator('[data-crm-seq="didnt_book_doctors"]').innerText();
-  expect(/Runs in n8n/.test(n8nText) && /made-up subject line/.test(n8nText) && /a made-up email body/.test(n8nText) && /a made-up text/.test(n8nText) && /Stops when/.test(n8nText), label + ': an n8n sequence shows its emails and texts word for word');
+  expect(/Sending|Off/.test(n8nText) && !/Edited in n8n/.test(n8nText) && /made-up subject line/.test(n8nText) && /a made-up email body/.test(n8nText) && /a made-up text/.test(n8nText) && /Stops when/.test(n8nText), label + ': an n8n sequence shows its emails and texts word for word');
   expect(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-mail').count() === 1 && await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-bubble').count() === 1, label + ': an email reads as an email and a text as a text bubble');
   expect(!(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-switch, [data-crm-seq="didnt_book_doctors"] .crm-btn').count()), label + ': an n8n sequence cannot be changed here');
   expect(await boxesInBoxes(page) === '', label + ': the n8n sequence has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-n8n-' + label, true);
+  await page.click('[data-crm-nav="sequences"]');
+  await page.waitForSelector('#crmSeqs .crm-group');
+  const ovText = await page.locator('#crmSeqs').innerText();
+  expect(/Sending|Off/.test(ovText) && !/Every automatic email and text/.test(ovText), label + ': the Sequences overview is one line per sequence, its explanation in a hover');
+  if (SHOTS) await shoot(page, 'leads-seq-overview-' + label, true);
+  expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
+  if (label.startsWith('1360')) {
+    const head = page.locator('.crm-tree-head').first();
+    const before = await page.locator('.crm-tree-body').count();
+    await page.locator('.crm-tree-body > .crm-tree-line').first().click();
+    expect(await page.locator('.crm-tree-body').count() === before - 1 && await head.getAttribute('aria-expanded') === 'false', label + ': clicking a group line in the Sequences menu folds that group');
+    await head.click();
+    expect(await page.locator('.crm-tree-body').count() === before, label + ': clicking the group title opens it again');
+  }
   const seqOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(seqOverflow <= 1, label + ': a sequence screen has no sideways page overflow (' + seqOverflow + 'px)');
   expect(!state.actions.includes('due') && !state.actions.includes('log_send'), label + ': the page never calls the sender-only actions');

@@ -181,10 +181,11 @@ async function clientCalendar(browser, url, A, R) {
     const r2 = c2 === 'ok' ? await H.pollRow(() => H.rowCal(R.id, 'caption_status,caption_tweaks'), r => r.caption_status === 'Tweaks Needed', POLL) : null;
     rec('T0-2 client request changes saves (Calendar)', !!(r2 && JSON.stringify(r2.caption_tweaks || '').includes(txt)), `click ${c2}; status Tweaks Needed with its text=${r2 && JSON.stringify(r2.caption_tweaks || '').includes(txt) ? 'yes' : 'no'}`);
     if (stage) await p.screenshot({ path: SHOTS + '/t0-calendar-after.png' }).catch(() => {});
-    // Client text is read-only on an existing post (#2208): approve and ask-for-a-change leave the caption as it was.
+    // Approve and ask-for-a-change never write the caption text (a client may type the caption in Collaborative mode
+    // since 2026-10-27, but these two actions do not): the caption is as it was.
     const ca = H.rowCal(A.id, 'caption'), cr = H.rowCal(R.id, 'caption');
     const same = !!(ca && cr && ca.caption === CAPTION && cr.caption === CAPTION);
-    rec('T0-2 client actions leave the caption text as it was (read-only)', same, `caption unchanged on both posts=${same ? 'yes' : 'no'}`);
+    rec('T0-2 client actions leave the caption text as it was', same, `caption unchanged on both posts=${same ? 'yes' : 'no'}`);
   }
   rec('T0-2 client Calendar page has no app errors', errs.length === 0, `page errors ${errs.length}`);
   await ctx.close();

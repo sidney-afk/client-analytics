@@ -13,7 +13,7 @@ import {
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
 import {
   CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
-  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calLocalRecentSaves,
+  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calIsCollabOn, _calLocalRecentSaves,
   _calMigratePostShape, _calNoLinearPush, _calNormMonthFilter, _calPendingEdits,
   _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
   _calSaveTimers, _calShouldBumpThumbRevForGraphicStatus, calClientSlug, calState
@@ -119,12 +119,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // governs the MEDIA surface (video / thumbnail / Linear / status /
         // platforms) — clients never touch those, in either mode.
         const ro = _isClientLink && !isBlank;
-        // Collaborative mode opens up the TEXT fields (title, date, caption,
-        // CTA) for the client on existing cards. Blank cards have always
-        // been client-editable (the Suggest-a-post flow). SMM is never
-        // locked. This is the only flag that diverges from `ro` when collab
-        // is on, so it stays scoped to the four text inputs and nowhere else.
+        // Text fields (title, date, caption, CTA) are read only for a client
+        // on existing cards, except the ones _calClientMayEditText opens in
+        // Collaborative mode (the caption). Blank cards have always been
+        // client-editable (the Suggest-a-post flow). SMM is never locked.
         const editableText = _calClientMayEditText(p.id) || isBlank;
+        const editableCaption = _calClientMayEditText(p.id, 'caption') || isBlank;
+        const editableCta = _calClientMayEditText(p.id, 'cta') || isBlank;
         const selectable = calState.selectMode && !ro && !isBlank;
         // Drag-to-reorder works for the SMM and clients alike (desktop native
         // DnD). The `ro` flag keeps the client's media/status surface read-only
@@ -252,9 +253,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
-                ${_calPhoneSectionHtml('sheet:' + p.id, 'caption', 'Caption', capDraft ? 'Saved copy · not sent' : '', `<div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'caption', 'Caption', capDraft ? 'Saved copy · not sent' : '', `<div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableCaption, isBlank)}</div>
                 ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}`, true)}
-                ${_calPhoneSectionHtml('sheet:' + p.id, 'cta', 'Call to action', '', `<input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>`, false)}
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'cta', 'Call to action', '', `<input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableCta ? ' readonly' : ''}>`, false)}
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 ${_calConflictHtml(pid)}
                 <div class="cal-card-foot">
@@ -1144,17 +1145,23 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
 
     // Editing card text (caption / CTA / alt-caption) and the date is allowed for the SMM always, and for a client
-    // only on a blank "suggest a post" card they are creating (owner, 2026-10-18: a client's caption and CTA are read
-    // only on the Sheet, Collaborative mode or not; the review page's caption edit goes through
-    // _calClientReviewCaptionEdit instead). Mirrors the editableText gate that sets the readonly attribute. These
+    // on a blank "suggest a post" card they are creating. On an existing card a client may edit only the fields in
+    // CAL_CLIENT_COLLAB_TEXT_FIELDS, and only while Collaborative mode is on (owner, 2026-10-27: the caption again;
+    // #2208 had made every field read only, owner 2026-10-18). The review page's caption edit goes through
+    // _calClientReviewCaptionEdit instead. Mirrors the editableText gate that sets the readonly attribute. These
     // handler-level checks stop a client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
     // A post the client began in this visit stays theirs to finish: the first save turns the blank card into a real one
     // in place (_calPromoteBlankCard), and a caption typed after the name must still save (review of #2208).
+    // Add 'cta' to the set to open the call to action the same way.
+    const CAL_CLIENT_COLLAB_TEXT_FIELDS = new Set(['caption']);
     const _calClientOwnNew = new Set();
-    function _calClientMayEditText(pid) { return !_isClientLink || _calIsBlankId(pid) || _calClientOwnNew.has(pid); }
+    function _calClientMayEditText(pid, fld) {
+        if (!_isClientLink || _calIsBlankId(pid) || _calClientOwnNew.has(pid)) return true;
+        return !!fld && CAL_CLIENT_COLLAB_TEXT_FIELDS.has(fld) && _calIsCollabOn();
+    }
     function _calClientFieldEditBlocked(el) {
         if (!_isClientLink) return false;
-        return !(el && el.dataset && _calClientMayEditText(el.dataset.pid));
+        return !(el && el.dataset && _calClientMayEditText(el.dataset.pid, el.dataset.fld));
     }
     // Clients may not rename a card (see _calTitleRowHtml). Handler-level twin
     // of the readonly attribute, like _calClientFieldEditBlocked.

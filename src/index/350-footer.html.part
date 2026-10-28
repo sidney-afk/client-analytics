@@ -100,6 +100,32 @@
      * an unsaved caption downgrades it to the banner until the edit clears.
      */
     var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
+    /*
+     * ONE QUIET PROMPT, NOT ONE PER PUBLISH (owner, 2026-10-27, OPEN_REPAIRS 552):
+     * "while I was doing my comments, I had to refresh 10 times". Eight
+     * publishes landed that afternoon, and a tab someone was working in got
+     * the bar after each one -- and again after every dismiss, because a
+     * document-stale tab skipped the dismissed-build return on the next poll
+     * or window focus. So, for a tab someone is in:
+     *
+     *   - the bar waits until the tab has known about a newer version for
+     *     BAR_AFTER_MS. Later publishes do not restart that clock (it only
+     *     resets when the tab is current again), so a burst of merges is one
+     *     wait, not one bar each;
+     *   - it waits while the reader has unsaved work (a draft comment, an open
+     *     card) -- the bar is for a quiet moment, not mid-sentence;
+     *   - Dismiss means "not now": the bar does not come back for any later
+     *     publish. The wall at ESCALATE_MS, and the owner's floor flag, are
+     *     what stop a dismissed tab from running old code for long.
+     *
+     * A hidden tab still reloads itself on the first poll that finds it stale
+     * and clean, so most publishes are taken without anyone seeing anything.
+     * Staff page and client link follow the same rules: a client link is
+     * rarely open an hour, and a client mid-review is protected the same way.
+     */
+    var BAR_AFTER_MS = 60 * 60 * 1000;     // stale this long before a visible tab is asked
+    var newerSince = 0;                    // when this tab first saw a newer deploy (token or date)
+    var barDismissed = false;              // "not now" holds for every later publish
     var FLOOR_TTL_MS = 10 * 60 * 1000;     // floor flag re-read at most this often
     var firstBaseline = null;              // load-time token; dismiss never touches it
     var docBornMs = Date.parse(document.lastModified || '') || 0; // when THIS document was served
@@ -111,6 +137,17 @@
         if (floorMs > 0 && nowMs >= floorMs) return 'block';
         if (staleSinceMs > 0 && (nowMs - staleSinceMs) >= ESCALATE_MS) return 'block';
         return 'banner';
+    }
+    function barDue(nowMs, newerSinceMs, dismissed){
+        if (dismissed || !(newerSinceMs > 0)) return false;
+        return (nowMs - newerSinceMs) >= BAR_AFTER_MS;
+    }
+    /* The bar's Reload never throws away a draft without asking: the bar can
+     * already be up when the reader starts typing. The wall needs no ask --
+     * it only appears when wouldLoseWork() said the page is clean. */
+    function reloadUnlessWork(){
+        if (wouldLoseWork() && !window.confirm('Something in this tab is not saved yet. Reload anyway and lose it?')) return;
+        location.reload();
     }
     function refreshFloor(){
         if (Date.now() - floorCheckedAt < FLOOR_TTL_MS) return;
@@ -284,13 +321,17 @@
                  * cannot tell it apart (the cache-restore case above) — there
                  * dismiss re-arms next poll, which is the honest trade: this
                  * tab IS running old code. */
+                if (t === firstBaseline && !stale) { newerSince = 0; return; }
+                if (!newerSince) newerSince = Date.now();
                 if (t === baseline && !stale) return;
                 // Nobody is looking, and nothing would be lost -> just take it.
                 if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
                     location.reload();
                     return;
                 }
-                if (!document.getElementById('svUpdateBar')) showBar(t);
+                if (document.getElementById('svUpdateBar')) return;
+                if (!barDue(Date.now(), newerSince, barDismissed) || wouldLoseWork()) return;
+                showBar(t);
             })
             .catch(function(){});            // offline / transient — just try again next tick
     }
@@ -378,13 +419,14 @@
         msg.textContent = 'A new version of SyncView is available — reload to get the latest.';
         var reload = document.createElement('button');
         reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload';
-        reload.addEventListener('click', function(){ location.reload(); });
+        reload.addEventListener('click', reloadUnlessWork);
         var dismiss = document.createElement('button');
         dismiss.type = 'button'; dismiss.className = 'sv-up-x'; dismiss.textContent = '×';
         dismiss.setAttribute('aria-label', 'Dismiss');
-        // Dismiss = "I've seen this build" — adopt the new token so we only nudge
-        // again if a YET newer version ships, instead of re-popping every poll.
-        dismiss.addEventListener('click', function(){ baseline = t; bar.remove(); });
+        // Dismiss = "not now": adopt the token AND hold the bar for every later
+        // publish too (barDismissed). Only the wall, past ESCALATE_MS or the
+        // owner's floor, can ask this tab again.
+        dismiss.addEventListener('click', function(){ baseline = t; barDismissed = true; bar.remove(); });
         bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(dismiss);
         document.body.appendChild(bar);
     }

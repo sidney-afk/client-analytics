@@ -1509,6 +1509,14 @@
       "ci": "representative"
     },
     {
+      "file": "app-update-quiet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the page's update check runs on a locally answered host with a fake clock, no hosted credentials and no live data. Checks that a burst of publishes asks a working tab once, a dismiss holds, a draft is never reloaded away, and the wall still arrives.",
+      "reproduce": "node test/app-update-quiet-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-poll-backoff-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2234,6 +2242,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the review page behind trial_reels_pages: today's page for an unlisted client, \"Video A of 5\" with a dot per version and arrows and no hook text, the version on screen playing (in a new tab on a client link when it is not the card's link), Approve answering one version and saving nothing on the card until every version has this reviewer's OK, Approve all then today's approve, a change recorded on its version with today's change request starting \"Video C:\", Kasper's Tweaks are on Frame word for word, and only the winner for the client after the pick, on the client link, the SMM's Review tab and Kasper's Review Session.",
       "reproduce": "node test/trial-reels-review-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels in the Notes view behind trial_reels_pages: today's view for an unlisted client, a Video A to E switch beside Open in Frame.io (a slim bar under the player at 390 pixels), picking a version plays it with its own Frame.io comments, the title and the About the switch naming it, a video note starting with the version's name, and today's player once a winner is picked.",
+      "reproduce": "node test/trial-reels-notes-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

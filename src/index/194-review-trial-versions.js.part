@@ -104,21 +104,25 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
            with "Swipe for the next version" on a phone;
          - "Approve all (4 waiting)" at the bottom left, beside Finish reviewing, which counts versions.
        Each answers '' for today's page. */
+    // One quiet word over the version's name, on every page that reviews a trial card's video (Sidney, 2026-10-27: "it
+    // should say that it's a trial video"; no visual noise, so a small muted word and no pill). Not on the player's
+    // badge: a 9:16 player on a wide page is too narrow for it, so the page hides the badge there.
+    const TRV_TAG = '<span class="trv-tag">Trial</span>';
     function svTrialReviewBarHtml(m, mode) {
         if (!m || !m.trial || !m.trial.winner) return '';
-        return '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
+        return TRV_TAG + '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
     }
     function svTrialReviewUnderHtml(m, mode) {
         if (!m || !m.trial || m.trial.winner) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
         const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
-        if (vs.length === 1) return '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
+        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
                 + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
-        return '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
+        return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
             + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
@@ -180,16 +184,44 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         }, { passive: true });
     }
 
-    async function _trvAnswerCall(m, mode, body) {
-        _trvBusy.add(m.id); _trvRepaint();
-        try {
-            const json = await svTrialCall(Object.assign({ action: 'answer', client: m.trial.slug, post_id: m.id, stage: _trvStage(mode) }, body));
-            const e = _trv[m.trial.slug];
-            if (e && json.versions) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
-            return json;
-        } finally {
-            _trvBusy.delete(m.id); _trvRepaint();
-        }
+    /* Approve answers AT ONCE (Sidney, 2026-10-27: "everything should feel fast"): the version reads approved here and
+       the page moves on before the server answers. The answers of one card go to the server one at a time, in order,
+       and only the last one's answer is drawn, so a second Approve right after is never undone by the first's answer.
+       A refused answer puts the card back as the server has it and says so. Today's approve on the card still runs
+       only once the server says the stage is done. */
+    const _trvChain = {};     // post id -> the answer in flight (the next waits for it)
+    const _trvSeq = {};       // post id -> how many answers were asked; only the latest one's reply is drawn
+    function _trvLocal(m, mode, body) {
+        const e = _trv[m.trial.slug], card = e && e.cards[m.id];
+        if (!card || !Array.isArray(card.versions)) return null;
+        const stage = _trvStage(mode), now = new Date().toISOString();
+        const versions = card.versions.map(v => {
+            const hit = body.kind === 'approve_all' ? _trvLive(v) && _trvAnswer(v, stage) === 'wait' : v.letter === body.letter && _trvAnswer(v, stage) === 'wait';
+            if (!hit) return v;
+            return Object.assign({}, v, stage === 'client' ? { status: 'approved', client_ok_at: now } : { [stage + '_ok_at']: now });
+        });
+        const before = card;
+        e.cards[m.id] = Object.assign({}, card, { versions });
+        return { before, versions };
+    }
+    function _trvAnswerCall(m, mode, body) {
+        const seq = _trvSeq[m.id] = (_trvSeq[m.id] || 0) + 1;
+        const run = async () => {
+            _trvBusy.add(m.id); _trvRepaint();
+            try {
+                const json = await svTrialCall(Object.assign({ action: 'answer', client: m.trial.slug, post_id: m.id, stage: _trvStage(mode) }, body));
+                const e = _trv[m.trial.slug];
+                if (e && json.versions && seq === _trvSeq[m.id]) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
+                return json;
+            } finally {
+                if (seq === _trvSeq[m.id]) _trvBusy.delete(m.id);
+                _trvRepaint();
+            }
+        };
+        const p = (_trvChain[m.id] || Promise.resolve()).catch(() => {}).then(run);
+        _trvChain[m.id] = p;
+        p.catch(() => {}).finally(() => { if (_trvChain[m.id] === p) delete _trvChain[m.id]; });
+        return p;
     }
     function _trvDone(json, mode) {
         const stage = _trvStage(mode);
@@ -197,16 +229,32 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     }
     /* Approve the version on screen. `proceed` is today's approve on the video part; it runs only once the stage is done. */
     async function svTrialReviewApprove(m, mode, proceed, all) {
-        if (_trvBusy.has(m.id)) return;
-        const letter = _trvCurOf(m, mode).letter;
+        const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
+        const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
+        const local = _trvLocal(m, mode, body);
+        if (local) {
+            // On to the next version still waiting for this reviewer, now.
+            const next = local.versions.filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
+            if (next) _trvCur[m.id] = next.letter;
+            _trvRepaint();
+        }
         let json;
-        try { json = await _trvAnswerCall(m, mode, all ? { kind: 'approve_all' } : { kind: 'approve', letter }); }
-        catch (e) { showNotify('Video ' + letter + ' was not approved', svTrialErrorText(e)); return; }
+        try { json = await _trvAnswerCall(m, mode, body); }
+        catch (e) {
+            // Back as it was: this version on screen, the card as the server has it.
+            const ent = _trv[slug];
+            if (local && ent && ent.cards[m.id] && ent.cards[m.id].versions === local.versions) ent.cards[m.id] = local.before;
+            _trvCur[m.id] = letter;
+            _trvRepaint();
+            showNotify('Video ' + letter + ' was not approved', svTrialErrorText(e));
+            _trvLoad(slug, true);
+            return;
+        }
         if (_trvDone(json, mode)) { proceed(); return; }
-        // On to the next version still waiting for this reviewer.
-        const stage = _trvStage(mode);
-        const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
-        if (next) _trvCur[m.id] = next.letter;
+        if (!local) {
+            const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
+            if (next) _trvCur[m.id] = next.letter;
+        }
         _trvRepaint();
     }
     /* A change on the version on screen: today's change request goes at once, naming it, and the version's own change
@@ -264,6 +312,8 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 .trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
 .trv-under{flex-direction:column;gap:6px;padding:10px 0 2px;min-height:0}
 .trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
+.trv-tag{display:block;padding-top:10px;text-align:center;font-size:.66rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary)}
+.trv-tag + .trv-under{padding-top:2px}
 .trv-of{font-weight:500;color:var(--text-secondary)}
 .trv-dots{display:inline-flex;align-items:center;gap:2px}
 .trv-dot{display:grid;place-items:center;width:26px;height:26px;border:0;background:none;font:inherit;cursor:pointer;padding:0}
@@ -284,7 +334,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
 .dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
-@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
+@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
   TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml,

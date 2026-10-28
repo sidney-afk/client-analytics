@@ -136,8 +136,8 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(!/\/rest\/v1\//.test(frag), 'page never reads the tables directly');
   ok(/svLayerOpen\(\{ key: 'crm-person'/.test(frag), 'person panel joins the layer list');
   ok(/CRM_LEADS_MEMBER_GRANTS = \[\]/.test(frag), 'browser grant list ships empty');
-  ok(["'today'", "'sequences'", "'systems'"].every((k) => frag.includes('[' + k)) && !/CRM_COMING|crm-soon/.test(frag), 'Today, Sequences and Systems are real tabs now, with no "soon" left');
-  ok(/_crmCall\('today'/.test(frag) && /_crmCall\('sequences'/.test(frag) && /_crmCall\('systems'/.test(frag), 'each tab reads its own action');
+  ok(["'today'", "'pipeline'"].every((k) => frag.includes('[' + k)) && /'n8n:' \+ s\.key/.test(frag) && /'own:' \+ s\.id/.test(frag) && !/CRM_COMING|crm-soon/.test(frag), 'side menu has Today, Pipeline and one entry per sequence (n8n and ours), with no "soon" left');
+  ok(/_crmCall\('today'/.test(frag) && /_crmCall\('sequences'/.test(frag) && /d\.n8n/.test(frag), 'each view reads its own action (the n8n sequences come with sequences)');
   ok(!/_crmCall\('due'|_crmCall\('log_send'/.test(frag), 'the page never calls the sender-only actions');
   ok(/svLayerOpen\(\{ key: 'crm-step-edit'/.test(frag), 'the step editor joins the layer list');
   // identity change (review finding): purge and re-render are wired into 100

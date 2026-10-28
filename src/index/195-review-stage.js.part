@@ -12,6 +12,7 @@ import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtComment
 import { TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewAnswered } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
+import { _sxrKasperState } from './290-samples-writes-review.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -2347,7 +2348,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSaving(m, k) {
         if (R.S && R.S.editSaving[m.id + '|' + k]) return true;
-        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? (window._sxrKasperState && window._sxrKasperState.saving && window._sxrKasperState.saving[m.id + '|' + k]) : (it._saving && it._saving[k]))); }
+        if (R.mode === 'kasper') { const it = m.item; return !!(it && (m.sample ? !!_sxrKasperState.saving[m.id + '|' + k] : (it._saving && it._saving[k]))); }
         return !!_calReviewState.saving[m.id + '|' + k];
     }
     function _rsError(m, k) {
@@ -3090,7 +3091,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {
-                window._sxrKasperState.drafts[m.id + '|' + comp] = text;
+                _sxrKasperState.drafts[m.id + '|' + comp] = text;
                 if (opts.aat) window._sxrKasperApproveAfterTweaksComp(m.id, comp); else window._sxrKasperRequestTweakComp(m.id, comp);
             } else {
                 const it = _rsItem(m);
@@ -3251,7 +3252,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsSendNoteNow(m, comp, text, vis, parent) {
         delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
         if (R.mode === 'kasper') {
-            if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
+            if (m.sample) { _sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);
             if (!it._drafts) it._drafts = { video: '', graphic: '', caption: '' };
             // A card that left his lists (m.gone) is no longer where his own save path looks it up by id, so it would

@@ -13,7 +13,7 @@
 //   note    { id, note }                         -> { person }
 //   today   {}                                   -> { due_people, calls_passed, sends_today }
 //   call_outcome { id, expected_version, outcome: showed|no_show } -> { person, enrolment? }
-//   sequences {}                                 -> { sequences (with steps and people in it now) }
+//   sequences {}                                 -> { sequences (with steps and people in it now), n8n (read-only n8n sequences) }
 //   step_edit { step_id, fields }                -> { step } (a new draft version)
 //   step_approve { step_id }                     -> { step }      (admin role only)
 //   sequence_toggle { sequence_id, active }      -> { sequence }
@@ -339,7 +339,23 @@ async function sequencesView(db: SupabaseClient) {
       people_now: counts[s.id] || 0,
       steps: (steps as any[]).filter((st) => st.sequence_id === s.id).sort((a, b) => a.position - b.position || a.step_key.localeCompare(b.step_key)),
     })),
+    n8n: await n8nSequences(db),
   });
+}
+
+/* The n8n automations that message a lead, as read-only sequences with
+   their exact wording (crm_n8n_sequences, a snapshot read from n8n). A
+   missing table or a failed read gives an empty list, never an error. */
+async function n8nSequences(db: SupabaseClient) {
+  try {
+    const { data, error } = await db.from("crm_n8n_sequences")
+      .select("key,name,description,audience,stops_when,workflow_name,position,active,messages,synced_at")
+      .order("position", { ascending: true });
+    if (error || !Array.isArray(data)) return [];
+    return data;
+  } catch (_e) {
+    return [];
+  }
 }
 
 async function systemsView(db: SupabaseClient) {

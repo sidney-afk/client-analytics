@@ -20,6 +20,10 @@
 //   reddit.subreddit { subreddit, sort?, timeframe?, cache_max_age?, after? }
 //   transcript       { url, language? }       a TikTok, Instagram or YouTube link
 //   credits          {}                       the ScrapeCreators credit balance
+//   watch            { url, max_seconds? }    Gemini watches one TikTok, Instagram or YouTube video and answers its words,
+//                                            what is on screen, the hook, how it is built, ad or repost (Sidney, 2026-10-28).
+//                                            The Gemini key is the Supabase secret GEMINI_API_KEY. Answers cost_usd from
+//                                            Gemini's own token count; the caller keeps the per-batch money cap.
 //
 // What each action may send is fixed in rules.mjs (no free choice of endpoint,
 // host or paid option). Every pass call first re-checks the member is still on
@@ -32,7 +36,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "../pipeline-google/pass.mjs";
 import { pipelineGate } from "../pipeline-google/users.mjs";
-import { BASE, CAP_KEY, buildRequest, capFrom, logLine, monthStart, slimResult } from "./rules.mjs";
+import { BASE, CAP_KEY, WATCH_MAX_BYTES, WATCH_MODEL, buildRequest, capFrom, geminiBody, logLine, mediaFrom, monthStart, slimResult, watchCost } from "./rules.mjs";
 
 const clean = (v: unknown) => String(v == null ? "" : v).trim();
 const json = (obj: unknown, status = 200) => Response.json(obj, { status, headers: { "Cache-Control": "no-store" } });
@@ -47,7 +51,7 @@ function db() {
 type Db = NonNullable<ReturnType<typeof db>>;
 
 // What buildRequest (rules.mjs) answers: a refusal, or the request to make.
-type Plan = { ok: boolean; error?: string; path: string; query: Record<string, string>; counts: boolean; site?: string };
+type Plan = { ok: boolean; error?: string; path: string; query: Record<string, string>; counts: boolean; site?: string; watch?: boolean; maxSeconds?: number };
 
 function readSetting(sb: Db) {
   return async (key: string) => {
@@ -78,6 +82,7 @@ async function handle(req: Request): Promise<Response> {
   const plan = buildRequest(action, b) as Plan;
   if (!plan.ok) return refused(String(plan.error), 400);
 
+  if (plan.watch && !clean(Deno.env.get("GEMINI_API_KEY"))) return refused("Watching is not set up yet (the Gemini key is missing in Supabase). Tell the Connector supervisor.", 503);
   const key = clean(Deno.env.get("SCRAPECREATORS_API_KEY"));
   if (!key) return refused("ScrapeCreators is not set up yet (the key is missing in Supabase). Tell the Connector supervisor.", 503);
 
@@ -107,6 +112,8 @@ async function handle(req: Request): Promise<Response> {
     }
   }
 
+  if (plan.watch) return await watch(plan, String(b.url), key, fail, async (summary: string) => { await sb.from("hf_activity").update({ summary }).eq("id", entryId); });
+
   const url = new URL(BASE + plan.path);
   for (const [k, v] of Object.entries(plan.query)) url.searchParams.set(k, v);
   let resp: Response;
@@ -128,6 +135,58 @@ async function handle(req: Request): Promise<Response> {
     return json({ ok: false, error: why, status: resp.status }, resp.status === 404 ? 404 : 502);
   }
   return json({ ok: true, action, result: slimResult(action, data ?? text) });
+}
+
+// Gemini watches one video. The file is found through ScrapeCreators (Instagram, TikTok) or opened by Gemini from the
+// link (YouTube). A video longer than max_seconds is refused before anything is sent to Gemini.
+async function watch(plan: Plan, link: string, scKey: string, fail: (e: string) => Promise<void>, note: (s: string) => Promise<void>): Promise<Response> {
+  const gKey = clean(Deno.env.get("GEMINI_API_KEY"));
+  const max = plan.maxSeconds ?? 180;
+  let video: { fileUri?: string; base64?: string; mime?: string };
+  let seconds: number | null = null;
+  if (plan.site === "youtube") {
+    video = { fileUri: link };
+  } else {
+    const u = new URL(BASE + plan.path);
+    for (const [k, v] of Object.entries(plan.query)) u.searchParams.set(k, v);
+    let data: unknown = null;
+    try {
+      const r = await fetch(u, { headers: { "x-api-key": scKey, Accept: "application/json" } });
+      if (!r.ok) { await fail(`status ${r.status}`); return refused(`ScrapeCreators could not find that video (status ${r.status}).`, 502); }
+      data = await r.json();
+    } catch (_e) { await fail("no answer from ScrapeCreators"); return refused("ScrapeCreators did not answer. Try again in a minute.", 502); }
+    const m = mediaFrom(plan.site, data);
+    seconds = m.seconds;
+    if (seconds !== null && seconds > max) { await fail(`too long: ${Math.round(seconds)} s`); return json({ ok: false, error: `The video is ${Math.round(seconds)} seconds, over the ${max} second limit, so it was not watched.`, too_long: true, seconds }, 422); }
+    if (!m.url) { await fail("no video file in the answer"); return refused("ScrapeCreators gave no video file for that link.", 404); }
+    let bytes: Uint8Array;
+    try {
+      const f = await fetch(m.url);
+      if (!f.ok) { await fail(`file status ${f.status}`); return refused(`The video file could not be fetched (status ${f.status}).`, 502); }
+      const len = Number(f.headers.get("content-length") || 0);
+      if (len > WATCH_MAX_BYTES) { await fail("file too big"); return refused("The video file is too big to watch.", 422); }
+      bytes = new Uint8Array(await f.arrayBuffer());
+    } catch (_e) { await fail("file not fetched"); return refused("The video file could not be fetched.", 502); }
+    if (bytes.length > WATCH_MAX_BYTES) { await fail("file too big"); return refused("The video file is too big to watch.", 422); }
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    video = { base64: btoa(bin), mime: "video/mp4" };
+  }
+  let g: Response;
+  try {
+    g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${WATCH_MODEL}:generateContent`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": gKey }, body: JSON.stringify(geminiBody(video)) });
+  } catch (_e) { await fail("no answer from Gemini"); return refused("Gemini did not answer. Try again in a minute.", 502); }
+  // deno-lint-ignore no-explicit-any
+  const out = await g.json().catch(() => ({})) as Record<string, any>;
+  if (!g.ok) { await fail(`gemini status ${g.status}`); return json({ ok: false, error: `Gemini could not watch it (status ${g.status}).`, status: g.status }, 502); }
+  const cost = watchCost(out.usageMetadata);
+  const text = String(out?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") || "");
+  let read: unknown = null;
+  try { read = JSON.parse(text); } catch (_e) { read = { transcript: text }; }
+  if (seconds !== null && read && typeof read === "object" && (read as Record<string, unknown>).seconds == null) (read as Record<string, unknown>).seconds = seconds;
+  await note(`watch: ${plan.site} - $${cost.toFixed(4)}`);
+  return json({ ok: true, action: "watch", result: { read, model: WATCH_MODEL, usage: out.usageMetadata ?? null, cost_usd: cost, seconds } });
 }
 
 Deno.serve(async (req) => {

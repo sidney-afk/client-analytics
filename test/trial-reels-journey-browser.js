@@ -131,7 +131,7 @@ const DID = 'del_vid_1';
     let changes = [], extra = {}, r;
     if (action === 'answer') {
       const stage = isClient ? 'client' : L.clean(b.stage, 10).toLowerCase();
-      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note }, now);
+      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note, cardStatus: card.video_status }, now);
       if (r.error) return refuse(400, r.error);
       changes = r.patches;
     } else if (action === 'version_link_set') {
@@ -226,7 +226,7 @@ const DID = 'del_vid_1';
   });
   const heightOf = page => page.evaluate(() => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent); return c ? Math.round(c.getBoundingClientRect().height * 10) / 10 : 0; });
   const rowText = page => page.evaluate(() => { const f = [...document.querySelectorAll('.cal-link-field.cal-link-post')].find(n => n.offsetParent); return f ? f.innerText.replace(/\s+/g, ' ').trim() : ''; });
-  const listRows = page => page.$$eval('.trl-list .trl-v', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), lab: ((n.querySelector('.trl-lab') || {}).textContent || '').trim(),
+  const listRows = page => page.$$eval('.trl-list .trl-v:not(.trl-add)', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), lab: ((n.querySelector('.trl-lab') || {}).textContent || '').trim(),
     href: (n.querySelector('.trl-go') || {}).href || '', pick: !!n.querySelector('.trl-pick') })));
   async function shot(page, name) {
     if (!SHOTS) return;

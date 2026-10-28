@@ -34887,6 +34887,30 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Also fixed (found on the screenshots, not from this change):** on the staff phone card, a thumbnail that is a link rather than a picture (a Frame.io page or an image folder: 14 and 125 live cards, 3 on the test client) drew its "Open thumbnail" / "Open folder" placeholder over the 56 px tool bar, under the play button and the icons. Its placeholder now takes 176 px of its own above the tools, as the no-thumbnail fallback does; with a video, the play button sits in its middle and the words under it. Phone only (`html.sv-staff-phone`); the desktop card is unchanged. Checked at 390 for both kinds (five overlaps on main, none now); `qa/staff-phone-design-browser.js` still 16 of 16.
 - **Proof:** screenshots `docs/syncview-design/proofs/trial-polish/` (1440 and 390, light and dark, switch off and on). `node test/trial-reels-polish-browser.js` (new, offline, 1440 and 390, light and dark): each "at once" check, each rollback with its message, the typing guard, no pill, 4.5:1, the name link, the unboxed and undimmed switch, hover changes, row buttons and their targets. On main its speed, switch, row-button, name and dropped checks fail. The five trial-reels browser suites pass (card and empty-card updated: the list is now open after switching on).
 
+## 554. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every action answers in about half the time, and Production's versions draw without waiting on the link checks (session Swift)
+
+- **Owner, 2026-10-27:** every trial action felt slow (paste, drop, switch), and the new Production rows must not slow anything.
+- **Measured live first (read-only, test client only):** #2359 did not slow SyncLinear or Production. First rows took 1785 ms before and 1793 ms after (medians of 5). Production boot made 59-60 requests either way. A task's Assets drew in about 100 ms either way. The one new request is one trial-reels read, on the test client's trial video task only. But that read took about 2 s, and every action was slow on the server itself.
+- **Where the time went (the function's own `ms` log, last 24 h, server time, medians):**
+  - Writes waited on about eight database answers one after another: drop 555 ms, restore 467, paste a link 601, add a version 649, switch 508, approve 375. Before any write it read the page switch, then the card, its switch row, its versions and the card's link, each in turn; then it wrote the versions one by one, then the ledger line, then read the versions back.
+  - `list` read every card in turn: 418 ms with one card, growing with each card.
+  - Production's read with `probe: true` waited on every version link's check at Frame.io and its redirects: 1.5 to 2.9 s.
+  - Not the cold start: the worker boots in 29 ms (median; at most 65). But 205 boots served 249 requests, so the five-minute keep of link verdicts in memory rarely helps.
+- **Fix (`supabase/functions/trial-reels/index.ts`, no rule changed):**
+  - Every read a request may need starts at once. Their answers are looked at in the old order, so every refusal is the same as before, for the same reason.
+  - A set of version writes goes out together. All or nothing is kept: the rows already written are put back on a conflict.
+  - The ledger line and the read-back go out together. The winner's card row still goes before the ledger, so a refused winner write still leaves no ledger line.
+  - `list` reads its cards side by side, and its switch rows with the page switch.
+  - Production's first read waits at most `probe_budget_ms` (250 ms). A link still being checked answers "checking", `probe_pending` is set, and the check runs on. A link already being checked is joined, not checked again.
+  - A read without the budget waits for every check, as before, so an older page is unchanged.
+- **Page (`src/index/245-production-trial-versions.js.part`):** the versions draw from the first read, with a skeleton pill where a state is still being checked. One more read, without a budget, fills the states in. That is one extra request, only when the providers are slow.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts`: every database answer of the stand-in takes 60 ms, so the time of each action counts the answers it waited on in a row. Now: read 2.1, list 3.3, drop, restore, paste, approve and add 4.2, switch 3.2. The budgeted read answers in 378 ms against 1.5 s providers. On main's function the same checks fail 10 times: read 5.3, list 19.8, writes 8.3, switch 7.3, budgeted read 1814 ms.
+  - `test/trial-reels-production-browser.js`: one budgeted read on opening; with slow providers, exactly one more read brings the states.
+  - All of these pass: the card, race, link-guard, empty-card and logic tests, `prod-boot-budget.js`, `prod-write-gateway-browser.js`, and the Deno type ratchet (no new errors).
+- **Expected live:** writes about 280 ms server time (4 answers in a row at the measured ~70 ms each), reads about 150 ms, `list` about 240 ms. To be checked in the function's own `ms` log after the merge lane deploys it. trial-reels is not a Section 4 function.
+- **Still open:** a fresh worker on most requests means the follow-up read usually checks the links again (about 2 s, while the rows are already drawn). Keeping verdicts across workers would need a table.
+
 **Way back:** revert the pull request.
 
 ## 553. [2026-10-28 UTC, BUILT, NOT MERGED] Trial reels in Notes: a trial video did not say it was one (Sidney, session Trials)
@@ -34917,3 +34941,34 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Screenshot checked at 1440.
 
 **Way back:** revert the pull request.
+
+## 544. [2026-10-27 UTC, BUILT, NOT MERGED] Every staff switch takes { "all": true }, so a person who joins later is not left out (session Allstaff)
+
+- **Why:** the owner turned five staff features on for everybody on 2026-10-27 (`unread_badges_v2`, `phone_polish_staff`, `caption_history_staff`, `thumbnail_title_buttons_staff`, `frame_comments_in_notes_staff`). Those switches only took a list of staff ids, and some readers dropped a `"*"` entry, so the supervisor wrote all 14 active staff ids into each row. Anyone added to the roster later would have been off.
+- **What (`188` only):** one helper reads every `{ "staff": [...] }` switch in `188-review-stage-switch.js.part`: the five above, plus `review_stage_kasper_staff`, `review_stage_kasper_layout2`, `kasper_fast_boot` and `workload_calm_staff`. Each now also takes `{ "all": true }`, the form `workload_calm_staff` and `calendar_card_write_clients` already had.
+  - `_rsStaffSwitch` parses a row into `{ all, list }`. `_rsStaffOn` answers for the person on the page; it was `_rsCalmWho`, widened.
+  - `"all": true` means any signed-in staff member, once the server has said who. Never the client link. Only the exact boolean `true` counts. A `"*"` entry is still not a wildcard.
+  - A missing, unreadable or malformed row is off, as before. A list keeps working as a list. Both forms together: on for everyone.
+  - The switches are still read once per page through the same bounded read.
+- **Every reader checked:**
+  - The page: 188 is the only place that reads these rows. Every other fragment asks 188's `sv*On()` functions.
+  - Edge Functions: no function reads any of the nine. `thumbnail-titles` reads the separate client switch `thumbnail_titles`, and `production-comments` only mentions `unread_badges_v2` in a comment.
+  - Hints in localStorage:
+    - `sv-kasper-fast` now keeps `fastAll` / `stageAll`. Those turn the fast boot on for any signed-in staff member, and never on a client link (checked in the real client link with a planted all hint). Older hints without them read as before.
+    - `sv-wl-calm-staff` keeps its `"*"` marker, which is unchanged.
+    - `sv-rs-on-clients` is the client switch, not touched.
+- **Proven:**
+  - `node docs/syncview-design/tests/staff-switch-all-browser.js` (new, 273 checks, in the Calendar unit tests lane). For each of the nine switches, `all: true` is on for a staff member in no list, off on the client link, off before sign-in is known, and off for a non-staff caller. The list form works by id and by full name, and an unlisted person stays off. Twelve malformed shapes and a missing row are off. The same is checked in the real page on a staff page and on a client link.
+  - It fails on main: part 1 cannot find the helper, and part 2 gets "off" for `review_stage_kasper_staff { all: true }`.
+  - `test/thumbnail-title-buttons-source.js` now pins the helper instead of the old inline list read. It asserts the same thing.
+- **After merge (supervisor):** write `{"all": true, "staff": [...]}` into the five rows. The list stays as a fallback for any browser still on the old page until it reloads, because the old page ignores `all`.
+
+**Way back:** revert the pull request. Rows written as `{"all": true, "staff": [...]}` keep working on the old code through their list.
+
+## 540. [2026-10-27 UTC, BUILT, NOT MERGED] A client may type the caption on the Sheet again, in Collaborative mode only (session Capedit)
+
+- **Owner's ask (2026-10-27).** On the client link's Sheet a client could no longer type a caption on an existing card. That was the owner's own rule from #2208 (train #2209, 2026-10-18): caption, call to action and date read only for a client, Collaborative mode on or off. The owner now wants the caption open again, at least in Collaborative mode.
+- **Server checked first (read only, 2026-10-27).** A client link's card save goes to `calendar-upsert` (`_calUpsertFetchClientLink`, fragment 120). The live function (v94) is the un-gated build: no token check, no per-role field filter, and `caption` is in its `ALLOWED` list. The card-write admission gate is `open`. The `caption_versions_capture` trigger on `calendar_posts` records every caption change whoever makes it, so a client's edit gets a version row like any other. Nothing on the server was changed or widened.
+- **Change (page only, fragments 130 and 170).** `_calClientMayEditText(pid, fld)` now takes the field. On an existing card a client may edit only the fields in `CAL_CLIENT_COLLAB_TEXT_FIELDS` (today just `caption`), and only while Collaborative mode is on. With it off, every text field is read only, as before. The call to action, date, title, alt caption, media and status are unchanged in both modes, and the handler-level blocks still refuse them. Opening the call to action later is one line: add `'cta'` to that set. The review page's own caption edit (`_calClientReviewCaptionEdit`) and blank "suggest a post" cards are untouched.
+- **Proven.** `test/client-calendar-read-only-browser.js` now states the new rule. With collab on, the caption is editable and a typed caption is saved, while the call to action, date and alt caption save nothing however they are reached. With collab off, all of them stay read only. Both modes are checked at 1440 and 390. On main the same test fails 6 checks (the caption is read only with collab on). The nightly probe p52 asserts the gate per field in both modes, and saves a client caption on its own probe card through the client link against the live backend. The Dawn tier-0 check keeps asserting that approve and request changes leave the caption text unchanged; only its label lost "(read-only)".
+- **Way back:** revert the pull request.

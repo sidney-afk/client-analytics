@@ -29,13 +29,19 @@ import { _prodRender } from './260-production-refresh-boot.js';
     // The sub-issue's card and client, from its deliverables row (the Production issue keeps it as `raw`).
     const _trlProdCard = issue => String((issue.raw && issue.raw.card_id) || '').trim();
     const _trlProdClient = issue => String((issue.raw && issue.raw.client_slug) || '').trim();
-    function _trlProdLoad(issue) {
+    /* The first read waits at most this long for the version links' checks (about 2 s live for a Frame.io link), so
+       the rows draw at once with their state still "checking"; when the function says checks are still running, one
+       more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 554). */
+    const TRL_PROD_PROBE_BUDGET_MS = 250;
+    function _trlProdLoad(issue, full) {
         const e = _trlProdEntry(issue.id);
         if (e.promise) return e.promise;
         e.client = _trlProdClient(issue);
         e.postId = _trlProdCard(issue);
-        e.promise = svTrialCall({ action: 'read', client: e.client, post_id: e.postId, probe: true }, 'production')
-            .then(json => { e.shape = json; e.readFailed = false; })
+        let again = false;
+        e.promise = svTrialCall(Object.assign({ action: 'read', client: e.client, post_id: e.postId, probe: true },
+            full ? {} : { probe_budget_ms: TRL_PROD_PROBE_BUDGET_MS }), 'production')
+            .then(json => { e.shape = json; e.readFailed = false; again = !full && !!(json && json.probe_pending); })
             .catch(err => {
                 // Only an answer that says there are no versions here gives back today's single row. Any other
                 // failure (the network, an unreadable table) keeps what was drawn and says so, with Retry: the
@@ -43,7 +49,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 if (TRL_PROD_NONE.has(String(err && err.code || ''))) { e.shape = null; e.readFailed = false; }
                 else e.readFailed = true;
             })
-            .finally(() => { e.at = Date.now(); e.promise = null; if (document.getElementById('prodRoot')) _prodRender(); });
+            .finally(() => { e.at = Date.now(); e.promise = null; if (document.getElementById('prodRoot')) _prodRender(); if (again) _trlProdLoad(issue, true); });
         return e.promise;
     }
     function _trlProdState(shape, letter) {

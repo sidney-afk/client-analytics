@@ -72,7 +72,10 @@ async function shot(page, name) {
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
     if (b.action === 'read') {
       if (b.post_id !== 'p_t1') return reply({ ok: false, error: 'card_not_found' }, 404);
-      return reply(Object.assign({ ok: true, video_deliverable_id: vid.id }, shape(), b.probe === true ? { link_states: states() } : {}));
+      // T.pending: the checks outlast the page's budget, so the first read says so and the states are still "checking".
+      const late = b.probe === true && T.pending && Number(b.probe_budget_ms) > 0;
+      return reply(Object.assign({ ok: true, video_deliverable_id: vid.id }, shape(), b.probe === true
+        ? (late ? { link_states: Object.fromEntries(T.versions.map(v => [v.letter, { state: 'checking' }])), probe_pending: true } : { link_states: states() }) : {}));
     }
     if (b.action === 'version_link_set') {
       const res = L.linkPatch(T.versions, b.letter, b.link, mainLink());
@@ -159,6 +162,19 @@ async function shot(page, name) {
     ok(dropLook && !dropLook.pill && /rgba\(0, 0, 0, 0\)|transparent/.test(dropLook.bg) && dropLook.pad === '0px' && dropLook.radius === '0px',
       'Video D says "dropped" as plain text with no pill (no fill, padding or rounding): ' + JSON.stringify(dropLook));
     ok(T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), "the read names the sub-issue's card and asks for the link states");
+    ok(T.calls.filter(c => c.action === 'read').length === 1 && Number(T.calls.find(c => c.action === 'read').probe_budget_ms) > 0,
+      "one read on opening, and it does not wait on the providers past its budget");
+    // The providers are slow (OPEN_REPAIRS 554): the rows draw at once, then one more read brings the states.
+    {
+      T.pending = true; T.calls = [];
+      const slow = await open(1440, 900);
+      const reads = T.calls.filter(c => c.action === 'read');
+      const sr = (await rows(slow)).filter(x => x.trial);
+      ok(reads.length === 2 && Number(reads[0].probe_budget_ms) > 0 && !('probe_budget_ms' in reads[1]) && sr.length === 5 && sr[1].state === 'Permission denied' && sr[4].state === 'Missing',
+        'with slow providers: the versions draw from the first read, and exactly one more read (no budget) brings their states (' + reads.length + ' reads)');
+      await slow.close();
+      T.pending = false;
+    }
     const lefts = await page.evaluate(() => ['.prod-asset-value', '.prod-asset-state', '.prod-asset-edit'].map(sel => [...document.querySelectorAll('.trl-prod-v ' + sel)].map(n => Math.round(n.getBoundingClientRect().left))));
     ok(lefts.every(col => col.length === 5 && new Set(col).size === 1), 'the links, the states and the Edit buttons line up down the version rows: ' + JSON.stringify(lefts));
     const cr = await contrast(page);

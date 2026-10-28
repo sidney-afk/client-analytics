@@ -153,7 +153,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
         const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
-        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
+        const cok = _trvClientOk(cur, stage) ? '<span class="trv-cok" title="The client approved Video ' + _calEscAttr(cur.letter) + '">Client approved</span>' : '';
+        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + cok + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
@@ -162,7 +163,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
-            + (_trvClientOk(cur, stage) ? '<span class="trv-cok" title="The client approved Video ' + _calEscAttr(cur.letter) + '">Client approved</span>' : '')
+            + cok
             + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
     }
     // The two arrows beside the player ('' with one version). They hide on a phone (CSS): there the video is swiped.

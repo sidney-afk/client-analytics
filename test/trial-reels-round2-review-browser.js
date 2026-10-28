@@ -348,6 +348,15 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       }
     }
     if (part('cok')) {
+      // One live version left (the team dropped the others): the tag still shows (Codex on #2418).
+      const vs = clientOnly().map(v => v.letter === 'A' ? v : Object.assign(v, { status: 'dropped' }));
+      const t = await start('smm', true, vs, { noSmm: ['A', 'B', 'C'] });
+      const mark = await R(t, `const n = r.querySelector('.trv-under .trv-cok'); return n && n.offsetParent ? n.textContent.trim() : '';`);
+      const d = await dec(t);
+      ok(mark === 'Client approved' && /^Approve/.test(d.ok), `SMM review, one version left: "Client approved" shows and the SMM's Approve stays ("${mark}" | "${d.ok}")`);
+      await t.ctx.close();
+    }
+    if (part('cok')) {
       // Kasper's second layout: A's tile says it too, and keeps its Approve.
       const t = await start('kasper', true, clientOnly(), { layout2: true, noSmm: ['A', 'B', 'C'] });
       const tile = await R(t, `const v = [...r.querySelectorAll('.trk-v')].find(n => /Video A/.test(n.innerText)); const b = [...r.querySelectorAll('.trk-v')].find(n => /Video B/.test(n.innerText));

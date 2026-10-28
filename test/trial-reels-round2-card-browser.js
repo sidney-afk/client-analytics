@@ -177,6 +177,18 @@ const SHOTS = process.env.TRIAL_R2_SHOTS || '';
           const st2 = await state(page);
           ok(st2 && /1\/2/.test(st2.text), `${tag}: the passed version is not counted as waiting: ${JSON.stringify(st2)}`);
           await shot(page, 'r2-card-passed-' + label + '-' + theme);
+          // Codex on PR 2409: a trial whose 24 h end while the page is open changes nothing on the server, yet the row
+          // must move from the countdown to the trophy on the next refresh.
+          await sleep(2500);
+          const ends = new Date(Date.now() + 2500).toISOString();
+          T.versions.forEach(v => { if (v.status !== 'dropped') Object.assign(v, { status: 'on trial', client_pass_at: null, posted_at: new Date().toISOString(), trial_ends_at: ends }); });
+          await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+          await page.waitForFunction(() => /On trial/.test((document.querySelector('.cal-link-post.trl-main') || {}).innerText || ''), null, { timeout: 5000, polling: 200 }).catch(() => {});
+          ok(/On trial/.test(await page.evaluate(() => (document.querySelector('.cal-link-post.trl-main') || {}).innerText || '')), `${tag}: the trial starts on the card ("On trial · 1 h left")`);
+          await sleep(4500);
+          await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+          await page.waitForFunction(() => !!document.querySelector('.cal-link-post .trl-state-ico'), null, { timeout: 5000, polling: 200 }).catch(() => {});
+          ok(!!(await page.$('.cal-link-post .trl-state-ico')), `${tag}: once the 24 h are up, the next read shows the trophy though nothing changed on the server`);
         }
         // ---- 2: the Notes player keeps the reel's vertical shape while the next version loads ----
         if (theme === 'light') {

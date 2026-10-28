@@ -35093,6 +35093,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `test/trial-reels-round2-review-browser.js` (client at 1440 and 390, light and dark; a refused pass put back; Kasper's tile);
   - `test/trial-reels-round2-card-browser.js` and `test/trial-reels-production-browser.js` ("Client passed").
   - Each fails on main.
+- **Codex on #2409:** a card sent straight to the client lets the client pass a version with no OK on it. A new link on that version now clears the pass and starts the version again, as a new link does after any answer.
 - **Needs:** Lighthouse applies the migration. Until then the client's pass answers `pass_unavailable`, and everything else works.
 
 ## 563. [2026-10-28 UTC, BUILT, NOT MERGED] Staff card: a client's answer did not show on the SMM's card until something redrew it (Sidney, session Trials)
@@ -35106,6 +35107,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Only the cards whose versions changed are drawn again, and an open versions list stays open.
   - Staff only; nothing on a client link or a hidden tab.
 - **Proven:** `test/trial-reels-round2-card-browser.js`: the server approves Video A with no page action. Within one refresh the card says 1/3 and A's row says approved. A tab return brings "Client passed". This fails on main.
+- **Codex on #2409:** a card with a version on trial is drawn again on every read. Its countdown and trophy follow the clock, and the server's answer is the same when the 24 h end.
 - **Open:** why Sidney's press landed on Video B is not proven. The player plays the version the bar names in every offline check (`trial-reels-review-browser.js`). A live walk by Trialtest should press Approve on a named version and read the ledger.
 
 ## 564. [2026-10-28 UTC, BUILT, NOT MERGED] Notes player: switching Video A, B, C showed a wide box "for like a second" (Sidney, session Trials)

@@ -254,6 +254,11 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     ok(L.dropPatch(passedB().map(x => x.letter === 'B' ? Object.assign(x, { status: 'dropped' }) : x), 'B', true, A_LINK).patch.client_pass_at === null, 'Bring back clears the pass');
     ok(!('client_pass_at' in L.newCutPatch(five().map(x => Object.assign(x, { status: 'change asked' })), 'B').patch) && !('client_pass_at' in L.dropPatch(five().map(x => Object.assign(x, { status: 'dropped' })), 'B', true, A_LINK).patch),
       'a row with no pass never names the column');
+    // Codex on PR 2409: a card sent straight to the client (no SMM answer yet) lets the client pass a version with no
+    // OK on it; a new link on that version must still clear the pass and start it again.
+    const bare = [v('A'), v('B', { client_pass_at: NOW }), v('C')];
+    const lp = L.linkPatch(bare, 'B', 'https://f.io/fixture-b-other', A_LINK).patch;
+    ok(lp && lp.client_pass_at === null && lp.status === 'waiting' && lp.revision === 1, 'a new link on a version passed with no OK on it clears the pass and starts it again');
     const shp = L.readShape(passedB(), { client: true, mainLink: A_LINK });
     ok(shp.versions.find(x => x.letter === 'B').client_pass_at === NOW, 'the client read says which version the client passed on');
     ok(L.readShape(passedB(), { client: false, mainLink: A_LINK }).versions.find(x => x.letter === 'B').client_pass_at === NOW, 'and so does the staff read');

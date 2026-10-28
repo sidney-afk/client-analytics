@@ -327,7 +327,8 @@ function linkChange(v, link) {
   const patch = { frame_url: link || null };
   const had = clean(v.frame_url, 2048);
   const replaced = !!had && !!link && had !== link;
-  const answered = v.status === STATUS.approved || !!(v.smm_ok_at || v.kasper_ok_at || v.client_ok_at);
+  // A client's pass is an answer too (a card sent straight to the client may be passed with no OK on it).
+  const answered = v.status === STATUS.approved || !!(v.smm_ok_at || v.kasper_ok_at || v.client_ok_at || v.client_pass_at);
   if (link && (v.status === STATUS.change || (replaced && answered && [STATUS.waiting, STATUS.approved].includes(v.status)))) {
     Object.assign(patch, {
       revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting,

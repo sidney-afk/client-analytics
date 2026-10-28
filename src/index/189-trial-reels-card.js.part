@@ -107,7 +107,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
         const began = Date.now(), first = !e.at;
-        let changed = null;
+        let changed = null, moved = [];
         e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
             .then(json => {
                 const cards = (json && json.cards) || {};
@@ -115,15 +115,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 for (const pid of Object.keys(e.cards)) {
                     if ((_trlPending[pid] || []).length || (_trlWroteAt[pid] || 0) > began) { if (e.cards[pid]) cards[pid] = e.cards[pid]; else delete cards[pid]; }
                 }
-                // Only the cards whose versions moved are drawn again (a refresh every 30 s must not redraw the rest).
-                changed = [...new Set(Object.keys(cards).concat(Object.keys(e.cards)))].filter(pid => JSON.stringify(cards[pid] || null) !== JSON.stringify(e.cards[pid] || null));
+                // Only the cards whose versions moved are drawn again (a refresh every 30 s must not redraw the rest),
+                // and every card on trial: its countdown and the trophy follow the clock, not the server (Codex on PR 2409).
+                const onTrial = c => !!(c && (c.versions || []).some(v => v.status === 'on trial'));
+                const all = [...new Set(Object.keys(cards).concat(Object.keys(e.cards)))];
+                moved = all.filter(pid => JSON.stringify(cards[pid] || null) !== JSON.stringify(e.cards[pid] || null));
+                changed = all.filter(pid => onTrial(cards[pid]) || moved.includes(pid));
                 e.cards = cards; e.at = Date.now(); return e;
             })
             .catch(() => { e.at = Date.now(); return e; })
             .finally(() => {
                 e.promise = null;
                 if (first || !changed) { _trlRepaintAll(slug); _trlNotesChanged(''); return; }
-                changed.forEach(pid => { _trlRepaintField(pid); _trlNotesChanged(pid); });
+                changed.forEach(pid => _trlRepaintField(pid));
+                // The Notes view follows only a card whose versions moved (it is drawn again, keeping what is typed).
+                moved.forEach(pid => _trlNotesChanged(pid));
             });
         return e.promise;
     }

@@ -323,6 +323,8 @@ async function run(browser, origin, viewport) {
   if (SHOTS) await shoot(page, 'leads-today-' + label, true);
   const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
   expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
+  await callRow.locator('[data-crm-outcome="no_show"]').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => { const b = document.querySelector('[data-crm-outcome="no_show"]'); return b && b.getBoundingClientRect().height >= 36; }, null, { timeout: 3000 }).catch(() => {});
   const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
   expect(box && box.height >= 36, label + ': the No-show button is a real touch target');
   await callRow.locator('[data-crm-outcome="no_show"]').click();

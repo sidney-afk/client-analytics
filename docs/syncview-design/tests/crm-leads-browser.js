@@ -394,12 +394,21 @@ async function run(browser, origin, viewport) {
   const ovText = await page.locator('#crmSeqs').innerText();
   expect(/Sending|Off/.test(ovText) && !/Every automatic email and text/.test(ovText), label + ': the Sequences overview is one line per sequence, its explanation in a hover');
   if (SHOTS) await shoot(page, 'leads-seq-overview-' + label, true);
+  {
+    const sub = page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' });
+    expect(await sub.count() === 1 && await sub.getAttribute('aria-expanded') === 'true', label + ': Doctors is its own open folder in Sequences');
+    await sub.click();
+    expect(await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).getAttribute('aria-expanded') === 'false' && !(await page.locator('#crmSeqs .crm-seq-subg .crm-rows').count()), label + ': the Doctors folder closes');
+    await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).focus();
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('crm-seq-sub') && document.activeElement.getAttribute('aria-expanded') === 'true'), label + ': the folder keeps keyboard focus after it opens');
+  }
   expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
   if (label.startsWith('1360')) {
     const head = page.locator('.crm-tree-head').first();
     const before = await page.locator('.crm-tree-body').count();
     await page.locator('.crm-tree-body > .crm-tree-line').first().click();
-    expect(await page.locator('.crm-tree-body').count() === before - 1 && await head.getAttribute('aria-expanded') === 'false', label + ': clicking a group line in the Sequences menu folds that group');
+    expect(await page.locator('.crm-tree-body').count() < before && await head.getAttribute('aria-expanded') === 'false', label + ': clicking a group line in the Sequences menu folds that group');
     await head.click();
     expect(await page.locator('.crm-tree-body').count() === before, label + ': clicking the group title opens it again');
   }

@@ -259,11 +259,14 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         return ['After they sign', ''];
     }
     const CRM_SUB_ORDER = ['Doctors', 'Educators', 'Other calls', 'Booked', 'Before the call', ''];
-    /* Rows of one group, with a small sub-title each time the sub-group changes. */
-    function _crmWithSubs(items, row, sub) {
-        let last = null;
-        return items.map(x => { const head = x.sub && x.sub !== last ? sub(x.sub) : ''; last = x.sub; return head + row(x); }).join('');
+    /* Rows of one group; rows that share a sub-group (Doctors, Booked...)
+       go in their own folder, built by wrap(name, rows html, count). */
+    function _crmWithSubs(items, row, wrap) {
+        const runs = [];
+        items.forEach(x => { const r = runs[runs.length - 1]; if (r && r.sub === x.sub) r.items.push(x); else runs.push({ sub: x.sub, items: [x] }); });
+        return runs.map(r => r.sub ? wrap(r.sub, r.items.map(row).join(''), r.items.length) : r.items.map(row).join('')).join('');
     }
+    function _crmSubFolded(key) { return !!(_crmState.treeFold || {})[key]; }
     /* The sequences as groups: n8n ones by when they start, then ours,
        split by whether they can send yet. */
     function _crmSeqGroups() {
@@ -296,7 +299,11 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                         const shut = !!fold[g.title];
                         return '<div class="crm-tree-g' + (shut ? ' is-folded' : '') + '"><button type="button" class="crm-tree-head" aria-expanded="' + !shut + '" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(g.title) + '</span><span class="crm-tree-n">' + g.items.length + '</span></button>'
                             + (shut ? '' : '<div class="crm-tree-body"><button type="button" class="crm-tree-line" aria-label="' + _calEscAttr('Fold ' + g.title) + '" title="Fold" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')"></button>'
-                            + _crmWithSubs(g.items, x => _crmSideItem(x.key, x.name, t === 'seq' && k === x.key), n => '<div class="crm-tree-sub">' + _calEsc(n) + '</div>') + '</div>') + '</div>';
+                            + _crmWithSubs(g.items, x => _crmSideItem(x.key, x.name, t === 'seq' && k === x.key), (n, html, c) => {
+                                const fk = g.title + ' / ' + n, sh = _crmSubFolded(fk);
+                                return '<div class="crm-tree-g crm-tree-subg' + (sh ? ' is-folded' : '') + '"><button type="button" class="crm-tree-head" aria-expanded="' + !sh + '" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(n) + '</span><span class="crm-tree-n">' + c + '</span></button>'
+                                    + (sh ? '' : '<div class="crm-tree-body"><button type="button" class="crm-tree-line" aria-label="' + _calEscAttr('Fold ' + n) + '" title="Fold" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')"></button>' + html + '</div>') + '</div>';
+                            }) + '</div>') + '</div>';
                     }).join('') + '</div>';
             }
         }
@@ -308,7 +315,13 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
     function _crmToggleSeqMenu() { _crmState.seqMenuOpen = _crmState.seqMenuOpen === false; _crmPaintSide(); }
     /* A sub-group of the Sequences menu folds from its title or its line. */
-    function _crmFoldGroup(title) { const f = _crmState.treeFold || (_crmState.treeFold = {}); f[title] = !f[title]; _crmPaintSide(); }
+    function _crmFoldGroup(title) {
+        const f = _crmState.treeFold || (_crmState.treeFold = {}); f[title] = !f[title];
+        const a = document.activeElement, inSeqs = !!(a && a.closest && a.closest('#crmSeqs')), cls = a && a.className, how = a && a.getAttribute && a.getAttribute('onclick');
+        _crmPaintSide(); if (_crmState.tab === 'sequences') _crmPaintSeqOverview();
+        /* Keep keyboard focus on the folder button that was pressed. */
+        if (how) { const box = document.getElementById(inSeqs ? 'crmSeqs' : 'crmSide'); const b = box && Array.from(box.querySelectorAll('button')).find(n => n.getAttribute('onclick') === how && n.className === cls); if (b) b.focus(); }
+    }
     /* Sequences, all on one screen: each group with one line per sequence. */
     function _crmPaintSeqOverview() {
         const el = document.getElementById('crmSeqs');
@@ -317,7 +330,11 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         el.innerHTML = '<header class="crm-view-head"><h2 title="Every automatic email and text a lead can get, grouped by when it starts">Sequences</h2></header>'
             + _crmSeqGroups().map(g => '<section class="crm-group"><h3 class="crm-group-title">' + _calEsc(g.title) + '</h3><ul class="crm-rows">'
                 + _crmWithSubs(g.items, x => '<li class="crm-row"><button type="button" class="crm-row-main crm-seq-line" onclick="_crmGo(' + _jsAttrArg(x.key) + ')"' + (x.desc ? ' title="' + _calEscAttr(x.desc) + '"' : '') + '><span class="crm-row-name">' + _calEsc(x.name) + '</span></button>'
-                + (x.count ? '<span class="crm-seq-count">' + x.count + (x.count === 1 ? ' message' : ' messages') + '</span>' : '') + _crmLiveDot(x.live, x.where) + '</li>', n => '<li class="crm-seq-sub">' + _calEsc(n) + '</li>') + '</ul></section>').join('');
+                + (x.count ? '<span class="crm-seq-count">' + x.count + (x.count === 1 ? ' message' : ' messages') + '</span>' : '') + _crmLiveDot(x.live, x.where) + '</li>', (n, html, c) => {
+                    const fk = g.title + ' / ' + n, sh = _crmSubFolded(fk);
+                    return '<li class="crm-seq-subg"><button type="button" class="crm-seq-sub" aria-expanded="' + !sh + '" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(n) + '</span><span class="crm-group-n">' + c + '</span></button>'
+                        + (sh ? '' : '<ul class="crm-rows">' + html + '</ul>') + '</li>';
+                }) + '</ul></section>').join('');
     }
     /* Sending or not, as a dot and one word; where it runs is in the hover. */
     function _crmLiveDot(live, where) {
@@ -1262,7 +1279,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             /* App layout: side menu and one view. */
             + '.crm-app{display:flex;gap:28px;align-items:flex-start}'
             + '.crm-side{width:232px;flex-shrink:0;position:sticky;top:var(--crm-top,72px);max-height:calc(100vh - var(--crm-top,72px) - 136px);overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:4px 0}.crm-side-nav{display:contents}'
-            + '.crm-tree-sub{margin:8px 10px 2px;font-size:0.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}.crm-seq-sub{padding:12px 8px 4px;font-size:0.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--crm-hair)}.crm-lead-step.is-auto{color:var(--text-muted);font-style:italic}'
+            + '.crm-tree-sub{margin:8px 10px 2px;font-size:0.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}.crm-seq-sub{display:flex;align-items:center;gap:8px;width:100%;padding:12px 8px 6px;border:0;border-bottom:1px solid var(--crm-hair);background:none;font:inherit;font-size:0.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;text-align:left}.crm-seq-sub:hover{color:var(--text-primary)}.crm-seq-sub .crm-chev{width:10px;height:10px;transform:rotate(90deg);transition:transform .15s}.crm-seq-sub[aria-expanded="false"] .crm-chev{transform:none}.crm-seq-subg>.crm-rows{border-top:0;padding-left:18px}.crm-lead-step.is-auto{color:var(--text-muted);font-style:italic}'
             + '.crm-side-title{margin:0 10px 12px;font-size:1.05rem;font-weight:700;color:var(--text-primary)}'
             + '.crm-side-group{margin:16px 10px 4px;font-size:0.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}'
             + '.crm-side-item{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:38px;width:100%;border:0;border-radius:8px;background:transparent;padding:7px 10px;font:inherit;font-size:0.78rem;font-weight:500;text-align:left;color:var(--text-secondary);cursor:pointer}'

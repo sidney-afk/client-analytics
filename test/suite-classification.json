@@ -2085,6 +2085,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-kasper-sample-frame-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus one fictional sample answered by the test), no hosted credentials and no live data. Checks Kasper's Review Session in his second layout on a sample: Tweaks are on Frame and a typed Ask for a change each save the change request and move the video to Tweaks Needed, with the polish (unread_badges_v2) on and off, and no page error (OPEN_REPAIRS 539).",
+      "reproduce": "node test/review-stage-kasper-sample-frame-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2186,6 +2194,30 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. The version on the card: a link another version has, a decided version's link and a refused drop never leave the card on a link the function refused (Probe bugs 12 and 12b).",
       "reproduce": "node test/trial-reels-link-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-change-naming-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. On the review page, a change asked on one version and sent after a look at another is recorded on the version it was asked on and named for it; Kasper's Approve after tweaks on a trial card records which version the editor fixes.",
+      "reproduce": "node test/trial-reels-change-naming-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-journey-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. One trial card through its whole life (session Probe): switch off, links on the card and in Production, the SMM, a change and its new cut, Kasper, the client, the trial, the timer, the trophy, the winner, Undo, Posted and the switch off again, checking the card's one link at every step.",
+      "reproduce": "node test/trial-reels-journey-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-review-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the review page behind trial_reels_pages: today's page for an unlisted client, \"Video A of 5\" with a dot per version and arrows and no hook text, the version on screen playing (in a new tab on a client link when it is not the card's link), Approve answering one version and saving nothing on the card until every version has this reviewer's OK, Approve all then today's approve, a change recorded on its version with today's change request starting \"Video C:\", Kasper's Tweaks are on Frame word for word, and only the winner for the client after the pick, on the client link, the SMM's Review tab and Kasper's Review Session.",
+      "reproduce": "node test/trial-reels-review-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

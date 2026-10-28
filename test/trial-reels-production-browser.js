@@ -154,7 +154,7 @@ async function shot(page, name) {
     ok(T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), "the read names the sub-issue's card and asks for the link states");
     ok(T.calls.filter(c => c.action === 'read').length === 1 && Number(T.calls.find(c => c.action === 'read').probe_budget_ms) > 0,
       "one read on opening, and it does not wait on the providers past its budget");
-    // The providers are slow (OPEN_REPAIRS 547): the rows draw at once, then one more read brings the states.
+    // The providers are slow (OPEN_REPAIRS 550): the rows draw at once, then one more read brings the states.
     {
       T.pending = true; T.calls = [];
       const slow = await open(1440, 900);

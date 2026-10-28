@@ -31,7 +31,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
     const _trlProdClient = issue => String((issue.raw && issue.raw.client_slug) || '').trim();
     /* The first read waits at most this long for the version links' checks (about 2 s live for a Frame.io link), so
        the rows draw at once with their state still "checking"; when the function says checks are still running, one
-       more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 547). */
+       more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 550). */
     const TRL_PROD_PROBE_BUDGET_MS = 250;
     function _trlProdLoad(issue, full) {
         const e = _trlProdEntry(issue.id);

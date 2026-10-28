@@ -329,17 +329,32 @@ ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66
 const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
 ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
 
-// SPEED (session Swift, OPEN_REPAIRS 547). The owner found every trial action slow: each request waited on about eight
+// Sent for approval today's way, before any version went through the SMM (Sidney, 2026-10-27): the card is at Client
+// Approval, so the client link answers each version, and a staff read says each one is ready for the client.
+tables.calendar_posts.push({ id: "p7", client: "fixtureclient", video_status: "Kasper Approval", asset_url: "https://f.io/p7-main", video_deliverable_id: null });
+const p7 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p7");
+await step({ action: "switch_set", enabled: true, post_id: "p7" });
+await step({ action: "version_add", post_id: "p7", link: "https://f.io/p7-b" });
+const p7Early = await step({ action: "answer", post_id: "p7", kind: "approve", letter: "B" }, "client-none");
+ok(p7Early.status === 400 && p7Early.body.error === "stage_order", "a card still at Kasper Approval: the client waits for its turn");
+const p7Kasper = await step({ action: "answer", post_id: "p7", stage: "kasper", kind: "approve", letter: "B" }, "admin");
+ok(p7Kasper.body.ok === true && !!p7().find((r) => r.letter === "B")!.kasper_ok_at, "sent to Kasper with no version through the SMM: Kasper answers Video B");
+tables.calendar_posts.find((r) => r.id === "p7")!.video_status = "Client Approval";
+const p7Read = await step({ action: "read", post_id: "p7" }, "client-none");
+ok(((p7Read.body.versions || []) as Row[]).length === 2 && ((p7Read.body.versions || []) as Row[]).every((r) => r.ready === true), "sent on to the client: a client read says both versions are ready");
+const p7Client = await step({ action: "answer", post_id: "p7", kind: "approve_all" }, "client-none");
+ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and the client's Approve all approves them (" + p7Client.status + " " + p7Client.body.error + ")");
+// SPEED (session Swift, OPEN_REPAIRS 550). The owner found every trial action slow: each request waited on about eight
 // database answers one after another, and Production's read on every version link's check (about 2 s live). Here
 // every database answer takes 60 ms, so a request's time counts the answers it waited on in a row. Today: two for a
 // read, four for a write (the card's winner adds one), and a link check never holds a budgeted read past its budget.
 {
   const RT = 60;
-  tables.calendar_posts.push({ id: "p7", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p7-a", video_deliverable_id: "77777777-7777-4777-8777-777777777777" });
-  tables.deliverables.push({ id: "77777777-7777-4777-8777-777777777777", file_url: "https://f.io/p7-a" });
-  tables.trial_reel_cards.push({ client: "fixtureclient", post_id: "p7", enabled: true, winner_letter: null });
-  ["A", "B", "C"].forEach((l, i) => tables.studio_trial_versions.push({ ...v("A"), id: "p7" + l, letter: l, post_id: "p7", status: "waiting",
-    frame_url: "https://f.io/p7-" + l.toLowerCase(), smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, created_at: "2026-10-27T09:00:0" + i + ".000Z", updated_at: "2026-10-27T09:00:0" + i + ".000Z" }));
+  tables.calendar_posts.push({ id: "p20", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p20-a", video_deliverable_id: "20202020-2020-4020-8020-202020202020" });
+  tables.deliverables.push({ id: "20202020-2020-4020-8020-202020202020", file_url: "https://f.io/p20-a" });
+  tables.trial_reel_cards.push({ client: "fixtureclient", post_id: "p20", enabled: true, winner_letter: null });
+  ["A", "B", "C"].forEach((l, i) => tables.studio_trial_versions.push({ ...v("A"), id: "p20" + l, letter: l, post_id: "p20", status: "waiting",
+    frame_url: "https://f.io/p20-" + l.toLowerCase(), smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, created_at: "2026-10-27T09:00:0" + i + ".000Z", updated_at: "2026-10-27T09:00:0" + i + ".000Z" }));
   // The providers answer slowly here (live: about 2 s for a Frame.io link and its redirects).
   const slowFetch = globalThis.fetch;
   let providerCalls = 0;
@@ -352,7 +367,7 @@ ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B th
   latency.ms = RT;
   const timed = async (body: Row, who: "smm" | "admin" = "admin") => {
     const t0 = performance.now();
-    const r = await step({ post_id: "p7", ...body }, who);
+    const r = await step({ post_id: "p20", ...body }, who);
     return { ...r, trips: (performance.now() - t0) / RT };
   };
   const plan: [string, Row, number][] = [
@@ -360,9 +375,9 @@ ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B th
     ["list", { action: "list", post_id: "" }, 3.5],
     ["drop", { action: "version_drop", letter: "C" }, 4.5],
     ["restore", { action: "version_restore", letter: "C" }, 4.5],
-    ["paste a link", { action: "version_link_set", letter: "B", link: "https://f.io/p7-b2" }, 4.5],
+    ["paste a link", { action: "version_link_set", letter: "B", link: "https://f.io/p20-b2" }, 4.5],
     ["approve", { action: "answer", stage: "smm", kind: "approve", letter: "B" }, 4.5],
-    ["add a version", { action: "version_add", link: "https://f.io/p7-d" }, 4.5],
+    ["add a version", { action: "version_add", link: "https://f.io/p20-d" }, 4.5],
     ["switch", { action: "switch_set", enabled: true }, 3.5],
   ];
   for (const [name, body, most] of plan) {

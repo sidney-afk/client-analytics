@@ -148,7 +148,7 @@ async function readVersions(supabase: SupabaseClient, client: string, postId: st
   return settleWinner(await readVersionRows(supabase, client, postId), winnerLetter) as Version[];
 }
 
-/* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 547): every read a request may need starts at once and each answer
+/* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 550): every read a request may need starts at once and each answer
    is looked at in the old order, so a request is refused for exactly the same reason as before; only the waiting
    overlaps. A read started and never looked at (a refused request) must not surface as an unhandled rejection. */
 function begun<T>(p: Promise<T>): Promise<T> {
@@ -453,7 +453,7 @@ Deno.serve(async (req: Request) => {
     if (action === "answer") {
       // A client link answers only as the client; staff say which stage they answer for.
       const stage = principal.kind === "client" ? "client" : clean(body.stage, 10).toLowerCase();
-      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note }, now);
+      const r = answerPatches(versions, { stage, kind: clean(body.kind, 20).toLowerCase(), letter, note: body.note, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "version_link_set") {

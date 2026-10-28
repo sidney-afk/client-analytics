@@ -39,6 +39,24 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order' && L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order',
     'Kasper and the client answer a version only after the SMM has');
   ok(L.answerPatches(five(), { stage: 'client', kind: 'approve_all' }, NOW).patches.length === 0, 'Approve all skips every version not yet through the SMM');
+  // A card the team sent on today's way (today's Approve before the trial page, or the status menu) with no version the
+  // SMM has looked at: each version counts as through the SMM for the stage the card was sent to (Sidney, 2026-10-27:
+  // sent for approval, the client link must show the versions to answer). One unseen among seen ones stays with the team.
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'B'
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.length === 5,
+    'a card sent to the client with no version through the SMM: the client answers each version, and Approve all takes them all');
+  ok(L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).patches.length === 1
+    && L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Kasper Approval' }, NOW).error === 'stage_order',
+    'sent to Kasper: Kasper answers, the client still waits for its turn');
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Tweaks Needed' }, NOW).error === 'stage_order',
+    'a card the team has not sent on keeps the order');
+  const someSeen = () => five().map(x => x.letter === 'A' ? Object.assign(x, { smm_ok_at: NOW }) : x);
+  ok(L.answerPatches(someSeen(), { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).error === 'stage_order'
+    && L.answerPatches(someSeen(), { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'A',
+    'once the SMM has looked at one version, one it has not seen stays with the team (Probe rule-miss 13)');
+  ok(L.readShape(five(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.every(x => x.ready === true)
+    && L.readShape(someSeen(), { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' }).versions.map(x => x.ready).join() === 'true,false,false,false,false',
+    'the read says the same: ready on a card sent on whole, the SMM\'s own looks otherwise');
   const noLink = smmDone(); noLink[1].frame_url = null;
   ok(L.answerPatches(noLink, { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'version_has_no_link'
     && L.answerPatches(noLink, { stage: 'client', kind: 'approve_all' }, NOW).patches.every(p => p.letter !== 'B'), 'a version with no link is never approved: nothing to watch');
@@ -192,7 +210,7 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   ok(!/video_status\s*:/.test(code) && !/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'the function never writes the card (no status, no link)');
   ok(!/\.from\("deliverables"\)\s*\.(update|insert|upsert)/.test(code) && !/production-write|production_artifact_write/.test(code), 'the function never writes the sub-issue or calls a Section 4 function');
-  // Since OPEN_REPAIRS 547 the reads start together, so they are not all awaited where they are made: every one still
+  // Since OPEN_REPAIRS 550 the reads start together, so they are not all awaited where they are made: every one still
   // names a winner letter, and the rows read with the card are settled against the card's own.
   ok((code.match(/readVersions\(supabase, client, (postId|id),/g) || []).length >= 3 && !/readVersions\(supabase, client, (postId|id)\)/.test(code)
     && /return settleWinner\(/.test(code) && /settleWinner\(await rowsP!, sw\.winner_letter\)/.test(code),

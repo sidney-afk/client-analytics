@@ -35254,6 +35254,23 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 587. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version's change took the whole card to Tweaks Needed, so the reviewer lost the other versions and nothing brought the card back (Trialtest bug 1, Trialeyes E1 and E14, session Trials)
+
+- **What happened (live, test client):**
+  - A client's "Ask for a change" on Video A, on a card sent straight to Client Approval, moved the card to Tweaks Needed. The client then had no Approve on B, the reads said `ready=false` for every other version, and the card left the client's list.
+  - The same happened on the SMM's tab: approve A, change B, and C was never reviewable. "New cut ready" reset the version but never brought the card back.
+- **The owner chose (a)** (2026-10-29, about 02:4x UTC, via the Supervisor). The rule set is in `docs/features/TRIAL_REELS_PLAN.md` section 5.
+- **Fix:**
+  - **While another version still waits for this reviewer:** the change goes to the editor as today's tweak note, but the card keeps its status. This is `keepStatus` on `_calReviewRequestTweak` (190) and `_kasperRequestTweakComp` (330), and the client queue (185) keeps it for a replay.
+  - **Once nothing else waits:** the card goes to Tweaks Needed, status only (`_rsTrialToTweaks`, 195; `svTrialReviewKeepsCard` and `_trvSettlesToTweaks`, 194).
+  - **"New cut ready" or a new link on the last open change:** the card goes back to For SMM Approval through today's status pick (`_trlBackToReview`, 189).
+  - Only a card with the Trial reels switch on, for a client `trial_reels_pages` lists, takes any new branch.
+- **The editor (the Supervisor's question, 2026-10-29):** while the card keeps its status, the note posts to the client's creative channel at once (today's comment trigger, staff and client alike) and sits in the work item's thread, but the sub-issue keeps its review status, so the editor's Today (todo, in progress, tweak) did not list it. Today now also reads the editor's review-stage video sub-issues and lists, with the tweaks, each whose trial card has a version "change asked" ("changes asked on Video B"), until its new cut is in (`_tdyTrialAsks`, 097). Production's and SyncLinear's status stays the review stage. Today leaves test clients out for editors, as for every editor list.
+- **Proven:**
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`) runs four paths: the client at 390 on a card sent straight to the client (bug 1), the client at 1440 (E14), the SMM (E1) and Kasper. In each, the change is recorded and its note goes to the editor; the card stays while B and C wait; B shows its own Approve; and only after B and C are answered does the card go to Tweaks Needed. It fails on main: 12 checks.
+  - `test/trial-reels-round3-card-browser.js` checks that "New cut ready" sends the card back to For SMM Approval, and leaves it in Tweaks Needed while another change is open.
+  - `test/trial-reels-today-browser.js` at 1100 and 390: only the review-stage video sub-issue whose trial card has a version asked to change is listed, as "changes asked on Video B", and it leaves once the new cut is in. Fails on main.
+
 ## 579. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version the SMM approved read "waiting" in the same grey as one nobody had seen (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live at 1440):** after the SMM approved Video A, the card's versions list still said A "waiting", in the same grey as the unreviewed C. Only the hover said "SMM: approved".

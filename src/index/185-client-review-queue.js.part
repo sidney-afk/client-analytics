@@ -376,7 +376,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqSending();
         // Its own completion calls _calCrqDone / _calCrqFailed / _calCrqResolve.
         _crqRun.replaying.add(key);
-        try { _calReviewRequestTweak(entry.pid, entry.comp); }
+        try { _calReviewRequestTweak(entry.pid, entry.comp, entry.keepStatus ? { keepStatus: true } : undefined); }
         finally { _crqRun.replaying.delete(key); }
         // The handler returns early, without starting, when the part is no
         // longer waiting on the client. Nothing was sent: say so, keep nothing.

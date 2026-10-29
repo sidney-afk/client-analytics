@@ -11,10 +11,11 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
+import { svTrialReviewWanted } from './189-trial-reels-card.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -1039,6 +1040,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
+.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 12px}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-8px;right:-6px;width:20px;height:20px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;box-shadow:none;color:var(--text-secondary);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:11px;height:11px}
@@ -1171,6 +1173,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 
     /* ---------- state ---------- */
     function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '', trialLetter: '' }; }
+    /* The client link is often the first page in the tab's history, so Back leaves SyncView: words typed in the change
+       box and not sent ask first (Trialeyes E20, 2026-10-29). Staff pages keep their own drafts as before. */
+    window.addEventListener('beforeunload', e => {
+        if (!R.S || R.mode !== 'client' || !String((R.S.note && R.S.note.text) || '').trim()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false, l2: false, cp: false, cpNewFrom: null
@@ -1525,6 +1534,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsCur() {
         const all = _rsAll();
         let m = all.find(x => x.id === R.S.curId);
+        // A client's "N versions" tag on Sheet or Month opens that card (194).
+        const want = R.mode === 'client' && svTrialReviewWanted(false);
+        if (want) {
+            const w = all.find(x => x.id === want);
+            if (w) { svTrialReviewWanted(true); if (w !== m) { m = w; R.S.curId = w.id; R.S.step = _rsFirstStep(w); } }
+        }
         _rsDraftsSettle(all);
         if (!m) {
             const q = _rsQueue(), had = R.S.curId;   // had: a post was on stage (not the recap, not a first draw)
@@ -2454,6 +2469,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
         if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
+        // A version with its change open while the card stays (OPEN_REPAIRS 587): its own "Change asked" and note.
+        const asked = x.key === 'video' ? svTrialReviewAsked(_rsCur(), R.mode) : null;
+        if (asked) {
+            const m0 = _rsCur(), re = new RegExp('^Video ' + asked.letter + ':\\s*');
+            const last = m0 && m0.thread.filter(t => t.part === 'video' && t.change && re.test(t.text)).slice(-1)[0];
+            const q = asked.note || (last ? last.text.replace(re, '') : '');
+            return '<span class="dst chg"><span class="ck chg">' + RI.back + '</span>Change asked on Video ' + _re(asked.letter) + '</span>' + (q ? '<span class="dq" title="' + _re(q) + '">' + _re(q) + '</span>' : '');
+        }
         // The client said "Not this one" on the version on screen (owner, 2026-10-28): said, and the team takes it out.
         if (x.key === 'video' && svTrialReviewPassed(_rsCur(), R.mode)) return R.mode === 'client'
             ? '<span class="dst">Not this one: the team will take Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' out</span>'
@@ -2506,6 +2529,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
         // (review of #2235); on a part already answered, the answer shows.
         else if (saving && (S.pressed[m.id + '|' + x.key] || x.st === 'wait') && !(R.cp && S.cpOk[ck] && x.st === 'ok')) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'wait');
+        // A trial card: the version on screen says its own state, never the card's (another version's change note, or
+        // "Approved" over a version the client said "Not this one" to).
+        else if ((x.st === 'chg' || x.st === 'ok') && x.key === 'video' && svTrialReviewChangeHtml(m, R.mode, x.st)) d = svTrialReviewChangeHtml(m, R.mode, x.st);
         else if (x.st === 'ok' && R.mode === 'smm') d = '<span class="dst ok"><span class="ck' + (x.route === 'client' ? ' tocl' : '') + '">' + (x.route === 'client' ? RI.skip : RI.check) + '</span>Approved to ' + (x.route === 'client' ? 'client' : 'Kasper') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'ok') d = '<span class="dst ok"><span class="ck">' + (x.dec === 'aat' ? RI.aat : RI.check) + '</span>' + (x.dec === 'aat' ? 'Approved after tweaks' : 'Approved') + (x.when ? ' <span class="when">' + _re(_rsWhen(x.when)) + '</span>' : '') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'chg' && x.frame) d = '<span class="dst chg"><span class="ck chg">' + RI.frame + '</span>Tweaks are on Frame</span>' + (m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
@@ -2516,6 +2542,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             d = _rsActions(x, '');
         }
         const settled = !saving || (R.cp && S.cpOk[ck] && x.st === 'ok');
+        // That version's own state colours the row: approved green, waiting plain, never the other version's change.
+        const trv = (x.st === 'chg' || x.st === 'ok') && x.key === 'video' && !S.editing && !saving && svTrialReviewChangeHtml(m, R.mode, x.st);
+        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : '', saving };
         const dc = cpOk ? ' cp-checking' : x.st === 'ok' && d && !S.editing && settled ? ' is-ok' + (R.cp && S.cpOk[ck] ? ' cp-settle' : '') : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         return { d, dc, saving };
     }
@@ -2582,7 +2611,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, x = m.parts.find(p => p.key === S.step);
         const el = _rsQ('drow');
         const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
-        const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
+        const tsent = (S.trvSent && S.trvSent[m.id]) || {}, ls = st => Object.keys(tsent).filter(l => tsent[l] === st).sort();
+        const sentL = ls('sent'), sendingL = ls('sending'), trvOn = x && x.key === 'video' && !m.gone;
+        const note = (elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '')
+            + (trvOn && (sentL.length || sendingL.length) ? '<div class="trv-sent">'
+                + (sentL.length ? '<span class="cp-st cp-done" role="status">' + RI.check + 'Change sent for Video ' + _re(sentL.join(', ')) + '</span>' : '')
+                + (sendingL.length ? '<span class="cp-st" role="status">Sending the change for Video ' + _re(sendingL.join(', ')) + '…</span>' : '')
+                + '</div>' : '');
         const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(_rsModelById(m.id) || m)); };
         if (!x) { if (_rsCalm(el, note, m)) bindMove(); return; }
         let d;
@@ -3225,9 +3260,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsCpQSave(key, []);
         });
     }
+    // A trial card's sent changes, by version: 'sending' while the save runs, 'sent' once it landed, '' when refused.
+    function _rsTrvMark(pid, letter, st) {
+        const S = R.S;
+        if (!letter) return;
+        const t = S.trvSent || (S.trvSent = {}), cur = t[pid] || (t[pid] = {});
+        if (st === 'sending' && cur[letter] === 'sent') return;
+        if (st) cur[letter] = st; else if (cur[letter] === 'sending') delete cur[letter];
+    }
     function _rsCpQueueChange(m, k, text, where, letter) {
         const S = R.S, key = m.id + '|' + k;
-        S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
+        // A trial card's change closes the box once sent, so the next version shows its own Approve and "Not this one";
+        // a small "Change sent for Video C" says it went (Trialtest, 2026-10-29: the open box's Cancel read like taking
+        // the change back).
+        // It says "Sent" only once the save lands; a refused one goes back into the box as before (Codex on #2444).
+        const trv = k === 'video' && !!letter && !!(m.trial && !m.trial.winner);
+        if (trv) {
+            _rsTrvMark(m.id, letter, 'sending');
+            S.note = Object.assign(_rsBlankNote(), { vis: S.note.vis });
+        } else S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
         const q = S.chgQ[key] || (S.chgQ[key] = []);
         // A trial card's change keeps the version it was asked on: it may leave after a look at another one.
         q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString(), letter: letter || '' });
@@ -3235,14 +3286,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!q.busy) _rsCpDrain(m, k);
         _rsPersistCur();
         _rsRender({ force: true });
-        _rsFocusTa();
+        if (!trv) _rsFocusTa();
     }
     function _rsCpDrain(m, k) {
         const S = R.S, key = m.id + '|' + k, q = S.chgQ[key];
         if (!q) return;
         q.busy = true;
-        let sent = false;
+        let sent = false, inLetter = '';
         const giveBack = (why) => {
+            [inLetter].concat(q.map(n => n.letter)).forEach(l => _rsTrvMark(m.id, l, ''));
             const rest = q.splice(0).map(n => n.body);
             delete S.chgQ[key];
             _rsCpQSave(key, []);
@@ -3291,9 +3343,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 // part); every change still waiting goes back into the box.
                 if (_rsError(cur, k)) { giveBack('Not sent. Your next words are back in the box.'); _rsRender(); return; }
                 S.cpSent[key] = (S.cpSent[key] || 0) + 1;
+                _rsTrvMark(m.id, inLetter, 'sent');
             }
             if (!q.length) { delete S.chgQ[key]; _rsRender(); return; }
             const nx = q.shift();
+            inLetter = nx.letter || '';
             _rsCpQSave(key, q);
             delete S.cpBack[key];
             _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '' });

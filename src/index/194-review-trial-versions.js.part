@@ -2,7 +2,7 @@ import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialListShared, svTrialMoveCard } from './189-trial-reels-card.js';
+import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
        in PR 2352).
@@ -27,8 +27,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     function svTrialReviewOnChange(fn) { _trvRepaint = typeof fn === 'function' ? fn : () => {}; }
     function _trvSlug(client) { try { return calClientSlug(String(client || '')); } catch (e) { return ''; } }
+    /* The review pages (a second client tab, Kasper's and the SMM's) hear trial-reels' broadcast too and read their
+       client's cards again at once, not on their 30 s refresh (Trialtest, 2026-10-29). */
+    const _trvHeard = {};
+    async function _trvOnChange(h) {
+        for (const slug of Object.keys(_trv)) {
+            const ids = Object.keys(_trv[slug].cards || {});
+            for (const id of ids) {
+                if (await svTrialHash(id) !== h) continue;
+                clearTimeout(_trvHeard[slug]);
+                _trvHeard[slug] = setTimeout(() => _trvLoad(slug, true), 120);
+                break;
+            }
+        }
+    }
     function _trvLoad(slug, force) {
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
+        svTrialOnChange(_trvOnChange);
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
         // A staff page's first read is the Calendar's list of this client (189), which Kasper's queue starts as it
         // arrives; every later one is this page's own, so it never takes back an answer given here since.
@@ -109,6 +124,32 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialReviewWithTeam(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
     }
+    /* The card's video part has a change asked (one version's change sends the card to Tweaks Needed, plan section 5):
+       the version on screen says its own state, never another version's change note (Trialeyes, 2026-10-29). Returns
+       '' when the version on screen is the one with the change, so today's "Change asked" line (with its note) stays. */
+    function svTrialReviewChangeHtml(m, mode, partSt) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const cur = _trvCurOf(m, mode), stage = _trvStage(mode), a = _trvAnswer(cur, stage), L = _calEsc(cur.letter);
+        /* The card's video part is Approved (the other versions carried it): a version the client said "Not this one"
+           to keeps saying so on its own screen, never the card's "Approved" (Trialeyes E10, 2026-10-29). */
+        if (partSt === 'ok') {
+            if (a === 'pass') return '<span class="dst">Not this one: the team will take Video ' + L + ' out</span>';
+            if (a === 'cpass') return '<span class="dst">Client dropped Video ' + L + ': take it off the card</span>';
+            return '';
+        }
+        if (cur.status === 'change asked') return '';
+        const asked = m.trial.versions.filter(v => v.status === 'change asked').map(v => 'Video ' + _calEsc(v.letter));
+        const who = asked.length ? asked.join(' and ') + (asked.length > 1 ? "'s changes are" : "'s change is") + ' with the editor' : 'the card is with the editor';
+        if (_trvAnswer(cur, stage) === 'ok') return '<span class="dst ok"><span class="ck">' + TRV_CHECK + '</span>Video ' + _calEsc(cur.letter) + ' approved</span>';
+        return '<span class="dst">Video ' + _calEsc(cur.letter) + ' waits: ' + who + '</span>';
+    }
+    /* The version on screen has a change open while the card stays where it is (the owner's choice (a), OPEN_REPAIRS
+       587): its own "Change asked" and note, never Approve again over a change just sent. Null otherwise. */
+    function svTrialReviewAsked(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return null;
+        const cur = _trvCurOf(m, mode);
+        return cur && cur.status === 'change asked' ? { letter: cur.letter, note: String(cur.change_note || '') } : null;
+    }
     // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
     function svTrialReviewAnswered(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
@@ -145,6 +186,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // should say that it's a trial video"; no visual noise, so a small muted word and no pill). Not on the player's
     // badge: a 9:16 player on a wide page is too narrow for it, so the page hides the badge there.
     const TRV_TAG = '<span class="trv-tag">Trial</span>';
+    // The client is told once, in plain words, why there are several versions (Trialeyes E11, 2026-10-29).
+    const TRV_WHY = '<span class="trv-why">We\'ll test each version for 24 h and keep the best one.</span>';
     function svTrialReviewBarHtml(m, mode) {
         if (!m || !m.trial || !m.trial.winner) return '';
         return TRV_TAG + '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
@@ -160,7 +203,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
                 + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + (_trvClientOk(v, stage) ? ', client approved' : '') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
-        return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
+        return TRV_TAG + (mode === 'client' ? TRV_WHY : '') + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
             + cok
@@ -344,7 +387,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trvCur[m.id] = letter;
             _trvRepaint();
             const code = String((err && err.code) || '');
-            showNotify('Video ' + letter + ' was not passed on', code === 'last_live_version' ? 'This is the last version left. Approve it or ask for a change.'
+            showNotify('Video ' + letter + ' was not saved', code === 'last_live_version' ? 'This is the last version left. Approve it or ask for a change.'
                 : code === 'pass_unavailable' ? 'This is not ready yet. Tell your manager which version you do not want.' : svTrialErrorText(err));
             _trvLoad(slug, true);
             return;
@@ -524,6 +567,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
 .trv-tag{display:block;padding-top:10px;text-align:center;font-size:.66rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary)}
 .trv-tag + .trv-under{padding-top:2px}
+.trv-why{display:block;padding:2px 16px 0;text-align:center;font-size:.74rem;line-height:1.35;color:var(--text-secondary)}
+.trv-why + .trv-under{padding-top:4px}
 .trv-of{font-weight:500;color:var(--text-secondary)}
 .trv-dots{display:inline-flex;align-items:center;gap:2px}
 .trv-dot{display:grid;place-items:center;width:26px;height:26px;border:0;background:none;font:inherit;cursor:pointer;padding:0}
@@ -531,7 +576,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
 .trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
 .trv-dot.team i{opacity:.45;border-style:dashed}
-.trv-dot.pass i{background:var(--fill);color:var(--text-secondary);text-decoration:line-through}
+.trv-dot.pass i{position:relative;background:var(--fill);color:var(--text-secondary);text-decoration:line-through}
+.trv-dot.pass i::after{content:'×';position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;display:grid;place-items:center;background:var(--text-secondary);color:var(--surface-raised);font-size:10px;line-height:1;text-decoration:none}
 .trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
 .trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
 .trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
@@ -545,8 +591,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
 .dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
-@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
+@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
+  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked
 };

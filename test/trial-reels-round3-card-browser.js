@@ -54,11 +54,25 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
     const shape = () => Object.assign({ enabled: true, winner_letter: null }, L.readShape(T.versions, { client: false, mainLink: String(vid.file_url || ''), cardStatus: card.video_status }));
     const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) }).catch(() => {});
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
-    if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
     if (b.action === 'version_new_cut') {
       const res = L.newCutPatch(T.versions, b.letter);
       if (res.error) return reply({ ok: false, error: res.error });
       Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+      return reply(Object.assign({ ok: true }, shape()));
+    }
+    // The sharing check (probe: true), as Production's Assets ask it: T.dead names the letters whose link is gone.
+    if (b.action === 'read' && b.probe) return reply(Object.assign({ ok: true }, shape(), { link_states: Object.fromEntries(T.versions.map(v => [v.letter, { state: (T.dead || []).includes(v.letter) ? 'expired' : 'available', http_status: (T.dead || []).includes(v.letter) ? 404 : 200 }])) }));
+    if (b.action === 'read') {
+      // A read of a Posted card starts its approved versions, as trial-reels does (the 30 s list is still the stale one).
+      if (T.startOnRead && card.video_status === 'Posted') (L.trialPatches(T.versions, Date.now()).patches || []).forEach(p => Object.assign(T.versions.find(v => v.id === p.id), p.patch));
+      return reply(Object.assign({ ok: true }, shape()));
+    }
+    // A new version, as the function adds it; T.addDelay holds the answer (a slow line).
+    if (b.action === 'version_add') {
+      if (T.addDelay) await sleep(T.addDelay);
+      const res = L.addVersion(T.versions, b.link, String(vid.file_url || ''));
+      if (res.error) return reply({ ok: false, error: res.error });
+      T.versions.push({ id: 'v' + res.letter, letter: res.letter, status: 'waiting', frame_url: res.link, revision: 0, updated_at: new Date().toISOString(), post_id: 'p_t1' });
       return reply(Object.assign({ ok: true }, shape()));
     }
     return reply({ ok: false, error: 'unknown_action' });
@@ -132,8 +146,33 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await page.click('.trl-list .trl-add button');
         await sleep(250);
         ok(!!(await page.$('.trl-list .trl-add .trl-link-input')) && await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('trl-link-input')), `${tag}: pressing it opens the paste field, focused`);
+        // Trialeyes E3 (2026-10-29): a link the page refuses says why under its field and keeps the text; one sentence
+        // for plain text and another site alike; never a dialog.
+        const addErr = () => page.evaluate(() => {
+          const i = document.querySelector('.trl-list .trl-add .trl-link-input'), e = document.querySelector('.trl-list .trl-link-err');
+          const o = document.getElementById('confirmOverlay');
+          return { val: i ? i.value : null, focused: document.activeElement === i, err: e ? e.textContent.trim() : '', invalid: i ? i.getAttribute('aria-invalid') : null,
+            modal: !!(o && o.classList.contains('active')), wide: document.documentElement.scrollWidth > window.innerWidth + 1 };
+        });
+        const sentence = 'Paste a Frame.io, Google Drive or Dropbox link to the video.';
+        for (const [typed, want] of [['not a link at all', sentence], ['https://www.youtube.com/watch?v=fixture', sentence], [LINK('A'), 'Another version already has this link. Each version needs its own.']]) {
+          await page.fill('.trl-list .trl-add .trl-link-input', typed);
+          await page.keyboard.press('Enter');
+          await sleep(300);
+          const e = await addErr();
+          ok(e.val === typed && e.err === want && e.invalid === 'true' && e.focused && !e.modal && !e.wide, `${tag}: "${typed.slice(0, 24)}" is refused under the field, the text kept, no dialog (${JSON.stringify(e)})`);
+        }
+        await shot(page, 'r3-add-refused-' + label + '-' + theme);
+        // A click away keeps the field, its text and its reason; Escape then closes it.
+        await page.mouse.click(3, h - 3);
+        await sleep(300);
+        let e2 = await addErr();
+        ok(e2.val === LINK('A') && /Another version/.test(e2.err) && !e2.modal, `${tag}: a click away keeps the refused link and its reason (${JSON.stringify(e2)})`);
+        await page.click('.trl-list .trl-add .trl-link-input');
         await page.keyboard.press('Escape');
         await sleep(250);
+        e2 = await addErr();
+        ok(e2.val === null && !e2.err && !!(await page.$('.trl-list .trl-add .trl-addbtn')), `${tag}: Escape closes it and "+ Add version" is back`);
         await shot(page, 'r3-card-' + label + '-' + theme);
         // ---- 7: the row's pencil, then Escape: one list, never two ----
         // Escape and a click away, three times over (the Supervisor's ask): the list never doubles.
@@ -174,6 +213,23 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await page.close();
       }
     }
+    // Trialeyes E2 (2026-10-29): a waiting version says how far it got, never the grey "waiting" of one nobody saw.
+    for (const theme of ['light', 'dark'].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[0], { kasper_ok_at: null });                      // A: the SMM said yes
+      Object.assign(T.versions[2], { smm_ok_at: null, kasper_ok_at: null });   // C: nobody has looked yet
+      const page = await open(1440, 900, theme);
+      await openList(page);
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      const col = await page.evaluate(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].map(n => n.textContent.trim() + '=' + getComputedStyle(n).backgroundColor));
+      const bg = t => (col.find(c => c.startsWith(t + '=')) || '').split('=')[1];
+      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'waiting', `stages ${theme}: A says "with Kasper", B "with client", C "waiting" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
+      ok(bg('with Kasper') && bg('with Kasper') !== bg('waiting') && bg('with client') !== bg('waiting') && bg('with Kasper') !== bg('with client'), `stages ${theme}: each has its own colour, none the grey of "waiting" (${col.join(' | ')})`);
+      ok(/SMM: approved · Kasper: waiting/.test((R.find(r => /^Video A/.test(r.t)) || {}).title || ''), `stages ${theme}: A's hover still says who said what`);
+      await shot(page, 'r3-stages-' + theme);
+      await page.close();
+    }
     // The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a card waits in Tweaks Needed only while a change is open.
     // "New cut ready" on the last one sends the card back to For SMM Approval (today's status pick); with another change
     // still open, the card stays.
@@ -197,6 +253,53 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       card.video_status = 'For SMM Approval'; vid.status = 'smm_approval';
       await page.close();
     }
+    // Trialeyes E4 (2026-10-29): a dead Frame.io link is said on its row once checked, not only by the player later.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      T.dead = ['B'];
+      const page = await open(1440, 900, 'light');
+      await openList(page);
+      await page.waitForFunction(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].some(n => n.textContent.trim() === 'link not found'), null, { timeout: 5000 }).catch(() => {});
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      ok(lab('B') === 'link not found' && lab('A') === 'with client' && T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), `dead link: B says "link not found", A keeps its state, after one sharing check of the card (${lab('A')} | ${lab('B')})`);
+      ok(/does not open a video/.test((R.find(r => /^Video B/.test(r.t)) || {}).title || ''), 'dead link: its hover says what to do');
+      const n = T.calls.filter(c => c.probe).length;
+      await page.click('.cal-link-post .trl-chev'); await sleep(200); await page.click('.cal-link-post .trl-chev'); await sleep(400);
+      ok(T.calls.filter(c => c.probe).length === n, `dead link: closing and opening the list again checks nothing more (${T.calls.filter(c => c.probe).length - n} more)`);
+      T.dead = [];
+      await page.close();
+    }
+    // Trialeyes E7, E8, E9 (2026-10-29): the counts agree, a client drop shows on the collapsed row, a new version says
+    // "saving…" until the server has it, and leaving the page while it is unsaved asks first.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      Object.assign(T.versions[0], { status: 'approved', client_ok_at: '2026-10-29T01:00:00.000Z' });   // A approved
+      Object.assign(T.versions[1], { client_pass_at: '2026-10-29T01:05:00.000Z' });                      // B: the client's "Not this one"
+      Object.assign(T.versions[2], { status: 'dropped' });                                                 // C dropped by the team
+      const page = await open(1440, 900, 'light');
+      const row = await state(page);
+      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 dropped by the client/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
+      await openList(page);
+      T.addDelay = 1500;
+      await page.click('.trl-list .trl-add button');
+      await sleep(200);
+      await page.fill('.trl-list .trl-add .trl-link-input', LINK('E'));
+      await page.keyboard.press('Enter');
+      await sleep(300);
+      const saving = (await rowsOf(page)).find(r => /^Video E/.test(r.t));
+      ok(saving && saving.lab === 'saving…', `saving: the new version says "saving…" while the server takes it (${saving && saving.lab})`);
+      let asked = '';
+      page.once('dialog', d => { asked = d.type(); d.dismiss().catch(() => {}); });
+      await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); window.__blocked = e.defaultPrevented; });
+      ok(await page.evaluate(() => window.__blocked), 'saving: leaving the page while it is unsaved asks first (beforeunload is held)');
+      await sleep(1800);
+      const done = (await rowsOf(page)).find(r => /^Video E/.test(r.t));
+      ok(done && done.lab !== 'saving…' && T.versions.some(v => v.letter === 'E'), `saving: once saved it says its state (${done && done.lab})`);
+      ok(!(await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })), 'saving: once saved, leaving asks nothing');
+      T.addDelay = 0;
+      await page.close();
+    }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
     // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.
     if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
@@ -213,6 +316,25 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       const kept = await page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'));
       ok(kept, 'late chart.js: the card still listens on the trial-reels channel after the CDN\'s other script lands');
       await S.ctx.unroute('**/chart.js@*/**', hold);
+      await page.close();
+    }
+    // Trialeyes E15 (2026-10-29): a card just set to Posted reads itself again at once, so "On trial" shows without
+    // waiting for the next 30 s list.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      T.versions.forEach((v, i) => { if (i < 3) Object.assign(v, { status: 'approved', client_ok_at: '2026-10-28T10:00:00.000Z' }); });
+      const was = card.video_status;
+      card.video_status = 'Posted'; T.startOnRead = true;
+      const t0 = Date.now();
+      const page = await open(1440, 900, 'light');
+      await page.waitForFunction(() => { const s = [...document.querySelectorAll('.cal-link-post.trl-main')].find(n => n.offsetParent); return s && /On trial/.test(s.innerText); }, null, { timeout: 8000, polling: 100 }).catch(() => {});
+      const st = await state(page);
+      ok(/On trial/.test(st) && Date.now() - t0 < 12000, `Posted card: "On trial" shows straight after Posted, not on the next 30 s list ("${st}")`);
+      ok(T.calls.some(c => c.action === 'read' && c.post_id === 'p_t1'), 'Posted card: it reads that one card again');
+      const n = T.calls.filter(c => c.action === 'read').length;
+      await sleep(1500);
+      ok(T.calls.filter(c => c.action === 'read').length === n, `Posted card: one re-read, not a loop (${n} then ${T.calls.filter(c => c.action === 'read').length})`);
+      card.video_status = was; T.startOnRead = false;
       await page.close();
     }
   } catch (e) {

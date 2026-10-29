@@ -1784,6 +1784,7 @@
         .cal-link-post .trl-sw-slot:hover .trl-sw, .cal-link-post .trl-sw-slot:focus-visible .trl-sw { background: color-mix(in srgb, var(--text-secondary) 70%, transparent); transform: scale(1.08); }
         .cal-link-post .trl-sw-slot.on:hover .trl-sw, .cal-link-post .trl-sw-slot.on:focus-visible .trl-sw { background: color-mix(in srgb, var(--sv-slot-video-fg) 80%, var(--text-primary)); }
         .cal-link-post .trl-sw-slot:focus-visible { outline: none; }
+        .cal-link-post .trl-sw-word { margin-right: 5px; font-size: 10px; font-weight: 600; white-space: nowrap; color: var(--text-muted); }
         .cal-link-post .trl-chev svg { width: 10px; height: 10px; transition: transform .15s; }
         .cal-link-post.trl-open .trl-chev svg { transform: rotate(180deg); }
         .cal-link-post.trl-open .trl-chev:hover svg { transform: rotate(180deg) scale(1.2); }
@@ -1794,7 +1795,8 @@
         .cal-link-post.trl-main .cal-link-pill-open { container-type: inline-size; }
         .cal-link-post.trl-main .trl-main-label, .cal-link-post .trl-state { flex: none; white-space: nowrap; }
         .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; }
-        @container (max-width: 160px) { .cal-link-post .trl-state-w { display: none; } }
+        .cal-link-post .trl-state-n { display: none; }
+        @container (max-width: 160px) { .cal-link-post .trl-state-w { display: none; } .cal-link-post .trl-state-n { display: inline; } }
         .trl-list { display: flex; flex-direction: column; gap: 3px; margin: -2px 0 8px 10px; padding-left: 8px; border-left: 2px solid var(--sv-slot-video-border); }
         .trl-v { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 2px 6px 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
             color: var(--sv-slot-video-fg); background: color-mix(in srgb, var(--sv-slot-video-bg) 55%, transparent); }
@@ -1817,10 +1819,17 @@
         /* The state tags: a small radius, not pills (owner, 2026-10-28). */
         .trl-v .trl-lab { margin-left: auto; flex: none; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
+        /* The client's "3 versions" beside a trial card's title on Sheet and Month (194): one of the small tags, muted. */
+        .cal-trial-tag { flex: none; display: inline-flex; align-items: center; margin-left: 4px; border: 0; border-radius: 4px; padding: 1px 6px;
+            font: inherit; font-size: 10px; font-weight: 700; line-height: 16px; white-space: nowrap; cursor: pointer;
+            background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="change asked"] { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="on trial"] { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="winner"] { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with Kasper"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with client"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }
         .trl-v .trl-ico, .trl-v .trl-pick { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 5px;
@@ -1830,6 +1839,9 @@
         .trl-v .trl-pick svg { width: 13px; height: 13px; }
         .trl-v .trl-link-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--sv-slot-video-border); border-radius: 6px; padding: 3px 6px;
             background: var(--field-bg-focus); color: var(--text-primary); font: inherit; font-weight: 500; }
+        .trl-v .trl-link-input[aria-invalid="true"] { border-color: var(--dn); }
+        .trl-list .trl-link-err { padding: 0 8px 2px; font-size: 11px; font-weight: 600; color: var(--dn); }
+        .trl-list .trl-link-note { padding: 0 8px 2px; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trl-list .trl-start { align-self: flex-start; border: 0; background: none; padding: 2px 8px; font: inherit; font-size: 11px; font-weight: 600;
             color: var(--sv-slot-video-fg); text-decoration: underline; cursor: pointer; }
         @media (hover: none) { .trl-v .trl-tools { opacity: .8; } }

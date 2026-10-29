@@ -142,6 +142,17 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     ok(!L.autoTrialPatches([v('A'), v('B')], { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW) }).patches.length, 'none approved: no trial');
     ok(!L.autoTrialPatches(ap.map(x => x.letter === 'A' ? Object.assign({}, x, { status: 'on trial' }) : x), { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW) }).patches.length, 'started once: never again');
   }
+  // One live version left (Trialeyes E16, Supervisor's call, 2026-10-29): Posted makes it the winner at once, no 24 h.
+  {
+    const one = [v('A', { status: 'approved' }), v('B', { status: 'dropped' }), v('C', { status: 'approved', client_pass_at: NOW })];
+    const r1 = L.autoTrialPatches(one, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: one[0].frame_url });
+    ok(r1.winner === 'A' && r1.patches.length === 1 && r1.patches[0].patch.status === 'winner' && !r1.patches[0].patch.trial_ends_at, 'one live version: Posted makes it the winner, with no trial');
+    const two = [v('A', { status: 'approved' }), v('B', { status: 'approved' })];
+    const r2 = L.autoTrialPatches(two, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: two[0].frame_url });
+    ok(!r2.winner && r2.patches.every(x => x.patch.status === 'on trial'), 'two live versions: the 24 h trial as before');
+    const r3 = L.autoTrialPatches(one, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: 'https://f.io/fixture-other' });
+    ok(!r3.winner && r3.patches[0].patch.status === 'on trial', "one live version whose link is not the card's: the trial as before (the winner needs the card's link)");
+  }
   ok(!JSON.stringify(r).includes('no clear winner'), 'SyncView never writes "no clear winner" (owner, Q10)');
   const decided = [v('A', { status: 'lost' }), v('B', { status: 'lost' }), v('C', { status: 'winner' }), v('D', { status: 'dropped' })];
   ok(L.undoWinnerPatches(decided, 'https://f.io/fixture-c').error === 'attach_first', "Undo is refused until the card's link is back on Video A's");

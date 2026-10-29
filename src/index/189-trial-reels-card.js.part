@@ -1,10 +1,10 @@
-import { showNotify, showToast } from './040-shared-briefs.js';
+import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
-import { _calLinkFieldHtml } from './160-calendar-organize-ui.js';
+import { _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -43,7 +43,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         last_live_version: 'This is the last version left, so it cannot be dropped.',
         version_not_change_asked: 'This version is not waiting for a new cut.',
         version_on_trial: 'This version is out on trial, so it cannot change now.',
-        link_not_https: 'Paste a full https:// Frame.io link.',
+        // One rule, one sentence (Trialeyes, 2026-10-29): plain text and another site get the same answer.
+        link_not_https: 'Paste a Frame.io, Google Drive or Dropbox link to the video.',
         link_host_unsupported: 'Paste a Frame.io, Google Drive or Dropbox link to the video.',
         nothing_approved: 'No version is approved yet.',
         conflict: 'Someone changed this version a moment ago. It has been reloaded; try again.',
@@ -64,6 +65,34 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
     const _trlOpen = new Set();  // pids whose versions list is open
     const _trlEditing = {};      // pid -> letter being edited
+    const _trlDraft = {};        // pid -> { letter, text, err }: a link the page refused, kept in its field with why
+    const _trlPostedAsked = new Set();   // pid|Posted time: the one re-read a Posted card gets
+    /* Each version link's sharing check, the same one Production's Assets run (trial-reels read with probe: true): kept
+       per link, so a dead Frame.io link is said on its row once checked, not only when the player fails on it
+       (Trialeyes E4, 2026-10-29). Checked after a link is saved, and once per card when its list first opens. */
+    const _trlLinkState = {};    // pid|letter -> { url, state }
+    const _trlChecked = new Set(), _trlChecking = new Set();
+    function _trlCheckLinks(pid, again) {
+        const post = _trlPost(pid);
+        if (!post || _trlChecking.has(pid) || (!again && _trlChecked.has(pid))) return;
+        _trlChecked.add(pid); _trlChecking.add(pid);
+        svTrialCall({ action: 'read', client: _trlSlug(post.client || calState.client), post_id: pid, probe: true })
+            .then(json => {
+                const st = (json && json.link_states) || {};
+                for (const v of (json && json.versions) || []) if (st[v.letter] && v.frame_url) _trlLinkState[pid + '|' + v.letter] = { url: String(v.frame_url), state: String(st[v.letter].state || '') };
+                _trlRepaintField(pid);
+            })
+            .catch(() => {})
+            .finally(() => _trlChecking.delete(pid));
+    }
+    // A link the check found dead or locked: its row says so (the words of Production's Assets row).
+    function _trlLinkBadHtml(pid, v) {
+        const k = _trlLinkState[pid + '|' + v.letter];
+        if (!k || !v.frame_url || k.url !== String(v.frame_url) || ['dropped', 'lost', 'winner'].includes(v.status)) return '';
+        if (k.state === 'expired') return '<span class="trl-lab" data-l="link not found" title="This link does not open a video. Paste the right link for Video ' + _calEscAttr(v.letter) + '.">link not found</span>';
+        if (k.state === 'permission_denied') return '<span class="trl-lab" data-l="no access" title="This link asks for a sign-in. Share it so anyone with the link can view it.">no access</span>';
+        return '';
+    }
     const _trlBusy = new Set();  // pid|action in flight
     /* Every action answers at once (owner, 2026-10-27: "everything should feel fast"). The row is drawn from the last
        server answer with the changes still in flight laid over it; a change leaves the list when its answer lands, so
@@ -113,6 +142,47 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlSay(e, what) {
         showNotify(what + ' did not save', svTrialErrorText(e));
     }
+    /* The client's Sheet and Month (the Supervisor's ruling, 2026-10-29): a trial card looked like any card, and nothing
+       said there were several versions. A small muted "3 versions" tag beside the title (the live versions the client
+       still has to answer) opens the Review page on that card, at its first waiting version. It lives here, in the core
+       part, as the Sheet and Month do (the review page's own part loads later). One read of the client's trial cards,
+       kept 30 s; the Sheet or Month draws again when it lands. */
+    const _trlTagCards = {};   // slug -> { at, cards, promise }
+    let _trlWantPid = '';
+    function _trlClientWaits(v) {
+        if (v.status !== 'waiting' || v.client_pass_at || v.client_ok_at) return false;
+        return v.ready === undefined || v.ready !== false;
+    }
+    function svTrialClientTagHtml(post, month) {
+        if (!_isClientLink || !post || !post.id) return '';
+        const slug = _trlSlug(post.client || calState.client);
+        if (!slug || !svTrialReelsOn(slug)) return '';
+        const e = _trlTagCards[slug] || (_trlTagCards[slug] = { at: 0, cards: {}, promise: null });
+        if (!e.promise && Date.now() - e.at > TRL_LIST_TTL_MS) {
+            e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+                .then(json => { e.cards = (json && json.cards) || {}; }, () => {})
+                .finally(() => {
+                    const first = !e.at;
+                    e.at = Date.now(); e.promise = null;
+                    if (first && ['organizer', 'month'].includes(calState.view)) _calRenderBody({ preserveScroll: true });
+                });
+        }
+        const shape = e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions) || shape.versions.some(v => v.status === 'winner')) return '';
+        const n = shape.versions.filter(_trlClientWaits).length;
+        if (!n) return '';
+        const words = n + (n === 1 ? ' version' : ' versions');
+        const go = 'svTrialClientReview(\'' + _calEscAttr(post.id) + '\')';
+        return month
+            ? '<span class="cal-trial-tag" title="Review the versions" onclick="event.stopPropagation();' + go + '">' + words + '</span>'
+            : '<button type="button" class="cal-trial-tag" title="Review the versions" onclick="' + go + '">' + words + '</button>';
+    }
+    function svTrialClientReview(pid) {
+        _trlWantPid = String(pid || '');
+        onCalViewChange('review');
+    }
+    // The card the tag asked the Review page to open ('' when none); `done` clears it once the page is on it (195).
+    function svTrialReviewWanted(done) { const p = _trlWantPid; if (done) _trlWantPid = ''; return p; }
     /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. */
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
@@ -153,6 +223,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     let _trlChannel = null;      // the channel, or a promise of it
     const _trlHeard = {};        // client slug|pid -> timer of the read it asked for
     const _trlHashes = new Map(); // pid -> its 12-hex hash
+    const svTrialHash = pid => _trlHash(pid);
     async function _trlHash(pid) {
         if (_trlHashes.has(pid)) return _trlHashes.get(pid);
         const d = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(pid));
@@ -160,12 +231,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _trlHashes.set(pid, h);
         return h;
     }
-    function _trlListen() {
-        if (_isClientLink || _trlChannel || !(window.crypto && window.crypto.subtle)) return;
+    /* Other pages that show trial cards hear the same broadcast (Trialtest, 2026-10-29: Production's Assets and a second
+       client tab waited for their own refresh): each registers once, gets the 12-hex hash, and reads its own card again. */
+    const _trlHooks = [];
+    function svTrialOnChange(fn) {
+        if (!_trlHooks.includes(fn)) _trlHooks.push(fn);
+        _trlListen(true);
+    }
+    function _trlListen(any) {
+        // The staff Calendar listens for its own cards; a page that registered a hook listens on a client link too
+        // (the message carries only the hash, Supervisor's rule).
+        if ((_isClientLink && !any && !_trlHooks.length) || _trlChannel || !(window.crypto && window.crypto.subtle)) return;
         _trlChannel = Promise.resolve().then(() => _calV2Client()).then(client => {
             if (!client || typeof client.channel !== 'function') { _trlChannel = null; return null; }
             const ch = client.channel('trial-reels', { config: { broadcast: { self: false, ack: false } } })
-                .on('broadcast', { event: 'changed' }, msg => { _trlHeardHash(String((msg && msg.payload && msg.payload.h) || '')).catch(() => {}); });
+                .on('broadcast', { event: 'changed' }, msg => {
+                    const h = String((msg && msg.payload && msg.payload.h) || '');
+                    if (!/^[0-9a-f]{12}$/.test(h)) return;
+                    if (!_isClientLink) _trlHeardHash(h).catch(() => {});
+                    _trlHooks.forEach(fn => { try { fn(h); } catch (e) {} });
+                });
             ch.subscribe();
             return ch;
         }).catch(() => { _trlChannel = null; return null; });
@@ -247,6 +332,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* Show `apply` now, run `task` after the card's earlier writes, and drop the change when it settles: kept by the
        answer the task stored, or gone with the refusal (the task says it in words). Answers the task's result. */
+    /* A trial write still on its way: leaving the page asks first (Trialeyes E7, 2026-10-29: a reload 80 ms after
+       Enter lost a new version silently). */
+    window.addEventListener('beforeunload', e => {
+        if (!Object.keys(_trlPending).some(pid => (_trlPending[pid] || []).length)) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
     function _trlOptimistic(pid, apply, task) {
         const op = { apply };
         (_trlPending[pid] || (_trlPending[pid] = [])).push(op);
@@ -310,9 +402,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         // A version the client passed on is not waiting for anyone's OK: the team drops it (owner, 2026-10-28).
         const live = vs.filter(v => TRL_LIVE(v) && !v.client_pass_at);
-        if (!live.length) return { text: '' };
+        // A version the client said "Not this one" to is the team's to drop: the collapsed row says so (Trialeyes E9).
+        const passed = vs.filter(v => TRL_LIVE(v) && v.client_pass_at).length;
+        const drop = passed ? ' · ' + passed + '<span class="trl-state-w"> dropped by the client</span><span class="trl-state-n"> dropped</span>' : '';
+        const dropWords = passed ? ', ' + passed + ' dropped by the client' : '';
+        if (!live.length) return passed ? { text: passed + ' dropped by the client', html: drop.slice(3), words: passed + ' dropped by the client' } : { text: '' };
         const n = live.filter(v => v.status === 'approved').length;
-        return { text: n + '/' + live.length + ' approved', html: n + '/' + live.length + '<span class="trl-state-w"> approved</span>', words: n + ' of ' + live.length + ' approved' };
+        return { text: n + '/' + live.length + ' approved' + (passed ? ' · ' + passed + ' dropped by the client' : ''), html: n + '/' + live.length + '<span class="trl-state-w"> approved</span>' + drop, words: n + ' of ' + live.length + ' approved' + dropWords };
     }
     /* No visual noise: a label shows only where it says something the row does not. One every live version shares is
        dropped (the collapsed row already says it), "lost" once there is a winner; "dropped", "winner" and "change
@@ -332,14 +428,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* A version's label: a pill, except "dropped", which is plain muted text (owner, 2026-10-27: still said, never a
        pill). sv-dropped-note is the one shared class; the card, Production and the review pages all use it. */
     function svTrialLabelHtml(status, v) {
-        const s = String(status || '');
+        let s = String(status || '');
+        // A waiting version that has passed a stage says where it is now (Trialeyes, 2026-10-29: an SMM-approved
+        // version read "waiting" in the same grey as one nobody had seen), in the card status colours of that stage.
+        if (v && s === 'waiting' && !v.client_pass_at) s = v.kasper_ok_at ? 'with client' : v.smm_ok_at ? 'with Kasper' : s;
         if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
         // The client said "Not this one" (owner, 2026-10-28): the team sees it and drops the version.
         if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client dropped" title="' + _calEscAttr('The client dropped this version: take it off the card. ' + _trlStagesTitle(v)) + '">Client dropped</span>';
         return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '"' + (v ? ' title="' + _calEscAttr(_trlStagesTitle(v)) + '"' : '') + '>' + _calEsc(s) + '</span>';
     }
 
-    /* The switch alone, for a card whose switch is off (today's row plus this, faint until hover). '' when the page
+    /* The switch alone, for a card whose switch is off (today's row plus this), with a small muted "Trial reels" word so
+       it says what it is without a hover (Trialeyes E5, Supervisor's call, 2026-10-29: phones have no hover). '' when the page
        switch does not list the client, on a client link, or before the switch read is in. */
     function svTrialSwitchHtml(pid, post) {
         if (!_trlStaffOn(post)) return '';
@@ -347,7 +447,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (shape && shape.enabled) return '';
         const p = _calEscAttr(pid);
         return '<button type="button" class="trl-sw-slot" role="switch" aria-checked="false" title="Trial reels: off. Turn on to post this video as several versions"'
-            + ' aria-label="Trial reels" onclick="svTrialToggle(\'' + p + '\',true)"><i class="trl-sw"></i></button>';
+            + ' aria-label="Trial reels" onclick="svTrialToggle(\'' + p + '\',true)"><span class="trl-sw-word" aria-hidden="true">Trial reels</span><i class="trl-sw"></i></button>';
     }
     /* The whole Video row for a card whose switch is on; null otherwise (the caller draws today's row). */
     function svTrialVideoRowHtml(pid, v, post, parts) {
@@ -356,16 +456,27 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!shape || !shape.enabled) return null;
         const vs = shape.versions || [];
         const winner = vs.find(x => x.status === 'winner');
+        /* The card has just been set to Posted and its approved versions have not started yet: read this one card again
+           now, so "On trial" (or the one version's win) shows at once, not on the next 30 s list (Trialeyes E15). */
+        if (post.video_status === 'Posted' && vs.some(x => x.status === 'approved') && !vs.some(x => ['on trial', 'winner', 'lost'].includes(x.status))) {
+            const k = pid + '|' + String(post.video_status_at || post.updated_at || '');
+            if (!_trlPostedAsked.has(k)) { _trlPostedAsked.add(k); setTimeout(() => { _trlFresh(post).then(j => { if (j) _trlRepaintField(pid); }).catch(() => {}); }, 0); }
+        }
         // With no version yet, the list stands open: its only row is where the first link is pasted.
         const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);
-        const main = winner ? 'Video ' + winner.letter : 'Video · ' + vs.length;
+        // No live version: "Video", never "Video · 0" (Trialeyes E5); the count leaves out dropped versions, as
+        // "1/1 approved" beside it does (Trialeyes E8, 2026-10-29).
+        const live = vs.filter(TRL_LIVE).length;
+        const main = winner ? 'Video ' + winner.letter : live ? 'Video · ' + live : 'Video';
+        // The open-link icon only when there is a link to open.
+        const ext = String(post.asset_url || '').trim() ? parts.extIco : '';
         const p = _calEscAttr(pid);
         // The row's parts are sibling buttons, styled as one row: the link (opens the video on the card), the state's
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
         const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
-            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr('Open the video' + (tiny.words ? '. ' + tiny.words : '')) + '">' + parts.extIco
+            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '">' + ext
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
             + (tiny.html ? '<span class="trl-state">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
@@ -378,21 +489,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _trlListHtml(pid, shape) {
         const vs = shape.versions || [];
+        if (vs.some(v => v.frame_url) && !_isClientLink) setTimeout(() => _trlCheckLinks(pid), 0);
         const p = _calEscAttr(pid);
         const up = _trlTrialUp(shape);
         const rows = vs.map(v => {
             const l = _calEscAttr(v.letter);
             if (_trlEditing[pid] === v.letter) {
+                const dr = _trlDraft[pid] && _trlDraft[pid].letter === v.letter ? _trlDraft[pid] : null;
                 return '<div class="trl-v trl-editing"><span class="trl-l">Video ' + _calEsc(v.letter) + '</span>'
-                    + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="' + _calEscAttr(v.frame_url || '') + '" data-pid="' + p + '" data-letter="' + l + '"'
-                    + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + l + '"></div>';
+                    + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="' + _calEscAttr(dr ? dr.text : v.frame_url || '') + '" data-pid="' + p + '" data-letter="' + l + '"'
+                    + (dr ? ' aria-invalid="true" aria-describedby="trl-err-' + p + '"' : '')
+                    + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + l + '"></div>' + _trlErrHtml(pid, dr);
             }
             const link = v.frame_url ? '<a class="trl-go" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">' + TRL_GO + '</a>' : '';
             // The name opens the version too, not only the small icon (owner, 2026-10-27). A version dropped before its
             // link was pasted asks for no link (Trialtest, 2026-10-28).
             const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>' + (v.status === 'dropped' ? '' : '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>');
-            const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>';
+            // A version the server has not taken yet says so, not "waiting" (Trialeyes E7, 2026-10-29).
+            const label = v._saving ? '<span class="trl-lab" data-l="saving" role="status">saving…</span>'
+                : _trlLinkBadHtml(pid, v) || (svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -404,7 +520,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + '</span>';
             const pick = up && v.status === 'on trial'
                 ? '<button type="button" class="trl-pick" title="Make this the winner" aria-label="Make this the winner" onclick="svTrialPick(\'' + p + '\',\'' + l + '\')">' + TRL_TROPHY + '</button>' : '';
-            return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>';
+            return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>'
+                + (v.status === 'dropped' ? '' : _trlElsewhereHtml(pid, v.frame_url));
         }).join('');
         // The 24 h start by themselves once the card is Posted (owner, 2026-10-28): no "Start the 24 h" link here.
         return '<div class="trl-list">' + rows + _trlAddHtml(pid, vs) + '</div>';
@@ -412,6 +529,25 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The next free letter (A to G), to add a version by pasting its link. Until 2026-10-27 a card listed only the
        versions the AI editor had logged, so a card it had not logged had nowhere to paste a link. Gone once the trial
        starts. */
+    /* A version's link that another card of this client also carries (its Video link, or one of its versions): kept, as
+       the team may mean it, and said under the row in a quiet line (Trialeyes E17, 2026-10-29). Only cards this page has
+       loaded are looked at. */
+    function _trlElsewhereHtml(pid, link) {
+        link = String(link || '');
+        if (!link) return '';
+        const here = (calState.posts || []).find(p => p.id === pid);
+        const slug = here && _trlSlug(here.client || calState.client);
+        const cached = (slug && _trlCards[slug] && _trlCards[slug].cards) || {};
+        const other = (calState.posts || []).find(p => p.id !== pid && (!here || p.client === here.client)
+            && (String(p.asset_url || '') === link || ((cached[p.id] && cached[p.id].versions) || []).some(x => x.status !== 'dropped' && String(x.frame_url || '') === link)));
+        if (!other) return '';
+        const name = String(other.name || '').trim() || 'another card';
+        return '<div class="trl-link-note">This link is also on \u201c' + _calEsc(name) + '\u201d.</div>';
+    }
+    // Why the page did not take a link, under its field (never a dialog, and the text stays to fix).
+    function _trlErrHtml(pid, dr) {
+        return dr ? '<div class="trl-link-err" id="trl-err-' + _calEscAttr(pid) + '" role="alert">' + _calEsc(dr.err) + '</div>' : '';
+    }
     function _trlAddHtml(pid, vs) {
         if (vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))) return '';
         const used = new Set(vs.map(v => v.letter));
@@ -419,12 +555,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!next) return '';
         const p = _calEscAttr(pid);
         if (_trlEditing[pid] === '+') {
+            const dr = _trlDraft[pid] && _trlDraft[pid].letter === '+' ? _trlDraft[pid] : null;
             return '<div class="trl-v trl-editing trl-add"><span class="trl-l">Video ' + next + '</span>'
-                + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="" data-pid="' + p + '" data-letter="+"'
-                + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + next + '"></div>';
+                + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="' + _calEscAttr(dr ? dr.text : '') + '" data-pid="' + p + '" data-letter="+"'
+                + (dr ? ' aria-invalid="true" aria-describedby="trl-err-' + p + '"' : '')
+                + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + next + '"></div>' + _trlErrHtml(pid, dr);
         }
         // A minimal "+ Add version" that opens the paste field (owner, 2026-10-28: no "Video E  Paste the Frame.io link").
-        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" title="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button></div>';
+        // No hover tip: the button says what it does, and the tip covered the row above (Trialeyes E6, 2026-10-29).
+        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" aria-label="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button></div>';
     }
 
     // ---- actions -----------------------------------------------------------------------------------------------
@@ -438,6 +577,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const json = await svTrialCall(Object.assign({ client: slug, post_id: pid }, body));
             const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
             if (json.versions) e.cards[pid] = Object.assign({}, e.cards[pid] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
+            if (key === 'link') _trlCheckLinks(pid, true);
             return json;
         } catch (e) {
             // This one card read again now (a list read would keep the change still in flight over it).
@@ -452,9 +592,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* On: the row and its versions list show at once, the list open by itself so the paste row for the next version is
        right there (owner, 2026-10-27), seeded as the function seeds it (Video A is the card's link); then the one card
        is read, not the whole client's list. Off: today's row at once. A refusal puts the row back and says so. */
-    function svTrialToggle(pid, on) {
+    function svTrialToggle(pid, on, sure) {
         const post = _trlPost(pid);
         if (!post) return Promise.resolve(null);
+        /* One click on the switch with versions on the card asks first (Trialeyes E19, 2026-10-29: three approved
+           versions vanished at a stray click). The versions are kept and come back if it is turned on again. */
+        const had = !on && !sure && ((_trlShape(post) || {}).versions || []).filter(TRL_LIVE).length;
+        if (had) {
+            return new Promise(res => showConfirm('Turn off trial reels?', 'The ' + had + (had === 1 ? ' version is' : ' versions are') + ' kept and come back if you turn it on again.',
+                () => res(svTrialToggle(pid, false, true)), 'Turn off'));
+        }
         const slug = _trlSlug(post.client || calState.client);
         const seed = String(post.asset_url || '').trim();
         const wasOpen = _trlOpen.has(pid);
@@ -483,8 +630,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (input) { input.focus(); input.select(); }
     }
     function svTrialLinkKey(ev, input) {
-        if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Enter') { ev.preventDefault(); input.dataset.enter = '1'; input.blur(); }
         if (ev.key === 'Escape') { ev.preventDefault(); input.dataset.cancel = '1'; input.blur(); }
+    }
+    /* A link the page refuses before anything is sent: it stays in its field with the reason under it. Enter keeps the
+       focus there to fix it; a click away leaves the field open with the text until Escape or a good link. */
+    function _trlRefuse(input, pid, letter, link, code) {
+        _trlDraft[pid] = { letter, text: link, err: TRL_ERRORS[code] || svTrialErrorText({ code }) };
+        _trlEditing[pid] = letter;
+        _trlRepaintField(pid);
+        if (input.dataset.enter === '1') {
+            const again = document.querySelector('.trl-link-input[data-pid="' + pid + '"]');
+            if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+        }
     }
     /* The card's one link, through today's paths only. With a video sub-issue: Production's attach (it writes file_url
        and the database projects it onto the card's asset_url). Without one: today's card link save. Answers the
@@ -551,12 +709,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialLinkSave(input) {
         const pid = input.dataset.pid, letter = input.dataset.letter;
         const cancel = input.dataset.cancel === '1';
+        // The field drawn again around a refused link: its old copy leaving the page is not a second try.
+        if (!input.isConnected && _trlDraft[pid] && _trlDraft[pid].text === String(input.value || '').trim()) return;
         delete _trlEditing[pid];
+        delete _trlDraft[pid];
         const post = _trlPost(pid);
         const shape = post && _trlShape(post);
         const v = shape && _trlFind(shape, letter);
         const link = String(input.value || '').trim();
-        if (letter === '+') { if (cancel || !post || !shape || !link) { _trlRepaintField(pid); return; } return _trlAdd(post, shape, link); }
+        if (letter === '+') { if (cancel || !post || !shape || !link) { _trlRepaintField(pid); return; } return _trlAdd(post, shape, link, input); }
         if (cancel || !post || !v || link === String(v.frame_url || '')) { _trlRepaintField(pid); return; }
         // What the function would refuse anyway is said before anything moves (Probe bug 12): a link it does not take,
         // a link another version has, and a version already decided (on trial, winner, lost).
@@ -564,7 +725,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const bad = _trlLinkError(link)
             || ((shape.versions || []).some(x => x.letter !== letter && String(x.frame_url || '') === link) ? 'link_used_by_another_version' : '')
             || (['on trial', 'winner', 'lost'].includes(v.status) ? 'version_on_trial' : '');
-        if (bad) { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
+        if (bad === 'version_on_trial') { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
+        if (bad) return _trlRefuse(input, pid, letter, link, bad);
         const apply = s => { const x = _trlFind(s, letter); if (x) x.frame_url = link || null; return s; };
         const wasChanged = v.status === 'change asked';
         if (!v.on_card) return _trlOptimistic(pid, apply, async () => {
@@ -586,19 +748,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* A new version. The first live one is the version on the card, so the card's link moves to it first through
        today's path (as for Video A), and goes back if the function then refuses. */
-    function _trlAdd(post, shape, link) {
+    function _trlAdd(post, shape, link, input) {
         const pid = post.id, vs = shape.versions || [];
         const what = 'The new version';
         _trlOpen.add(pid);   // the list stays open on the next "Add" (with no version it was open only for being empty)
         const used = new Set(vs.map(v => v.letter));
         const letter = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].find(l => !used.has(l));
         const bad = _trlLinkError(link) || (vs.some(x => String(x.frame_url || '') === link) ? 'link_used_by_another_version' : '') || (letter ? '' : 'no_letter_left');
+        if (bad && input && bad !== 'no_letter_left') return _trlRefuse(input, pid, '+', link, bad);
         if (bad) { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
         const first = !vs.some(x => x.status !== 'dropped');
         return _trlOptimistic(pid, s => {
             const out = s || { enabled: true, winner_letter: null, versions: [] };
             out.versions = out.versions || [];
-            if (!out.versions.some(x => x.frame_url === link)) out.versions.push({ letter, status: 'waiting', frame_url: link, on_card: first });
+            if (!out.versions.some(x => x.frame_url === link)) out.versions.push({ letter, status: 'waiting', frame_url: link, on_card: first, _saving: true });
             return out;
         }, async () => {
             const before = String(post.asset_url || '');
@@ -849,6 +1012,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

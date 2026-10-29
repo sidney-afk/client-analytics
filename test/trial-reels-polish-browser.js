@@ -222,7 +222,7 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
         ok(ms <= FAST, `${tag}: switch on: the row is on and its list open, with the paste row for the next version, in ${ms} ms (server answers after ${DELAY} ms)`);
         ok(!T.calls.some(c => c.action === 'switch_set') || T.calls.filter(c => c.action === 'switch_set').length === 1, `${tag}: one switch_set`);
         await sleep(DELAY + 600);
-        ok(T.enabled && /Video A/.test(await listText(page)) && /Video E/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))), `${tag}: after the answer, the list shows the versions and offers Video E (${(await listText(page)).slice(0, 80)})`);
+        ok(T.enabled && /Video A/.test(await listText(page)) && /Video E/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))), `${tag}: after the answer, the list shows the versions and offers Video E (${(await listText(page)).slice(0, 80)})`);
         const reads = T.calls.slice(T.calls.findIndex(c => c.action === 'switch_set') + 1);
         ok(reads.some(c => c.action === 'read' && c.post_id === 'p_t1') && !reads.some(c => c.action === 'list'), `${tag}: then this one card is read, not the whole client's list (${reads.map(c => c.action).join(',')})`);
         const L1 = await looks(page);
@@ -306,10 +306,24 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
         await page.fill('.trl-link-input', 'https://example.com/not-a-video');
         await page.keyboard.press('Enter');
         await sleep(300);
-        ok(T.calls.length === before && /Frame\.io, Google Drive or Dropbox/.test(await notices(page)), `${tag}: a link from another host is refused before anything is sent or shown`);
+        // Said under the field, the text kept (Trialeyes E3, 2026-10-29), never a dialog; Escape closes it.
+        const inline = await page.evaluate(() => { const e = document.querySelector('.trl-list .trl-link-err'), i = document.querySelector('.trl-list .trl-link-input'); return { err: e ? e.textContent : '', val: i ? i.value : '' }; });
+        ok(T.calls.length === before && /Frame\.io, Google Drive or Dropbox/.test(inline.err) && inline.val === 'https://example.com/not-a-video' && !/Frame\.io, Google Drive or Dropbox/.test(await notices(page)), `${tag}: a link from another host is refused before anything is sent or shown`);
+        await page.keyboard.press('Escape');
+        await sleep(200);
         // ---- switch off at once; a refused switch goes back ----
         T.refuse = 'switch_set';
         await page.click('.cal-link-post .trl-sw-slot.on');
+        // With versions on the card it asks first (Trialeyes E19, 2026-10-29); Cancel keeps it on, Turn off goes at once.
+        await sleep(150);
+        const asked = await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active') ? document.getElementById('confirmMsg').textContent : '');
+        ok(/versions? (is|are) kept and come back if you turn it on again/.test(asked), `${tag}: switching off with versions asks first ("${asked}")`);
+        await page.click('#confirmOverlay button:not(#confirmYes)');
+        await sleep(200);
+        ok(!!(await page.$('.cal-link-post.trl-main .trl-sw-slot.on')) && T.enabled, `${tag}: Cancel keeps trial reels on`);
+        await page.click('.cal-link-post .trl-sw-slot.on');
+        await sleep(150);
+        await page.click('#confirmYes');
         ms = await until(page, () => !document.querySelector('.cal-link-post.trl-main') && !!document.querySelector('.cal-link-post .trl-sw-slot[aria-checked="false"]'));
         ok(ms <= FAST, `${tag}: switch off shows in ${ms} ms`);
         await sleep(DELAY + 500);

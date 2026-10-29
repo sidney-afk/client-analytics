@@ -270,7 +270,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - The arrow beside Send offers **Request change** ("Moves this part to Tweaks Needed. Team only.").
   - Each note has Reply, Edit, **Mark done** / Reopen, and Delete. Resolved notes are kept under their own filter.
   - Frame.io comments appear as rows marked "Frame.io". **Switch:** `frame_comments_in_notes_staff` (all staff; never the client).
-- **Frame.io viewer:** Notes, the thumbnail's play icon, the Review preview and Kasper's "Watch here" all open one view, with the video on the left and notes on the right. Opening it never auto-plays. **Switch:** `frame_viewer_clients` (all clients). The client gets the player too, but never the Frame.io comments.
+- **Frame.io viewer:** Notes, the thumbnail's play icon, the Review preview and Kasper's "Watch here" all open one view, with the video on the left and notes on the right. Opened from a play button (a card's play icon, the Review tab's preview, Kasper's "Watch here"), it starts playing at once, with sound if the browser allows, else muted with a button to turn the sound on (`_fvAutoStart`). Opened from the notes (the Notes button, a note's link, Messages), it waits for its play button. **Switch:** `frame_viewer_clients` (all clients). The client gets the player too, but never the Frame.io comments.
 - **Status row:**
   - One pill each for **Video**, **Thumbnail** and **Caption**, with the statuses N/A, In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, Scheduled and Posted.
   - **Set all to…** sets all three at once.

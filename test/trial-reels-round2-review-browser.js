@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard|e1|e10|push|e11|hint runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -190,7 +190,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await sleep(1200);
       const d = await dec(t);
       const said = await t.page.evaluate(() => (document.getElementById('confirmOverlay') || {}).innerText || '');
-      ok(/Video A/.test(d.bar) && d.pass && /not passed on/.test(said), `client: a refused pass puts Video A back on screen and says so (${said.replace(/\s+/g, ' ').slice(0, 120)})`);
+      ok(/Video A/.test(d.bar) && d.pass && /Video A was not saved/.test(said) && !/passed on/.test(said), `client: a refused pass puts Video A back on screen and says so (${said.replace(/\s+/g, ' ').slice(0, 120)})`);
       await t.ctx.close();
     }
 
@@ -316,6 +316,16 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(/not approved/.test(said) && !/answered|request_failed|write_failed|"/.test(said), `client: a refused approve says it in plain words, no server code ("${said.slice(0, 140)}")`);
       await t.ctx.close();
     }
+    if (part('dblclick')) {
+      // A refused "Not this one" (offline): its title says the answer did not save, never "was not passed on" (Trialtest nit 4).
+      const t = await start('client', true, three());
+      t.T.failAnswer = 1;
+      await press(t, '[data-pass="video"]');
+      await sleep(1500);
+      const said = await t.page.evaluate(() => ((document.getElementById('confirmOverlay') || {}).innerText || '').replace(/\s+/g, ' '));
+      ok(/Video A was not saved/.test(said) && !/passed on/.test(said), `client: a refused "Not this one" reads "Video A was not saved" ("${said.slice(0, 120)}")`);
+      await t.ctx.close();
+    }
 
     // ---------- Follow-up: a version only the client approved says so to the team, and the team's Approve works ----------
     // A card sent straight to Client Approval: nobody on the team has answered, the client approved Video A.
@@ -427,7 +437,221 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
+    // Trialtest (2026-10-29, after #2434): once a change is sent, the box closes with "Change sent for Video C", and the
+    // next version shows its own Approve and "Not this one", never the sent change's box (whose Cancel read like taking
+    // the change back).
+    for (const [w, h, label, go] of [[1440, 900, 'client 1440', 'arrow'], [390, 844, 'client 390', 'dot']].filter(() => part('keepcard'))) {
+      // The live client link runs the polished page (review_client_polish), whose change box stays open for the next change.
+      const t = await start('client', true, three(), Object.assign({ width: w, height: h, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
+      await askChange(t, 'Fictional note: a warmer colour on C.');
+      await waitFor(async () => t.T.versions[2].status === 'change asked', 50);
+      await sleep(800);
+      const sentNote = () => R(t, `const n = r.querySelector('.trv-sent'); return n ? n.textContent.trim() : '';`);
+      ok(!(await R(t, `return !!r.querySelector('#drow textarea');`)) && /Change sent for Video C/.test(await sentNote()), `${label}: once sent, the box closes and says "Change sent for Video C" ("${await sentNote()}")`);
+      await press(t, go === 'dot' ? '[data-trv-go="A"]' : '[data-trv-step="-1"]');
+      await sleep(700);
+      if (go === 'arrow') { await press(t, '[data-trv-step="-1"]'); await sleep(700); }
+      const d = await dec(t);
+      const box = await R(t, `return !!r.querySelector('#drow textarea');`);
+      ok(/Video A of 3/.test(d.bar) && /^Approve/.test(d.ok) && !box, `${label} (${go}): after C's change is sent, A shows its own Approve, not the change box ("${d.bar}" | "${d.ok}" | box ${box})`);
+      ok(await R(t, `return !!r.querySelector('[data-pass="video"]');`) && /Change sent for Video C/.test(await sentNote()), `${label} (${go}): A offers "Not this one" too, and the "Change sent for Video C" note stays`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+    // A refused change never says "Change sent" (Codex on #2444): the note goes, and the words come back into the box.
+    if (part('keepcard')) {
+      const t = await start('client', true, three(), { width: 1440, height: 900, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } });
+      if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
+      t.state.writeFail = 50;   // the card's save is refused
+      await askChange(t, 'Fictional note: a warmer colour on C.');
+      // The refused change keeps its own Try again and its words (the save path's "Your unsent words").
+      const retry = () => R(t, `return !!r.querySelector('[data-retry="video"]');`);
+      await waitFor(retry, 80);
+      await sleep(400);
+      const n = await R(t, `const n = r.querySelector('.trv-sent'); return n ? n.textContent.trim() : '';`);
+      const row = await R(t, `const d = r.querySelector('#drow'); return d ? d.innerText.replace(/\\s+/g, ' ').trim() : '';`);
+      ok(!/Change sent/.test(n) && await retry(), `refused: no "Change sent" ("${n}"), and the change offers Try again ("${row.slice(0, 160)}")`);
+      await t.ctx.close();
+    }
+
+    // ---------- Trialeyes E1 (2026-10-29): after a change on one version, another version never shows that change ----------
+    // The SMM approves A, then asks for a change on B: C still waits, so the card stays (OPEN_REPAIRS 587) and C, which
+    // nobody has looked at, keeps its own Approve, never B's "Change asked" quote; A says it is approved; B says its own
+    // "Change asked" and note, never Approve again.
+    for (const [w, h, label] of [[1440, 900, 'SMM review'], [390, 844, 'SMM review 390']].filter(() => part('e1'))) {
+      const vs = three().map(v => Object.assign(v, { kasper_ok_at: null, smm_ok_at: null }));
+      // The SMM's saves go through Production's gateway: it commits them, as live (the fixture's own answer is for phones).
+      const native = { status: 'For SMM Approval', at: '2026-10-27T09:00:00.000Z' };
+      const gateway = async t2 => { await t2.ctx.route('**/rest/v1/deliverables?*', route => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json',
+        body: JSON.stringify([{ id: 'del_rs1', status: native.status, status_at: native.at, updated_at: native.at }]) })); return t2.ctx.route('**/functions/v1/production-write', route => {
+        let b = {}; try { b = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+        if (b.operation === 'attachment') return route.fallback();
+        const at = new Date().toISOString();
+        if (b.operation === 'status' && b.status) Object.assign(native, { status: b.status, at });
+        return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(Object.assign({ ok: true, native_committed: true, complete: true, row: { id: b.id || 'del_rs1', status: b.status, updated_at: at } },
+          b.operation === 'comment' && b.comment ? { comment: Object.assign({}, b.comment, { id: b.comment.native_comment_id, created_at: at, updated_at: at, source_created_at: at, source_updated_at: at }) } : {})) });
+      }); };
+      const t = await start('smm', true, vs, Object.assign({ width: w, height: h, beforeOpen: gateway }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      await press(t, '[data-ok="video"]');
+      await waitFor(async () => t.T.versions[0].smm_ok_at && /Video B/.test((await dec(t)).bar), 50);
+      await sleep(900);
+      const n0 = t.state.upserts.length;
+      await press(t, '[data-chg="video"]');
+      await sleep(300);
+      await inS(t.page, '#ta').fill('Fictional note: cut the first second.');
+      await inS(t.page, '#sendBtn').click();
+      await waitFor(async () => t.T.versions[1].status === 'change asked', 80);
+      await sleep(900);
+      ok(t.T.versions[1].status === 'change asked' && !!t.T.versions[0].smm_ok_at && t.T.versions[2].status === 'waiting' && !t.T.versions[2].smm_ok_at, `${label}: the server has A approved by the SMM, B's change, C untouched`);
+      // The page moves on to the Thumbnail after the video's answer, as today: go back to the Video step.
+      await sleep(600);
+      await press(t, '.stp[data-step="video"]');
+      await sleep(600);
+      await press(t, '[data-trv-go="C"]');
+      await sleep(700);
+      let d = await dec(t);
+      ok(/Video C of 3/.test(d.bar) && !/cut the first second/.test(d.said + d.bar) && !/Change asked/.test(d.said), `${label}: Video C never shows B's change ("${d.said}")`);
+      // C still waits for the SMM, so the card stays where it is and C keeps its own Approve (the owner's choice (a),
+      // OPEN_REPAIRS 587; before it, C said it waited for B's change).
+      ok(/^Approve/.test(d.ok) && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'), `${label}: Video C keeps its own Approve while B's change is open, and the card stays ("${d.ok}")`);
+      await shot(t, 'e1-C-' + label.replace(/\s+/g, '-'));
+      await press(t, '[data-trv-go="A"]');
+      await sleep(700);
+      d = await dec(t);
+      ok(/Video A approved/.test(d.said) && !/cut the first second/.test(d.said), `${label}: Video A says it is approved ("${d.said}")`);
+      await press(t, '[data-trv-go="B"]');
+      await sleep(700);
+      d = await dec(t);
+      ok(/Change asked/.test(d.said) && /cut the first second/.test(d.said + (await R(t, `return [...r.querySelectorAll('.dq')].map(n => n.textContent).join('|');`))), `${label}: Video B keeps its own "Change asked" and note ("${d.said}")`);
+      await shot(t, 'e1-' + label.replace(/\s+/g, '-'));
+      ok(!t.errors.length && !d.overflow, `${label}: no page errors, no sideways scroll (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- Trialeyes E10 (2026-10-29): "Not this one" on the last open version keeps saying so on its own screen ----------
+    // A and C approved by the client; B is the last one waiting; "Not this one" on B lets the card move to Approved.
+    // B's screen keeps "the team will take Video B out" (never the card's "Approved · Change my mind") and its dot a cross.
+    for (const [w, h, label] of [[390, 844, 'client 390'], [1440, 900, 'client 1440']].filter(() => part('e10'))) {
+      const at = '2026-10-29T01:00:00.000Z';
+      const vs = three().map(v => v.letter === 'B' ? v : Object.assign(v, { status: 'approved', client_ok_at: at }));
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      await press(t, '[data-trv-go="B"]');
+      await sleep(500);
+      await press(t, '[data-pass="video"]');
+      await waitFor(async () => !!t.T.versions[1].client_pass_at, 40);
+      await waitFor(async () => t.state.upserts.some(u => u.video_status === 'Approved'), 60);
+      await sleep(3500);
+      // The page may have moved on to the Thumbnail (the video is done): back to the Video step, on B.
+      if (await R(t, `const b = r.querySelector('.stp[data-step="video"]'); return !!b && b.getAttribute('aria-current') !== 'step';`)) { await press(t, '.stp[data-step="video"]'); await sleep(600); }
+      if (!/Video B of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      const d = await dec(t);
+      const card = t.state.upserts.some(u => u.video_status === 'Approved');
+      const cross = await R(t, `const i = r.querySelector('[data-trv-go="B"] i'); return i ? getComputedStyle(i, '::after').content : '';`);
+      ok(card, `${label}: the card moved to Approved (the other versions carried it)`);
+      ok(/Video B of 3/.test(d.bar) && /the team will take Video B out/.test(d.said) && !/Approved|Change my mind/.test(d.said), `${label}: B's screen keeps its own "Not this one", never the card's "Approved" ("${d.said}")`);
+      ok(/pass/.test(d.dots.split(',')[1] || '') && /×/.test(cross), `${label}: B's dot shows the drop with a cross (${d.dots} | ${cross})`);
+      await shot(t, 'e10-' + label.replace(/\s+/g, '-'));
+      ok(!t.errors.length && !d.overflow, `${label}: no page errors, no sideways scroll (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- Trialtest minor 3 (2026-10-29): a second client tab hears trial-reels' broadcast ----------
+    // Another tab answers Video B; this tab, open on the card, shows it at once (not on its 30 s refresh) and reads
+    // only when the hash is this client's card.
+    if (part('push')) {
+      const REC = `if (!window.__rtChannels) window.__rtChannels = [];
+        if (!window.supabase) window.supabase = { createClient: function () { return {
+          channel: function (name) { var ch = { name: name, _cbs: [], on: function (t, f, cb) { ch._cbs.push({ f: f, cb: cb }); return ch; },
+            subscribe: function () { window.__rtChannels.push(ch); return ch; }, unsubscribe: function () {} }; return ch; },
+          removeChannel: function () { return Promise.resolve(); } }; } };`;
+      const t = await start('client', true, three(), { beforeOpen: async t2 => t2.ctx.route(u => /supabase-js/.test(u.href), route => route.fulfill({ status: 200, contentType: 'application/javascript', headers: CORS, body: REC })) });
+      const joined = await waitFor(async () => t.page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels')), 50);
+      ok(joined, 'second tab: the client page listens on the one trial-reels channel');
+      const fire = hh => t.page.evaluate(x => (window.__rtChannels || []).filter(c => c.name === 'trial-reels').forEach(c => c._cbs.forEach(k => { try { k.cb({ event: 'changed', payload: { h: x } }); } catch (e) {} })), hh);
+      let n0 = t.T.calls.filter(c => c.action === 'list').length;
+      await fire('0123456789ab');
+      await sleep(600);
+      ok(t.T.calls.filter(c => c.action === 'list').length === n0, 'second tab: another card\'s change reads nothing');
+      // The other tab approved Video B.
+      Object.assign(t.T.versions[1], { status: 'approved', client_ok_at: new Date().toISOString() });
+      const h = require('crypto').createHash('sha256').update('rs1').digest('hex').slice(0, 12);
+      const t0 = Date.now();
+      await fire(h);
+      const seen = await waitFor(async () => /ok/.test((await dec(t)).dots.split(',')[1] || ''), 30);
+      ok(seen && Date.now() - t0 < 2000 && t.T.calls.filter(c => c.action === 'list').length > n0, `second tab: the other tab's approve on B shows here in ${Date.now() - t0} ms (dots ${(await dec(t)).dots})`);
+      ok(!t.errors.length, 'second tab: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- Trialeyes E11 and E12 (2026-10-29): the client is told why there are versions; the bottom buttons stay one line ----------
+    for (const [mode, w, h, label] of [['client', 390, 844, 'client 390'], ['client', 1440, 900, 'client 1440'], ['smm', 1440, 900, 'SMM review'], ['kasper', 390, 844, 'kasper 390 (E21)']].filter(() => part('e11'))) {
+      for (const th of mode === 'client' && w < 600 ? ['light', 'dark'] : ['light']) {
+        const t = await start(mode, true, three().map(v => Object.assign(v, mode === 'smm' || mode === 'kasper' ? { kasper_ok_at: null } : {})), Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+        await theme(t, th);
+        const why = await R(t, `const n = r.querySelector('.trv-why'); return n && n.offsetParent ? n.textContent.trim() : '';`);
+        if (mode === 'client') ok(why === "We'll test each version for 24 h and keep the best one.", `${label} ${th}: one plain line says why there are several versions ("${why}")`);
+        else ok(!why, `${label}: the team's page has no such line`);
+        const btns = await R(t, `return [...r.querySelectorAll('.dfin button')].filter(b => b.offsetParent).map(b => { const c = b.getBoundingClientRect(); return { t: b.textContent.replace(/\\s+/g, ' ').trim(), h: Math.round(c.height), fits: b.scrollWidth <= b.clientWidth + 1 }; });`);
+        ok(btns.length >= 2 && btns.every(b => b.h <= 46 && b.fits), `${label} ${th}: "Approve all" and "Finish reviewing" each on one line (${JSON.stringify(btns)})`);
+        await R(t, `const n = r.querySelector('.trv-why') || r.querySelector('.trv-under'); if (n) n.scrollIntoView({ block: 'start' }); return 1;`);
+        await sleep(200);
+        await shot(t, 'e11-' + label.replace(/\s+/g, '-') + '-' + th);
+        ok(!t.errors.length && !(await dec(t)).overflow, `${label} ${th}: no page errors, no sideways scroll`);
+        await t.ctx.close();
+      }
+    }
+
+    // ---------- Trialeyes E20 (2026-10-29): leaving the client link with unsent words in the change box asks first ----------
+    if (part('e11')) {
+      const t = await start('client', true, three(), { width: 390, height: 844, context: { hasTouch: true, isMobile: true } });
+      const held = () => t.page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+      ok(!(await held()), 'client: with nothing typed, leaving asks nothing');
+      await press(t, '[data-chg="video"]');
+      await sleep(300);
+      await inS(t.page, '#ta').fill('Fictional words not sent yet');
+      await sleep(200);
+      ok(await held(), 'client: with words typed in the change box, leaving asks first');
+      await inS(t.page, '#ta').fill('');
+      await sleep(200);
+      ok(!(await held()), 'client: once the box is empty again, leaving asks nothing');
+      await t.ctx.close();
+    }
+
     // ---------- 2: the review page keeps the reel's shape while the next version loads ----------
+    // ---------- The client's Sheet and Month (the Supervisor's ruling, 2026-10-29): a small muted "N versions" tag beside
+    // the card's title says there are several versions; tapping it opens the Review page on the first waiting version. ----------
+    for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('hint'))) {
+      const t = await start('client', true, three());
+      // Collaborative mode on: without it the client's Sheet and Month show finished posts only, so a card still to
+      // review is not on them at all.
+      await t.page.evaluate(() => { calState.settings = Object.assign({}, calState.settings, { collab_mode: true }); onCalViewChange('organizer'); });
+      const tagOf = sel => t.page.evaluate(q => {
+        const n = [...document.querySelectorAll(q)].find(x => x.offsetParent);
+        if (!n) return null;
+        const cs = getComputedStyle(n), host = n.closest('.cal-card, .cal-month-pill'), title = host && host.querySelector('.cal-fld-name, .cal-month-pill-name');
+        const r = n.getBoundingClientRect(), tr = title ? title.getBoundingClientRect() : null;
+        return { t: n.textContent.trim(), size: parseFloat(cs.fontSize), color: cs.color, bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius),
+          beside: !!tr && Math.abs((r.top + r.bottom) / 2 - (tr.top + tr.bottom) / 2) < 14, inside: !!host && r.right <= host.getBoundingClientRect().right + 1 };
+      }, sel);
+      let sheet = null;
+      for (let i = 0; i < 40 && !(sheet = await tagOf('#calView .cal-card .cal-trial-tag')); i++) await sleep(150);
+      ok(sheet && sheet.t === '3 versions' && sheet.size <= 11 && sheet.radius > 0 && sheet.radius <= 6 && sheet.beside && sheet.inside, `${label}: the client's Sheet card says "3 versions" in a small tag beside its title (${JSON.stringify(sheet)})`);
+      await shot(t, 'hint-sheet-' + label);
+      await t.page.evaluate(() => { const n = [...document.querySelectorAll('#calView .cal-card .cal-trial-tag')].find(x => x.offsetParent); if (n) n.click(); });
+      await waitNew(t);
+      await sleep(800);
+      const opened = await t.page.evaluate(() => calState.view);
+      const d = await dec(t);
+      ok(opened === 'review' && /^on/.test(d.dots.split(',')[0] || ''), `${label}: tapping it opens the Review page on the first waiting version (${opened}, ${d.dots})`);
+      await t.page.evaluate(() => onCalViewChange('month'));
+      let month = null;
+      for (let i = 0; i < 40 && !(month = await tagOf('#calView .cal-month-pill .cal-trial-tag')); i++) await sleep(150);
+      await shot(t, 'hint-month-' + label);
+      ok(month && month.t === '3 versions' && month.inside, `${label}: the Month card says "3 versions" too (${JSON.stringify(month)})`);
+      ok(!t.errors.length, `${label} hint: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
     for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('shape'))) {
       const t = await start('client', true, three(), Object.assign({ beforeOpen: async t2 => {
         t2.state.cards.forEach(c => { c.thumbnail_url = ''; });

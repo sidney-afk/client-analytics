@@ -1,7 +1,7 @@
 import { svBusyHtml } from './040-shared-briefs.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialCall, svTrialErrorText, svTrialLabelHtml, svTrialLabelShown } from './189-trial-reels-card.js';
+import { svTrialCall, svTrialErrorText, svTrialHash, svTrialLabelHtml, svTrialLabelShown, svTrialOnChange } from './189-trial-reels-card.js';
 import { _prodCanWrite, _prodIssue, _prodToast, _prodWriteGateText } from './220-production-attribution-views.js';
 import { _prodRender } from './260-production-refresh-boot.js';
     /* TRIAL REELS IN PRODUCTION'S ASSETS (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
@@ -33,8 +33,21 @@ import { _prodRender } from './260-production-refresh-boot.js';
        the rows draw at once with their state still "checking"; when the function says checks are still running, one
        more read without a budget brings their verdicts (session Swift, OPEN_REPAIRS 554). */
     const TRL_PROD_PROBE_BUDGET_MS = 250;
+    /* A change anywhere (a client's answer, another person's drop) reaches the Assets panel at once through trial-reels'
+       broadcast, as it does the Calendar card (Trialtest, 2026-10-29: it waited 15 to 45 s for its own refresh). */
+    const _trlProdHeard = {};
+    async function _trlProdOnChange(h) {
+        for (const id of Object.keys(_trlProd)) {
+            const e = _trlProd[id];
+            if (!e.issue || !e.postId || await svTrialHash(e.postId) !== h) continue;
+            clearTimeout(_trlProdHeard[id]);
+            _trlProdHeard[id] = setTimeout(() => { if (_trlProd[id] === e) _trlProdLoad(e.issue, true); }, 120);
+        }
+    }
     function _trlProdLoad(issue, full) {
         const e = _trlProdEntry(issue.id);
+        e.issue = issue;
+        svTrialOnChange(_trlProdOnChange);
         if (e.promise) return e.promise;
         e.client = _trlProdClient(issue);
         e.postId = _trlProdCard(issue);
@@ -99,7 +112,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 : '<span>Not provided</span>';
             const pill = state === 'checking' && url
                 ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
-                : '<span class="prod-asset-state" data-state="' + _calEscAttr(state) + '">' + _calEsc(h.stateLabel(state)) + '</span>';
+                // A link that never existed (the provider answers 404) is "Not found", not "Expired" (Trialeyes E18).
+                : '<span class="prod-asset-state" data-state="' + _calEscAttr(state) + '">' + _calEsc(state === 'expired' && Number(((shape.link_states || {})[v.letter] || {}).http_status) === 404 ? 'Not found' : h.stateLabel(state)) + '</span>';
             const edit = h.readOnly ? '' : '<button class="prod-assets-action prod-asset-edit" type="button" data-trl-edit="' + _calEscAttr(v.letter) + '"'
                 + ' onclick="return svTrialProdEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(v.letter) + ')"' + h.gateAttrs + '>Edit</button>';
             const row = '<div class="prod-asset-row trl-prod-v" data-trl-slot="' + _calEscAttr(v.letter) + '">'

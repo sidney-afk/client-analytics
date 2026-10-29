@@ -141,7 +141,8 @@ const SHOTS = process.env.TRIAL_R2_SHOTS || '';
           ok(hv.before && hv.before.bg === hv.after.bg && hv.before.field === hv.after.field && hv.before.icon !== hv.after.icon, `${tag}: a hover on the pencil changes only its icon: ${JSON.stringify(hv)}`);
         }
         const st = await state(page);
-        ok(st && /Video · 4/.test(st.text) && /0\/3/.test(st.text) && !st.cut, `${tag}: the trial state reads whole, no "…": ${JSON.stringify(st)}`);
+        // "Video · N" counts the live versions, not the dropped one (Trialeyes E8, OPEN_REPAIRS 595).
+        ok(st && /Video · 3/.test(st.text) && /0\/3/.test(st.text) && !st.cut, `${tag}: the trial state reads whole, no "…": ${JSON.stringify(st)}`);
         ok(st && /0 of 3 approved/.test(st.title), `${tag}: the full words are in the hover: "${st && st.title}"`);
         await shot(page, 'r2-card-' + label + '-' + theme);
         if (label === 'desktop') {
@@ -149,7 +150,7 @@ const SHOTS = process.env.TRIAL_R2_SHOTS || '';
           const tight = await page.addStyleTag({ content: '#calView .cal-card .cal-link-post.trl-main{width:236px!important;max-width:236px!important}' });
           await sleep(150);
           const st3 = await state(page);
-          ok(st3 && /Video · 4/.test(st3.text) && /0\/3/.test(st3.text) && !st3.cut, `${tag}: on a 236 px row the state still reads whole (no "…"): ${JSON.stringify(st3)}`);
+          ok(st3 && /Video · 3/.test(st3.text) && /0\/3/.test(st3.text) && !st3.cut, `${tag}: on a 236 px row the state still reads whole (no "…"): ${JSON.stringify(st3)}`);
           await shot(page, 'r2-card-narrow-' + label + '-' + theme);
           await tight.evaluate(n => n.remove());
         }

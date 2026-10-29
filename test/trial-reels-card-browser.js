@@ -9,7 +9,7 @@
  * the projection onto the card). Proves:
  *   - switch off (trial_reels_pages does not list the client): the card is exactly today's, no trial control anywhere;
  *   - switch on, card off: a faint switch inside the Video row, and the card is still today's height;
- *   - card on: the row reads "Video · 5" with "2/4 approved", still today's height; the small arrow opens the
+ *   - card on: the row reads "Video · 4" (the live versions; D is dropped) with "2/4 approved", still today's height; the small arrow opens the
  *     versions (Video A…E), each label shown, "Paste the Frame.io link" on the one with no link; pasting saves it;
  *     dropping and bringing back a version;
  *   - 24 h up: only a muted trophy in the state slot ("Trial over: pick the winner"), no "on trial" labels in the list
@@ -126,6 +126,16 @@ async function shot(page, name) {
       T.flag = true;
       page = await open(w, h);
       ok(!!(await page.$('.cal-link-post .trl-sw-slot[aria-checked="false"]')), `${label}: switch on, card off: a faint switch inside the Video row`);
+      // Trialeyes E5 (2026-10-29): the off switch says what it is without a hover, in a small muted word, and the row
+      // keeps its one line.
+      const offWord = await page.evaluate(() => {
+        const b = document.querySelector('.cal-link-post .trl-sw-slot[aria-checked="false"]'), w = b && b.querySelector('.trl-sw-word'), row = b && b.closest('.cal-link-post');
+        if (!w || !row) return null;
+        const r = w.getBoundingClientRect(), rr = row.getBoundingClientRect();
+        w.style.display = 'none'; const bare = Math.round(row.getBoundingClientRect().height); w.style.display = '';
+        return { t: w.textContent.trim(), shown: r.width > 0 && r.height > 0, size: parseFloat(getComputedStyle(w).fontSize), inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowH: Math.round(rr.height), bare };
+      });
+      ok(offWord && offWord.t === 'Trial reels' && offWord.shown && offWord.size <= 11 && offWord.inside && offWord.rowH === offWord.bare, `${label}: the off switch reads "Trial reels", small, inside its one-line row (${JSON.stringify(offWord)})`);
       const knob = await page.evaluate(() => {
         const el = document.querySelector('.cal-link-post .trl-sw'), root = document.documentElement, was = root.getAttribute('data-theme'), out = {};
         for (const t of ['light', 'dark']) { root.setAttribute('data-theme', t); out[t] = getComputedStyle(el, '::after').backgroundColor; }
@@ -148,7 +158,7 @@ async function shot(page, name) {
       await sleep(900);
       ok(T.calls.some(c => c.action === 'switch_set' && c.enabled === true && c.post_id === 'p_t1'), `${label}: the switch sends switch_set on`);
       let txt = await rowText(page);
-      ok(/Video · 5/.test(txt) && /2\/4 approved/.test(txt), `${label}: the row reads "Video · 5" and "2/4 approved" (${txt})`);
+      ok(/Video · 4/.test(txt) && /2\/4 approved/.test(txt), `${label}: the row reads "Video · 4" (live versions only, E8) and "2/4 approved" (${txt})`);
       // Switched on, the list opens by itself (owner, 2026-10-27); the arrow folds it, and the card is today's height.
       ok(!!(await page.$('.trl-list')) && await page.$eval('.cal-link-post .trl-chev', b => b.getAttribute('aria-expanded')) === 'true', `${label}: switched on, the versions list opens by itself`);
       await page.click('.cal-link-post .trl-chev');
@@ -159,15 +169,26 @@ async function shot(page, name) {
       await sleep(300);
       const rows = await page.$$eval('.trl-list .trl-v:not(.trl-add)', ns => ns.map(n => n.innerText.replace(/\s+/g, ' ').trim()));
       ok(rows.length === 5 && rows.every((r, i) => r.startsWith('Video ' + 'ABCDE'[i])), `${label}: the arrow opens Video A to E (${rows.join(' | ')})`);
-      ok(/^\+ Add version$/.test(await page.$eval('.trl-list .trl-add', n => n.innerText.trim()).catch(() => '')) && /Video F/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))), `${label}: and offers "+ Add version" (Video F, by pasting its link)`);
+      ok(/^\+ Add version$/.test(await page.$eval('.trl-list .trl-add', n => n.innerText.trim()).catch(() => '')) && /Video F/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))) && !(await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => 'x')), `${label}: and offers "+ Add version" (Video F, by pasting its link)`);
       ok(/approved/.test(rows[0]) && /change asked/.test(rows[2]) && /dropped/.test(rows[3]) && /waiting/.test(rows[4]) && /Paste the Frame\.io link/.test(rows[4]), `${label}: a mixed review shows each label, and E asks for its link`);
       await shot(page, label + '-review-open');
       ok(!rows.join(' ').includes('Fictional hook') && !(await page.$('.trl-list .hook')), `${label}: no hook text anywhere`);
+      // Trialeyes E17 (2026-10-29): Video E's link is already another card's Video link. It saves (the team may mean
+      // it), and the row says where else it is, in a quiet note, never a dialog.
+      await page.evaluate(l => calState.posts.push({ id: 'p_t2', client: calState.posts[0].client, name: 'Test card two', asset_url: l, video_status: 'In Progress' }), LINK('E'));
       await page.click('.trl-list .trl-v:nth-child(5) .trl-paste');
       await page.fill('.trl-link-input', LINK('E'));
       await page.keyboard.press('Enter');
       await sleep(900);
       ok(T.calls.some(c => c.action === 'version_link_set' && c.letter === 'E' && c.link === LINK('E')) && T.versions[4].frame_url === LINK('E'), `${label}: pasting Video E's link saves it`);
+      const elsewhere = await page.evaluate(() => {
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find(n => /^Video E/.test(n.innerText.trim()));
+        const note = row && row.nextElementSibling && row.nextElementSibling.classList.contains('trl-link-note') ? row.nextElementSibling : null;
+        return { note: note ? note.textContent.trim() : '', notes: document.querySelectorAll('.trl-list .trl-link-note').length, dialog: !!document.querySelector('.sv-confirm, .modal-overlay.show, [role="alertdialog"]') };
+      });
+      ok(/also on .Test card two./i.test(elsewhere.note) && elsewhere.notes === 1 && !elsewhere.dialog, `${label}: a link another card carries saves, and its row says so quietly (${JSON.stringify(elsewhere)})`);
+      await shot(page, label + '-elsewhere');
+      await page.evaluate(() => { calState.posts = calState.posts.filter(p => p.id !== 'p_t2'); });
       // Default (b): "New cut ready" on Video C (a change asked), only in the row's hover tools.
       ok(!(await page.$('.trl-list .trl-v:nth-child(2) .trl-ico[title="New cut ready"]')), `${label}: no "New cut ready" on a version that is not asked to change`);
       await page.hover('.trl-list .trl-v:nth-child(3)');

@@ -173,21 +173,28 @@ async function readVersions(supabase: SupabaseClient, client: string, postId: st
 /* Posted starts the trial (logic.mjs autoTrialPatches): on any request that reads a card whose video is Posted and
    whose approved versions are not on trial yet, they go on trial here, with a trial_start ledger row and the broadcast.
    Answers the versions as they now are. A refused write leaves them as read (the next request tries again). */
+// Answers the versions as they now are, and the card's winner (one picked at Posted when only one version was left).
 async function startIfPosted(supabase: SupabaseClient, client: string, postId: string, versions: Version[], card: JsonMap,
-  who: Principal, winnerLetter: unknown): Promise<Version[]> {
-  const r = autoTrialPatches(versions, { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now() });
-  if (!r.patches.length) return versions;
+  who: Principal, winnerLetter: unknown, link?: string): Promise<{ versions: Version[]; winner: unknown }> {
+  const r = autoTrialPatches(versions, { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now(), mainLink: link });
+  if (!r.patches.length) return { versions, winner: winnerLetter };
   const now = new Date().toISOString();
   try {
     await applyChanges(supabase, versions, r.patches as Change[], now);
+    if (r.winner) {
+      const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: r.winner, updated_at: now, updated_by: "posted" })
+        .eq("client", client).eq("post_id", postId);
+      if (error) throw new Error("winner_write_failed");
+    }
   } catch (_e) {
     console.warn(JSON.stringify({ fn: FN, auto_trial: "not_started", post_id: postId }));
-    return versions;
+    return { versions, winner: winnerLetter };
   }
-  const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, r.patches as Change[], who, now, "trial_start"));
+  const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, r.patches as Change[], who, now, r.winner ? "winner_set" : "trial_start"));
   if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
   announce(client, postId);
-  return await readVersions(supabase, client, postId, winnerLetter);
+  const winner = r.winner || winnerLetter;
+  return { versions: await readVersions(supabase, client, postId, winner), winner };
 }
 
 /* SPEED (session Swift, 2026-10-27, OPEN_REPAIRS 554): every read a request may need starts at once and each answer
@@ -399,8 +406,8 @@ Deno.serve(async (req: Request) => {
         if (!card) return null;
         const [read, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
         if (who.kind === "staff") await healMain(supabase, client, id, read, link, who);
-        const versions = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter);
-        return [id, { enabled: true, winner_letter: sw.winner_letter || null,
+        const { versions, winner } = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter, link);
+        return [id, { enabled: true, winner_letter: winner || null,
           ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
       }));
       const cards: JsonMap = {};
@@ -455,7 +462,9 @@ Deno.serve(async (req: Request) => {
     const read = settleWinner(await rowsP!, sw.winner_letter) as Version[];
     const link = await linkP!;
     if (principal.kind === "staff") await healMain(supabase, client, postId, read, link, principal);
-    const versions = await startIfPosted(supabase, client, postId, read, card, principal, sw.winner_letter);
+    const auto = await startIfPosted(supabase, client, postId, read, card, principal, sw.winner_letter, link);
+    const versions = auto.versions;
+    if (auto.winner !== sw.winner_letter) sw.winner_letter = auto.winner;
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
 
     if (action === "version_add") {

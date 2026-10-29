@@ -2,7 +2,7 @@ import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialListShared, svTrialMoveCard } from './189-trial-reels-card.js';
+import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
        in PR 2352).
@@ -27,8 +27,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     function svTrialReviewOnChange(fn) { _trvRepaint = typeof fn === 'function' ? fn : () => {}; }
     function _trvSlug(client) { try { return calClientSlug(String(client || '')); } catch (e) { return ''; } }
+    /* The review pages (a second client tab, Kasper's and the SMM's) hear trial-reels' broadcast too and read their
+       client's cards again at once, not on their 30 s refresh (Trialtest, 2026-10-29). */
+    const _trvHeard = {};
+    async function _trvOnChange(h) {
+        for (const slug of Object.keys(_trv)) {
+            const ids = Object.keys(_trv[slug].cards || {});
+            for (const id of ids) {
+                if (await svTrialHash(id) !== h) continue;
+                clearTimeout(_trvHeard[slug]);
+                _trvHeard[slug] = setTimeout(() => _trvLoad(slug, true), 120);
+                break;
+            }
+        }
+    }
     function _trvLoad(slug, force) {
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
+        svTrialOnChange(_trvOnChange);
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
         // A staff page's first read is the Calendar's list of this client (189), which Kasper's queue starts as it
         // arrives; every later one is this page's own, so it never takes back an answer given here since.

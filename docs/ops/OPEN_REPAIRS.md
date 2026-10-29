@@ -35254,6 +35254,23 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 583. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Production's Assets and a second client tab did not take the live push (Trialtest, session Trials)
+
+- **What happened (session Trialtest's overnight live pass on the test client):**
+  - A client's answer reached the SMM's Calendar card in about 1 s.
+  - On Production's Assets it showed only after 15 to 42 s, or not within 45 s. Staff drop and bring-back behaved the same.
+  - A second client tab showed another tab's change only after about 25 s, from its 30 s refresh.
+- **Why:** only the staff Calendar listened on the `trial-reels` broadcast (OPEN_REPAIRS 567).
+- **Fix:**
+  - `svTrialOnChange` (189) lets another page register for the same one channel, with the same hash-only message.
+  - Production's Assets (245) reads the card it shows again when its card's hash arrives.
+  - The review pages (194), meaning Kasper's, the SMM's and the client link, read their client's cards again.
+  - Each joins the channel only once it has loaded a trial card. A burst reads once, and another card's hash reads nothing.
+- **Proven:**
+  - `test/trial-reels-production-browser.js`: the client's approve shows on the Assets panel in about 0.2 s.
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=push`): another tab's approve shows on the client page in about 0.2 s.
+  - Both fail on main, where neither page listens.
+
 ## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live at 390):**

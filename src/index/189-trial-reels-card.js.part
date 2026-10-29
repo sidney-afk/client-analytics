@@ -153,6 +153,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     let _trlChannel = null;      // the channel, or a promise of it
     const _trlHeard = {};        // client slug|pid -> timer of the read it asked for
     const _trlHashes = new Map(); // pid -> its 12-hex hash
+    const svTrialHash = pid => _trlHash(pid);
     async function _trlHash(pid) {
         if (_trlHashes.has(pid)) return _trlHashes.get(pid);
         const d = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(pid));
@@ -160,12 +161,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _trlHashes.set(pid, h);
         return h;
     }
-    function _trlListen() {
-        if (_isClientLink || _trlChannel || !(window.crypto && window.crypto.subtle)) return;
+    /* Other pages that show trial cards hear the same broadcast (Trialtest, 2026-10-29: Production's Assets and a second
+       client tab waited for their own refresh): each registers once, gets the 12-hex hash, and reads its own card again. */
+    const _trlHooks = [];
+    function svTrialOnChange(fn) {
+        if (!_trlHooks.includes(fn)) _trlHooks.push(fn);
+        _trlListen(true);
+    }
+    function _trlListen(any) {
+        // The staff Calendar listens for its own cards; a page that registered a hook listens on a client link too
+        // (the message carries only the hash, Supervisor's rule).
+        if ((_isClientLink && !any && !_trlHooks.length) || _trlChannel || !(window.crypto && window.crypto.subtle)) return;
         _trlChannel = Promise.resolve().then(() => _calV2Client()).then(client => {
             if (!client || typeof client.channel !== 'function') { _trlChannel = null; return null; }
             const ch = client.channel('trial-reels', { config: { broadcast: { self: false, ack: false } } })
-                .on('broadcast', { event: 'changed' }, msg => { _trlHeardHash(String((msg && msg.payload && msg.payload.h) || '')).catch(() => {}); });
+                .on('broadcast', { event: 'changed' }, msg => {
+                    const h = String((msg && msg.payload && msg.payload.h) || '');
+                    if (!/^[0-9a-f]{12}$/.test(h)) return;
+                    if (!_isClientLink) _trlHeardHash(h).catch(() => {});
+                    _trlHooks.forEach(fn => { try { fn(h); } catch (e) {} });
+                });
             ch.subscribe();
             return ch;
         }).catch(() => { _trlChannel = null; return null; });
@@ -852,6 +867,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

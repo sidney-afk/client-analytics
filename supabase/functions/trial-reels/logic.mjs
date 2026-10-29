@@ -212,12 +212,50 @@ export function mainLetter(versions, mainLink) {
   return carried ? carried.letter : rest.length ? rest[0].letter : "A";
 }
 
-/** Has every version that is not dropped got this stage's OK? (At least one version must remain.) */
-export function stageDone(versions, stage) {
+/*
+ * Per-version routing (Sidney, 2026-10-29: "Other videos should go to Kasper while one of them is out for a change"):
+ * each live version has its own place, and the card moves on once nothing waits for a reviewer and one version has
+ * passed them. Plan section 5, "Per-version routing".
+ *
+ * Kasper is on the card's route unless the card reached the client with no version through him (the SMM sent it
+ * straight to the client, today's "Approve to client" or the status menu).
+ */
+const PAST_KASPER = ["Client Approval", "Approved", "Scheduled", "Posted"];
+export function kasperOnRoute(versions, cardStatus) {
+  const s = clean(cardStatus, 40);
+  // No card status (a caller that has none): only a version through Kasper puts him on the route, as before.
+  return (versions || []).some((v) => live(v) && !!v.kasper_ok_at) || (!!s && !PAST_KASPER.includes(s));
+}
+/* Where a version is: smm, kasper, client (waiting for the client), approved, new_cut (change asked), client_dropped,
+   dropped, or its trial state (on trial, winner, lost). */
+export function placeOf(v, versions, cardStatus) {
+  if (!live(v)) return "dropped";
+  if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return v.status;
+  if (v.status === STATUS.change) return "new_cut";
+  if (passed(v)) return "client_dropped";
+  if (v.status === STATUS.approved) return "approved";
+  if (!v.smm_ok_at) return "smm";
+  if (!v.kasper_ok_at && kasperOnRoute(versions, cardStatus)) return "kasper";
+  return "client";
+}
+/* Through the team, so the client may see and answer it: the SMM's OK, and Kasper's when he is on the route. */
+function throughTeam(v, versions, cardStatus) {
+  return !!v.smm_ok_at && (!!v.kasper_ok_at || !kasperOnRoute(versions, cardStatus));
+}
+
+/*
+ * Is this reviewer done, so the card moves on? The client: every version not dropped is approved (as before). The SMM
+ * and Kasper: no live version waits for them and at least one has their OK (and is not waiting for a new cut). A
+ * version waiting for its new cut, or still behind with an earlier reviewer, does not hold the card. At least one
+ * version must remain.
+ */
+export function stageDone(versions, stage, cardStatus) {
   const rest = versions.filter(counted);
   if (!rest.length) return false;
   if (stage === "client") return rest.every((v) => v.status === STATUS.approved || v.status === STATUS.trial || v.status === STATUS.winner || v.status === STATUS.lost);
-  return rest.every((v) => !!v[okField(stage)]);
+  const open = rest.filter((v) => v.status === STATUS.waiting || v.status === STATUS.approved);
+  if (open.some((v) => placeOf(v, versions, cardStatus) === stage)) return false;
+  return open.some((v) => !!v[okField(stage)]);
 }
 
 /** The card is Approved once no version is waiting or has a change asked, and at least one is approved (owner, Q4). */
@@ -232,8 +270,12 @@ export function cardApprovable(versions) {
  * and the client only after the SMM (the SMM may send a version straight to the client, as "Approve to client" does
  * today, so the client's turn does not wait on Kasper).
  */
-export function stageReady(v, stage, sentWhole) {
-  return stage === "smm" ? true : !!v.smm_ok_at || !!sentWhole;
+export function stageReady(v, stage, sentWhole, versions, cardStatus) {
+  if (stage === "smm") return true;
+  if (sentWhole) return true;
+  // The client answers a version once it is through the team (per-version routing): never while it is with Kasper.
+  if (stage === "client" && versions) return throughTeam(v, versions, cardStatus);
+  return !!v.smm_ok_at;
 }
 
 /*
@@ -257,7 +299,7 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
   if (kind === "pass" && stage !== "client") return { error: "pass_client_only" };
   // Open for this reviewer: live, not decided, not waiting on a new cut, with a link to watch, its turn, not yet answered.
   const open = (v) => live(v) && v.status !== STATUS.change && v.status !== STATUS.trial && v.status !== STATUS.winner && v.status !== STATUS.lost
-    && !!clean(v.frame_url, 2048) && stageReady(v, stage, whole)
+    && !!clean(v.frame_url, 2048) && stageReady(v, stage, whole, versions, cardStatus)
     && (stage === "client" ? v.status === STATUS.waiting && !passed(v) : !v[okField(stage)]);
   let targets;
   if (kind === "approve_all") targets = versions.filter(open);
@@ -270,14 +312,14 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
       if (v.status !== STATUS.waiting) return { error: v.status === STATUS.change ? "change_open" : "version_answered" };
       if (passed(v)) return { error: "version_passed" };
       if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
-      if (!stageReady(v, stage, whole)) return { error: "stage_order" };
+      if (!stageReady(v, stage, whole, versions, cardStatus)) return { error: "stage_order" };
       if (!versions.some((x) => x.letter !== v.letter && counted(x))) return { error: "last_live_version" };
     }
     if (kind === "approve") {
       // A change asked waits for its new cut (Q3); nothing to watch, nothing to approve; and each stage in its turn.
       if (v.status === STATUS.change) return { error: "change_open" };
       if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
-      if (!stageReady(v, stage, whole)) return { error: "stage_order" };
+      if (!stageReady(v, stage, whole, versions, cardStatus)) return { error: "stage_order" };
     }
     targets = [v];
   }
@@ -489,20 +531,22 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       client_pass_at: v.client_pass_at || null,
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
-      ready: !!v.smm_ok_at || whole,
+      ready: client ? throughTeam(v, sorted, cardStatus) || whole : !!v.smm_ok_at || whole,
     };
     if (client) return base;
     return Object.assign(base, {
       hook: v.hook || null, smm_ok_at: v.smm_ok_at || null, kasper_ok_at: v.kasper_ok_at || null,
       change_by: v.change_by || null, change_note: v.change_note || null, change_at: v.change_at || null,
       posted_at: v.posted_at || null, trial_ends_at: v.trial_ends_at || null,
+      // Where it is now (per-version routing): every staff surface says it per version.
+      place: placeOf(v, sorted, cardStatus),
     });
   });
   const mainRow = sorted.find((v) => v.letter === main);
   // Every reader learns when the card can move to Approved, so the page (the client's too) sends today's approve then.
   const out = { versions: rows, main_letter: main, card_approvable: cardApprovable(sorted) };
   if (!client) {
-    out.stages_done = { smm: stageDone(sorted, "smm"), kasper: stageDone(sorted, "kasper"), client: stageDone(sorted, "client") };
+    out.stages_done = { smm: stageDone(sorted, "smm", cardStatus), kasper: stageDone(sorted, "kasper", cardStatus), client: stageDone(sorted, "client", cardStatus) };
     // The client stage is done but the card has not moved: the page offers today's approve save again.
     out.card_behind = out.card_approvable && !["Approved", "Scheduled", "Posted"].includes(clean(cardStatus, 40));
     out.main_copy_behind = !!(mainRow && clean(mainLink, 2048) && clean(mainRow.frame_url, 2048) !== clean(mainLink, 2048));

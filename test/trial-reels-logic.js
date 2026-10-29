@@ -65,11 +65,42 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     'staff keys: admin and SMM everything, an editor only pastes a link (Q9), the automation key only reads');
 
   // Stages and the card
-  const kasperHalf = five().map((x, i) => i < 4 ? Object.assign(x, { kasper_ok_at: NOW }) : x);
+  // Every version through the SMM: E, lacking only Kasper's OK, waits for him (per-version routing, below).
+  const kasperHalf = five().map((x, i) => Object.assign(x, { smm_ok_at: NOW }, i < 4 ? { kasper_ok_at: NOW } : {}));
   ok(!L.stageDone(kasperHalf, 'kasper'), "Kasper's stage is not done while one version lacks his OK");
   kasperHalf[4].status = 'dropped';
   ok(L.stageDone(kasperHalf, 'kasper'), "a dropped version does not hold Kasper's stage");
   ok(!L.stageDone(five().map(x => Object.assign(x, { status: 'dropped' })), 'kasper'), 'every version dropped: no stage is ever done');
+
+  // Per-version routing (Sidney, 2026-10-29): a stage is done once nothing waits for that reviewer and one version has
+  // passed it; a version waiting for its new cut, or still behind with an earlier reviewer, never holds the card.
+  {
+    const smmMixed = [v('A', { smm_ok_at: NOW }), v('B', { status: 'change asked', change_by: 'smm' }), v('C', { smm_ok_at: NOW })];
+    ok(L.stageDone(smmMixed, 'smm'), 'A and C approved by the SMM, B changed: the SMM is done, so A and C go on to Kasper');
+    ok(!L.stageDone([v('A', { smm_ok_at: NOW }), v('B', { status: 'change asked' }), v('C')], 'smm'), 'C still waits for the SMM: not done');
+    ok(!L.stageDone([v('A', { status: 'change asked' }), v('B', { status: 'change asked' })], 'smm'), 'every version changed: not done (the card goes to Tweaks Needed)');
+    const kMixed = [v('A', { smm_ok_at: NOW, kasper_ok_at: NOW }), v('B'), v('C', { smm_ok_at: NOW, kasper_ok_at: NOW })];
+    ok(L.stageDone(kMixed, 'kasper', 'Kasper Approval'), "B's new cut is back with the SMM: Kasper is done with A and C, so they go to the client");
+    ok(!L.stageDone([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW }), v('B', { smm_ok_at: NOW })], 'kasper', 'Kasper Approval'), 'B through the SMM waits for Kasper: not done');
+    ok(!L.stageDone([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW, status: 'change asked' }), v('B')], 'kasper', 'Kasper Approval'), "a version Kasper asked to change doesn't count as passed");
+    // Kasper on the route, and where each version is.
+    ok(L.kasperOnRoute([v('A', { smm_ok_at: NOW })], 'Kasper Approval') && L.kasperOnRoute([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW })], 'Client Approval')
+      && !L.kasperOnRoute([v('A', { smm_ok_at: NOW })], 'Client Approval'), "Kasper is on the route unless the card reached the client with no version through him");
+    const places = [v('A', { smm_ok_at: NOW, kasper_ok_at: NOW }), v('B', { smm_ok_at: NOW }), v('C'), v('D', { status: 'change asked' }), v('E', { status: 'approved', smm_ok_at: NOW, kasper_ok_at: NOW, client_ok_at: NOW })];
+    ok(places.map(x => L.placeOf(x, places, 'Client Approval')).join() === 'client,kasper,smm,new_cut,approved',
+      'each version says where it is: with the client, with Kasper, with the SMM, waiting for its new cut, approved');
+    ok(L.placeOf(v('F', { smm_ok_at: NOW }), [v('F', { smm_ok_at: NOW })], 'Client Approval') === 'client' && L.placeOf(v('G', { client_pass_at: NOW }), [], 'Client Approval') === 'client_dropped'
+      && L.placeOf(v('H', { status: 'dropped' }), [], 'Client Approval') === 'dropped', 'sent straight to the client: through the SMM is with the client; client dropped; dropped');
+    // The client link sees only versions that have come through the team, and answers only those.
+    const read = L.readShape(places, { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' });
+    ok(read.versions.filter(x => x.ready).map(x => x.letter).join() === 'A,E', 'the client read: only A (through Kasper) and E are ready; B is still with Kasper, C with the SMM');
+    ok(L.answerPatches(places, { stage: 'client', kind: 'approve', letter: 'B', cardStatus: 'Client Approval' }, NOW).error === 'stage_order'
+      && L.answerPatches(places, { stage: 'client', kind: 'approve_all', cardStatus: 'Client Approval' }, NOW).patches.map(p => p.letter).join() === 'A',
+      'the server holds it too: the client cannot answer B while it is with Kasper');
+    const staff = L.readShape(places, { client: false, mainLink: A_LINK, cardStatus: 'Client Approval' });
+    ok(staff.versions.map(x => x.place).join() === 'client,kasper,smm,new_cut,approved' && staff.stages_done.kasper === false && staff.stages_done.smm === false,
+      'the staff read carries each place; Kasper and the SMM each still have a version');
+  }
   ok(L.cardApprovable([v('A', { status: 'approved' }), v('B', { status: 'dropped' })]), 'the card is approvable: none waiting, at least one approved (owner, Q4)');
   ok(!L.cardApprovable([v('A', { status: 'approved' }), v('B', { status: 'change asked' })]), 'a change asked holds the card');
   ok(!L.cardApprovable([v('A', { status: 'dropped' })]), 'all dropped: the card stays where it is');

@@ -1,6 +1,6 @@
 # SyncView Atlas
 
-> **Keeping this current.** Any PR that adds, removes, renames or changes what a tab, button, toggle, mode or runtime switch does updates the [Team guide](#team-guide-every-tab-button-and-switch) in the same PR, in plain English: what it does, who sees it, what the client sees, and which switch it sits behind. When a switch's audience is changed live, its row in the switch table changes too. The same rule is in [AGENTS.md](../AGENTS.md) and the PR template. The Team guide was last checked against code and live switches on 2026-10-28; the technical sections below keep their own dates.
+> **Keeping this current.** Any PR that adds, removes, renames or changes what a tab, button, toggle, mode or runtime switch does updates the [Team guide](#team-guide-every-tab-button-and-switch) in the same PR, in plain English: what it does, who sees it, what the client sees, and which switch it sits behind. When a switch's audience is changed live, its row in the switch table changes too. The technical sections (screens, tables, functions, n8n, Sheets, jobs, secrets, deploy lanes) follow the same rule. Brain also runs a weekly check that compares ATLAS with the changes merged that week and reports any mismatch to the SyncView supervisor, so a missed update is caught within a week; it does not replace updating ATLAS in the PR. The same rule is in [AGENTS.md](../AGENTS.md) and the PR template. The Team guide was last checked against code and live switches on 2026-10-28; the technical sections below keep their own dates.
 
 Verified 2026-09-30. Repository evidence is pinned to client-analytics main `3caef657e0a832b265af33d67009ac4649c60112` after incorporating concurrent source changes. Live catalog observations are from the read-only pass; source status was refreshed after the rebase. Live catalogs were read during this pass. Nothing was deployed, dispatched, edited or sent in a live system.
 
@@ -623,7 +623,7 @@ Switch values below are the live values read on 2026-10-28.
 - **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
 - **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account.
   - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
-  - The Instagram account id is a separate field. The page says it lives in the Clients Info sheet (column for the Instagram Post For Me id).
+  - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`) and set only through roster-write, so ask an admin. The Clients Info sheet only holds a copy of it.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
 

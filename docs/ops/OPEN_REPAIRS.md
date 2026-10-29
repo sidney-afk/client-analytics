@@ -35243,3 +35243,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 585. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live):**
+  - Nothing on the client link explained "TRIAL", or why there were several versions.
+  - At 390, "Finish reviewing 0 of 2" and "Approve all (2 waiting)" each wrapped onto two lines inside their buttons.
+- **Fix (`src/index/194-review-trial-versions.js.part`):**
+  - On the client link only, one plain line sits under "TRIAL": "We'll test each version for 24 h and keep the best one."
+  - At phone width, "Approve all" and "Finish reviewing" each take a full-width line of their own and never wrap inside.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e11`) checks the client at 390 (light and dark) and at 1440, and that the SMM's page has no such line. Both buttons stay on one line. It fails on main.
+- **E13 (Kasper's orange "Tweaks are on Frame" reads as a status, not a button):** the button and its style predate trial reels (#2291 and earlier). Left as is, as the Supervisor asked.

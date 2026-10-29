@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|e11 runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -366,6 +366,24 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(/with the team/.test(tile.a) && !/change asked/.test(tile.a), `kasper tiles: a version still with the SMM says "with the team", not "change asked" ("${tile.a}")`);
       await shot(t, 'cok-kasper-tiles');
       await t.ctx.close();
+    }
+
+    // ---------- Trialeyes E11 and E12 (2026-10-29): the client is told why there are versions; the bottom buttons stay one line ----------
+    for (const [mode, w, h, label] of [['client', 390, 844, 'client 390'], ['client', 1440, 900, 'client 1440'], ['smm', 1440, 900, 'SMM review']].filter(() => part('e11'))) {
+      for (const th of mode === 'client' && w < 600 ? ['light', 'dark'] : ['light']) {
+        const t = await start(mode, true, three().map(v => Object.assign(v, mode === 'smm' ? { kasper_ok_at: null } : {})), Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+        await theme(t, th);
+        const why = await R(t, `const n = r.querySelector('.trv-why'); return n && n.offsetParent ? n.textContent.trim() : '';`);
+        if (mode === 'client') ok(why === "We'll test each version for 24 h and keep the best one.", `${label} ${th}: one plain line says why there are several versions ("${why}")`);
+        else ok(!why, `${label}: the team's page has no such line`);
+        const btns = await R(t, `return [...r.querySelectorAll('.dfin .finish, .dfin .trv-all')].filter(b => b.offsetParent).map(b => { const c = b.getBoundingClientRect(); return { t: b.textContent.replace(/\\s+/g, ' ').trim(), h: Math.round(c.height), fits: b.scrollWidth <= b.clientWidth + 1 }; });`);
+        ok(btns.length === 2 && btns.every(b => b.h <= 46 && b.fits), `${label} ${th}: "Approve all" and "Finish reviewing" each on one line (${JSON.stringify(btns)})`);
+        await R(t, `const n = r.querySelector('.trv-why') || r.querySelector('.trv-under'); if (n) n.scrollIntoView({ block: 'start' }); return 1;`);
+        await sleep(200);
+        await shot(t, 'e11-' + label.replace(/\s+/g, '-') + '-' + th);
+        ok(!t.errors.length && !(await dec(t)).overflow, `${label} ${th}: no page errors, no sideways scroll`);
+        await t.ctx.close();
+      }
     }
 
     // ---------- 2: the review page keeps the reel's shape while the next version loads ----------

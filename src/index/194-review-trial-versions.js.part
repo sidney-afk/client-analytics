@@ -145,6 +145,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // should say that it's a trial video"; no visual noise, so a small muted word and no pill). Not on the player's
     // badge: a 9:16 player on a wide page is too narrow for it, so the page hides the badge there.
     const TRV_TAG = '<span class="trv-tag">Trial</span>';
+    // The client is told once, in plain words, why there are several versions (Trialeyes E11, 2026-10-29).
+    const TRV_WHY = '<span class="trv-why">We\'ll test each version for 24 h and keep the best one.</span>';
     function svTrialReviewBarHtml(m, mode) {
         if (!m || !m.trial || !m.trial.winner) return '';
         return TRV_TAG + '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
@@ -160,7 +162,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
                 + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : a === 'pass' ? ', not this one' : a === 'cpass' ? ', client dropped' : ', waiting') + (_trvClientOk(v, stage) ? ', client approved' : '') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
-        return TRV_TAG + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
+        return TRV_TAG + (mode === 'client' ? TRV_WHY : '') + '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
             + cok
@@ -507,6 +509,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
 .trv-tag{display:block;padding-top:10px;text-align:center;font-size:.66rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary)}
 .trv-tag + .trv-under{padding-top:2px}
+.trv-why{display:block;padding:2px 16px 0;text-align:center;font-size:.74rem;line-height:1.35;color:var(--text-secondary)}
+.trv-why + .trv-under{padding-top:4px}
 .trv-of{font-weight:500;color:var(--text-secondary)}
 .trv-dots{display:inline-flex;align-items:center;gap:2px}
 .trv-dot{display:grid;place-items:center;width:26px;height:26px;border:0;background:none;font:inherit;cursor:pointer;padding:0}
@@ -528,7 +532,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
 .dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
-@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
+@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
   TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam

@@ -35244,7 +35244,27 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
 
-## 578. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
+## 578. [2026-10-29 UTC, BUILT, NOT MERGED] Kasper's Review Session read the queue before the client list loaded: a short queue under a notice that named client slugs (session Queueload)
+
+- **What happened (session Trialeyes, signed in as Kasper on the live site):** the Review Session sometimes opened with a red notice naming client slugs and saying "the client list had not finished loading when the queue was read". The card count went from 4 to 12 between two loads.
+- **Cause:** `_kasperLoadReviewRun` (330) read the queue at once, with whatever the client list held. Until Clients Info (or this browser's saved copy of it) is merged by `wlMergeClientsFromSheet` (070), that list is only the seed in code, so every client added since was left out. The re-read when the list grew was only armed on the fast boot, so elsewhere the short queue stayed. Offline, the short queue never recovered: 1 card of 4.
+- **Fix:**
+  - `070`: `wlRosterReady()` / `wlRosterIsReady()`, set the first time the list is merged.
+  - `330`: the queue read waits for the list (up to 15 s; the staff copy of the list gives up at 10 s and falls back to the Sheet). The card skeleton stays up meanwhile, and the painter keeps it until the first read lands, so an empty "Waiting for your review 0" is not drawn either. If the list grows during a read, the read is repeated before anything is drawn (now on every boot, not only the fast one). If the wait times out, the queue is read with what is there and read again when the list arrives.
+  - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
+- **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
+
+## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 390):**
+  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
+  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
+- **Fix:**
+  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
+  - The passed dot gets a small cross mark beside its struck letter.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.
+
+## 591. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live, the SMM's Review tab at 1440):**
   - The SMM approved Video A, then asked for a change on Video B.
@@ -35258,13 +35278,3 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
 - **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
-
-## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 390):**
-  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
-  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
-- **Fix:**
-  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
-  - The passed dot gets a small cross mark beside its struck letter.
-- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.

@@ -532,3 +532,8 @@ Why: the 26 Oct edits removing the booking confirmation text were saved but neve
 
 ## 2026-10-27 Educator pre-call email 3: wording approved 26 Oct copied in (owner's go in the request, Ads lane)
 - Educators Sales, Pre-Call Nurture (`lU5RlPUBsmlMsFSf`), node "Educator 3 - Results and Speed": before `40ec3b9e-66c4-45b9-80c8-340394ad1a9d`, after `ad970004-3deb-486b-9fbd-6d8f6695d833` (published). Subject and two sentences copied from the approved email Doc (membership numbers reworded; two case-study lines swapped for two public ones from the site's case studies). Rest of the email unchanged. A stray draft with a placeholder body was saved for about a minute and never published. Undo: publish the before version.
+
+## 2026-10-27 Inbound SMS Relay: replies from known leads logged in the Leads CRM (owner's go in chat, 13:31 UTC)
+Why: the 26 Oct entry left this workflow unwired because `ingest` would create a lead for any unknown number. `crm-leads` gained a `match_only` mode, so a reply now logs only when the number already belongs to a lead.
+- Sales, Inbound SMS Relay (`m6T2atZGGXKlDqfw`): before `78ebaf58-d422-44f9-b6bc-1315b5811c2f`, after `f45009f1-c12d-44e0-8474-474e0274ca75` (active version, "CRM: log inbound SMS replies (match only)"). Added HTTP Request node "CRM: Log SMS Reply" that POSTs `ingest`, event `sms_reply`, `match_only: true`, idempotency key from the Twilio message sid, with the existing Supabase credential, a 10 second timeout, onError continue and no outgoing connection, so the Telegram relay to Kasper is unchanged. Only the sender number and sid are sent, never the message text. Unknown numbers create nothing.
+- Logged on 29 Oct after a re-check found the entry missing. Undo: publish the before version.

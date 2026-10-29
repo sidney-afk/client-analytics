@@ -56,8 +56,10 @@ async function run(width) {
     // The short form adds the year only when it is not this year (327 _svuDayLabel), so the fixture dates stay valid later.
     const thisYear = new Date().getFullYear() === 2026;
     const want = width < 500 ? ['#Sat, 17 Oct 2026', '#Sun, 18 Oct 2026'] : (thisYear ? ['#Sat 17 Oct', '#Sun 18 Oct'] : ['#Sat 17 Oct 2026', '#Sun 18 Oct 2026']);
-    check(days[0] === want[0] && days[1] === want[1], tag + ': dividers read as dates (' + JSON.stringify(days) + ')');
-    const sun = order.indexOf(want[1]);
+    // Browsers differ on the comma after the weekday ("Sat 17 Oct" or "Sat, 17 Oct"): either reads as the date.
+    const norm = d => d.replace(/^#(\w{3}),? /, '#$1 ');
+    check(norm(days[0] || '') === norm(want[0]) && norm(days[1] || '') === norm(want[1]), tag + ': dividers read as dates (' + JSON.stringify(days) + ')');
+    const sun = order.findIndex(x => x[0] === '#' && norm(x) === norm(want[1]));
     check(sun > order.indexOf('Evening note.') && sun > order.indexOf('Late note.') && sun < order.indexOf('Next morning note.'),
       tag + ': the 7:30pm and 11:55pm notes stay under Saturday ' + JSON.stringify(order));
     check(!(page.errors || []).length, tag + ': no page errors');

@@ -778,7 +778,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // Same pages as the boot read (326): never on Production, Time off, Linear or the forms. Never after the
             // server refused the list (401/403), the same rule as 326's boot retry: asking again only earns another refusal.
             const refused = _msgState.failStatus === 401 || _msgState.failStatus === 403;
-            if (!_isClientLink && _msgBootPageOk() && !refused) { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
+            // Only a list already read without them: the first read is 326's own boot read, which waits for a page that
+            // may ask (never Production) and already asks for pictures. The badges are on from the first paint now
+            // (session Permafive), so this sync can run before the router has reached Production.
+            if (!_isClientLink && _msgBootPageOk() && !refused && _msgState.loaded && !_msgState.pictures) { try { _msgLoad(true); } catch (e) {} }
         } else {
             if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
             svuHideHover();

@@ -134,8 +134,9 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
     await other.click('#msgPage [data-msg-conv="p_mgr"]');
     check(await until(() => marks.includes('p_mgr:read')), 'D: the other tab reads the conversation');
     check(await until(async () => { const x = await state(page); return x.countHidden || x.count === '0'; }), 'D: the badge here clears live, with no reload');
+    await until(async () => { const x = await state(page); return x.tabs[0] === 'New' && x.empty === 'No new messages'; });
     s = await state(page);
-    check(s.tabs[0] === 'New' && s.empty === 'No new messages', 'D: the switch drops its count and the New view is calm again');
+    check(s.tabs[0] === 'New' && s.empty === 'No new messages', 'D: the switch drops its count and the New view is calm again ' + JSON.stringify(s));
     check(await page.evaluate(() => window.__noReload === 1), 'D: the page was not reloaded');
 
     // E: opening keeps the conversation on screen in the New view

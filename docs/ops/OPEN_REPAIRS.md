@@ -35243,3 +35243,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 578. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live, the SMM's Review tab at 1440):**
+  - The SMM approved Video A, then asked for a change on Video B.
+  - The card went to Tweaks Needed, as plan section 5 says.
+  - Video C, which nobody had looked at, then showed B's "Change asked" and B's quote instead of its own state.
+- **Why:** while the card's video part has a change asked, `_rsActiveD` (195) draws that part's last change note on whichever version is on screen.
+- **Fix:** on a trial card, `svTrialReviewChangeHtml` (194) gives each version its own state:
+  - "Video A approved" (green);
+  - "Video C waits: Video B's change is with the editor" (plain);
+  - B keeps today's "Change asked" with its note.
+- **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
+- **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.

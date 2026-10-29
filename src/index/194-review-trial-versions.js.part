@@ -109,6 +109,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialReviewWithTeam(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
     }
+    /* The card's video part has a change asked (one version's change sends the card to Tweaks Needed, plan section 5):
+       the version on screen says its own state, never another version's change note (Trialeyes, 2026-10-29). Returns
+       '' when the version on screen is the one with the change, so today's "Change asked" line (with its note) stays. */
+    function svTrialReviewChangeHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const cur = _trvCurOf(m, mode), stage = _trvStage(mode);
+        if (cur.status === 'change asked') return '';
+        const asked = m.trial.versions.filter(v => v.status === 'change asked').map(v => 'Video ' + _calEsc(v.letter));
+        const who = asked.length ? asked.join(' and ') + (asked.length > 1 ? "'s changes are" : "'s change is") + ' with the editor' : 'the card is with the editor';
+        if (_trvAnswer(cur, stage) === 'ok') return '<span class="dst ok"><span class="ck">' + TRV_CHECK + '</span>Video ' + _calEsc(cur.letter) + ' approved</span>';
+        return '<span class="dst">Video ' + _calEsc(cur.letter) + ' waits: ' + who + '</span>';
+    }
     // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
     function svTrialReviewAnswered(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
@@ -328,7 +340,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trvCur[m.id] = letter;
             _trvRepaint();
             const code = String((err && err.code) || '');
-            showNotify('Video ' + letter + ' was not passed on', code === 'last_live_version' ? 'This is the last version left. Approve it or ask for a change.'
+            showNotify('Video ' + letter + ' was not saved', code === 'last_live_version' ? 'This is the last version left. Approve it or ask for a change.'
                 : code === 'pass_unavailable' ? 'This is not ready yet. Tell your manager which version you do not want.' : svTrialErrorText(err));
             _trvLoad(slug, true);
             return;
@@ -531,5 +543,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
-  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
+  TRV_CSS, svTrialReviewChangeHtml, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
 };

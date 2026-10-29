@@ -35266,3 +35266,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - "+ Add version" has no hover tip. Its spoken name still names the next letter.
 - **The switched-off toggle (E5, the Supervisor's ruling 2026-10-29):** it now says "Trial reels" in a small muted word beside the switch, at 1440 and 390, without growing its one-line row; the hover tip stays for the mouse.
 - **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).
+
+## 590. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version's link that another card already carries saved without a word (Trialeyes E17, session Trials)
+
+- **What happened (Trialeyes' walk):** a version's pasted link that was already another card's Video link saved silently, so the same cut could sit on two cards with nobody told.
+- **The Supervisor's ruling:** allow it (the team may mean it), but say so on the row.
+- **Fix (`src/index/189-trial-reels-card.js.part`, `020` CSS):** under a live version whose link another card of the same client carries (that card's Video link, or one of its live versions, among the cards this page has loaded), a quiet one-line note: "This link is also on "card name"." Muted, no dialog, nothing refused. Another version of the same card is still refused, as before.
+- **Proven:** `test/trial-reels-card-browser.js` at 1440 and 390: the paste saves, the row says where else the link is, one note, no dialog. Fails on main.

@@ -142,6 +142,11 @@ function store(files, opts = {}) {
     assert.strictEqual(none, s.NO_VERSION);
     const fp = store({ 'latest.json': '{"version":"0.8"}', 'synchro-filming-plan-0.8.zip': 'x' });
     assert.ok(/No filming-plan toolkit/.test(await s.toolkitLatest(fp, 'filming-plan', { member: 'Sidney', who: '' })), 'filming-plan never falls back to the top');
+    const wh = store({ 'whisper/SynchroWhisper-Windows.zip': 'zip' });
+    const w = JSON.parse(await s.toolkitLatest(wh, 'whisper', { member: 'Sidney', who: '' }));
+    assert.ok(w.download_url && /Install Whisper\.bat/.test(w.notes), 'whisper gives a link and install notes without a latest.json');
+    assert.strictEqual(wh.signed[0].name, 'whisper/SynchroWhisper-Windows.zip');
+    assert.ok(/not uploaded yet/.test(await s.toolkitLatest(store({}), 'whisper', { member: 'Sidney', who: '' })), 'whisper missing file is said plainly');
   }
 
   console.log('higgsfield-studio-latest: version, signed link, notes, missing-version answer, failures, log, read-only wiring ✅');

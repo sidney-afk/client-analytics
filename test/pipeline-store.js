@@ -436,7 +436,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const u = await studio.toolkitLatest(unknown, 'editor', { member: 'm', who: '' });
   ok(u.startsWith('Give name:') && !unknown.asked.length && !unknown.logged.length, 'an unknown toolkit asks for a name and touches nothing');
   eq(who.outcomeOf('toolkit_latest', u).ok, false, 'and is logged as a failure');
-  eq(studio.TOOLKIT_NAMES, ['studio', 'filming-plan'], 'the two toolkits');
+  eq(studio.TOOLKIT_NAMES, ['studio', 'filming-plan', 'whisper'], 'the three toolkits');
 
   // ---- client_record, feedback_note, feedback_notes ---------------------------------
   const plan = { client_slug: 'clienta', client_name: 'Client A' };

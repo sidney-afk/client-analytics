@@ -265,12 +265,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a change on one version keeps the card where it is while
        another live version still waits for this reviewer; only that version waits for its new cut. Once nothing waits
        for this reviewer and a change is open, the card goes to Tweaks Needed as today (the note already went). */
-    function _trvOthersWait(versions, stage) {
-        return (versions || []).some(v => _trvLive(v) && !v.client_pass_at && v.status !== 'change asked' && _trvAnswer(v, stage) === 'wait');
+    function _trvOthersWait(versions, stage, except) {
+        return (versions || []).some(v => v.letter !== except && _trvLive(v) && !v.client_pass_at && v.status !== 'change asked' && _trvAnswer(v, stage) === 'wait');
     }
-    // After a change is asked on the version on screen (already marked "change asked" here): keep the card's status?
-    function svTrialReviewKeepsCard(m, mode) {
-        return !!(m && m.trial && !m.trial.winner && _trvOthersWait(m.trial.versions, _trvStage(mode)));
+    /* After a change is asked on `letter`: does another version still wait for this reviewer, so the card keeps its
+       status? The page's copy of the versions may not have that version marked yet, so it is left out by its letter. */
+    function svTrialReviewKeepsCard(m, mode, letter) {
+        return !!(m && m.trial && !m.trial.winner && _trvOthersWait(m.trial.versions, _trvStage(mode), letter));
     }
     // After an answer that did not finish the stage: does the card now go to Tweaks Needed?
     function _trvSettlesToTweaks(versions, stage) {

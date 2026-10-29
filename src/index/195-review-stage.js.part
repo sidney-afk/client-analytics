@@ -3150,9 +3150,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // request names it ("Video C: ..."). Kasper's "Approve after tweaks" too: it says which version the editor
         // fixes (Probe rule-miss 11), and then goes on as today.
         if (comp === 'video' && m.trial && !m.trial.winner && !opts.trial) {
+            // The version the change is about: the one the box was opened on, else the one on screen (as 194 names it).
+            const about = opts.trialLetter && m.trial.versions.some(v => v.letter === opts.trialLetter) ? opts.trialLetter : svTrialReviewLetter(m, R.mode);
             const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter);
             // The owner's choice (a): while another version still waits for this reviewer, the card keeps its status.
-            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true, keepStatus: svTrialReviewKeepsCard(m, R.mode) }));
+            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true, keepStatus: svTrialReviewKeepsCard(m, R.mode, about) }));
             return;
         }
         R.S.saved = null;

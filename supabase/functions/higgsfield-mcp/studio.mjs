@@ -57,6 +57,20 @@ export const TOOLKITS = {
     pattern: "synchro-filming-plan-<version>.zip",
     noVersion: "No filming-plan toolkit version uploaded yet. Ask the account owner to upload the toolkit zip and latest.json to the filming-plan/ folder of the studio bucket.",
   },
+  // The team's Whisper dictation app (Windows). One fixed zip, no latest.json:
+  // `fixed` is what latest.json would say.
+  whisper: {
+    prefix: "whisper/",
+    fileRe: /^SynchroWhisper-Windows\.zip$/,
+    fileFor: () => "SynchroWhisper-Windows.zip",
+    pattern: "SynchroWhisper-Windows.zip",
+    noVersion: "The Whisper app is not uploaded yet. Ask the account owner to upload SynchroWhisper-Windows.zip to the whisper/ folder of the studio bucket.",
+    fixed: {
+      version: "1",
+      file: "SynchroWhisper-Windows.zip",
+      notes: "Windows only. Unzip, double-click Install Whisper.bat (first start downloads the speech model, a few minutes). Ctrl+Space starts and stops dictating; text pastes where the cursor is. Runs on the computer, nothing is sent anywhere.",
+    },
+  },
 };
 export const TOOLKIT_NAMES = Object.keys(TOOLKITS);
 
@@ -128,7 +142,7 @@ export async function toolkitLatest(deps, name, { member, who }) {
   };
   let present;
   try {
-    present = await deps.exists(at(LATEST_FILE));
+    present = await deps.exists(at(kit.fixed ? kit.fixed.file : LATEST_FILE));
   } catch (e) {
     return say(`Could not read the studio bucket (${errText(e)}). Try again in a minute; if it keeps failing, tell the account owner.`);
   }
@@ -143,7 +157,7 @@ export async function toolkitLatest(deps, name, { member, who }) {
   if (!present) return say(kit.noVersion);
   let latest;
   try {
-    latest = parseLatest(await deps.readText(at(LATEST_FILE)), { ...kit, prefix });
+    latest = kit.fixed ? parseLatest(JSON.stringify(kit.fixed), kit) : parseLatest(await deps.readText(at(LATEST_FILE)), { ...kit, prefix });
   } catch (e) {
     return say(`Could not read latest.json (${errText(e)}). Tell the account owner.`);
   }

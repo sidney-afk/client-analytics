@@ -124,6 +124,11 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard|e1|e10|push|e11|hint|retry runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
+  // The page ignores a press that lands within TRV_SETTLE_MS of an answer moving it on (its double-click guard), so a
+  // check that answers one version and then another waits that long from the first press, read from the page's source.
+  const SETTLE_MS = Number((require('fs').readFileSync(path.join(__dirname, '..', 'src', 'index', '194-review-trial-versions.js.part'), 'utf8').match(/const TRV_SETTLE_MS = (\d+);/) || [])[1]);
+  if (!(SETTLE_MS > 0)) throw new Error('TRV_SETTLE_MS not found in 194-review-trial-versions.js.part');
+  const pastSettle = async since => { const left = since + SETTLE_MS + 50 - Date.now(); if (left > 0) await sleep(left); };
 
   try {
     // ---------- 3: the client's "Not this one" ----------
@@ -166,10 +171,13 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         await sleep(300);
         const n0 = t.state.upserts.length;
         await press(t, '[data-pass="video"]');
+        const movedAt = Date.now();
         await waitFor(async () => !!t.T.versions[1].client_pass_at, 40);
         await sleep(600);
         d = await dec(t);
         ok(/Video C/.test(d.bar) && !d.pass && d.ok === 'Approve Video C', `${tag}: Video C, the last one not passed, offers Approve and a change but no "Not this one" (${JSON.stringify(d)})`);
+        // Approve on C right after the pass on B moved the page there is a double press to the page: wait it out.
+        await pastSettle(movedAt);
         await press(t, '[data-ok="video"]');
         for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Approved'); i++) await sleep(100);
         ok(t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Approved'), `${tag}: C approved, A and B passed: today's approve moves the video to Approved`);

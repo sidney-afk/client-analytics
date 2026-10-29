@@ -1210,12 +1210,14 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 _calReviewState.drafts[key] = '';
                 delete _calReviewState.draftActionIds[key];
                 const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('calendar', pid, comp);
-                const repairEdits = keepStatus ? { [comp + '_tweaks']: _calStringifyComments(list) } : {
+                const repairEdits = {
                     [comp + '_status']: post[comp + '_status'],
                     status: post.status,
                     [comp + '_tweaks']: _calStringifyComments(list)
                 };
-                if (!keepStatus) _calClearStaleApprovals(post, repairEdits);
+                // Keeping the status, only the note is repaired, and no approval is cleared.
+                if (keepStatus) { delete repairEdits[comp + '_status']; delete repairEdits.status; }
+                else _calClearStaleApprovals(post, repairEdits);
                 const optimisticFields = {};
                 Object.keys(previousFields).forEach(field => {
                     optimisticFields[field] = post[field];

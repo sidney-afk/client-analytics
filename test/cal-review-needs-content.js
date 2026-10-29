@@ -392,6 +392,8 @@ const ALL_EXEMPT = {
   _sxrReviewRequestTweak: "writes Tweaks Needed, a rejection",
   _kasperRequestTweakComp: "writes Tweaks Needed, a rejection",
   _sxrKasperRequestTweakComp: "writes Tweaks Needed, a rejection",
+  // Trial reels (OPEN_REPAIRS 587): the last version's answer settles a card holding a change to Tweaks Needed.
+  _rsTrialToTweaks: "writes Tweaks Needed, a rejection",
   _sxrKasperApproveAfterTweaksComp: "writes Tweaks Needed -- the pre-clear goes to the editor first, not to a review",
   _calSaveSettings: "the settings pseudo-row; every status it writes is ''",
   _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
@@ -441,7 +443,9 @@ while ((rm = rc.exec(code))) {
   const b = stripComments(extractFunction(INDEX, rm[1]) || '', ' ');
   if (/_(cal|sxr)ApplyAutoStatus\(/.test(b) && !/function _(cal|sxr)ApplyAutoStatus/.test(b)) routerCallers.push(rm[1]);
 }
-const ROUTER_EXEMPT = { _calAppendComment: "trigger is 'client_added' -> Tweaks Needed", _sxrAppendComment: "trigger is 'client_added' -> Tweaks Needed" };
+const ROUTER_EXEMPT = { _calAppendComment: "trigger is 'client_added' -> Tweaks Needed", _sxrAppendComment: "trigger is 'client_added' -> Tweaks Needed",
+  // Trial reels (OPEN_REPAIRS 587): the last version's answer settles the card to Tweaks Needed.
+  _rsTrialToTweaks: "trigger is 'client_added' -> Tweaks Needed" };
 const routerUnclassified = routerCallers.filter(n => !ROUTER_CALLERS[n] && !ROUTER_EXEMPT[n]);
 ok(routerCallers.length >= 3 && routerUnclassified.length === 0,
   'every caller of the auto-router is classified (' + routerCallers.join(', ') + ')'

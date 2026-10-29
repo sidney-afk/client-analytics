@@ -1593,7 +1593,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsElsewhere(m, x) {
         const S = R.S;
         if (S.moved && S.moved.id === m.id) return S.moved.text;
-        if (m.gone) return S.told[Object.keys(S.told).find(k => k.indexOf(m.id + '|') === 0)] || 'This was answered in another window, so it has left your list. Nothing more to do here.';
+        if (m.gone) {
+            const told = S.told[Object.keys(S.told).find(k => k.indexOf(m.id + '|') === 0)];
+            if (told) return told;
+            // This page answered it (Kasper's last trial tile moves the card on by itself): his own words, as Finish says
+            // them, never "another window" (Trialtest, live on PR 2455).
+            if ([...S.acted].some(k => k.indexOf(m.id + '|') === 0)) {
+                return (m.parts.some(x => x.st === 'chg') ? 'Sent to the editors' : 'Approved, sent to the client') + ', so it has left your list. Nothing more to do here.';
+            }
+            return 'This was answered in another window, so it has left your list. Nothing more to do here.';
+        }
         if (!x) return '';
         const key = m.id + '|' + x.key;
         if (x.st === 'wait') { delete S.told[key]; return ''; }

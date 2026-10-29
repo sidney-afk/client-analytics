@@ -1,5 +1,5 @@
 import { _analyticsReleaseExtras, showNotify, showToast, svBusyHtml } from './040-shared-briefs.js';
-import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient, wlRosterIsReady, wlRosterReady } from './070-core-client-names.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svReadWithRetry,
   _syncviewStaffIdentityForHeaders
@@ -100,8 +100,15 @@ import { svTrialPrime } from './189-trial-reels-card.js';
 
         _kasperState.loading = true;
         _kasperState.error = null;
-        // The client list fills in late (Clients Info sheet). Remember its size, so a
-        // load that started before it grew is repeated once it has (OPEN_REPAIRS 316).
+        // The client list fills in late (Clients Info sheet). Read the queue only once
+        // it is in: read with the seed list, the queue came back short (4 cards, then
+        // 12 on the next load) under a banner. The skeleton or the cards already on
+        // screen stay up meanwhile. A list that never arrives stops the wait, and the
+        // queue is then read again when it does.
+        const rosterIn = await _kasperAwaitRoster();
+        if (!rosterIn) _kasperReloadWhenRosterIn();
+        // Remember its size, so a load that started before it grew is repeated once it
+        // has (OPEN_REPAIRS 316).
         const rosterAtStart = WL_CLIENT_NAMES.length;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
@@ -129,10 +136,10 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             // mutation's persist or the next poll tick) will repaint with
             // fresh data.
             if (myGen !== _kasperLoadGen) return;
-            // Fast boot: the client list grew while this read was running, so this answer is missing clients the cached list
-            // had. Drawing it would shrink the list for a moment and then bring the cards back (owner report 2026-10-20).
-            // The cards on screen stay as they are and the read is repeated at once with the whole list.
-            const rosterGrew = () => svRsKasperFast() && WL_CLIENT_NAMES.length > rosterAtStart && (setTimeout(() => _kasperLoadReview(true), 0), true);
+            // The client list grew while this read was running, so this answer is missing clients. Drawing it would
+            // shrink the list for a moment and then bring the cards back (owner report 2026-10-20). The skeleton or the
+            // cards on screen stay as they are and the read is repeated at once with the whole list.
+            const rosterGrew = () => WL_CLIENT_NAMES.length > rosterAtStart && (setTimeout(() => _kasperLoadReview(true), 0), true);
             if (rosterGrew()) return;
             smmPromise.then(fresh => _kasperApplySMMMap(fresh, myGen));
             // Honour explicit "Done reviewing" dismissals across refreshes.
@@ -230,8 +237,10 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             // not in the queue and nobody can tell by looking, so say it.
             _kasperState.unloaded = Array.isArray(fetched.unloaded) ? fetched.unloaded : [];
             // Clients the page's list did not know when this read was made. Their cards
-            // are not in the queue; saying so beats an empty "all caught up".
+            // are not in the queue; saying so beats an empty "all caught up". Kept as a
+            // count on screen: the notice is staff-facing and names no client.
             _kasperState.unlisted = Array.isArray(fetched.unlisted) ? fetched.unlisted : [];
+            _kasperState.rosterPending = !wlRosterIsReady();
             // Parts moved past Kasper Approval without his decision, for the history.
             const skipsRead = await skipsPromise;   // notes are an extra; the queue must still paint
             if (skipsRead) _kasperState.skips = skipsRead.skips;
@@ -244,7 +253,6 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             _kasperUpdateReplyCount();
             _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
             if (_kasperState.tab === 'replies') _kasperRenderReplies();
-            if (WL_CLIENT_NAMES.length > rosterAtStart) setTimeout(() => _kasperLoadReview(true), 0);
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);
             const body2 = document.getElementById('kasperReviewBody');
@@ -255,6 +263,23 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             const pill = document.getElementById('kasperReviewRefreshPill');
             if (pill) pill.hidden = true;
         }
+    }
+
+    // How long the queue waits for the client list before reading with what it has.
+    // The staff copy of the list gives up after 10 s and falls back to the Sheet.
+    const KASPER_ROSTER_WAIT_MS = 15000;
+    function _kasperAwaitRoster() {
+        if (wlRosterIsReady()) return Promise.resolve(true);
+        return new Promise(resolve => {
+            const timer = setTimeout(() => resolve(false), KASPER_ROSTER_WAIT_MS);
+            wlRosterReady().then(() => { clearTimeout(timer); resolve(true); });
+        });
+    }
+    let _kasperRosterReloadArmed = false;
+    function _kasperReloadWhenRosterIn() {
+        if (_kasperRosterReloadArmed) return;
+        _kasperRosterReloadArmed = true;
+        wlRosterReady().then(() => { _kasperRosterReloadArmed = false; _kasperLoadReview(true); });
     }
 
     // Late half of _kasperLoadReview: the fresh SMM sheet arrived after the queue
@@ -805,6 +830,13 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             return;
         }
         if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
+        // The first queue read is still running (it may be waiting for the client
+        // list): an empty or samples-only list now would read as the whole queue.
+        // The skeleton stays until the read lands.
+        if (_kasperState.loading && !_kasperState.lastLoaded) {
+            if (!body.querySelector('.kasper-skeleton-list')) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' });
+            return;
+        }
         const _cal = _kasperPartitionItems(_kasperState.items);
         const _sxr = _kasperSamplePartition();
         const urgent = _kasperMergeBySentAt(_cal.urgent, _sxr.urgent);
@@ -1221,14 +1253,20 @@ import { svTrialPrime } from './189-trial-reels-card.js';
         if (typeof _sxrKasperLoadQueue === 'function' && _kasperSamplesEnabled()) _sxrKasperLoadQueue(true);
     }
 
+    /* Plain words and a count, never client names or slugs: this is a staff screen,
+       and a slug is not a name anyone reads. With the client list in before the read,
+       the notice is left for a client that has cards here but is not on the list. */
     function _kasperRenderUnlistedNotice() {
         const list = Array.isArray(_kasperState.unlisted) ? _kasperState.unlisted : [];
         if (!list.length) return '';
-        const names = list.slice(0, 8).map(n => _calEsc(n)).join(', ');
-        const noun = list.length === 1 ? 'client has' : 'clients have';
-        return `<div class="kasper-unloaded" data-kasper-unlisted="${list.length}">
-            <div class="kasper-stranded-title">${list.length} ${noun} cards at Kasper Approval that are not in this list yet</div>
-            <div class="kasper-stranded-sub">The client list had not finished loading when the queue was read, so these are missing here, not absent: ${names}. The queue reloads on its own once the list is in; press Refresh if they do not appear.</div>
+        const n = list.length;
+        const who = n === 1 ? '1 client' : n + ' clients';
+        const sub = _kasperState.rosterPending
+            ? 'The client list is still loading, so their cards are missing here, not absent. The queue reloads on its own once the list is in.'
+            : (n === 1 ? 'This client is' : 'These clients are') + ' not on the client list, so their cards are not shown here. Check the client list on the Clients page.';
+        return `<div class="kasper-unloaded" data-kasper-unlisted="${n}">
+            <div class="kasper-stranded-title">Cards from ${who} at Kasper Approval are not shown</div>
+            <div class="kasper-stranded-sub">${sub}</div>
         </div>`;
     }
 

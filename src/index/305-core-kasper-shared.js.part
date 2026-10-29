@@ -71,7 +71,8 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         error: null,
         saveAlerts: {},       // pid -> { pid, name, client, kind, text, at }: a Kasper save that did NOT land. Sticky until he acts.
         refreshDeferredAt: 0, // when a background refresh was first held back (0 = none): drives the "older screen" note
-        unlisted: [],         // client slugs with cards at Kasper Approval that the client list does not know yet
+        unlisted: [],         // client slugs with cards at Kasper Approval that the client list does not know yet (shown as a count only)
+        rosterPending: false, // the queue was read before the client list arrived (it reloads when the list does)
         skips: {},            // post id -> { by, at, to, comps }: a part moved past Kasper Approval without his decision
         lastLoaded: 0,
         editorsData: null,    // { weekLabel, editors[], … } from _kedFetchNativeWeek

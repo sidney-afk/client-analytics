@@ -478,6 +478,11 @@ const DID = 'del_vid_1';
     await until(() => !!V('C').smm_ok_at);
     await new Promise(r => setTimeout(r, 1500));
     ok(!!V('C').smm_ok_at && !videoStatusSent(t.n0, t.g0), `4 SMM: C OK'd and on to Kasper; the card stays where it is (${videoStatusSent(t.n0, t.g0) || 'no status write'})`);
+    // C's new cut answered its change request: marked done here, though nothing forwarded the card.
+    await new Promise(r => setTimeout(r, 1500));
+    fromReview(t.n0, t.g0);
+    const cNotes = (() => { try { return JSON.parse(card.video_tweaks || '[]').filter(c => /Video C: Fictional note/.test(String(c.body || ''))); } catch (e) { return []; } })();
+    ok(cNotes.length >= 1 && cNotes.every(c => c.done), `4 SMM: C's change request is marked done with its approve (${JSON.stringify(cNotes.map(c => !!c.done))})`);
     await t.ctx.close();
 
     // ============ 5. Kasper: Approve all, then his approve sends the card to the client ============

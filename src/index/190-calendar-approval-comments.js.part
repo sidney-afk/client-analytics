@@ -744,14 +744,11 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        same canonical or card-JSON resolve, then the same approve. A toast says how many were marked done and offers
        Undo, which reopens exactly those. With NO open change-requests it routes directly, exactly as before. The client
        surface never resolves tweaks (_calCanResolveComment is SMM-only). */
-    /* `keepLetters` (trial reels, per-version routing): the versions still waiting for their new cut. Their change
-       requests ("Video B: ...") stay open when the other versions go on; only the rest are marked done. */
-    function _calReviewApprove(pid, comp, dest, keepLetters) {
+    function _calReviewApprove(pid, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         if (_calReviewMode() === 'smm' && _calCanResolveComment()) {
-            const keep = Array.isArray(keepLetters) ? keepLetters : [];
-            const open = _calOpenTweaksForComp(post, comp).filter(t => !keep.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || ''))));
+            const open = _calOpenTweaksForComp(post, comp);
             if (open.length) {
                 const key = pid + '|' + comp;
                 if (_calReviewState.saving[key]) return;
@@ -3861,7 +3858,29 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!post) return [];
         const list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return [];
-        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c));
+        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c) && !_calTweakKept(c));
+    }
+    /* Trial reels, per-version routing: while the SMM's Review tab forwards the card, the change requests of versions
+       still waiting for their new cut ("Video B: ...") are not the ones the send answers, so they stay open (Codex on
+       PR 2452). Set only for that one call; _calReviewApprove itself stays as main has it (the client path's guard). */
+    let _calKeepTweakLetters = null;
+    function _calTweakKept(c) {
+        return !!_calKeepTweakLetters && _calKeepTweakLetters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(c.body || '')));
+    }
+    function svCalReviewApproveKeeping(pid, comp, dest, letters) {
+        _calKeepTweakLetters = Array.isArray(letters) && letters.length ? letters : null;
+        try { window._calReviewApprove(pid, comp, dest); } finally { _calKeepTweakLetters = null; }
+    }
+    /* The SMM approves a version's new cut while the card is already further on: nothing forwards the card, so that
+       version's own change requests ("Video C: ...") are marked done here, as the forward would have done. */
+    function svCalResolveVersionTweaks(pid, comp, letters) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !Array.isArray(letters) || !letters.length || _calReviewMode() !== 'smm' || !_calCanResolveComment()) return;
+        const ids = _calOpenTweaksForComp(post, comp).filter(t => letters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || '')))).map(t => t.id);
+        if (!ids.length) return;
+        if (_prodCanonicalCommentGate(post, comp).linked) { _calReviewResolveCanonical(post, comp, ids, 'kasper').catch(() => {}); return; }
+        if (_calCanonicalCrosswalkPending(post, comp)) return;
+        if (_calResolveTweaksDone(post, comp, ids)) { _calWatchNoteSave(pid); _calRefreshCommentsBtn(pid); _calUpdateCardStatusDisplay(pid); }
     }
     /* Mark the given root change-requests done on a component — stamp
        done/done_by/done_at, bump the per-comment merge clock, and queue the
@@ -4181,7 +4200,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         editInOrganizerFromPreview, openCalComments, openCalPreview, svCardNotesIntent
     });
 export {
-  openCalComments,
+  openCalComments, svCalReviewApproveKeeping, svCalResolveVersionTweaks,
   _CAL_LOCK_ICO, _calCommentSendPending, _calFindCompForCommentId,
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,

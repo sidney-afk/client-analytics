@@ -723,6 +723,10 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const after = t.state.upserts.slice(u0).map(u => u.video_status).filter(Boolean).concat((t.gw || []).slice(g0).filter(g => g.op === 'status').map(g => g.status));
       ok(!!t.T.versions[1].smm_ok_at && !after.some(x => /For SMM|smm_approval|Tweaks|tweak/.test(x)),
         `${label}: the SMM's approve sends B to Kasper, and the card never moves back (status writes: ${after.join(',') || 'none'})`);
+      // B's new cut answered its change request: the SMM's approve marks it done, though nothing forwarded the card.
+      await waitFor(async () => (await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); return (_calCommentsFor(p, 'video') || []).some(c => /Video B: Fictional note/.test(String(c.body || '')) && c.done); })), 40);
+      const bAfter = await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); return (_calCommentsFor(p, 'video') || []).filter(c => /Video B: Fictional note/.test(String(c.body || ''))).map(c => !!c.done); });
+      ok(bAfter.length >= 1 && bAfter.every(Boolean), `${label}: B's change request is marked done once its new cut passes the SMM (${JSON.stringify(bAfter)})`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

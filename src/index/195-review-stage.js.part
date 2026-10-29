@@ -1,7 +1,7 @@
 import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
-import { _calApplyAutoStatus } from './190-calendar-approval-comments.js';
+import { _calApplyAutoStatus, svCalReviewApproveKeeping, svCalResolveVersionTweaks } from './190-calendar-approval-comments.js';
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
@@ -2307,7 +2307,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // "Approve all (4 waiting)": every version this reviewer has not answered, then today's approve (Probe E4).
     function _rsTrialAll(m) {
         const cur = _rsModelById(m.id) || m;
-        svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true, () => _rsTrialToTweaks(_rsModelById(m.id) || cur));
+        svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true, () => _rsTrialToTweaks(_rsModelById(m.id) || cur),
+            letters => { if (R.mode === 'smm') svCalResolveVersionTweaks(m.id, 'video', letters); });
     }
     function _rsMediaThumb(m) {
         const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
@@ -3163,7 +3164,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsApprove(m, comp, how, trialDone) {
         // Trial reels (194): the version on screen is answered first; today's approve runs once the stage is done.
         if (comp === 'video' && m.trial && !m.trial.winner && !trialDone) {
-            svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); }, false, () => _rsTrialToTweaks(_rsModelById(m.id) || m));
+            svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); }, false, () => _rsTrialToTweaks(_rsModelById(m.id) || m),
+                letters => { if (R.mode === 'smm') svCalResolveVersionTweaks(m.id, comp, letters); });
             return;
         }
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
@@ -3177,7 +3179,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp); R.S.menu = '';
         if (R.mode === 'client') window._calReviewApprove(m.id, comp);
-        else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper', comp === 'video' ? svTrialReviewOpenChanges(m) : null);
+        else if (R.mode === 'smm') svCalReviewApproveKeeping(m.id, comp, how === 'client' ? 'client' : 'kasper', comp === 'video' ? svTrialReviewOpenChanges(m) : null);
         else if (m.sample) window._sxrKasperApproveComp(m.id, comp);
         else window._kasperApproveComp(m.id, comp, 'client');
         if (R.mode === 'kasper' && R.l2) _rsL2UndoArm(m.id, comp);

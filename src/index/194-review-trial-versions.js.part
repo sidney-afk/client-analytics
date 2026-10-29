@@ -394,7 +394,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRV_SETTLE_MS = 700;
     const _trvMovedAt = {};   // post id -> when an answer last moved the page to the next version
     const _trvJustMoved = m => Date.now() - (_trvMovedAt[m.id] || 0) < TRV_SETTLE_MS;
-    async function svTrialReviewApprove(m, mode, proceed, all, toTweaks) {
+    // `onAhead(letters)`: the card is already further on, so this answer moved versions only (the SMM's Review tab
+    // then marks their own change requests done).
+    async function svTrialReviewApprove(m, mode, proceed, all, toTweaks, onAhead) {
         if (!all && _trvJustMoved(m)) return;
         const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
         const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
@@ -419,6 +421,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         // A card already further on stays: this answer moved a version, not the card (per-version routing).
         const ahead = _trvCardAhead(m.post, stage);
+        if (ahead && typeof onAhead === 'function') onAhead(all ? (json.versions || []).filter(v => _trvLive(v) && v.status !== 'change asked').map(v => v.letter) : [letter]);
         if (!ahead && _trvDone(json, mode)) { proceed(); return; }
         if (!ahead && typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, stage)) toTweaks();
         if (!local) {

@@ -504,7 +504,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
             + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '">' + ext
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
-            + (tiny.html ? '<span class="trl-state">' + tiny.html + '</span>' : '') + '</span></button>'
+            + (tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-wrap' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
             + '<span class="trl-fill" aria-hidden="true"></span>'
             + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'

@@ -20,7 +20,7 @@ line is older than a week, re-check it before relying on it.
 
 ## Latest (session Permafive, 2026-10-29): five staff features permanent, no switch
 
-- **Permanent for every signed-in staff member, never the client link (OPEN_REPAIRS 610, owner's go 2026-10-29):** the
+- **Permanent for every signed-in staff member, never the client link (OPEN_REPAIRS 611, owner's go 2026-10-29):** the
   unread badges with Notes and Messages, caption history, the Production thumbnail title buttons, the staff phone polish
   and Frame.io comments in a card's Notes. 188 no longer reads `unread_badges_v2`, `caption_history_staff`,
   `thumbnail_title_buttons_staff`, `phone_polish_staff` or `frame_comments_in_notes_staff`; a missing, malformed or

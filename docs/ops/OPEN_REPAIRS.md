@@ -35254,6 +35254,29 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 580. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a refused link on "+ Add version" opened a full-screen dialog and lost the pasted text; plain text and YouTube got different rules (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - A wrong link on "+ Add version" opened the full-screen "did not save" dialog, and the pasted text was gone. The wrong links tried were A's own link, a YouTube link and plain text.
+  - Plain text read "Frame.io only", while YouTube read "Frame.io, Google Drive or Dropbox".
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A link the page refuses before sending stays in its field, marked invalid, with the reason under it (`role="alert"`). This covers a link that isn't https, another site, and another version's link. A version row's own link field gets the same treatment.
+  - Enter keeps the focus there to fix it. A click away keeps the text and the reason, and Escape closes the field.
+  - Plain text and other sites now get one sentence: "Paste a Frame.io, Google Drive or Dropbox link to the video."
+  - A refusal from the server still uses today's dialog.
+- **Proven:** `test/trial-reels-round3-card-browser.js` covers plain text, YouTube and A's link at 1440 and 390, light and dark. It checks the text is kept with the reason under the field, no dialog appears, a click away keeps both, and Escape closes the field. It fails on main.
+
+## 581. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: "Video · 0" with an open-link icon and nothing to open; the "+ Add version" tooltip covered the row above (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - Switched on with no version yet, the row read "Video · 0" and still showed the open-link icon.
+  - The "+ Add version" hover tip ("Add Video B by pasting its link") covered the Video A row and spilled past the card's left edge.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - With no version the row reads "Video", and it shows the open-link icon only when the card has a link.
+  - "+ Add version" has no hover tip. Its spoken name still names the next letter.
+- **The switched-off toggle (E5, the Supervisor's ruling 2026-10-29):** it now says "Trial reels" in a small muted word beside the switch, at 1440 and 390, without growing its one-line row; the hover tip stays for the mouse.
+- **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).
+
 ## 583. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Production's Assets and a second client tab did not take the live push (Trialtest, session Trials)
 
 - **What happened (session Trialtest's overnight live pass on the test client):**

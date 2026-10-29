@@ -106,19 +106,21 @@ const LINK = l => 'https://f.io/fixture-empty-' + l.toLowerCase();
       await sleep(1200);
       ok(T.calls.some(c => c.action === 'switch_set' && c.enabled === true), `${label}: the switch sends switch_set on`);
       ok(!!(await page.$('.trl-add .trl-paste')), `${label}: with no version yet, the list stands open on a place to paste the first link`);
-      ok(/Video A/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))), `${label}: that place is Video A ("${(await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))}")`);
+      // Trialeyes E5 (2026-10-29): no version yet reads "Video", not "Video · 0", and offers no link to open.
+      ok(/^Video\b/.test(await rowText(page)) && !/Video · 0/.test(await rowText(page)) && !(await page.$('.cal-link-post.trl-main .cal-link-pill-open svg')), `${label}: with no version the row reads "Video", with no open-link icon ("${await rowText(page)}")`);
+      ok(/Video A/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))), `${label}: that place is Video A ("${(await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))}")`);
 
       await paste(page, LINK('A'));
       ok(T.attaches.some(a => a.file_url === LINK('A')) && card.asset_url === LINK('A'), `${label}: Video A's link goes on the card first, through today's attach`);
       ok(T.calls.some(c => c.action === 'version_add' && c.link === LINK('A')) && T.versions.length === 1 && T.versions[0].letter === 'A', `${label}: then Video A is added (version_add)`);
       ok(/Video · 1/.test(await rowText(page)), `${label}: the row reads "Video · 1" ("${await rowText(page)}")`);
-      ok(/Video B/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))) && !!(await page.$('.trl-add .trl-paste')), `${label}: Video B is offered next`);
+      ok(/Video B/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))) && !!(await page.$('.trl-add .trl-paste')), `${label}: Video B is offered next`);
 
       const attachesBefore = T.attaches.length;
       await paste(page, LINK('B'));
       ok(T.versions.length === 2 && T.versions[1].letter === 'B' && T.versions[1].frame_url === LINK('B'), `${label}: Video B is added`);
       ok(T.attaches.length === attachesBefore && card.asset_url === LINK('A'), `${label}: adding Video B leaves the card on Video A's link`);
-      ok(/Video · 2/.test(await rowText(page)) && /Video C/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))), `${label}: "Video · 2", and Video C is offered next`);
+      ok(/Video · 2/.test(await rowText(page)) && /Video C/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))), `${label}: "Video · 2", and Video C is offered next`);
 
       const callsBefore = T.calls.length;
       await paste(page, LINK('B'));
@@ -133,7 +135,7 @@ const LINK = l => 'https://f.io/fixture-empty-' + l.toLowerCase();
       ok(T.versions.length === 1 && T.versions[0].frame_url === LINK('main'), `${label}: a card with a link starts with Video A, its link`);
       ok(/Video · 1/.test(await rowText(page)), `${label}: its row reads "Video · 1" ("${await rowText(page)}")`);
       // The list opens by itself when the switch goes on (owner, 2026-10-27), so the paste row is right there.
-      ok(/Video A/.test(await listText(page)) && /Video B/.test((await page.$eval('.trl-list .trl-add button', b => b.title).catch(() => ''))) && !!(await page.$('.trl-add .trl-paste')), `${label}: its list is open by itself, shows Video A and offers Video B`);
+      ok(/Video A/.test(await listText(page)) && /Video B/.test((await page.$eval('.trl-list .trl-add button', b => b.getAttribute('aria-label')).catch(() => ''))) && !!(await page.$('.trl-add .trl-paste')), `${label}: its list is open by itself, shows Video A and offers Video B`);
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

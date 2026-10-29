@@ -35430,3 +35430,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix (the Supervisor's ruling, 2026-10-29):** on a trial card, a sent video change closes the box. A small "Change sent for Video C" stays above the buttons for the rest of the visit, so the next version shows its own Approve and "Not this one". Kasper's polished layout takes the same path. A refused change still goes back into the box with its words, as before.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`, the polished client page, 1440 by arrow and 390 by dot). It fails without the fix exactly as Trialtest saw it: A's Approve is missing and the box is open.
 - **Codex on #2444:** the note first said "Sent" as soon as the change was queued, so a refused save still showed it. It now reads "Sending the change for Video C…" while the save runs and "Change sent" only once it lands; a refused or declined change clears it and keeps its own Try again. Checked in the same part with a refused save (fails without the change: "Change sent for Video C" over "Not saved").
+
+## 602. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a refused winner write at Posted left a one-version card stuck (Codex on #2444, session Trials)
+
+- **What could happen:** with one live version left, Posted makes it the winner (597).
+  - `startIfPosted` (trial-reels `index.ts`) wrote the version row's "winner" first, then the card's `winner_letter`.
+  - If the second write was refused, the row said winner and the card had no winner.
+  - The next read saw the row as on trial (`settleWinner`, since the card's letter is the only truth) with no 24 h end. `autoTrialPatches` then started nothing, because a version was on trial, and the page showed no pick. The card stayed stuck.
+- **Fix:** the card's winner is written first.
+  - A refused write now leaves nothing done, and the next read tries again.
+  - A version write refused after it still reads as the winner, because the card's letter decides.
+- **Proven:** `test/trial-reels-function-deno.ts` refuses the card's write once. Without the fix, A stays "winner" with no card winner on both reads. With it, the first read leaves A approved and the next one makes A the winner, card and row (88 checks). The Deno type ratchet holds.
+- **Way back:** revert the PR; the merge lane redeploys trial-reels from main.

@@ -180,12 +180,16 @@ async function startIfPosted(supabase: SupabaseClient, client: string, postId: s
   if (!r.patches.length) return { versions, winner: winnerLetter };
   const now = new Date().toISOString();
   try {
-    await applyChanges(supabase, versions, r.patches as Change[], now);
+    /* The card's winner first: it is the only truth (settleWinner), so a refused write leaves nothing done and the next
+       read tries again, and a version write refused after it still reads as the winner. The other order left a version
+       row saying winner with no card winner: read as on trial with no 24 h, nothing retried and no pick showed (Codex
+       on #2444). */
     if (r.winner) {
       const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: r.winner, updated_at: now, updated_by: "posted" })
         .eq("client", client).eq("post_id", postId);
       if (error) throw new Error("winner_write_failed");
     }
+    await applyChanges(supabase, versions, r.patches as Change[], now);
   } catch (_e) {
     console.warn(JSON.stringify({ fn: FN, auto_trial: "not_started", post_id: postId }));
     return { versions, winner: winnerLetter };

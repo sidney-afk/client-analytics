@@ -250,7 +250,8 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
     }
 
     // ---------- the list draws once: no shrinking while the client list arrives during the refresh ----------
-    for (const [label, opt, wantShrink] of [['flag off', {}, true], ['flag on', { fast: true }, false]]) {
+    // Flag off too since OPEN_REPAIRS 578: a read the client list outgrew is repeated before it is drawn on every boot.
+    for (const [label, opt, wantShrink] of [['flag off', {}, false], ['flag on', { fast: true }, false]]) {
       console.log('--- the list while the client list arrives mid-refresh, ' + label + ' ---');
       const t = await newTab(browser, origin, Object.assign({ extraCards: 3 }, opt));
       await boot(t, origin);

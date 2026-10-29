@@ -301,9 +301,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The card reads its versions again by itself (owner, 2026-10-28: "I approved one of them, but in the SMM's
        calendar I don't see that it's approved"). A client's answer on the review link writes only the versions, which
        send the Calendar no live change, so while a trial card is on screen the list is read every 30 s, and at once
-       when the tab comes back after that long. Staff Calendar only; nothing for a client link or a hidden tab. */
+       when the tab comes back after that long. Staff Calendar only; nothing for a client link or a hidden tab.
+       _isClientLink is declared in a later part (260); on a slow load the first tick can come before that part has
+       run, and a bare read threw a ReferenceError every 5 s until it did (OPEN_REPAIRS 604). */
     function _trlRefresh(minAge) {
-        if (_isClientLink || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+        if (typeof _isClientLink === 'undefined' || _isClientLink || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
         if (!document.querySelector('#calView .cal-link-post.trl-main')) return;
         Object.keys(_trlCards).forEach(slug => {
             const e = _trlCards[slug];

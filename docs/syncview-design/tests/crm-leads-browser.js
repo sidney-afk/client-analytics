@@ -155,7 +155,7 @@ async function run(browser, origin, viewport) {
         return json({ ok: true, person, enrolment: body.outcome === 'no_show' ? { id: 'e9' } : null });
       }
       if (body.action === 'sequences') return json({ ok: true, sequences: state.seqs, n8n: [
-        { key: 'didnt_book_doctors', name: 'Didn\u2019t book: made-up', description: 'Made-up people who sent the form but never booked.', stops_when: 'They book or opt out.', workflow_name: 'Sales — Booking Recovery Dispatch', active: true, position: 10,
+        { key: 'didnt_book_doctors', name: 'Didn\u2019t book: doctors', description: 'Made-up people who sent the form but never booked.', stops_when: 'They book or opt out.', workflow_name: 'Sales — Booking Recovery Dispatch', active: true, position: 10,
           messages: [{ label: 'Email', channel: 'email', when: 'About 20 minutes after they stop', sender: 'Made-up sender', subject: 'made-up subject line', text: 'Hi {first_name}, a made-up email body.', live: true },
                      { label: 'Text', channel: 'sms', when: 'Same time', sender: 'Made-up number', subject: null, text: 'Hey {first_name}, a made-up text.', live: true }] }] });
       if (body.action === 'step_edit') {
@@ -416,6 +416,9 @@ async function run(browser, origin, viewport) {
   await page.click('#crmTop [data-crm-nav="sequences"]');
   await page.click('#crmSeqs [data-crm-nav="step:1"]');
   await page.waitForSelector('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
+  if (label.startsWith('1360')) expect(await page.locator('#crmSide .crm-tree-head[aria-expanded="true"]', { hasText: 'Filled in the form' }).count() === 1, label + ': the left list opens the step you are on');
+  expect(await page.locator('#crmSeqs .crm-auto-run .crm-auto-title', { hasText: 'Doctors' }).count() === 1 && /^Didn\u2019t book$/.test((await page.locator('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"] .crm-tile-name').innerText()).trim()), label + ': a step groups its automations and does not repeat the group name');
+  expect(!/sending/.test(await page.locator('#crmSeqs').innerText()), label + ': tiles do not repeat "sending" on every tile');
   expect(/Filled in the form/.test(await page.locator('#crmSeqs h1').innerText()) && /step=|step%3A1/.test(page.url()), label + ': a step tile opens that step with its own address');
   await page.click('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
   await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');

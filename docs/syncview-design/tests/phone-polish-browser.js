@@ -1,10 +1,12 @@
 'use strict';
-/* Phone polish (phone_polish_staff and the client page's review_client_polish), session Grip, 2026-10-25.
+/* Phone polish (the staff pages' polish, permanent for every signed-in staff member since 2026-10-29 with no switch,
+ * session Permafive; and the client page's review_client_polish), session Grip, 2026-10-25.
  *   npm run build:index && node docs/syncview-design/tests/phone-polish-browser.js [--widths=360,390,430]
  * CI runs it in the staff phone lane, once per width there (390 and 430); the desktop check runs with 390.
  * Fully offline (docs/syncview-design/phone-audit/harness.js and qa/finch-phone/harness.js), fictional data only.
- * Each fix is checked with its switch on (the new behaviour) and off (the page exactly as before), and on a desktop
- * page with the switch on nothing it touches may change. Fails on the code before this change. */
+ * The staff fixes are checked with the old phone_polish_staff row present and absent: the polish must show either way.
+ * On a desktop page nothing the polish touches may change: the page is measured with its class and again with the
+ * class taken off by hand. The client fixes are checked with review_client_polish on and off. */
 const assert = require('assert/strict');
 const { staffEnv, clientPage, sleep, FLAGS } = require('../phone-audit/harness');
 const finch = require('../../../qa/finch-phone/harness');
@@ -22,21 +24,21 @@ async function openPost(S, page) {
   return sheetTop;
 }
 
-async function staffPhone(W, on) {
-  if (on) FLAGS.phone_polish_staff = { staff: ['m1'] }; else delete FLAGS.phone_polish_staff;
+async function staffPhone(W, rowPresent) {
+  if (rowPresent) FLAGS.phone_polish_staff = { staff: ['m1'] }; else delete FLAGS.phone_polish_staff;
   const S = await staffEnv({ context: { viewport: { width: W, height: H[W] }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } });
-  const tag = `staff ${W} ${on ? 'on' : 'off'}:`;
+  const tag = `staff ${W} old row ${rowPresent ? 'present' : 'absent'}:`;
+  // No switch since 2026-10-29: every signed-in staff member has the polish, whatever the old row says.
   try {
     const page = await S.newPage();
     const sheetTop = await openPost(S, page);
-    ok(await page.evaluate(() => document.documentElement.classList.contains('sv-phone-polish')) === on, `${tag} the page carries the switch's class only when listed`);
+    ok(await page.evaluate(() => document.documentElement.classList.contains('sv-phone-polish')), `${tag} the page carries the polish class`);
     // Round 2: the Sheet's first post starts higher (272 px before).
-    ok(on ? sheetTop <= 244 : sheetTop >= 268, `${tag} the Sheet's first post starts at ${sheetTop} px`);
+    ok(sheetTop <= 244, `${tag} the Sheet's first post starts at ${sheetTop} px`);
     const notes = await page.evaluate(() => { const b = [...document.querySelectorAll('.cal-card-edit .cal-comments-btn')].find(x => x.checkVisibility()); return b ? Math.round(b.getBoundingClientRect().bottom) : null; });
-    if (on) ok(notes !== null && notes <= H[W], `${tag} an opened post shows Notes without scrolling (bottom ${notes} <= ${H[W]})`);
-    else ok(notes > H[W], `${tag} Notes is below the first screen as before (${notes})`);
+    ok(notes !== null && notes <= H[W], `${tag} an opened post shows Notes without scrolling (bottom ${notes} <= ${H[W]})`);
     const thumb = await page.evaluate(() => Math.round(document.querySelector('.cal-card-edit .cal-card-thumb img').getBoundingClientRect().height));
-    ok(on ? thumb <= 180 : thumb > 180, `${tag} the post's picture is ${on ? 'at most 180' : 'taller than 180'} px (${thumb})`);
+    ok(thumb <= 180, `${tag} the post's picture is at most 180 px (${thumb})`);
     await page.evaluate(() => history.back()); await sleep(900);
     await page.evaluate(() => openCalComments('p_morning')); await sleep(1500);
     const rows = await page.evaluate(() => [...document.querySelectorAll('#calCommentsOverlay .cal-cm-actions')].filter(a => a.checkVisibility() && a.querySelector('.is-danger')).map(a => {
@@ -47,15 +49,13 @@ async function staffPhone(W, on) {
     ok(rows.length >= 3, `${tag} notes with a Delete are on screen (${rows.length})`);
     // Round 2: a note's actions sit right under its words.
     const bands = await page.evaluate(() => [...document.querySelectorAll('#calCommentsOverlay .cal-cm-actions')].filter(a => a.checkVisibility()).map(a => { const b = a.closest('.cal-cm-row').querySelector('.cal-cm-body-col'); return Math.round(a.getBoundingClientRect().top - b.getBoundingClientRect().bottom); }));
-    ok(on ? bands.every(g => g <= 2) : bands.every(g => g >= 8), `${tag} the band between a note's words and its actions is ${on ? 'gone' : 'there as before'} (${[...new Set(bands)].join(', ')} px)`);
-    if (on) {
+    ok(bands.every(g => g <= 2), `${tag} the band between a note's words and its actions is gone (${[...new Set(bands)].join(', ')} px)`);
+    {
       ok(rows.every(r => r.del === '' && r.name === 'Delete'), `${tag} Delete shows no word (its name is still "Delete" for a screen reader)`);
       ok(rows.every(r => r.delRightGap <= 4 && r.delLeftGap >= 60), `${tag} Delete sits at the row's far end, away from Reply`);
       ok(rows.every(r => r.delW >= 44 && r.delH >= 44), `${tag} Delete is still a 44 px target`);
       ok(rows.every(r => r.border === 'rgba(0, 0, 0, 0)'), `${tag} the actions have no box around them`);
       ok(rows.every(r => r.reply === 'Reply'), `${tag} Reply keeps its word`);
-    } else {
-      ok(rows.every(r => r.del === 'Delete'), `${tag} Delete keeps its word as before`);
     }
     // Delete still asks first.
     await page.evaluate(() => [...document.querySelectorAll('#calCommentsOverlay .cal-cm-action.is-danger')].find(b => b.checkVisibility()).click()); await sleep(500);
@@ -64,39 +64,39 @@ async function staffPhone(W, on) {
     await page.keyboard.press('Escape'); await sleep(500);
     await page.evaluate(() => _msgOpenPage()); await sleep(1500);
     const lines = await page.evaluate(() => { const e = document.querySelector('#msgPage [data-msg-conv="p_morning"] .msg-conv-last'); return Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)); });
-    ok(on ? lines === 2 : lines === 1, `${tag} a conversation's last message shows on ${on ? 'two lines' : 'one line'} (${lines})`);
+    ok(lines === 2, `${tag} a conversation's last message shows on two lines (${lines})`);
     // Round 2: the Messages title shows whole beside Close (on a 360 px phone it ran under the word "Close").
     const head = await page.evaluate(() => { const h = document.querySelector('.pocket-staff-title'), c = document.querySelector('.pocket-staff-msg-close'); const hr = h.getBoundingClientRect(), cr = c.getBoundingClientRect(); return { whole: h.scrollWidth <= h.clientWidth + 1 && hr.right <= cr.left, cw: Math.round(cr.width), ch: Math.round(cr.height), name: c.getAttribute('aria-label') }; });
-    if (on) ok(head.whole && head.cw >= 44 && head.ch >= 44 && head.name === 'Close Messages', `${tag} "Messages" shows whole beside a 44 px Close (${head.cw}x${head.ch})`);
-    else if (W === 360) ok(!head.whole, `${tag} "Messages" ran under Close as before`);
+    ok(head.whole && head.cw >= 44 && head.ch >= 44 && head.name === 'Close Messages', `${tag} "Messages" shows whole beside a 44 px Close (${head.cw}x${head.ch})`);
     await page.click('.pocket-staff-msg-close'); await sleep(900);
     ok(await page.evaluate(() => { const m = document.getElementById('msgPage'); return !m || !m.checkVisibility(); }), `${tag} Close still closes Messages`);
   } finally { await S.close(); }
 }
 
-// A desktop page with the switch on: everything the polish touches is drawn exactly as with it off.
+// A desktop page: everything the polish touches is drawn exactly as without its class (taken off by hand, since no
+// switch can take it off any more).
 async function desktopSame() {
-  const snap = async (on) => {
-    if (on) FLAGS.phone_polish_staff = { staff: ['m1'] }; else delete FLAGS.phone_polish_staff;
-    const S = await staffEnv({ context: { viewport: { width: 1280, height: 900 } } });
-    try {
-      const page = await S.newPage();
-      await S.openCalendar(page); await sleep(2600);
-      await page.evaluate(() => openCalComments('p_morning')); await sleep(1500);
-      // The unread badges' Notes toolbar fit (327 _svuFitBars) gives a borderline note 20 px of room in some runs and
-      // not in others, switch or no switch: that one measured class is cleared on both sides before comparing.
-      return await page.evaluate(() => {
-        document.querySelectorAll('.svu-bar-room').forEach(e => e.classList.remove('svu-bar-room'));
-        const props = ['order', 'height', 'width', 'marginLeft', 'borderTopColor', 'backgroundColor', 'display', 'whiteSpace', 'position', 'maxHeight'];
-        const els = [...document.querySelectorAll('#calView *, #calCommentsOverlay *, #msgPage *')];
-        return { cls: document.documentElement.classList.contains('sv-phone-polish'), n: els.length, styles: els.map(e => props.map(p => getComputedStyle(e)[p]).join('|')).join('\n'), names: els.map(e => e.tagName + '.' + String(e.className).slice(0, 40) + ' "' + (e.childElementCount ? '' : e.textContent.trim().slice(0, 20)) + '"') };
-      });
-    } finally { await S.close(); }
-  };
-  const off = await snap(false), on = await snap(true);
-  ok(on.cls && !off.cls, 'desktop: the switch reaches a listed person on a desktop page too');
-  if (on.styles !== off.styles) { const a = on.styles.split('\n'), b = off.styles.split('\n'); a.forEach((x, i) => { if (x !== b[i]) console.log('  differs:', on.names[i], '|on', x, '|off', b[i], '|', off.names[i]); }); }
-  ok(on.n > 200 && on.n === off.n && on.styles === off.styles, `desktop: with the switch on, the Calendar and Notes are drawn exactly as with it off (${on.n} elements compared)`);
+  delete FLAGS.phone_polish_staff;
+  const S = await staffEnv({ context: { viewport: { width: 1280, height: 900 } } });
+  try {
+    const page = await S.newPage();
+    await S.openCalendar(page); await sleep(2600);
+    await page.evaluate(() => openCalComments('p_morning')); await sleep(1500);
+    // The unread badges' Notes toolbar fit (327 _svuFitBars) gives a borderline note 20 px of room in some runs and
+    // not in others: that one measured class is cleared before each measure.
+    const snap = () => page.evaluate(() => {
+      document.querySelectorAll('.svu-bar-room').forEach(e => e.classList.remove('svu-bar-room'));
+      const props = ['order', 'height', 'width', 'marginLeft', 'borderTopColor', 'backgroundColor', 'display', 'whiteSpace', 'position', 'maxHeight'];
+      const els = [...document.querySelectorAll('#calView *, #calCommentsOverlay *, #msgPage *')];
+      return { cls: document.documentElement.classList.contains('sv-phone-polish'), n: els.length, styles: els.map(e => props.map(p => getComputedStyle(e)[p]).join('|')).join('\n'), names: els.map(e => e.tagName + '.' + String(e.className).slice(0, 40) + ' "' + (e.childElementCount ? '' : e.textContent.trim().slice(0, 20)) + '"') };
+    });
+    const on = await snap();
+    await page.evaluate(() => document.documentElement.classList.remove('sv-phone-polish'));
+    const off = await snap();
+    ok(on.cls && !off.cls, 'desktop: a signed-in staff member carries the polish class on a desktop page too, with no switch row');
+    if (on.styles !== off.styles) { const a = on.styles.split('\n'), b = off.styles.split('\n'); a.forEach((x, i) => { if (x !== b[i]) console.log('  differs:', on.names[i], '|on', x, '|off', b[i], '|', off.names[i]); }); }
+    ok(on.n > 200 && on.n === off.n && on.styles === off.styles, `desktop: with the polish class, the Calendar and Notes are drawn exactly as without it (${on.n} elements compared)`);
+  } finally { await S.close(); }
 }
 
 async function client(W, on) {
@@ -120,17 +120,17 @@ async function client(W, on) {
   } finally { await S.close(); }
 }
 
-async function production(W, on) {
+async function production(W, rowPresent) {
+  // No switch since 2026-10-29: the polished row whatever the old row says.
   const sc = SCENARIOS.find(s => s.id === 'linear-list');
   const o = Object.assign({ width: W, theme: 'light' }, sc.open);
-  o.rest = Object.assign({}, o.rest, { syncview_runtime_flags: (on ? [{ key: 'phone_polish_staff', value: { staff: ['qa_staff'] } }] : []).concat([{ key: 'prod_authority', value: { video: 'syncview', graphics: 'syncview' } }]) });
+  o.rest = Object.assign({}, o.rest, { syncview_runtime_flags: (rowPresent ? [{ key: 'phone_polish_staff', value: { staff: ['qa_staff'] } }] : []).concat([{ key: 'prod_authority', value: { video: 'syncview', graphics: 'syncview' } }]) });
   const h = await finch.open(o);
   try {
     await h.page.waitForTimeout(4500);
     const r = await h.page.evaluate(() => { const row = document.querySelector('.prod-row'); const a = row.querySelector('.prod-assign-hot').getBoundingClientRect(), t = row.querySelector('.prod-title').getBoundingClientRect(); return { h: Math.round(row.getBoundingClientRect().height), sameLine: Math.abs((a.top + a.bottom) / 2 - (t.top + t.bottom) / 2) < 14, right: Math.round(a.right), rowRight: Math.round(row.getBoundingClientRect().right) }; });
-    const tag = `production ${W} ${on ? 'on' : 'off'}:`;
-    if (on) ok(r.sameLine && r.h <= 125 && r.right <= r.rowRight, `${tag} the person's picture sits on the title's line; a row is ${r.h} px`);
-    else ok(!r.sameLine && r.h >= 160, `${tag} the picture wraps to a third line as before (${r.h} px)`);
+    const tag = `production ${W} old row ${rowPresent ? 'present' : 'absent'}:`;
+    ok(r.sameLine && r.h <= 125 && r.right <= r.rowRight, `${tag} the person's picture sits on the title's line; a row is ${r.h} px`);
   } finally { await h.close(); }
 }
 
@@ -142,7 +142,6 @@ assert.ok(WIDTHS.length && WIDTHS.every(w => H[w]), 'widths are 360, 390 or 430'
   if (WIDTHS.includes(390)) await desktopSame();
   for (const W of WIDTHS) await client(W, true);
   if (WIDTHS.includes(390)) await client(390, false);
-  // At 430 the row already fits on two lines, so only the switched-on layout is checked there.
-  for (const W of WIDTHS) { await production(W, true); if (W < 430) await production(W, false); }
+  for (const W of WIDTHS) { await production(W, true); await production(W, false); }
   console.log(`phone-polish-browser: ${passed} passed`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,11 +1,13 @@
 'use strict';
-/* unread-badges-v2-browser.js -- the round-5 unread badges (327) behind the runtime switch unread_badges_v2
- * (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). Offline: the built page through the
+/* unread-badges-v2-browser.js -- the round-5 unread badges (327), on for every signed-in staff member with no switch
+ * since 2026-10-29 (session Permafive; first behind unread_badges_v2, session Beacon, 2026-10-24;
+ * docs/audits/2026-10-23-unread-badges.md). Offline: the built page through the
  * lost-work harness, every backend answer mocked, fictional notes and fictional picture links.
  *
- *   A. Switch missing or the wrong shape: the card's Notes button is today's, the page has no sv-unread2, no bubbles.
- *   B. Switch naming someone else: the same.
- *   C. Switch naming the signed-in member: the page carries sv-unread2; the card shows one bubble per person,
+ *   A. The old switch row missing, of the wrong shape, or switched off ({ "all": false }): the round-5 look all the
+ *      same, and the inbox read asks for pictures. Nothing can turn it off.
+ *   B. The old row naming someone else: the same.
+ *   C. The old row naming the signed-in member (as before): the page carries sv-unread2; the card shows one bubble per person,
  *      the client's with the client's picture from the inbox answer, a teammate without a picture as initials, and
  *      numbers coloured by kind (change, comment, staff); the hover is picture, first name and one line of the note,
  *      with no date, no kind label and no footer (round 6).
@@ -132,15 +134,16 @@ const cardState = page => page.evaluate(() => {
 });
 
 (async () => {
-  for (const [name, value] of [['missing', undefined], ['wrong shape', ['m1']], ['someone else', { staff: ['someone-else'] }]]) {
+  for (const [name, value] of [['missing', undefined], ['wrong shape', ['m1']], ['switched off', { all: false }], ['someone else', { staff: ['someone-else'] }]]) {
     const h = await run(value);
     try {
+      await h.page.waitForFunction(() => document.documentElement.classList.contains('sv-unread2') && document.querySelector('.svu-bub'), null, { timeout: 8000 }).catch(() => {});
       const st = await cardState(h.page);
-      ok(st.wrap && !st.on && !st.v2 && st.bubbles.length === 0 && st.oldDot, `A/B. switch ${name}: today's Notes button, no round-5 look`);
+      ok(st.wrap && st.on && st.v2 && st.bubbles.length > 0, `A/B. old switch row ${name}: the round-5 look all the same`);
       await h.page.evaluate(() => _msgLoad(true));
       await sleep(400);
-      ok(h.inboxCalls.length >= 1 && h.inboxCalls.every(b => !('pictures' in b)), `G. switch ${name}: the inbox read never asks for pictures (${h.inboxCalls.length} reads)`);
-      ok(h.errors.length === 0, `F. switch ${name}: no page error` + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
+      ok(h.inboxCalls.length >= 1 && h.inboxCalls.some(b => 'pictures' in b), `G. old switch row ${name}: the inbox read asks for pictures (${h.inboxCalls.length} reads)`);
+      ok(h.errors.length === 0, `F. old switch row ${name}: no page error` + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
     } finally { await h.S.close(); }
   }
 

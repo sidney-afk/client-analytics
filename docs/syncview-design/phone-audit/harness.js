@@ -13,8 +13,10 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 const FLAGS = {
   review_stage_client_pages: { all: true },
   workload_calm_staff: { all: true },
-  // Mirrors what the owner's own login has on (read-only from syncview_runtime_flags, 2026-10-25); m1 is the
-  // harness's signed-in staff member.
+  // Mirrors what the owner's own login had on (read-only from syncview_runtime_flags, 2026-10-25); m1 is the
+  // harness's signed-in staff member. Since 2026-10-29 (session Permafive) the page no longer reads the three staff
+  // rows below or phone_polish_staff: those features are on for every signed-in staff member, so these rows (and
+  // PHONE_POLISH=0) change nothing. They stay so the switch tests can prove exactly that.
   unread_badges_v2: { staff: ['m1'] },
   caption_history_staff: { staff: ['m1'] },
   thumbnail_title_buttons_staff: { staff: ['m1'] },

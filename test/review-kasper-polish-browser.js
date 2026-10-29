@@ -1,7 +1,7 @@
 'use strict';
 /*
- * KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25), on only for the staff
- * members unread_badges_v2 names, where his Review Session is on. Real browser, fully offline, the shared mocked backend
+ * KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25), on for every signed-in
+ * staff member where his Review Session is on (no switch since 2026-10-29, session Permafive). Real browser, fully offline, the shared mocked backend
  * of the review-stage tests (fictional client, cards, people and conversation), in his second layout (every part at once).
  *
  * 1. Approve: the check shows at the click (the part leaves his list at once), then it settles as Approved, then Undo.
@@ -11,7 +11,7 @@
  * 3. A note: no spinner while the save is quick (only after 1.2 s).
  * 4. Reply: under a team-only message, saved with that message as its parent, team-only, and shown under it; never on a
  *    message the client can see.
- * 5. Not on the list (unread_badges_v2 off): his page exactly as before (no check, the box closes after a change).
+ * 5. With the old unread_badges_v2 row absent: the polish all the same (Reply shows, the box stays open after a change).
  * Server times are close to the live ones (edge logs of his session, 2026-10-23): permission read 40 ms, each
  * production-write 900 ms, the card write 650 ms.
  * SHOTS=<dir> writes the PR screenshots (light and dark, 1440 wide); with POLISH=0 the "before" set.
@@ -107,14 +107,16 @@ async function shots(browser, origin) {
 
     console.log('--- 1. Approve: the check at the click, before and after ---');
     {
+      // The old switch row absent and present: the same polish either way (no switch since 2026-10-29).
       const t0 = await openKasper(browser, origin, { unread: false });
+      expect(await inS(t0.page, '.rs.cp').count() === 1, 'old switch row absent: his Review Session has the polish');
       const before = await timeApprove(t0);
       await t0.ctx.close();
       const t = await openKasper(browser, origin, {});
-      expect(await inS(t.page, '.rs.cp').count() === 1, 'on the list: his Review Session has the polish');
+      expect(await inS(t.page, '.rs.cp').count() === 1, 'old switch row present: his Review Session has the polish');
       const after = await timeApprove(t);
-      console.log('     before: ' + JSON.stringify(before) + ', after: ' + JSON.stringify(after));
-      expect(!before.check && before.word > 0 && before.word < 400, 'before: the part already read "Approved" at once (' + before.word + ' ms), with no check');
+      console.log('     row absent: ' + JSON.stringify(before) + ', row present: ' + JSON.stringify(after));
+      expect(before.check > 0 && before.check < 300, 'row absent: the check shows at the click too (' + before.check + ' ms)');
       expect(after.check > 0 && after.check < 300, 'after: the check shows at the click (' + after.check + ' ms)');
       expect(after.word > after.check && after.undo > after.word, 'then it settles as Approved, then Undo once the save lands (' + JSON.stringify(after) + ')');
       expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
@@ -217,14 +219,14 @@ async function shots(browser, origin) {
       await t.ctx.close();
     }
 
-    console.log('--- 5. Not on the list: his page as it was ---');
+    console.log('--- 5. The old switch row absent: the polish all the same ---');
     {
       const t = await openKasper(browser, origin, { unread: false, question: true });
-      expect(await inS(t.page, '.rs.cp').count() === 0 && await inS(t.page, '[data-cp-reply]').count() === 0, 'no polish and no Reply');
+      expect(await inS(t.page, '.rs.cp').count() === 1 && await inS(t.page, '[data-cp-reply]').count() > 0, 'the polish and Reply, with no switch row');
       await inS(t.page, video + ' [data-chg]').first().click(); await sleep(300);
-      await inS(t.page, '#ta').first().fill('Old-page change.');
+      await inS(t.page, '#ta').first().fill('A change with no switch row.');
       await inS(t.page, '#ta').first().press('Enter'); await sleep(400);
-      expect(await inS(t.page, video + ' #ta').count() === 0 && !(await inS(t.page, '.cp-done').count()), 'a sent change closes the box, as before');
+      expect(await inS(t.page, video + ' #ta').count() === 1, 'a sent change keeps its box open, as with the polish');
       await t.ctx.close();
     }
   } finally {

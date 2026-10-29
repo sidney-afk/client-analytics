@@ -177,7 +177,7 @@ async function shots(browser, origin) {
       await t.ctx.close();
     }
 
-    console.log('--- 5. The staff Calendar is untouched by the client switch ---');
+    console.log('--- 5. The staff Calendar follows the staff badges, not the client switch ---');
     {
       const t = await open(browser, origin, { stage: 'client', staff: STAFF, flags: 'on', polish: true, collab: true, finished: true });
       seedNotes(t.state);
@@ -188,7 +188,9 @@ async function shots(browser, origin) {
       await sleep(1200);
       const on = await t.page.evaluate(() => document.documentElement.classList.contains('sv-unread2'));
       const f4 = await foot(t.page, 'rs4');
-      expect(!on && !f4.v2 && /1 open/.test(f4.oldOpen), 'a staff member off unread_badges_v2 keeps today\'s look, whatever review_client_polish says');
+      // Since 2026-10-29 (session Permafive) every signed-in staff member has the staff badges, with no switch row read:
+      // the staff Calendar shows them whatever review_client_polish says.
+      expect(on && f4.v2, 'a staff member has the staff badges with no switch row, whatever review_client_polish says (' + (f4 && f4.html || '').slice(0, 200) + ')');
       await t.ctx.close();
     }
   } finally {

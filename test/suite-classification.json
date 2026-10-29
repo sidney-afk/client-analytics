@@ -2114,7 +2114,7 @@
       "file": "staff-done-thread-badge-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (docs/syncview-design/tests/lost-work-lib.js: one fictional card), no hosted credentials and no live data. Checks that a staff member's Notes button on unread_badges_v2 never counts a client reply inside a done change request, which Notes keeps behind its history button, while a new client comment outside it still counts.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (docs/syncview-design/tests/lost-work-lib.js: one fictional card), no hosted credentials and no live data. Checks that a staff member's Notes button (the round-5 badges) never counts a client reply inside a done change request, which Notes keeps behind its history button, while a new client comment outside it still counts.",
       "reproduce": "node test/staff-done-thread-badge-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
@@ -2130,7 +2130,7 @@
       "file": "review-kasper-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks Kasper's Review Session with the polish for the staff members on unread_badges_v2, in his second layout: Approve shows its check at the click, settles as Approved and then Undo, and a refusal takes the check back with the reason and Try again; two change requests in a row say Sent at once, keep the box open and both arrive in order; a quick note shows no spinner; Reply only under a team-only message, saved with it as the parent and shown indented; and his page unchanged when he is not on the list.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks Kasper's Review Session with the polish for every signed-in staff member (no switch row needed), in his second layout: Approve shows its check at the click, settles as Approved and then Undo, and a refusal takes the check back with the reason and Try again; two change requests in a row say Sent at once, keep the box open and both arrive in order; a quick note shows no spinner; Reply only under a team-only message, saved with it as the parent and shown indented; and the same polish with the old unread_badges_v2 row absent.",
       "reproduce": "node test/review-kasper-polish-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
@@ -2138,7 +2138,7 @@
       "file": "review-stage-kasper-sample-frame-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus one fictional sample answered by the test), no hosted credentials and no live data. Checks Kasper's Review Session in his second layout on a sample: Tweaks are on Frame and a typed Ask for a change each save the change request and move the video to Tweaks Needed, with the polish (unread_badges_v2) on and off, and no page error (OPEN_REPAIRS 539).",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus one fictional sample answered by the test), no hosted credentials and no live data. Checks Kasper's Review Session in his second layout on a sample: Tweaks are on Frame and a typed Ask for a change each save the change request and move the video to Tweaks Needed, with the polish on whether the old unread_badges_v2 row is present or absent, and no page error (OPEN_REPAIRS 539).",
       "reproduce": "node test/review-stage-kasper-sample-frame-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
@@ -2178,7 +2178,7 @@
       "file": "frame-comments-in-notes-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the frameio-view answers are fixtures, no hosted credentials and no live data. Checks Frame.io comments in a Calendar card's Notes without the player behind frame_comments_in_notes_staff at desktop and phone size, light and dark: lazy read after paint, five-minute keep, one-line failure, switch off unchanged.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the frameio-view answers are fixtures, no hosted credentials and no live data. Checks Frame.io comments in a Calendar card's Notes without the player, for every signed-in staff member whatever the old row says, at desktop and phone size, light and dark: lazy read after paint, five-minute keep, one-line failure, switch off unchanged.",
       "reproduce": "node test/frame-comments-in-notes-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
@@ -2202,7 +2202,7 @@
       "file": "caption-history-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the caption history icon and pop-up behind caption_history_staff (off, someone else, wrong shape, migration not applied), the steps, highlights, note and rewrite view, putting a version back with Undo through the normal save with caption_origin, the stale guard and the empty state, at desktop and 390 pixel width in light and dark.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the caption history icon and pop-up for every signed-in staff member (the old row missing, naming someone else, of the wrong shape or switched off changes nothing; no icon before the migration), the steps, highlights, note and rewrite view, putting a version back with Undo through the normal save with caption_origin, the stale guard and the empty state, at desktop and 390 pixel width in light and dark.",
       "reproduce": "node test/caption-history-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

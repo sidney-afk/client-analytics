@@ -42,28 +42,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     no edit (session Calm Six, 2026-10-20). Only the exact boolean true counts. Never the
                                     client link. Missing, unreadable or the wrong shape: the Workload calendar exactly
                                     as it was.
-         unread_badges_v2           { "staff": [...] }: the round-5 unread badges, Notes and Messages (session Beacon,
-                                    2026-10-24, 327). Same listing rule as the switches above (id or full name of the
-                                    signed-in staff member). Never the client link. Missing, unreadable or the wrong
-                                    shape: today's badges, Notes and Messages exactly as they were. It also gives
-                                    Kasper's Review Session the client page's polish (session Porch, round 3), where
-                                    review_stage_kasper_staff is on too.
-         caption_history_staff      { "staff": [...] }: the caption history icon and pop-up on Calendar cards (session
-                                    Versions, 2026-10-23). Same listing rule (id or full name of the signed-in staff
-                                    member). Never the client link. Missing, unreadable or the wrong shape: no icon,
-                                    the caption box exactly as it was.
-         thumbnail_title_buttons_staff { "staff": [...] }: the Production "Thumbnail titles" and "Write title" buttons
-                                    (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Same listing rule (id or full
-                                    name of the signed-in staff member). Missing, unreadable or the wrong shape: no buttons.
-         phone_polish_staff         { "staff": [...] }: the staff pages' phone polish (session Grip, 2026-10-25): on a phone
-                                    only (767 px and narrower), the same design made smoother. Same listing rule (id or
-                                    full name of the signed-in staff member). Never the client link. Missing, unreadable
-                                    or the wrong shape: every phone page exactly as it was. Desktop never changes.
-         frame_comments_in_notes_staff { "staff": [...] }: the Frame.io comments on a card's video in its Notes even
-                                    without the player, read lazily after Notes opens and kept for five minutes;
-                                    a failed read is one muted line (session Framenotes, 2026-10-26, 187/190). Same
-                                    listing rule (id or full name of the signed-in staff member). Never the client
-                                    link. Missing, unreadable or the wrong shape: Notes exactly as it was.
+         Five staff features that once had a switch here are now permanent for every signed-in staff member, never the
+                                    client link (owner, 2026-10-29, session Permafive): the round-5 unread badges with
+                                    Notes and Messages (327), caption history (180), the Production thumbnail title
+                                    buttons (255), the staff phone polish (020) and the Frame.io comments in a card's
+                                    Notes (187/190). Their old rows (unread_badges_v2, caption_history_staff,
+                                    thumbnail_title_buttons_staff, phone_polish_staff, frame_comments_in_notes_staff)
+                                    are no longer read, so whether they exist changes nothing; svStaffSignedIn() below
+                                    is the one answer all five ask.
          Every { "staff": [...] } switch above also takes { "all": true } (session Allstaff, 2026-10-27; read by one helper,
                                     _rsStaffSwitch / _rsStaffOn below): every signed-in staff member, never the client
                                     link, so a person who joins later needs no edit. Only the exact boolean true counts,
@@ -84,14 +70,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'frame_comments_in_notes_staff', 'trial_reels_pages', 'thumbnail_title_buttons_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
     // Nothing read yet, or the read failed: every switch off.
     function _rsFlagsOff() {
         const n = _rsStaffNone;
-        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), capHist: n(), ttb: n(), unread: n(), phone: n(), fnotes: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
     }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
@@ -108,11 +94,6 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const calm = _rsStaffSwitch(by.workload_calm_staff);
         const layout2 = _rsStaffSwitch(by.review_stage_kasper_layout2);
         const fast = _rsStaffSwitch(by.kasper_fast_boot);
-        const unread = _rsStaffSwitch(by.unread_badges_v2);
-        const capHist = _rsStaffSwitch(by.caption_history_staff);
-        const ttb = _rsStaffSwitch(by.thumbnail_title_buttons_staff);
-        const phone = _rsStaffSwitch(by.phone_polish_staff);
-        const fnotes = _rsStaffSwitch(by.frame_comments_in_notes_staff);
         const cpv = by.review_client_polish;
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const trv = by.trial_reels_pages;
@@ -128,11 +109,6 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             calm,
             layout2,
             fast,
-            unread,
-            phone,
-            fnotes,
-            capHist,
-            ttb,
             cpAll: okObj(cpv) && cpv.all === true,
             cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             trAll: okObj(trv) && trv.all === true,
@@ -153,8 +129,9 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
-            // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || [next.staff, next.calm, next.layout2, next.fast, next.capHist, next.ttb, next.unread, next.phone, next.fnotes].some(_rsStaffAny) || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            /* The open page always draws again once the switches are in (session Permafive, 2026-10-29). The five staff
+               switches made permanent here were { "all": true } since 27/28 Oct, which made this redraw happen on every
+               read; it stays unconditional so a page painted before the server said who is signed in still catches up. */
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -162,8 +139,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             _rsFlagFailed = false;
             _rsAnalyticsSync();
             svPhonePolishSync();
-            // Something switched on: the open page draws again, now as the new page.
-            if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+            try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {}
         } catch (e) {
             _rsFlags = _rsFlagsOff();
             _rsFlagFailed = true;
@@ -429,11 +405,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         // An unreadable switch is an answer of no for this visit; the hint stays for the next one.
         return !_rsFlagFailed && _rsKasperFastHintHas();
     }
-    // The caption history icon and pop-up on Calendar cards: only for the staff member caption_history_staff names.
-    // Until the switch is read, or when it cannot be read, the answer is no and the caption box is as it was.
-    function svCaptionHistoryOn() {
-        return _rsStaffOn(_rsFlags.capHist);
-    }
+    // The caption history icon and pop-up on Calendar cards: every signed-in staff member (permanent since 2026-10-29).
+    function svCaptionHistoryOn() { return svStaffSignedIn(); }
     // Called once at boot (260), after the server has said who is signed in and the route is read: on Kasper's tab, start the slow parts now (the
     // review page's code and the player's switch) instead of when the first card paints after the list has loaded.
     function svRsKasperBoot(hashRaw, stateNav) {
@@ -467,8 +440,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
        signed in, the answer is no: the old calendar shows and nothing else changes. */
-    // The Production thumbnail title buttons (255): only for the staff members the switch lists.
-    function svThumbTitleButtonsOn() { return _rsStaffOn(_rsFlags.ttb); }
+    // The Production thumbnail title buttons (255): every signed-in staff member (permanent since 2026-10-29).
+    function svThumbTitleButtonsOn() { return svStaffSignedIn(); }
     function _rsListed(set) {
         let who = null;
         try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
@@ -507,38 +480,30 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         if (!_rsFlags.loaded || _isClientLink || !_rsStaffAny(sw)) return false;
         return _rsStaffWho(sw.list, sw.all === true);
     }
-    /* THE ROUND-5 UNREAD BADGES (session Beacon, 2026-10-24, 327): on only for the staff members unread_badges_v2
-       names, by id or full name. Until the switch has been read, or the server has said who is signed in: no. */
-    function svUnreadBadgesOn() {
-        return _rsStaffOn(_rsFlags.unread);
-    }
-    /* FRAME COMMENTS IN NOTES (session Framenotes, 2026-10-26, 187/190): on only for the staff members
-       frame_comments_in_notes_staff names, by id or full name. Until the switch has been read, or the server has said
-       who is signed in: no. Never the client link. */
-    function svFrameCommentsInNotesOn() {
-        return _rsStaffOn(_rsFlags.fnotes);
-    }
+    /* THE FIVE PERMANENT STAFF FEATURES (session Permafive, 2026-10-29): the round-5 unread badges (327), caption history
+       (180), the thumbnail title buttons (255), the phone polish (020) and Frame.io comments in Notes (187/190) are on
+       for every signed-in staff member and never on the client link. No switch row is read for them: a missing,
+       unreadable or switched-off row changes nothing. Until the server has said who is signed in: no, exactly as the
+       { "all": true } switches answered. */
+    function svStaffSignedIn() { return _rsStaffWho(null, true); }
+    function svUnreadBadgesOn() { return svStaffSignedIn(); }
+    function svFrameCommentsInNotesOn() { return svStaffSignedIn(); }
     /* KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25): Approve shows its
        check at the click, a sent change keeps its box open, "Sent" at once, a spinner only after 1.2 s, replies threaded
-       under what they answer. Only where his Review Session is on (review_stage_kasper_staff) and the signed-in staff
-       member is on unread_badges_v2, so the owner tries it in Kasper's view first. Until both are read: no. */
+       under what they answer. Wherever his Review Session is on (review_stage_kasper_staff), for every signed-in staff
+       member (the unread badges are permanent since 2026-10-29). */
     function svRsKasperPolishOn() { return svRsKasperOn() && svUnreadBadgesOn(); }
-    /* THE STAFF PAGES' PHONE POLISH (session Grip, 2026-10-25): on only for the staff members phone_polish_staff names,
-       by id or full name. Until the switch has been read, or the server has said who is signed in: no. It marks the page
-       with html.sv-phone-polish, and every rule it switches on sits inside a max-width: 767px block (020), so a desktop
-       page never changes even for a listed person. */
-    function svPhonePolishOn() {
-        return _rsStaffOn(_rsFlags.phone);
-    }
-    // The switch can come back before the server has said who is signed in: ask again each second for up to 30 s.
+    /* THE STAFF PAGES' PHONE POLISH (session Grip, 2026-10-25; permanent since 2026-10-29): every signed-in staff member.
+       It marks the page with html.sv-phone-polish, and every rule it switches on sits inside a max-width: 767px block
+       (020), so a desktop page never changes. */
+    function svPhonePolishOn() { return svStaffSignedIn(); }
+    // The page can ask before the server has said who is signed in: ask again each second for up to 30 s.
     let _ppRetry = 0;
     function svPhonePolishSync() {
         let on = false;
         try { on = svPhonePolishOn(); } catch (e) { on = false; }
         document.documentElement.classList.toggle('sv-phone-polish', on);
-        let who = null;
-        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
-        if (!on && _rsFlags.loaded && _rsStaffAny(_rsFlags.phone) && !_isClientLink && !(who && who.member) && _ppRetry < 30) {
+        if (!on && !_isClientLink && _ppRetry < 30) {
             _ppRetry++;
             setTimeout(svPhonePolishSync, 1000);
         }
@@ -783,4 +748,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };
+export { svStaffSignedIn, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };

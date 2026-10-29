@@ -272,7 +272,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgPaint();
     }
     function _msgUnreadConversations() {
-        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, switch unread_badges_v2)
+        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, every signed-in staff member on desktop)
         return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
     }
     function _msgPaintCounts() {

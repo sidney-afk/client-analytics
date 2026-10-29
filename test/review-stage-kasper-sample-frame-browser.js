@@ -2,7 +2,8 @@
 /*
  * KASPER PRESSES "TWEAKS ARE ON FRAME" ON A SAMPLE (session Frametweak, 2026-10-27). Real browser, fully offline, the
  * shared mocked backend of the review-stage tests plus one fictional sample, in his second layout (every part at once),
- * with the Review Session polish (unread_badges_v2) on and off. The stage wrote his words into
+ * with the Review Session polish, which is on for every signed-in staff member since 2026-10-29 (session Permafive):
+ * each case runs with the old unread_badges_v2 row present and absent, and the polish must be on either way. The stage wrote his words into
  * window._sxrKasperState, which the Samples module never puts on window, so every change from the stage on a sample
  * (Tweaks are on Frame, a typed Ask for a change) threw before any save (OPEN_REPAIRS 539). A typed change rides along.
  */
@@ -47,9 +48,9 @@ const R = (page, fn, arg) => page.evaluate(([src, a]) => { const r = document.ge
   try {
     for (const [kind, polish] of [['frame', false], ['frame', true], ['ask', false], ['ask', true]]) {
       const words = kind === 'frame' ? 'Tweaks are on Frame.' : 'Trim the last two seconds, please.';
-      console.log('--- Kasper ' + (kind === 'frame' ? 'presses Tweaks are on Frame' : 'types Ask for a change') + ' on a sample, polish ' + (polish ? 'on' : 'off') + ' ---');
+      console.log('--- Kasper ' + (kind === 'frame' ? 'presses Tweaks are on Frame' : 'types Ask for a change') + ' on a sample, old switch row ' + (polish ? 'present' : 'absent') + ' ---');
       const t = await openKasper(browser, origin, polish);
-      expect(await inS(t.page, '.rs.cp').count() === (polish ? 1 : 0), 'the polish is ' + (polish ? 'on' : 'off'));
+      expect(await inS(t.page, '.rs.cp').count() === 1, 'the polish is on, old switch row ' + (polish ? 'present' : 'absent'));
       // Open the sample on stage.
       const opened = await R(t.page, (r) => {
         const rows = [...r.querySelectorAll('[data-id], [data-pid], button, a')].filter(e => /Fixture sample one/.test(e.textContent || ''));

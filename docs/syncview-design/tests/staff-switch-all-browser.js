@@ -18,6 +18,12 @@
  *
  * Fails on the code before this change (none of the five took "all", and the helper did not exist).
  *
+ * PERMANENT (session Permafive, 2026-10-29): the five staff features the owner turned on for everybody (the unread
+ * badges, caption history, the thumbnail title buttons, the phone polish, Frame.io comments in Notes) no longer read
+ * a row at all. For them both parts now check the opposite of a switch: on for a signed-in staff member whatever their
+ * old row says (missing, malformed, { "all": false }, a list naming someone else, or before the switches are read),
+ * and still never on the client link or before the server has said who is signed in.
+ *
  *   npm run build:index && node docs/syncview-design/tests/staff-switch-all-browser.js
  */
 
@@ -36,12 +42,16 @@ const SWITCHES = [
   ['review_stage_kasper_layout2', 'svRsKasperLayout2On'],
   ['kasper_fast_boot', 'svRsKasperFast'],
   ['workload_calm_staff', 'svWorkloadCalmOn'],
+];
+// The five staff features made permanent (2026-10-29): their old rows and the reader that no longer reads them.
+const PERMANENT = [
   ['unread_badges_v2', 'svUnreadBadgesOn'],
   ['caption_history_staff', 'svCaptionHistoryOn'],
   ['thumbnail_title_buttons_staff', 'svThumbTitleButtonsOn'],
   ['phone_polish_staff', 'svPhonePolishOn'],
   ['frame_comments_in_notes_staff', 'svFrameCommentsInNotesOn'],
 ];
+const ALL_READERS = SWITCHES.concat(PERMANENT);
 // Kasper's second layout only ever changes a page his Review Session already shows: its row needs that one too.
 const NEEDS = { review_stage_kasper_layout2: 'review_stage_kasper_staff' };
 const MALFORMED = [{ all: 'true' }, { all: 1 }, { all: [true] }, { all: false }, { staff: 'x1' }, { staff: ['*'] }, { staff: [1, null] }, ['x1'], 'all', true, null, {}];
@@ -73,7 +83,7 @@ function unitPart() {
     ${code}
     let _rsFlags = _rsFlagsOff();
     return { parse: _rsParse, set: f => { _rsFlags = f; }, flags: () => _rsFlags, saveFast: _rsKasperFastHintSave, readers: {
-      ${SWITCHES.map(([, fn]) => fn + ': ' + fn).join(', ')} } };
+      ${ALL_READERS.map(([, fn]) => fn + ': ' + fn).join(', ')} } };
   `)(ctx);
 
   const STAFF = { member: { id: 'x1', name: 'Some Person' } };
@@ -83,7 +93,7 @@ function unitPart() {
     const rows = value === undefined ? [] : [{ key, value }];
     if (NEEDS[key]) rows.push({ key: NEEDS[key], value: { all: true } });
     api.set(api.parse(rows));
-    const fn = SWITCHES.find(s => s[0] === key)[1];
+    const fn = ALL_READERS.find(s => s[0] === key)[1];
     return api.readers[fn]();
   };
 
@@ -105,6 +115,17 @@ function unitPart() {
   {
     const api = make({ who: STAFF, client: false, storage: mem() });
     for (const [key, fn] of SWITCHES) expect(api.readers[fn]() === false, key + ': off before the switches are read');
+    for (const [key, fn] of PERMANENT) expect(api.readers[fn]() === true, key + ' (permanent): on before the switches are read');
+  }
+
+  // The five permanent features: on for a signed-in staff member whatever the old row says; never the client link.
+  for (const [key] of PERMANENT) {
+    for (const row of [{ all: true }, { staff: ['x1'] }, { staff: ['someone-else'] }, undefined].concat(MALFORMED)) {
+      expect(answer(key, row, {}) === true, key + ' (permanent): on with the old row ' + JSON.stringify(row));
+      expect(answer(key, row, { client: true }) === false, key + ' (permanent): off on the client link with the old row ' + JSON.stringify(row));
+    }
+    expect(answer(key, undefined, { who: null }) === false, key + ' (permanent): off until the server has said who is signed in');
+    expect(answer(key, undefined, { who: { member: null } }) === false, key + ' (permanent): off for someone who is not staff');
   }
 
   // The Kasper fast-boot hint: "all" is remembered, for staff only; the list form is kept as before.
@@ -139,14 +160,14 @@ function unitPart() {
 async function browserPart() {
   const { staffEnv, clientPage, sleep, FLAGS } = require('../phone-audit/harness');
   const saved = {};
-  for (const [key] of SWITCHES) saved[key] = FLAGS[key];
-  const setAll = (fn) => { for (const [key] of SWITCHES) { const v = fn(key); if (v === undefined) delete FLAGS[key]; else FLAGS[key] = v; } };
+  for (const [key] of ALL_READERS) saved[key] = FLAGS[key];
+  const setAll = (fn) => { for (const [key] of ALL_READERS) { const v = fn(key); if (v === undefined) delete FLAGS[key]; else FLAGS[key] = v; } };
   const readAll = page => page.evaluate((fns) => {
     const out = {};
     for (const fn of fns) { try { out[fn] = typeof window[fn] === 'function' ? window[fn]() : 'missing'; } catch (e) { out[fn] = 'threw ' + e.message; } }
     out.phoneClass = document.documentElement.classList.contains('sv-phone-polish');
     return out;
-  }, SWITCHES.map(s => s[1]));
+  }, ALL_READERS.map(s => s[1]));
 
   async function staffAnswers(label) {
     const S = await staffEnv({});
@@ -163,8 +184,8 @@ async function browserPart() {
     // Every staff switch at { "all": true }, nobody listed: every reader says yes for the harness's staff member.
     setAll(() => ({ all: true }));
     let r = await staffAnswers('all:true');
-    for (const [key, fn] of SWITCHES) expect(r[fn] === true, 'page, ' + key + ' { all: true }: on for a staff member in no list (got ' + r[fn] + ')');
-    expect(r.phoneClass === true, 'page, phone_polish_staff { all: true }: the page carries its class');
+    for (const [key, fn] of ALL_READERS) expect(r[fn] === true, 'page, ' + key + ' { all: true }: on for a staff member in no list (got ' + r[fn] + ')');
+    expect(r.phoneClass === true, 'page, phone polish: the page carries its class');
 
     // The same rows on the client link: every reader says no.
     {
@@ -176,7 +197,7 @@ async function browserPart() {
         // A browser that once saw an all:true answer as staff: its hints must not turn anything on here either.
         await page.evaluate(() => { localStorage.setItem('sv-kasper-fast', JSON.stringify({ fast: [], stage: [], fastAll: true, stageAll: true })); localStorage.setItem('sv-wl-calm-staff', '["*"]'); });
         const c = await readAll(page);
-        for (const [key, fn] of SWITCHES) expect(c[fn] === false, 'client link, ' + key + ' { all: true }: off (got ' + c[fn] + ')');
+        for (const [key, fn] of ALL_READERS) expect(c[fn] === false, 'client link, ' + key + ' { all: true }: off (got ' + c[fn] + ')');
         expect(c.phoneClass === false, 'client link: no phone-polish class');
         expect(await page.evaluate(() => svRsKasperPending() === false && svWorkloadCalmPending() === false), 'client link: an all hint holds no loader');
         await ctx.close();
@@ -187,21 +208,31 @@ async function browserPart() {
     setAll(() => ({ staff: ['someone-else'] }));
     r = await staffAnswers('list, someone else');
     for (const [key, fn] of SWITCHES) expect(r[fn] === false, 'page, ' + key + ' listing someone else: off (got ' + r[fn] + ')');
+    for (const [key, fn] of PERMANENT) expect(r[fn] === true, 'page, ' + key + ' (permanent) listing someone else: on all the same (got ' + r[fn] + ')');
+    expect(r.phoneClass === true, 'page, phone polish with its old row listing someone else: the page carries its class');
 
     // A list naming the signed-in member (by id): on, exactly as before.
     setAll(() => ({ staff: ['m1'] }));
     r = await staffAnswers('list, m1');
-    for (const [key, fn] of SWITCHES) expect(r[fn] === true, 'page, ' + key + ' listing the member: on (got ' + r[fn] + ')');
+    for (const [key, fn] of ALL_READERS) expect(r[fn] === true, 'page, ' + key + ' listing the member: on (got ' + r[fn] + ')');
 
     // Malformed rows: off.
     setAll(key => (key === 'review_stage_kasper_staff' ? { all: true } : { all: 'true', staff: ['*'] }));
     r = await staffAnswers('malformed');
     for (const [key, fn] of SWITCHES) if (key !== 'review_stage_kasper_staff') expect(r[fn] === false, 'page, ' + key + ' malformed: off (got ' + r[fn] + ')');
+    for (const [key, fn] of PERMANENT) expect(r[fn] === true, 'page, ' + key + ' (permanent) malformed: on all the same (got ' + r[fn] + ')');
     setAll(key => (key === 'review_stage_kasper_layout2' ? { all: true } : ['m1']));
     r = await staffAnswers('malformed list');
     for (const [key, fn] of SWITCHES) expect(r[fn] === false, 'page, ' + key + ' as a bare array: off (got ' + r[fn] + ')');
+    for (const [key, fn] of PERMANENT) expect(r[fn] === true, 'page, ' + key + ' (permanent) as a bare array: on all the same (got ' + r[fn] + ')');
+
+    // No row at all for the five: on all the same (the supervisor deletes the rows after the merge).
+    setAll(key => (PERMANENT.some(p => p[0] === key) ? undefined : { staff: ['someone-else'] }));
+    r = await staffAnswers('permanent rows deleted');
+    for (const [key, fn] of PERMANENT) expect(r[fn] === true, 'page, ' + key + ' (permanent) with no row: on (got ' + r[fn] + ')');
+    expect(r.phoneClass === true, 'page, phone polish with no row: the page carries its class');
   } finally {
-    for (const [key] of SWITCHES) { if (saved[key] === undefined) delete FLAGS[key]; else FLAGS[key] = saved[key]; }
+    for (const [key] of ALL_READERS) { if (saved[key] === undefined) delete FLAGS[key]; else FLAGS[key] = saved[key]; }
   }
   console.log('  ok  part 2: the real page');
 }

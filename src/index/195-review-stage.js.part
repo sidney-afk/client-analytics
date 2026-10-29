@@ -1419,7 +1419,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             try { who = _calNoteAuthorName(c) || c.author || ''; } catch (e) { who = c.author || ''; }
             return {
                 id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '', at: String(c.created_at || ''), parent: String(c.parent_id || ''),
-                // Round 7 (switch unread_badges_v2, staff and Kasper): a spinner in place of the word "Sending…".
+                // Round 7 (every signed-in staff member, Kasper too): a spinner in place of the word "Sending…".
                 spin: !!c.sending && mode !== 'client' && svBusyOn(),
                 part: comp, time: c.sending ? (R.cp ? '' : 'Sending…') : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending || !!(pending && pending.state === 'sending'), failed: !!(pending && pending.state === 'failed'), edit: c.is_tweak ? null : _rsEditOf(c.body),
@@ -1670,7 +1670,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; R.listCur = R.stripCur = undefined; }
         R.mode = mode; R.key = key;
         // The client page's polish (review_client_polish), read once with the other switches; off everywhere else.
-        // Round 3: Kasper's Review Session gets the same polish, for the staff members on unread_badges_v2 (188).
+        // Round 3: Kasper's Review Session gets the same polish, for every signed-in staff member (188).
         R.cp = mode === 'client' ? svRsClientPolishOn(calState.client) : mode === 'kasper' && svRsKasperPolishOn();
         // The client link's page sits above the calendar (its header heads every tab); the others below it.
         const above = mode === 'client';
@@ -2415,7 +2415,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // A small spinner in place of a button's icon while its save runs (owner feedback 2026-10-17: no "Saving..." text).
     const RS_SPIN = '<span class="spin" aria-hidden="true"></span>';
     /* THE CLIENT PAGE'S POLISH (review_client_polish, session Porch, 2026-10-24; R.cp, the client link; round 3: Kasper's
-       Review Session too, for the staff members on unread_badges_v2, see svRsKasperPolishOn in 188).
+       Review Session too, for every signed-in staff member, see svRsKasperPolishOn in 188).
        Approve morphs into a small spinner the moment it is pressed, turns into a check the moment the save lands, and
        the row then settles into its Approved state; a refused save puts the buttons back with the reason. A sent change
        request keeps its box open and empty on the same part, so the next change can follow; changes sent while one is

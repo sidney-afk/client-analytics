@@ -624,7 +624,7 @@ preview posts the exact message to the owner's DM only. Sending to clients stays
   (`1738ad3`, run `30129490033`) with its migration applied the same day; rescue
   configuration seed, inventory reconciliation, and retrieval drills remain a
   separate owner-approved window.
-  The thumbnail title buttons (2026-10-23, OPEN_REPAIRS 481, behind `thumbnail_title_buttons_staff`) post to
+  The thumbnail title buttons (2026-10-23, OPEN_REPAIRS 481, for every signed-in staff member, no switch since 2026-10-29) post to
   the `thumbnail-titles` Edge Function with the staff key (admin/SMM only, SyncView-authoritative teams only): it
   runs on the server, reads the filming plan, and writes a description only by compare and set.
   An image pasted or dropped into a description (parent or sub-issue) posts

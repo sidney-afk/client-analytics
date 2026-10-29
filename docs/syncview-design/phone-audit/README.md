@@ -4,8 +4,8 @@ The owner turned down a phone redesign (draft #2307) and asked for today's desig
 audit of the real page on phones and the before/after pictures of what was built. Nothing here ships to the site.
 
 - `harness.js`, `fixture.js`: the offline page (every backend answer local, fictional posts and notes), taken from #2307.
-  The signed-in staff member has the switches the owner's own login has on (`unread_badges_v2`, `caption_history_staff`,
-  `thumbnail_title_buttons_staff`), plus `phone_polish_staff` unless `PHONE_POLISH=0`.
+  The signed-in staff member has every permanent staff feature (since 2026-10-29 the unread badges, caption history,
+  the thumbnail title buttons and the phone polish have no switch, so `PHONE_POLISH=0` no longer turns the polish off).
 - `audit.js`: at 360, 390 and 430 px, light and dark, opens the Calendar Sheet, an opened post, its Notes, Messages (list
   and a conversation) and the client's review page (caption step and video step). Per screen it measures how far down
   the thing people need sits, taps under 44 px or under 4 px apart, horizontal overflow, cut text, inputs under 16 px
@@ -38,7 +38,7 @@ are all needed), two stacked headers in a Messages conversation, the always-show
 
 ## What was built
 
-Staff, behind `phone_polish_staff` (phone width only): 1, 3, 4, 5, 6. Client page, behind `review_client_polish`
+Staff (every signed-in staff member since 2026-10-29; phone width only): 1, 3, 4, 5, 6. Client page, behind `review_client_polish`
 (phone width only): 2, 7, 8, 9. Proof: `docs/syncview-design/tests/phone-polish-browser.js`. OPEN_REPAIRS 501.
 
 | # | After |
@@ -56,7 +56,7 @@ Staff, behind `phone_polish_staff` (phone width only): 1, 3, 4, 5, 6. Client pag
 ## Round 2 (session Grip, 2026-10-25, OPEN_REPAIRS 503)
 
 `audit2.js` covers what round 1 did not: the Calendar's month, week and Review views, a Messages conversation and the
-top of Notes, with `phone_polish_staff` on. Today and the Workload calendar need fixtures this harness does not serve;
+top of Notes, with the staff phone polish. Today and the Workload calendar need fixtures this harness does not serve;
 the existing phone suites (`qa/staff-phone-final-pass.js`, `qa/staff-phone-workload.js`) cover them with overlap,
 scroll and tap checks and are clean. `audit-checks.js` holds the in-page checks both audits share.
 

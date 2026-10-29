@@ -18,7 +18,17 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Latest (SyncView supervisor, 2026-10-28 evening): trial reels rounds 2 and 3, Instagram trial reels and carousels, a returning client
+## Latest (session Permafive, 2026-10-29): five staff features permanent, no switch
+
+- **Permanent for every signed-in staff member, never the client link (OPEN_REPAIRS 605, owner's go 2026-10-29):** the
+  unread badges with Notes and Messages, caption history, the Production thumbnail title buttons, the staff phone polish
+  and Frame.io comments in a card's Notes. 188 no longer reads `unread_badges_v2`, `caption_history_staff`,
+  `thumbnail_title_buttons_staff`, `phone_polish_staff` or `frame_comments_in_notes_staff`; a missing, malformed or
+  switched-off row changes nothing (`svStaffSignedIn`, 188). The five rows can be deleted once the merge is live.
+- **Thumbnail titles status 403s:** opening a Production post no longer asks `thumbnail-titles` for the run status
+  unless the person is an admin or SMM (about 60 refused reads a day before).
+
+: trial reels rounds 2 and 3, Instagram trial reels and carousels, a returning client
 
 - **Trial reels round 2 (#2409, OPEN_REPAIRS 561 to 565; #2410, 566) and round 3 (#2412, 567 to 575):** the owner's feedback rounds. Round 3:
   - a client's answer reaches the staff card at once (a fixed broadcast channel carrying a hashed card id; measured 0.4 to 0.8 s);
@@ -40,7 +50,7 @@ line is older than a week, re-check it before relying on it.
 - **Trial reels, builds 1 to 7, all merged** (last: #2366 build 6, #2367 build 7, #2403 fixes; OPEN_REPAIRS 514 to 560 range). Still behind `trial_reels_pages` (test client only). Live-checked on the test client by session Trialtest: card, Production Assets, the three review pages, Notes, Kasper's second layout (version tiles), and the client player (every version plays in place; dropped or foreign links refused). Still to check live: picking the winner after a real 24 h trial (throwaway card, about 2026-10-29 09:00 UTC). The owner tests next.
 - **Speed (#2391, OPEN_REPAIRS 554):** trial-reels reads about 170 ms, list about 230 ms, writes about 225 to 350 ms of server work.
 - **Off-card read (#2399, OPEN_REPAIRS 557):** trial-reels answers a read of a card whose switch is off with 200 `{enabled:false}` instead of a 409; the Production review packet counts trial-reels reads as reads. The "Production polish gate (push)" lane was red after every merge from 12e8c87 (27 Oct 22:09 UTC) to this fix (28 Oct 06:3x UTC); green since.
-- **Staff switches take `{"all": true}` (#2374, OPEN_REPAIRS 544): merged.** The five staff features (unread_badges_v2, phone_polish_staff, caption_history_staff, thumbnail_title_buttons_staff, frame_comments_in_notes_staff) read `{"all": true, "staff": [14 ids]}` since 2026-10-28 04:0x UTC; the 3-hourly watcher checks them until 2026-10-29 15:30 UTC, then the supervisor proposes making them permanent.
+- **Staff switches take `{"all": true}` (#2374, OPEN_REPAIRS 544): merged. (Since 2026-10-29 the five below have no switch at all; see the Permafive section above.)** The five staff features (unread_badges_v2, phone_polish_staff, caption_history_staff, thumbnail_title_buttons_staff, frame_comments_in_notes_staff) read `{"all": true, "staff": [14 ids]}` since 2026-10-28 04:0x UTC; the 3-hourly watcher checks them until 2026-10-29 15:30 UTC, then the supervisor proposes making them permanent.
 - **Client link polish for all clients:** `review_client_polish` = `{"all": true, "clients": [test client]}` since 2026-10-28 06:26:22 UTC, after live checks at 1440 and 390 and the Notes fixes (#2381, OPEN_REPAIRS 545). Watched 3 days (until 2026-10-31 06:30 UTC). Rollback: `{"clients": [test client]}`.
 - **Client captions in Collaborative mode (#2370, OPEN_REPAIRS 540):** a client may type the caption on the Sheet again while Collaborative mode is on; read only when it is off. Live-checked.
 - **Fewer "new version" prompts (#2389, OPEN_REPAIRS 552; #2402, 558):** a tab someone is working in is asked once, an hour after a newer version appears, never mid-draft; Dismiss holds; a signed-out tab follows the same rules unless a role key is typed. Live-checked.

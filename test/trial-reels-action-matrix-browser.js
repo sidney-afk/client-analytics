@@ -520,7 +520,10 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
 
       // A16. Switch off and on: the versions are kept.
       m = mark();
-      await page.click('.cal-link-post .trl-sw-slot.on'); await sleep(1300);
+      await page.click('.cal-link-post .trl-sw-slot.on'); await sleep(300);
+      // With versions on the card it asks first (Trialeyes E19, 2026-10-29).
+      ok(P + '.sw-off.asks', await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active') && /versions? (is|are) kept/.test(document.getElementById('confirmMsg').textContent)), `${sz} switch off asks first`);
+      await page.click('#confirmYes'); await sleep(1300);
       await inv(page, P + '.sw-off', `${sz} switch off`, { n0: m.n0, writes: 1 });
       ok(P + '.sw-off.row', !(await page.$('.trl-main, .trl-list')), `${sz} switch off: today's row`);
       await page.click('.cal-link-post .trl-sw-slot'); await sleep(1500);

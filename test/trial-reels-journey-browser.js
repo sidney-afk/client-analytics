@@ -621,6 +621,10 @@ const DID = 'del_vid_1';
     // ============ 10. switch the card off; a client the page switch does not list ============
     page = await openCal();
     await page.click('.cal-link-post .trl-sw-slot.on');
+    await sleep(300);
+    // With versions on the card it asks first (Trialeyes E19, 2026-10-29); nothing is sent before the answer.
+    ok(W.sw.enabled === true && await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active')), '10 the card\'s switch off asks first, and sends nothing yet');
+    await page.click('#confirmYes');
     await sleep(1200);
     ok(W.sw.enabled === false && !(await page.$('.trl-main, .trl-list')) && !!(await page.$('.cal-link-post .trl-sw-slot[aria-checked="false"]')), '10 the card\'s switch off: today\'s row plus the faint switch');
     ok(vid.file_url === LINK('E') && card.asset_url === LINK('E'), '10 and the card keeps the winner\'s one link');

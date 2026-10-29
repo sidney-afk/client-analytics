@@ -310,6 +310,16 @@ const SHOTS = process.env.TRIAL_POLISH_SHOTS || '';
         // ---- switch off at once; a refused switch goes back ----
         T.refuse = 'switch_set';
         await page.click('.cal-link-post .trl-sw-slot.on');
+        // With versions on the card it asks first (Trialeyes E19, 2026-10-29); Cancel keeps it on, Turn off goes at once.
+        await sleep(150);
+        const asked = await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active') ? document.getElementById('confirmMsg').textContent : '');
+        ok(/versions? (is|are) kept and come back if you turn it on again/.test(asked), `${tag}: switching off with versions asks first ("${asked}")`);
+        await page.click('#confirmOverlay button:not(#confirmYes)');
+        await sleep(200);
+        ok(!!(await page.$('.cal-link-post.trl-main .trl-sw-slot.on')) && T.enabled, `${tag}: Cancel keeps trial reels on`);
+        await page.click('.cal-link-post .trl-sw-slot.on');
+        await sleep(150);
+        await page.click('#confirmYes');
         ms = await until(page, () => !document.querySelector('.cal-link-post.trl-main') && !!document.querySelector('.cal-link-post .trl-sw-slot[aria-checked="false"]'));
         ok(ms <= FAST, `${tag}: switch off shows in ${ms} ms`);
         await sleep(DELAY + 500);

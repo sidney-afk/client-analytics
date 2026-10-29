@@ -1,4 +1,4 @@
-import { showNotify, showToast } from './040-shared-briefs.js';
+import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -466,9 +466,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* On: the row and its versions list show at once, the list open by itself so the paste row for the next version is
        right there (owner, 2026-10-27), seeded as the function seeds it (Video A is the card's link); then the one card
        is read, not the whole client's list. Off: today's row at once. A refusal puts the row back and says so. */
-    function svTrialToggle(pid, on) {
+    function svTrialToggle(pid, on, sure) {
         const post = _trlPost(pid);
         if (!post) return Promise.resolve(null);
+        /* One click on the switch with versions on the card asks first (Trialeyes E19, 2026-10-29: three approved
+           versions vanished at a stray click). The versions are kept and come back if it is turned on again. */
+        const had = !on && !sure && ((_trlShape(post) || {}).versions || []).filter(TRL_LIVE).length;
+        if (had) {
+            return new Promise(res => showConfirm('Turn off trial reels?', 'The ' + had + (had === 1 ? ' version is' : ' versions are') + ' kept and come back if you turn it on again.',
+                () => res(svTrialToggle(pid, false, true)), 'Turn off'));
+        }
         const slug = _trlSlug(post.client || calState.client);
         const seed = String(post.asset_url || '').trim();
         const wasOpen = _trlOpen.has(pid);

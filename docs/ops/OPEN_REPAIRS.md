@@ -35256,3 +35256,9 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - "Video · N" counts live versions, as the "m/n approved" beside it does.
   - The collapsed row adds "· 1 dropped by the client" ("1 dropped" when narrow), with the same words in the hover.
 - **Proven:** `test/trial-reels-round3-card-browser.js` checks "Video · 2 1/1 approved · 1 dropped by the client", then "saving…" on a slow add, the held page leave, and the state once saved. It fails on main.
+
+## 588. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: one click on the faint switch turned trial reels off with no question, and every version vanished (Trialeyes E19, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** a single click on the switch turned trial reels off at once, and three approved versions disappeared from the card. They came back when it was switched on again.
+- **Fix:** `svTrialToggle` (`src/index/189-trial-reels-card.js.part`) asks first when the card has live versions: "Turn off trial reels? The 3 versions are kept and come back if you turn it on again." It uses today's confirm dialog. With no versions, it turns off at once.
+- **Proven:** `test/trial-reels-polish-browser.js` checks that it asks first, that Cancel keeps it on, and that "Turn off" turns it off at once. The journey (step 10) and Allactions' matrix (A16) now answer the question too.

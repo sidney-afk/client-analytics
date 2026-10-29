@@ -35506,3 +35506,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:**
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
   - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
+
+## 607. [2026-10-29 UTC, BUILT, NOT MERGED] Test: `client-review-requests-unchanged` sometimes missed its last write-refusal report (session Trials, asked by the Supervisor)
+
+- **What happened:** on PR 2452 and PR 2455, `test/client-review-requests-unchanged-browser.js` sometimes failed "Request changes: requests differ from main". The recorded run ends with a `write-diagnostics` report (`browser_claim`, code `legacy_tweak_confirmation_pending`), and that report was missing from the failing run.
+- **Why:** the report is sent only after the legacy outbox has re-read the save to confirm it, with growing pauses of 350, 700 and 1050 ms (`140-calendar-legacy-outbox`). Measured over 4 runs, it reached the page's network 2.23 to 2.31 s after the click, on both the Calendar and Samples surfaces. The test stopped listening after a fixed 2.5 s, so on a loaded machine the report arrived too late. The page sent the report every time; no report was lost.
+- **Fix (test only):** after each action, the test waits until the writes have finished instead of for a fixed time. It waits at least the old 2.5 s, then until 1.5 s pass with no new write, with a 15 s cap. The recorded requests and the function hashes are unchanged.
+- **Proven:** 12 copies run at once on a 4-core machine: the old test failed 2 of 12 runs, the new one failed none. Run alone, it passed 3 of 3.

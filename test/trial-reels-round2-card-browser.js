@@ -141,7 +141,7 @@ const SHOTS = process.env.TRIAL_R2_SHOTS || '';
           ok(hv.before && hv.before.bg === hv.after.bg && hv.before.field === hv.after.field && hv.before.icon !== hv.after.icon, `${tag}: a hover on the pencil changes only its icon: ${JSON.stringify(hv)}`);
         }
         const st = await state(page);
-        // "Video · N" counts the live versions, not the dropped one (Trialeyes E8, OPEN_REPAIRS 586).
+        // "Video · N" counts the live versions, not the dropped one (Trialeyes E8, OPEN_REPAIRS 595).
         ok(st && /Video · 3/.test(st.text) && /0\/3/.test(st.text) && !st.cut, `${tag}: the trial state reads whole, no "…": ${JSON.stringify(st)}`);
         ok(st && /0 of 3 approved/.test(st.title), `${tag}: the full words are in the hover: "${st && st.title}"`);
         await shot(page, 'r2-card-' + label + '-' + theme);

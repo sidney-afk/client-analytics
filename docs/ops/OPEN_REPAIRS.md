@@ -35254,143 +35254,6 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
-## 592. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: on the client's Sheet and Month a trial card looked like any card (Trialtest, session Trials)
-
-- **What happened:** on the client link's Sheet and Month, a card with several trial versions looked like a card with one video, and nothing said there were versions to review.
-- **The Supervisor's ruling (2026-10-29):** a small muted "N versions" tag beside the card's title, in the style of the other small tags, with no colour accent. Tapping it opens the Review page on the first waiting version.
-- **Fix:** `svTrialClientTagHtml` (189, the core part the Sheet and Month draw from; the review page's own part loads later) counts the live versions the client still has to answer. The Sheet's title row (160) and the Month card (180) draw it on the client link only. A tap opens the Review page on that card (195 `_rsCur`), at its first waiting version. The first draw reads the client's trial cards once (kept 30 s) and draws again when they are in.
-- **Note:** without Collaborative mode the client's Sheet and Month show finished posts only, so a card still under review is not on them and shows no tag.
-- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=hint`) at 1440 and 390: "3 versions" beside the Sheet title, the tap opens the Review page on Video A, and the Month card says it too. Fails on main.
-
-## 586. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a new version said "waiting" before it was saved, and a quick reload lost it; the counts disagreed; a client's drop did not show on the collapsed row (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 1440):**
-  - E7: a new version showed "waiting" at once while the server took about 4 s. A reload 80 ms after Enter lost Video D silently.
-  - E8: the row read "Video · 4 1/1 approved". The 4 counted dropped versions; the 1/1 did not.
-  - E9: after a client's "Not this one" on B, with A approved, the card went green Approved and the collapsed row read "1/1 approved". Nothing said there was a drop to act on.
-- **Fix (`src/index/189-trial-reels-card.js.part`):**
-  - A version being added says "saving…" until the server answers.
-  - While any trial write is on its way, leaving the page asks first (`beforeunload`).
-  - "Video · N" counts live versions, as the "m/n approved" beside it does.
-  - The collapsed row adds "· 1 dropped by the client" ("1 dropped" when narrow), with the same words in the hover.
-- **Proven:** `test/trial-reels-round3-card-browser.js` checks "Video · 2 1/1 approved · 1 dropped by the client", then "saving…" on a slow add, the held page leave, and the state once saved. It fails on main.
-
-## 588. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: one click on the faint switch turned trial reels off with no question, and every version vanished (Trialeyes E19, session Trials)
-
-- **What happened (session Trialeyes, live at 1440):** a single click on the switch turned trial reels off at once, and three approved versions disappeared from the card. They came back when it was switched on again.
-- **Fix:** `svTrialToggle` (`src/index/189-trial-reels-card.js.part`) asks first when the card has live versions: "Turn off trial reels? The 3 versions are kept and come back if you turn it on again." It uses today's confirm dialog. With no versions, it turns off at once.
-- **Proven:** `test/trial-reels-polish-browser.js` checks that it asks first, that Cancel keeps it on, and that "Turn off" turns it off at once. The journey (step 10) and Allactions' matrix (A16) now answer the question too.
-
-## 585. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live):**
-  - Nothing on the client link explained "TRIAL", or why there were several versions.
-  - At 390, "Finish reviewing 0 of 2" and "Approve all (2 waiting)" each wrapped onto two lines inside their buttons.
-- **Fix (`src/index/194-review-trial-versions.js.part`):**
-  - On the client link only, one plain line sits under "TRIAL": "We'll test each version for 24 h and keep the best one."
-  - At phone width, "Approve all" and "Finish reviewing" each take a full-width line of their own and never wrap inside.
-- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e11`) checks the client at 390 (light and dark) and at 1440, and that the SMM's page has no such line. Both buttons stay on one line. It fails on main.
-- **Also (Trialeyes E20, E21):**
-  - E20: on the client link, Back while typing a change left SyncView, because the link is the first page in history, and the words were lost. Words in the change box not yet sent now make leaving ask first (`beforeunload`, 195).
-  - E21: at 390, Kasper's "Finish reviewing 0 of 4" wrapped. The same one-line rule now covers his page.
-  - Both are checked in `TRL_PART=e11`. E21 fails on main (51 px).
-- **E13 (Kasper's orange "Tweaks are on Frame" reads as a status, not a button):** the button and its style predate trial reels (#2291 and earlier). Left as is, as the Supervisor asked.
-
-## 582. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a dead Frame.io link saved silently as a normal waiting version (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 1440):** a Frame.io link that no longer exists saved as an ordinary "waiting" version. Only the player, later, said Frame.io didn't know it.
-- **Fix (`src/index/189-trial-reels-card.js.part`):** the card runs the same sharing check as Production's Assets (`trial-reels` read with `probe: true`) after a version's link is saved, and once per card when its versions list first opens.
-  - A link the check finds gone says "link not found" on its row. A locked one says "no access". The hover says what to do.
-  - The verdict is kept per link, so a new link drops it.
-  - No server change.
-- **Measured from this session:** a dead `f.io` link and a dead `next.frame.io/share` link both answer 404 (the check says "expired"). An `app.frame.io/reviews` link answers 200 for any id, so a dead one of those can't be told apart.
-- **Proven:** `test/trial-reels-round3-card-browser.js` checks that B, dead, says "link not found" after one check, and that reopening the list checks nothing more. It fails on main.
-- **Also (Trialeyes E18, 2026-10-29):** in Production's Assets, a version link that never existed read "Expired". A 404 from the provider now reads "Not found" (245). This is checked in `test/trial-reels-production-browser.js`.
-
-## 589. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a card with one version went "on trial" against nothing; Posted showed on the card only on the next 30 s list (Trialeyes E15, E16, session Trials)
-
-- **What happened (Trialeyes' walk):**
-  - E16: a card whose other versions were all dropped, with one approved version left, was set to Posted and that one version went "On trial · 24 h left", a test with nothing to test against. The Supervisor's ruling: with one live version, Posted makes it the winner straight away.
-  - E15: after Posted, the staff card kept "3/3 approved" until the next 30-second list, though the function had already started the trial.
-- **Fix:**
-  - `supabase/functions/trial-reels/logic.mjs`: `autoTrialPatches` takes the card's link; with exactly one live version, approved, whose link is the card's, it returns that version as the winner (`posted_at` set) instead of putting it on trial.
-  - `supabase/functions/trial-reels/index.ts`: `startIfPosted` writes the card's `winner_letter` (by "posted") and a `winner_set` ledger row when that happens; every caller uses the winner it returns. Auto-deployed on merge; not a Section 4 function.
-  - `src/index/189-trial-reels-card.js.part`: a Posted card whose approved versions have not started reads that one card again at once (one read per Posted time, never a loop) and repaints its row.
-  - `docs/features/TRIAL_REELS_PLAN.md`: the `trial_start` row says so.
-- **Proven:** `test/trial-reels-logic.js` and `test/trial-reels-function-deno.ts` (one live version: Posted makes it the winner; two still go on trial), and `test/trial-reels-round3-card-browser.js` ("On trial" shows straight after Posted, one read, no loop), which fails on main.
-
-## 580. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a refused link on "+ Add version" opened a full-screen dialog and lost the pasted text; plain text and YouTube got different rules (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 1440):**
-  - A wrong link on "+ Add version" opened the full-screen "did not save" dialog, and the pasted text was gone. The wrong links tried were A's own link, a YouTube link and plain text.
-  - Plain text read "Frame.io only", while YouTube read "Frame.io, Google Drive or Dropbox".
-- **Fix (`src/index/189-trial-reels-card.js.part`):**
-  - A link the page refuses before sending stays in its field, marked invalid, with the reason under it (`role="alert"`). This covers a link that isn't https, another site, and another version's link. A version row's own link field gets the same treatment.
-  - Enter keeps the focus there to fix it. A click away keeps the text and the reason, and Escape closes the field.
-  - Plain text and other sites now get one sentence: "Paste a Frame.io, Google Drive or Dropbox link to the video."
-  - A refusal from the server still uses today's dialog.
-- **Proven:** `test/trial-reels-round3-card-browser.js` covers plain text, YouTube and A's link at 1440 and 390, light and dark. It checks the text is kept with the reason under the field, no dialog appears, a click away keeps both, and Escape closes the field. It fails on main.
-
-## 581. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: "Video · 0" with an open-link icon and nothing to open; the "+ Add version" tooltip covered the row above (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 1440):**
-  - Switched on with no version yet, the row read "Video · 0" and still showed the open-link icon.
-  - The "+ Add version" hover tip ("Add Video B by pasting its link") covered the Video A row and spilled past the card's left edge.
-- **Fix (`src/index/189-trial-reels-card.js.part`):**
-  - With no version the row reads "Video", and it shows the open-link icon only when the card has a link.
-  - "+ Add version" has no hover tip. Its spoken name still names the next letter.
-- **The switched-off toggle (E5, the Supervisor's ruling 2026-10-29):** it now says "Trial reels" in a small muted word beside the switch, at 1440 and 390, without growing its one-line row; the hover tip stays for the mouse.
-- **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).
-
-## 590. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version's link that another card already carries saved without a word (Trialeyes E17, session Trials)
-
-- **What happened (Trialeyes' walk):** a version's pasted link that was already another card's Video link saved silently, so the same cut could sit on two cards with nobody told.
-- **The Supervisor's ruling:** allow it (the team may mean it), but say so on the row.
-- **Fix (`src/index/189-trial-reels-card.js.part`, `020` CSS):** under a live version whose link another card of the same client carries (that card's Video link, or one of its live versions, among the cards this page has loaded), a quiet one-line note: "This link is also on "card name"." Muted, no dialog, nothing refused. Another version of the same card is still refused, as before.
-- **Proven:** `test/trial-reels-card-browser.js` at 1440 and 390: the paste saves, the row says where else the link is, one note, no dialog. Fails on main.
-
-## 583. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Production's Assets and a second client tab did not take the live push (Trialtest, session Trials)
-
-- **What happened (session Trialtest's overnight live pass on the test client):**
-  - A client's answer reached the SMM's Calendar card in about 1 s.
-  - On Production's Assets it showed only after 15 to 42 s, or not within 45 s. Staff drop and bring-back behaved the same.
-  - A second client tab showed another tab's change only after about 25 s, from its 30 s refresh.
-- **Why:** only the staff Calendar listened on the `trial-reels` broadcast (OPEN_REPAIRS 567).
-- **Fix:**
-  - `svTrialOnChange` (189) lets another page register for the same one channel, with the same hash-only message.
-  - Production's Assets (245) reads the card it shows again when its card's hash arrives.
-  - The review pages (194), meaning Kasper's, the SMM's and the client link, read their client's cards again.
-  - Each joins the channel only once it has loaded a trial card. A burst reads once, and another card's hash reads nothing.
-- **Proven:**
-  - `test/trial-reels-production-browser.js`: the client's approve shows on the Assets panel in about 0.2 s.
-  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=push`): another tab's approve shows on the client page in about 0.2 s.
-  - Both fail on main, where neither page listens.
-
-## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live at 390):**
-  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
-  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
-- **Fix:**
-  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
-  - The passed dot gets a small cross mark beside its struck letter.
-- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.
-
-## 591. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
-
-- **What happened (session Trialeyes, live, the SMM's Review tab at 1440):**
-  - The SMM approved Video A, then asked for a change on Video B.
-  - The card went to Tweaks Needed, as plan section 5 says.
-  - Video C, which nobody had looked at, then showed B's "Change asked" and B's quote instead of its own state.
-- **Why:** while the card's video part has a change asked, `_rsActiveD` (195) draws that part's last change note on whichever version is on screen.
-- **Fix:** on a trial card, `svTrialReviewChangeHtml` (194) gives each version its own state:
-  - "Video A approved" (green);
-  - "Video C waits: Video B's change is with the editor" (plain);
-  - B keeps today's "Change asked" with its note.
-- **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
-- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
-- **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
-
 ## 587. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version's change took the whole card to Tweaks Needed, so the reviewer lost the other versions and nothing brought the card back (Trialtest bug 1, Trialeyes E1 and E14, session Trials)
 
 - **What happened (live, test client):**
@@ -35408,7 +35271,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `test/trial-reels-round3-card-browser.js` checks that "New cut ready" sends the card back to For SMM Approval, and leaves it in Tweaks Needed while another change is open.
   - `test/trial-reels-today-browser.js` at 1100 and 390: only the review-stage video sub-issue whose trial card has a version asked to change is listed, as "changes asked on Video B", and it leaves once the new cut is in. Fails on main.
 
-## 579. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version the SMM approved read "waiting" in the same grey as one nobody had seen (Trialeyes, session Trials)
+## 588. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version the SMM approved read "waiting" in the same grey as one nobody had seen (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live at 1440):** after the SMM approved Video A, the card's versions list still said A "waiting", in the same grey as the unreviewed C. Only the hover said "SMM: approved".
 - **Fix:** `svTrialLabelHtml` (`src/index/189-trial-reels-card.js.part`) shows a waiting version's place in the chain:
@@ -35417,3 +35280,141 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
   Each tag uses the card status colours of that stage (Kasper Approval, Client Approval). The hover still names who said what, and Production's rows get the same labels.
 - **Proven:** `test/trial-reels-round3-card-browser.js` checks A "with Kasper", B "with client" and C "waiting", each in its own colour, in light and dark. It fails on main.
+
+## 589. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a refused link on "+ Add version" opened a full-screen dialog and lost the pasted text; plain text and YouTube got different rules (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - A wrong link on "+ Add version" opened the full-screen "did not save" dialog, and the pasted text was gone. The wrong links tried were A's own link, a YouTube link and plain text.
+  - Plain text read "Frame.io only", while YouTube read "Frame.io, Google Drive or Dropbox".
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A link the page refuses before sending stays in its field, marked invalid, with the reason under it (`role="alert"`). This covers a link that isn't https, another site, and another version's link. A version row's own link field gets the same treatment.
+  - Enter keeps the focus there to fix it. A click away keeps the text and the reason, and Escape closes the field.
+  - Plain text and other sites now get one sentence: "Paste a Frame.io, Google Drive or Dropbox link to the video."
+  - A refusal from the server still uses today's dialog.
+- **Proven:** `test/trial-reels-round3-card-browser.js` covers plain text, YouTube and A's link at 1440 and 390, light and dark. It checks the text is kept with the reason under the field, no dialog appears, a click away keeps both, and Escape closes the field. It fails on main.
+
+## 590. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: "Video · 0" with an open-link icon and nothing to open; the "+ Add version" tooltip covered the row above (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - Switched on with no version yet, the row read "Video · 0" and still showed the open-link icon.
+  - The "+ Add version" hover tip ("Add Video B by pasting its link") covered the Video A row and spilled past the card's left edge.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - With no version the row reads "Video", and it shows the open-link icon only when the card has a link.
+  - "+ Add version" has no hover tip. Its spoken name still names the next letter.
+- **The switched-off toggle (E5, the Supervisor's ruling 2026-10-29):** it now says "Trial reels" in a small muted word beside the switch, at 1440 and 390, without growing its one-line row; the hover tip stays for the mouse.
+- **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).
+
+## 591. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a dead Frame.io link saved silently as a normal waiting version (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** a Frame.io link that no longer exists saved as an ordinary "waiting" version. Only the player, later, said Frame.io didn't know it.
+- **Fix (`src/index/189-trial-reels-card.js.part`):** the card runs the same sharing check as Production's Assets (`trial-reels` read with `probe: true`) after a version's link is saved, and once per card when its versions list first opens.
+  - A link the check finds gone says "link not found" on its row. A locked one says "no access". The hover says what to do.
+  - The verdict is kept per link, so a new link drops it.
+  - No server change.
+- **Measured from this session:** a dead `f.io` link and a dead `next.frame.io/share` link both answer 404 (the check says "expired"). An `app.frame.io/reviews` link answers 200 for any id, so a dead one of those can't be told apart.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks that B, dead, says "link not found" after one check, and that reopening the list checks nothing more. It fails on main.
+- **Also (Trialeyes E18, 2026-10-29):** in Production's Assets, a version link that never existed read "Expired". A 404 from the provider now reads "Not found" (245). This is checked in `test/trial-reels-production-browser.js`.
+
+## 592. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Production's Assets and a second client tab did not take the live push (Trialtest, session Trials)
+
+- **What happened (session Trialtest's overnight live pass on the test client):**
+  - A client's answer reached the SMM's Calendar card in about 1 s.
+  - On Production's Assets it showed only after 15 to 42 s, or not within 45 s. Staff drop and bring-back behaved the same.
+  - A second client tab showed another tab's change only after about 25 s, from its 30 s refresh.
+- **Why:** only the staff Calendar listened on the `trial-reels` broadcast (OPEN_REPAIRS 567).
+- **Fix:**
+  - `svTrialOnChange` (189) lets another page register for the same one channel, with the same hash-only message.
+  - Production's Assets (245) reads the card it shows again when its card's hash arrives.
+  - The review pages (194), meaning Kasper's, the SMM's and the client link, read their client's cards again.
+  - Each joins the channel only once it has loaded a trial card. A burst reads once, and another card's hash reads nothing.
+- **Proven:**
+  - `test/trial-reels-production-browser.js`: the client's approve shows on the Assets panel in about 0.2 s.
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=push`): another tab's approve shows on the client page in about 0.2 s.
+  - Both fail on main, where neither page listens.
+
+## 593. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 390):**
+  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
+  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
+- **Fix:**
+  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
+  - The passed dot gets a small cross mark beside its struck letter.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.
+
+## 594. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live):**
+  - Nothing on the client link explained "TRIAL", or why there were several versions.
+  - At 390, "Finish reviewing 0 of 2" and "Approve all (2 waiting)" each wrapped onto two lines inside their buttons.
+- **Fix (`src/index/194-review-trial-versions.js.part`):**
+  - On the client link only, one plain line sits under "TRIAL": "We'll test each version for 24 h and keep the best one."
+  - At phone width, "Approve all" and "Finish reviewing" each take a full-width line of their own and never wrap inside.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e11`) checks the client at 390 (light and dark) and at 1440, and that the SMM's page has no such line. Both buttons stay on one line. It fails on main.
+- **Also (Trialeyes E20, E21):**
+  - E20: on the client link, Back while typing a change left SyncView, because the link is the first page in history, and the words were lost. Words in the change box not yet sent now make leaving ask first (`beforeunload`, 195).
+  - E21: at 390, Kasper's "Finish reviewing 0 of 4" wrapped. The same one-line rule now covers his page.
+  - Both are checked in `TRL_PART=e11`. E21 fails on main (51 px).
+- **E13 (Kasper's orange "Tweaks are on Frame" reads as a status, not a button):** the button and its style predate trial reels (#2291 and earlier). Left as is, as the Supervisor asked.
+
+## 595. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a new version said "waiting" before it was saved, and a quick reload lost it; the counts disagreed; a client's drop did not show on the collapsed row (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - E7: a new version showed "waiting" at once while the server took about 4 s. A reload 80 ms after Enter lost Video D silently.
+  - E8: the row read "Video · 4 1/1 approved". The 4 counted dropped versions; the 1/1 did not.
+  - E9: after a client's "Not this one" on B, with A approved, the card went green Approved and the collapsed row read "1/1 approved". Nothing said there was a drop to act on.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A version being added says "saving…" until the server answers.
+  - While any trial write is on its way, leaving the page asks first (`beforeunload`).
+  - "Video · N" counts live versions, as the "m/n approved" beside it does.
+  - The collapsed row adds "· 1 dropped by the client" ("1 dropped" when narrow), with the same words in the hover.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks "Video · 2 1/1 approved · 1 dropped by the client", then "saving…" on a slow add, the held page leave, and the state once saved. It fails on main.
+
+## 596. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: one click on the faint switch turned trial reels off with no question, and every version vanished (Trialeyes E19, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** a single click on the switch turned trial reels off at once, and three approved versions disappeared from the card. They came back when it was switched on again.
+- **Fix:** `svTrialToggle` (`src/index/189-trial-reels-card.js.part`) asks first when the card has live versions: "Turn off trial reels? The 3 versions are kept and come back if you turn it on again." It uses today's confirm dialog. With no versions, it turns off at once.
+- **Proven:** `test/trial-reels-polish-browser.js` checks that it asks first, that Cancel keeps it on, and that "Turn off" turns it off at once. The journey (step 10) and Allactions' matrix (A16) now answer the question too.
+
+## 597. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a card with one version went "on trial" against nothing; Posted showed on the card only on the next 30 s list (Trialeyes E15, E16, session Trials)
+
+- **What happened (Trialeyes' walk):**
+  - E16: a card whose other versions were all dropped, with one approved version left, was set to Posted and that one version went "On trial · 24 h left", a test with nothing to test against. The Supervisor's ruling: with one live version, Posted makes it the winner straight away.
+  - E15: after Posted, the staff card kept "3/3 approved" until the next 30-second list, though the function had already started the trial.
+- **Fix:**
+  - `supabase/functions/trial-reels/logic.mjs`: `autoTrialPatches` takes the card's link; with exactly one live version, approved, whose link is the card's, it returns that version as the winner (`posted_at` set) instead of putting it on trial.
+  - `supabase/functions/trial-reels/index.ts`: `startIfPosted` writes the card's `winner_letter` (by "posted") and a `winner_set` ledger row when that happens; every caller uses the winner it returns. Auto-deployed on merge; not a Section 4 function.
+  - `src/index/189-trial-reels-card.js.part`: a Posted card whose approved versions have not started reads that one card again at once (one read per Posted time, never a loop) and repaints its row.
+  - `docs/features/TRIAL_REELS_PLAN.md`: the `trial_start` row says so.
+- **Proven:** `test/trial-reels-logic.js` and `test/trial-reels-function-deno.ts` (one live version: Posted makes it the winner; two still go on trial), and `test/trial-reels-round3-card-browser.js` ("On trial" shows straight after Posted, one read, no loop), which fails on main.
+
+## 598. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version's link that another card already carries saved without a word (Trialeyes E17, session Trials)
+
+- **What happened (Trialeyes' walk):** a version's pasted link that was already another card's Video link saved silently, so the same cut could sit on two cards with nobody told.
+- **The Supervisor's ruling:** allow it (the team may mean it), but say so on the row.
+- **Fix (`src/index/189-trial-reels-card.js.part`, `020` CSS):** under a live version whose link another card of the same client carries (that card's Video link, or one of its live versions, among the cards this page has loaded), a quiet one-line note: "This link is also on "card name"." Muted, no dialog, nothing refused. Another version of the same card is still refused, as before.
+- **Proven:** `test/trial-reels-card-browser.js` at 1440 and 390: the paste saves, the row says where else the link is, one note, no dialog. Fails on main.
+
+## 599. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live, the SMM's Review tab at 1440):**
+  - The SMM approved Video A, then asked for a change on Video B.
+  - The card went to Tweaks Needed, as plan section 5 says.
+  - Video C, which nobody had looked at, then showed B's "Change asked" and B's quote instead of its own state.
+- **Why:** while the card's video part has a change asked, `_rsActiveD` (195) draws that part's last change note on whichever version is on screen.
+- **Fix:** on a trial card, `svTrialReviewChangeHtml` (194) gives each version its own state:
+  - "Video A approved" (green);
+  - "Video C waits: Video B's change is with the editor" (plain);
+  - B keeps today's "Change asked" with its note.
+- **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
+- **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
+
+## 600. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: on the client's Sheet and Month a trial card looked like any card (Trialtest, session Trials)
+
+- **What happened:** on the client link's Sheet and Month, a card with several trial versions looked like a card with one video, and nothing said there were versions to review.
+- **The Supervisor's ruling (2026-10-29):** a small muted "N versions" tag beside the card's title, in the style of the other small tags, with no colour accent. Tapping it opens the Review page on the first waiting version.
+- **Fix:** `svTrialClientTagHtml` (189, the core part the Sheet and Month draw from; the review page's own part loads later) counts the live versions the client still has to answer. The Sheet's title row (160) and the Month card (180) draw it on the client link only. A tap opens the Review page on that card (195 `_rsCur`), at its first waiting version. The first draw reads the client's trial cards once (kept 30 s) and draws again when they are in.
+- **Note:** without Collaborative mode the client's Sheet and Month show finished posts only, so a card still under review is not on them and shows no tag.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=hint`) at 1440 and 390: "3 versions" beside the Sheet title, the tap opens the Review page on Video A, and the Month card says it too. Fails on main.
+

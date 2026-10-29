@@ -748,4 +748,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svStaffSignedIn, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };
+export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };

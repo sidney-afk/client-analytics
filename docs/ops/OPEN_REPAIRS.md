@@ -35254,6 +35254,25 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 586. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a new version said "waiting" before it was saved, and a quick reload lost it; the counts disagreed; a client's drop did not show on the collapsed row (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - E7: a new version showed "waiting" at once while the server took about 4 s. A reload 80 ms after Enter lost Video D silently.
+  - E8: the row read "Video · 4 1/1 approved". The 4 counted dropped versions; the 1/1 did not.
+  - E9: after a client's "Not this one" on B, with A approved, the card went green Approved and the collapsed row read "1/1 approved". Nothing said there was a drop to act on.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A version being added says "saving…" until the server answers.
+  - While any trial write is on its way, leaving the page asks first (`beforeunload`).
+  - "Video · N" counts live versions, as the "m/n approved" beside it does.
+  - The collapsed row adds "· 1 dropped by the client" ("1 dropped" when narrow), with the same words in the hover.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks "Video · 2 1/1 approved · 1 dropped by the client", then "saving…" on a slow add, the held page leave, and the state once saved. It fails on main.
+
+## 588. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: one click on the faint switch turned trial reels off with no question, and every version vanished (Trialeyes E19, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** a single click on the switch turned trial reels off at once, and three approved versions disappeared from the card. They came back when it was switched on again.
+- **Fix:** `svTrialToggle` (`src/index/189-trial-reels-card.js.part`) asks first when the card has live versions: "Turn off trial reels? The 3 versions are kept and come back if you turn it on again." It uses today's confirm dialog. With no versions, it turns off at once.
+- **Proven:** `test/trial-reels-polish-browser.js` checks that it asks first, that Cancel keeps it on, and that "Turn off" turns it off at once. The journey (step 10) and Allactions' matrix (A16) now answer the question too.
+
 ## 585. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live):**

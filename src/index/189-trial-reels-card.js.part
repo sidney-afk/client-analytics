@@ -1,4 +1,4 @@
-import { showNotify, showToast } from './040-shared-briefs.js';
+import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -291,6 +291,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* Show `apply` now, run `task` after the card's earlier writes, and drop the change when it settles: kept by the
        answer the task stored, or gone with the refusal (the task says it in words). Answers the task's result. */
+    /* A trial write still on its way: leaving the page asks first (Trialeyes E7, 2026-10-29: a reload 80 ms after
+       Enter lost a new version silently). */
+    window.addEventListener('beforeunload', e => {
+        if (!Object.keys(_trlPending).some(pid => (_trlPending[pid] || []).length)) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
     function _trlOptimistic(pid, apply, task) {
         const op = { apply };
         (_trlPending[pid] || (_trlPending[pid] = [])).push(op);
@@ -354,9 +361,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         // A version the client passed on is not waiting for anyone's OK: the team drops it (owner, 2026-10-28).
         const live = vs.filter(v => TRL_LIVE(v) && !v.client_pass_at);
-        if (!live.length) return { text: '' };
+        // A version the client said "Not this one" to is the team's to drop: the collapsed row says so (Trialeyes E9).
+        const passed = vs.filter(v => TRL_LIVE(v) && v.client_pass_at).length;
+        const drop = passed ? ' · ' + passed + '<span class="trl-state-w"> dropped by the client</span><span class="trl-state-n"> dropped</span>' : '';
+        const dropWords = passed ? ', ' + passed + ' dropped by the client' : '';
+        if (!live.length) return passed ? { text: passed + ' dropped by the client', html: drop.slice(3), words: passed + ' dropped by the client' } : { text: '' };
         const n = live.filter(v => v.status === 'approved').length;
-        return { text: n + '/' + live.length + ' approved', html: n + '/' + live.length + '<span class="trl-state-w"> approved</span>', words: n + ' of ' + live.length + ' approved' };
+        return { text: n + '/' + live.length + ' approved' + (passed ? ' · ' + passed + ' dropped by the client' : ''), html: n + '/' + live.length + '<span class="trl-state-w"> approved</span>' + drop, words: n + ' of ' + live.length + ' approved' + dropWords };
     }
     /* No visual noise: a label shows only where it says something the row does not. One every live version shares is
        dropped (the collapsed row already says it), "lost" once there is a winner; "dropped", "winner" and "change
@@ -413,8 +424,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // With no version yet, the list stands open: its only row is where the first link is pasted.
         const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);
-        // No version yet: "Video", never "Video · 0" (Trialeyes E5, 2026-10-29).
-        const main = winner ? 'Video ' + winner.letter : vs.length ? 'Video · ' + vs.length : 'Video';
+        // No live version: "Video", never "Video · 0" (Trialeyes E5); the count leaves out dropped versions, as
+        // "1/1 approved" beside it does (Trialeyes E8, 2026-10-29).
+        const live = vs.filter(TRL_LIVE).length;
+        const main = winner ? 'Video ' + winner.letter : live ? 'Video · ' + live : 'Video';
         // The open-link icon only when there is a link to open.
         const ext = String(post.asset_url || '').trim() ? parts.extIco : '';
         const p = _calEscAttr(pid);
@@ -452,7 +465,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // link was pasted asks for no link (Trialtest, 2026-10-28).
             const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>' + (v.status === 'dropped' ? '' : '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>');
-            const label = _trlLinkBadHtml(pid, v) || (svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
+            // A version the server has not taken yet says so, not "waiting" (Trialeyes E7, 2026-10-29).
+            const label = v._saving ? '<span class="trl-lab" data-l="saving" role="status">saving…</span>'
+                : _trlLinkBadHtml(pid, v) || (svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -536,9 +551,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* On: the row and its versions list show at once, the list open by itself so the paste row for the next version is
        right there (owner, 2026-10-27), seeded as the function seeds it (Video A is the card's link); then the one card
        is read, not the whole client's list. Off: today's row at once. A refusal puts the row back and says so. */
-    function svTrialToggle(pid, on) {
+    function svTrialToggle(pid, on, sure) {
         const post = _trlPost(pid);
         if (!post) return Promise.resolve(null);
+        /* One click on the switch with versions on the card asks first (Trialeyes E19, 2026-10-29: three approved
+           versions vanished at a stray click). The versions are kept and come back if it is turned on again. */
+        const had = !on && !sure && ((_trlShape(post) || {}).versions || []).filter(TRL_LIVE).length;
+        if (had) {
+            return new Promise(res => showConfirm('Turn off trial reels?', 'The ' + had + (had === 1 ? ' version is' : ' versions are') + ' kept and come back if you turn it on again.',
+                () => res(svTrialToggle(pid, false, true)), 'Turn off'));
+        }
         const slug = _trlSlug(post.client || calState.client);
         const seed = String(post.asset_url || '').trim();
         const wasOpen = _trlOpen.has(pid);
@@ -698,7 +720,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return _trlOptimistic(pid, s => {
             const out = s || { enabled: true, winner_letter: null, versions: [] };
             out.versions = out.versions || [];
-            if (!out.versions.some(x => x.frame_url === link)) out.versions.push({ letter, status: 'waiting', frame_url: link, on_card: first });
+            if (!out.versions.some(x => x.frame_url === link)) out.versions.push({ letter, status: 'waiting', frame_url: link, on_card: first, _saving: true });
             return out;
         }, async () => {
             const before = String(post.asset_url || '');

@@ -35506,3 +35506,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:**
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
   - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
+
+## 610. [2026-10-29 UTC, BUILT, NOT MERGED] Messages inbox: a forced re-read asked for while a read was on its way was dropped, so a live change could stay off the list for up to 60 s (session Mainrace)
+
+- **What happened:** `messages-inbox-browser.js` went red once on main c87aece (entry-links-boot (3), job 123676864145): "L: the same-name conversation is listed", then `TypeError: Cannot read properties of null (reading 'innerText')` on the next read of that row. The commit only touched trial reels.
+- **Why:** `_msgLoad(force)` returned at once while another read was on its way (`if (_msgState.loading) return`). Background reads (the live refresh after a card edit, another tab's read ping, the 60 s safety net) come at varying times: 10 to 12 inbox reads had run before L across six local runs. When one of them had been answered before the test added the conversation, L's forced re-read was dropped, and the list kept the older answer for the whole 8 s wait. A person hits the same thing: a live refresh or Mark unread that lands while a read is out is lost until the next 60 s refresh. The reply path already worked around it by waiting for the read to finish (326, `_msgSendQueued`).
+- **Fix (326):** a forced read asked for while one is on its way is remembered (`_msgState.again`) and runs once that read lands. A change of sign-in clears it with the rest of the state.
+- **Proven:** L now starts a read that is answered from the list as it was before the conversation was added, and asks for the forced read while that one is still out. On main's page code this fails every run with the same two messages as CI; with the fix the whole file passes.

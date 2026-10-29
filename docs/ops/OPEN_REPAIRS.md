@@ -35244,6 +35244,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
 
+## 578. [2026-10-29 UTC, BUILT, NOT MERGED] Kasper's Review Session read the queue before the client list loaded: a short queue under a notice that named client slugs (session Queueload)
+
+- **What happened (session Trialeyes, signed in as Kasper on the live site):** the Review Session sometimes opened with a red notice naming client slugs and saying "the client list had not finished loading when the queue was read". The card count went from 4 to 12 between two loads.
+- **Cause:** `_kasperLoadReviewRun` (330) read the queue at once, with whatever the client list held. Until Clients Info (or this browser's saved copy of it) is merged by `wlMergeClientsFromSheet` (070), that list is only the seed in code, so every client added since was left out. The re-read when the list grew was only armed on the fast boot, so elsewhere the short queue stayed. Offline, the short queue never recovered: 1 card of 4.
+- **Fix:**
+  - `070`: `wlRosterReady()` / `wlRosterIsReady()`, set the first time the list is merged.
+  - `330`: the queue read waits for the list (up to 15 s; the staff copy of the list gives up at 10 s and falls back to the Sheet). The card skeleton stays up meanwhile, and the painter keeps it until the first read lands, so an empty "Waiting for your review 0" is not drawn either. If the list grows during a read, the read is repeated before anything is drawn (now on every boot, not only the fast one). If the wait times out, the queue is read with what is there and read again when the list arrives.
+  - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
+- **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
+
 ## 585. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live):**

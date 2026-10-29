@@ -96,9 +96,19 @@
             WL_CLIENT_CANONICAL.set(slug, name);
             WL_CLIENT_NAMES.push(name);
         }
+        _wlRosterIsReady = true;
+        _wlRosterReadyResolve();
     }
+    // The list is only the seed until Clients Info (or this browser's saved copy of
+    // it) has been merged. A reader that needs every client, like Kasper's queue,
+    // waits for this instead of reading with the seed and showing a short list.
+    let _wlRosterIsReady = false;
+    let _wlRosterReadyResolve = () => {};
+    const _wlRosterReadyPromise = new Promise(resolve => { _wlRosterReadyResolve = resolve; });
+    function wlRosterIsReady() { return _wlRosterIsReady; }
+    function wlRosterReady() { return _wlRosterReadyPromise; }
 
 export {
   WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient,
-  wlMergeClientsFromSheet, wlNormalizeClient
+  wlMergeClientsFromSheet, wlNormalizeClient, wlRosterIsReady, wlRosterReady
 };

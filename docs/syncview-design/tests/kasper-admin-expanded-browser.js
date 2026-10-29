@@ -626,6 +626,9 @@ async function runMain() {
             await page.waitForTimeout(250);
             const nativeTab = await page.evaluate(() => _kasperState.tab);
             if (nativeTab !== t.tab) throw new Error('Native tab mismatch: wanted '+t.tab+', got '+nativeTab);
+            // Opening the Clients tab after a state that left the list unloaded (clients-error) starts the tab's own
+            // list read; its answer must land before this state's fixture rows, or it replaces them.
+            if (t.setup && t.tab === 'clients') await page.waitForFunction(() => !_caState.loading && !_caState.managersLoading);
             if (t.setup) {
               const source = t.setup.toString();
               await page.evaluate(({source,item,profile}) => new Function('data','row','return ('+source+')(data,row)')(item,profile),{source,item:JSON.parse(JSON.stringify(item)),profile});

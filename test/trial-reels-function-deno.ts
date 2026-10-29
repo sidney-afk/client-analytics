@@ -515,6 +515,39 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
     "a card already stuck (winner row, no card winner) is healed by the next read (winner " + tables.trial_reel_cards[0].winner_letter + ")");
 }
 
+// Per-version routing (Sidney, 2026-10-29): each version has its own place, the client sees and answers only versions
+// through the team, and a reviewer is done once nothing waits for them and one version passed them.
+{
+  const NOW = "2026-10-29T12:00:00.000Z";
+  const set = (l: string, over: Row) => Object.assign(v(l), { status: "waiting", smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null,
+    change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null, frame_url: "https://f.io/fixture-" + l.toLowerCase() }, over);
+  set("A", { smm_ok_at: NOW, kasper_ok_at: NOW });
+  set("B", { smm_ok_at: NOW });
+  set("C", {});
+  set("D", { status: "dropped" });
+  set("E", { status: "dropped" });
+  tables.trial_reel_cards[0].winner_letter = null;
+  Object.assign(tables.calendar_posts[0], { video_status: "Client Approval", asset_url: "https://f.io/fixture-a" });
+  tables.deliverables[0].file_url = "https://f.io/fixture-a";
+  const cRead = await step({ action: "read" }, "client-token");
+  const ready = ((cRead.body.versions || []) as Row[]).filter((x) => x.ready).map((x) => x.letter).join();
+  ok(cRead.body.ok === true && ready === "A", "the client link: only A has come through the team; B is still with Kasper, C with the SMM (" + ready + ")");
+  const early = await step({ action: "answer", stage: "client", kind: "approve", letter: "B" }, "client-token");
+  ok(early.status === 400 && early.body.error === "stage_order" && !v("B").client_ok_at, "the client cannot answer B while it is with Kasper (" + early.status + " " + early.body.error + ")");
+  const sRead = await step({ action: "read" });
+  const places = ((sRead.body.versions || []) as Row[]).map((x) => x.letter + ":" + x.place).join();
+  ok(places === "A:client,B:kasper,C:smm,D:dropped,E:dropped", "the staff read says where each version is (" + places + ")");
+  // At Kasper's stage: A and C through him, B asked to change: he is done, so the card goes on to the client now.
+  Object.assign(tables.calendar_posts[0], { video_status: "Kasper Approval" });
+  set("B", { status: "change asked", change_by: "kasper", change_note: "Fictional note", change_at: NOW, smm_ok_at: NOW });
+  set("C", { smm_ok_at: NOW, kasper_ok_at: NOW });
+  const kRead = await step({ action: "read" });
+  ok(kRead.body.stages_done && (kRead.body.stages_done as Row).kasper === true, "A and C through Kasper, B waiting for its new cut: Kasper is done, the card goes on");
+  set("C", { smm_ok_at: NOW });
+  const kWait = await step({ action: "read" });
+  ok((kWait.body.stages_done as Row).kasper === false, "C still waits for Kasper: he is not done");
+}
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

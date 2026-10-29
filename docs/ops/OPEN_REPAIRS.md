@@ -35469,7 +35469,45 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `test/trial-reels-round3-card-browser.js` (dead link on a client-dropped version, 1440 and 390): it fails on main.
   - `trial-reels-review-browser`'s refused-write check now looks at the kept write before the 3 s retry.
 
-## 606. [2026-10-29 UTC, BUILT, NOT MERGED] Five staff features made permanent (no switch), and no thumbnail-titles status read for staff it refuses (session Permafive)
+## 605. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version out for a change held every other version at that stage (per-version routing, Sidney's decision, session Trials)
+
+- **What happened:** when the SMM or Kasper asked for a change on one trial version, the card went to Tweaks Needed and every other version waited for that one new cut, even the versions that stage had already approved. Sidney (2026-10-29, via the Supervisor): "Other videos should go to Kasper while one of them is out for a change."
+- **Rule now (written first in `docs/features/TRIAL_REELS_PLAN.md`, section 5, "Per-version routing"):**
+  - Each live version has a place: with SMM, with Kasper, with client, approved, waiting for a new cut, client-dropped, dropped.
+  - A reviewer is done when no live version waits for them and at least one has their OK. The card then moves on through today's stage approve, so the approved versions reach the next reviewer straight away.
+  - The card's status is the front: how far the work has got. It never moves back while work ahead still waits. The changed version catches up through per-version overrides: the SMM's Review tab still lists a card at Kasper or Client Approval for it, and Kasper's queue lists a Client Approval card while a version waits for him.
+  - The client's change keeps option (a): the card stays in Client Approval while other versions wait for the client.
+  - The client link shows only versions that came through the team.
+- **Fix:**
+  - `trial-reels/logic.mjs`: `placeOf`, `kasperOnRoute`, `stageDone` per version, the client's `ready` and `stageReady` through the team, and `place` and `stages_done` on every staff read.
+  - Review pages (194, 195): a change with the stage otherwise done moves the card on, never to Tweaks Needed; a card ahead of a stage is never moved back.
+  - Kasper's queue (190, 330) and the SMM's card and Production (189) say per version where it is. A version with no link stays "waiting".
+  - Held 390 nit bundled: the collapsed row's words wrap to a second line instead of being cut to "1 d…" (020).
+- **Codex on PR 2452, three findings, all reproduced and fixed:**
+  - A card sent whole to Kasper (no SMM OK on any version) put every version with the SMM, so Kasper's OK on one finished his stage. `placeOf` now counts such a card's versions as through the SMM.
+  - The client's change routing read only the versions on screen, so a change on A sent the card to Tweaks Needed while B was still with Kasper. It now reads every version.
+  - The SMM's approve that forwarded the card marked every open change request done, including the one on the version still waiting for its cut. It now leaves open the requests of versions still in "change asked" (through a one-call hint read by `_calOpenTweaksForComp`, so `_calReviewApprove` stays byte-identical to main for the client path's guard). When that version's new cut passes the SMM while the card is already further on, its own request is marked done then.
+- **Proven:** logic test 159 checks, Deno function test 96. In `trial-reels-round2-review-browser.js`, the new route, routek and routec parts at 1440 and 390 fail 11 times on main's page code and pass with the change. The round-3 card test's collapsed-row check fails at 390 and 1440 without the CSS. Every trial-reels browser suite passes.
+
+## 606. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: three front-end notes from the live check of per-version routing (Trialtest, live on PR 2452, session Trials)
+
+- **What happened (session Trialtest, live, test client):**
+  - **Kasper's tiles at 1440:** the card was at Client Approval and B was back from its new cut with the SMM's OK. Kasper approved B's tile in his Review Session, and the panel under the player said "Approved in another window." above "Approved · Change my mind". He had approved it in that window.
+  - **Left bar:** the SMM card's opened version list had a pink bar down its left edge, which predates PR 2452. Sidney's rule is no coloured left-edge highlights.
+  - **390 wrap:** the collapsed row "0/2 approved · 1 dropped by the client" wrapped to three lines (the PR 2452 wrap).
+- **Why:**
+  - The review page's trial answer (`_rsApprove`'s trial branch, and the two Approve-all paths) never marked the part as answered on this page. When the version's answer left the part no longer waiting, `_rsElsewhere` took it for another window's answer.
+  - The bar was `.trl-list`'s 2 px `border-left`.
+  - The long phrase had no short form for the card's width, which is about 190 px at every screen size.
+- **Fix:**
+  - Every trial approve path marks the part answered on this page, as today's approve already does.
+  - The bar is gone; the indent alone ties the versions to the Video row.
+  - A narrow row says "0/2 · 1 dropped" on one line, as the Supervisor asked. The card is about 190 px wide at every screen size, so 1440 shows the short form too. The link's tooltip and accessible name keep the whole phrase "0 of 2 approved, 1 dropped by the client". The other trial surfaces (review pages, Kasper's tiles, Production rows) were checked and have no coloured left edge.
+- **Proven:**
+  - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
+  - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
+
+## 607. [2026-10-29 UTC, BUILT, NOT MERGED] Five staff features made permanent (no switch), and no thumbnail-titles status read for staff it refuses (session Permafive)
 
 - **What the owner asked (2026-10-29, ~17:05 UTC):** "Yes, let's put them permanent." Five staff features had been on for every staff member since 27/28 Oct through rows in `syncview_runtime_flags` (`{"all": true, "staff": [14 ids]}`) and were watched clean for two days: the unread badges with Notes and Messages (`unread_badges_v2`), the staff phone polish (`phone_polish_staff`), caption history (`caption_history_staff`), the Production thumbnail title buttons (`thumbnail_title_buttons_staff`) and Frame.io comments in a card's Notes (`frame_comments_in_notes_staff`). A deleted, mistyped or failed read of any of those rows turned the feature off for everyone.
 - **Fix (188):** the five keys leave `RS_FLAG_KEYS` and `_rsParse`. One answer, `svStaffSignedIn()` (a signed-in staff member, never the client link, exactly what `{ "all": true }` answered), backs `svUnreadBadgesOn`, `svCaptionHistoryOn`, `svThumbTitleButtonsOn`, `svPhonePolishOn` and `svFrameCommentsInNotesOn`. It no longer waits for the switch read, so it can only be on the same moment or sooner. The redraw after the switch read (`sv-review-stage-switch`) now always fires: the five `{ "all": true }` rows made it fire on every read, and a page painted before the server said who is signed in still catches up. The phone polish keeps its once-a-second retry until the server has said who is signed in. Every reader (180, 187, 190, 195, 230, 255, 326, 327, 040, 020) keeps its "on" path unchanged; only comments naming the switches changed. No Edge Function reads these keys, so nothing deploys.

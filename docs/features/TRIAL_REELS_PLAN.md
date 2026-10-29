@@ -327,11 +327,7 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   - **The card's status at each stage.** While another live version (not dropped, not the client's "Not this one", not
     itself waiting for a new cut) still waits for this reviewer, the card stays at For SMM Approval, Kasper Approval or
     Client Approval. Only the changed version waits for its new cut, and its row and dot say "change asked".
-  - **When the card moves on.** Exactly as before: once every live version has this reviewer's OK, the page calls
-    today's stage approve (SMM "Approve to Kasper", `_kasperApproveComp`, `_calReviewApprove`).
-  - **When only changed versions are left.** Once nothing waits for this reviewer and a change is open, the card goes to
-    Tweaks Needed as today, status only: the client link and the SMM's tab through `_calApplyAutoStatus` and
-    `_calFlushCardSave`, Kasper through `_kasperPersistPost`. Each change's note already went when it was asked.
+  - **When the card moves on, and when only changed versions are left:** replaced by per-version routing, below.
   - **The editor's change request.** At the moment of asking, the change goes to the editor as today's tweak note
     ("Video C: …", `is_tweak`, its round, Production's native comment), through `_calReviewRequestTweak` /
     `_kasperRequestTweakComp` with `keepStatus`: the note, but no status move, no reserved status intent, no stale-stamp
@@ -348,11 +344,65 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   - **The status sync and Production.** A status move goes through today's paths only (`production-write` status, the
     native bridge onto `calendar_posts.video_status`), so the deliverable and the card never disagree. A note without a
     status move writes no status at all. Linear is retired; nothing new reaches it.
-  - **"New cut ready" (or a new link on a changed version).** The version goes back to `waiting` with its OKs cleared
-    (as before). If the card is in Tweaks Needed and no other change is open, the card goes back to For SMM Approval
-    through today's status pick (`_calStatusPick`), so the new cut takes the normal route (Q3) while the other versions
-    keep their answers. With another change still open, the card stays in Tweaks Needed until that one's new cut is in.
+  - **"New cut ready":** see per-version routing, below.
   - **A non-trial card is unchanged.** Every new branch runs only on a card whose Trial reels switch is on, for a client
+    `trial_reels_pages` lists (the test client only).
+- **Per-version routing (Sidney, 2026-10-29, about 14:30 UTC: "Other videos should go to Kasper while one of them is
+  out for a change").** It replaces "the card waits for the changed version's new cut before it moves on". Option (a)
+  above stays for the client stage, and so do the editor's Today row and the change request.
+  - **Each live version has its own place.** It is one of these:
+    - *with the SMM*: waiting, no SMM OK;
+    - *with Kasper*: waiting, the SMM's OK, no Kasper OK, and Kasper on this card's route;
+    - *with the client*: through the team, no client answer;
+    - *approved*: the client's OK;
+    - *waiting for its new cut*: change asked;
+    - *client dropped*: the client's "Not this one";
+    - *dropped*: the team's.
+  - **Kasper is on the card's route** unless the card reached Client Approval with no version carrying his OK, which
+    means the SMM sent it straight to the client (today's "Approve to client" or the status menu). A trial card's SMM
+    approve on the review page always goes to Kasper.
+  - **A reviewer is done when no live version waits for them.** The card then moves on at once, through today's stage
+    approve (SMM "Approve to Kasper", `_kasperApproveComp`), if at least one version has their OK. It carries the
+    approved versions with it. Versions waiting for a new cut, and versions behind with an earlier reviewer, never hold
+    it back.
+    - Example: at the SMM stage, A and C approved and B changed, A and C go to Kasper now.
+    - If every version still open was asked for a change, the card goes to Tweaks Needed as today.
+  - **The client stage keeps option (a).** A client's change keeps the card in Client Approval while another version
+    waits for the client.
+    - The card goes to Approved once every live version has the client's OK. Client-dropped versions don't count.
+    - Once nothing waits for the client, it goes to Tweaks Needed only if no version is still on its way from the team.
+      If one is, the card stays in Client Approval, and the version arrives there by itself.
+  - **The card's status is how far the work has got. It never moves back while a version ahead still waits.**
+    - It reads the furthest place a live version has reached and still waits at. So it is Kasper Approval while A and
+      C wait for him and B waits for its new cut, and Client Approval while A waits for the client and B, now through
+      the SMM, waits for Kasper.
+    - The status only moves through today's paths (`production-write`, `_calStatusPick`, Kasper's persist), so every
+      notification, the status sync and Production stay as they are.
+    - Why the front and not the furthest behind: each status names the queue it belongs to. Kasper is told when the card
+      reaches him, and the client when it reaches them, exactly as today. A status that moved back each time one
+      version was changed would pull the card out of a reviewer's hands mid-review.
+  - **"New cut ready" sends that version back to the SMM** (its OKs cleared, as before).
+    - If the card is in Tweaks Needed and no other change is open, the card goes back to For SMM Approval through
+      today's status pick, as before.
+    - If the card is further on (Kasper or Client Approval), it stays. The version travels by itself: the SMM's Review
+      tab lists the card for it, the SMM's approve sends it to Kasper (Kasper's Review Session lists the card even at
+      Client Approval), and Kasper's approve sends it to the client.
+    - A reviewer answering a version behind never moves the card. Today's stage approve runs only when the card is at
+      that reviewer's own status, and a change asked then never sends a card that is further on to Tweaks Needed.
+  - **What each surface shows, per version:**
+    - **The SMM's card:** "waiting" (with the SMM), "with Kasper", "with client", "approved", "change asked" (waiting
+      for its new cut), "Client dropped".
+    - **The SMM's Review tab:** lists a card while a version waits for the SMM, whatever the card's status. Only that
+      version takes the SMM's Approve; the others say where they are.
+    - **Kasper's Review Session and its count:** list a card while a version waits for him, at Kasper Approval or at
+      Client Approval. Only his versions take his Approve; one still with the SMM says "With the team: the SMM looks at
+      Video B first".
+    - **The client link:** shows only versions that have come through the team. A version still with the SMM or Kasper
+      is not on it, and a card whose only open version is still with the team is not listed.
+    - **Production's Assets:** one row per version, saying where it is: "with SMM", "with Kasper", "with client",
+      "approved", "change asked", "client dropped", "dropped".
+    - **The editor's Today:** "changes asked on Video B" while a version waits for its new cut (as before).
+  - **Off for every other card:** every branch runs only on a card whose Trial reels switch is on, for a client
     `trial_reels_pages` lists (the test client only).
 - **Dropped** versions are skipped by every stage and by the "every version" count. **Only the team can drop** (Q2); the
   client page has no drop button. **The version on the card can be dropped too** (default awaiting the owner, 2026-10-27,
@@ -393,8 +443,10 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   - "on the card" on the winner's Production row (its "winner" label already says it);
   - the label beside "Video A of 5" on the client review (the letter dots already carry each answer);
   - the phone's "Make Video C the winner? Yes / Cancel" row (replaced by the Undo toast).
-  Kept on purpose: "approved", "waiting" and "change asked" while the review is mixed, "dropped" everywhere, and today's
-  own Available/Missing states in Production.
+  Kept on purpose: "approved", "change asked", and where each waiting version is ("with SMM", "with Kasper", "with
+  client"; per-version routing, 2026-10-29) while the review is mixed, "waiting" for a version with no link yet,
+  "dropped" everywhere, and today's own Available/Missing states in Production. A collapsed row whose words do not fit
+  beside "Video · 5" goes on to a second line, never "…" (Trialtest, 2026-10-29).
 - **No numbers are typed** (Q7). After the trial the SMM presses the trophy ("Make this the winner") on one version: that one is
   `winner`, the others `lost`, and the card's link becomes the winner's (above).
 - **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"

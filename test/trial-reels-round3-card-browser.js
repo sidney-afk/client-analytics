@@ -224,8 +224,9 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
       const col = await page.evaluate(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].map(n => n.textContent.trim() + '=' + getComputedStyle(n).backgroundColor));
       const bg = t => (col.find(c => c.startsWith(t + '=')) || '').split('=')[1];
-      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'waiting', `stages ${theme}: A says "with Kasper", B "with client", C "waiting" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
-      ok(bg('with Kasper') && bg('with Kasper') !== bg('waiting') && bg('with client') !== bg('waiting') && bg('with Kasper') !== bg('with client'), `stages ${theme}: each has its own colour, none the grey of "waiting" (${col.join(' | ')})`);
+      // Per-version routing (Sidney, 2026-10-29): the one nobody has looked at yet is "with SMM".
+      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'with SMM', `stages ${theme}: A says "with Kasper", B "with client", C "with SMM" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
+      ok(bg('with Kasper') && bg('with SMM') && new Set([bg('with Kasper'), bg('with client'), bg('with SMM')]).size === 3, `stages ${theme}: each has its own colour (${col.join(' | ')})`);
       ok(/SMM: approved · Kasper: waiting/.test((R.find(r => /^Video A/.test(r.t)) || {}).title || ''), `stages ${theme}: A's hover still says who said what`);
       await shot(page, 'r3-stages-' + theme);
       await page.close();
@@ -270,6 +271,48 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       T.dead = [];
       await page.close();
     }
+    // No coloured left-edge highlight anywhere (Sidney's rule; Trialtest, live on PR 2452: the opened list had a pink
+    // bar down its left side).
+    for (const w of [1440, 390].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      const page = await open(w, 844, 'light');
+      await openList(page);
+      const edge = await page.evaluate(() => [...document.querySelectorAll('.trl-list, .trl-list *')].filter(n => n.offsetParent).map(n => {
+        const cs = getComputedStyle(n);
+        return { c: n.className, w: parseFloat(cs.borderLeftWidth) || 0, s: cs.borderLeftStyle, r: parseFloat(cs.borderRightWidth) || 0 };
+      }).filter(x => x.w >= 2 && x.s !== 'none' && x.r < 1).map(x => x.c));
+      ok(!edge.length, `${w}: the opened version list has no coloured left edge (${edge.join(' | ') || 'none'})`);
+      await page.close();
+    }
+
+    // Trialtest via the Supervisor (2026-10-29, held nit): at 390 the collapsed row "0/2 approved · 1 dropped by the
+    // client" was cut to "0/2 approved · 1 d…" beside the switch. Every word shows, on a second line if it must.
+    for (const w of [390, 1440].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[2], { client_pass_at: '2026-10-29T01:05:00.000Z' });
+      const page = await open(w, 844, 'light');
+      const st = await page.evaluate(() => {
+        const n = [...document.querySelectorAll('.cal-link-post .trl-state')].filter(x => x.offsetParent).pop();
+        if (!n) return null;
+        // The label around it clips (overflow hidden), so the words must fit inside the label, not only inside the row.
+        const row = n.closest('.cal-link-label');
+        const cut = [row, n, ...n.querySelectorAll('*')].filter(e => e.offsetParent && e.scrollWidth > e.clientWidth + 1).length;
+        const r = n.getBoundingClientRect(), rr = row.getBoundingClientRect();
+        const lh = parseFloat(getComputedStyle(n).lineHeight) || parseFloat(getComputedStyle(n).fontSize) * 1.2;
+        return { t: n.innerText.replace(/\s+/g, ' ').trim(), cut, inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowCut: row.scrollWidth > row.clientWidth + 1,
+          lines: Math.round(r.height / lh), title: (n.closest('[title]') || {}).title || '', aria: (n.closest('button') || {}).getAttribute ? n.closest('button').getAttribute('aria-label') || '' : '' };
+      });
+      ok(st && /0\/2/.test(st.t) && /1 (dropped|dropped by the client)$/.test(st.t) && !st.cut && st.inside && !st.rowCut,
+        `${w}: the collapsed row says the client's drop, none of it cut (${JSON.stringify(st)})`);
+      // Trialtest, live on PR 2452 (the Supervisor: one line at 390): the long form wrapped to three lines; a narrow row
+      // says "0/2 · 1 dropped" on one line, and the whole phrase stays in its tooltip and accessible name.
+      ok(st && st.lines === 1, `${w}: the client's drop stays on one line (${st && st.lines} lines: "${st && st.t}")`);
+      ok(st && /0 of 2 approved, 1 dropped by the client/.test(st.title) && /0 of 2 approved, 1 dropped by the client/.test(st.aria),
+        `${w}: the tooltip and the accessible name keep the whole phrase ("${st && st.title}" | "${st && st.aria}")`);
+      await shot(page, 'r3-collapsed-drop-' + w);
+      await page.close();
+    }
+
     // Trialtest, live on #2444 (390): a version the client dropped keeps "Client dropped" when its link check fails, never
     // "no access" (the team takes it off the card either way).
     for (const w of [1440, 390].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
@@ -295,7 +338,7 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       Object.assign(T.versions[2], { status: 'dropped' });                                                 // C dropped by the team
       const page = await open(1440, 900, 'light');
       const row = await state(page);
-      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 dropped by the client/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
+      ok(/Video · 2\b/.test(row) && /1\/1\b/.test(row) && /1 dropped\b/.test(row) && /1 of 1 approved, 1 dropped by the client/.test(await page.evaluate(() => (document.querySelector('.cal-link-post.trl-main .cal-link-pill-open') || {}).title || '')), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
       await openList(page);
       T.addDelay = 1500;
       await page.click('.trl-list .trl-add button');

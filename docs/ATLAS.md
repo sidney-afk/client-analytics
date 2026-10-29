@@ -288,6 +288,8 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - When it's on, the row shows "Video · N", a short state ("2/4 approved", "On trial · 17 h left") and an arrow to open the versions.
   - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**, with Undo).
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
+  - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
+  - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted.
   - The client sees only the winner once it is picked.
 - **Switch:** `trial_reels_pages`, **test client only**.
@@ -364,7 +366,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 
 #### Trial reels (client side)
 - Switch `trial_reels_pages`: **test client only.**
-- On a post with several trial versions, the video step shows "Video B of 5" with arrows.
+- On a post with several trial versions, the video step shows "Video B of 5" with arrows. The client sees only the versions the team has already approved.
   - **Approve** answers the version on screen; **Approve all** answers every open version.
   - **Ask for a change** goes on that version (it is sent as "Video C: …").
   - **Not this one** tells the team to drop that version.

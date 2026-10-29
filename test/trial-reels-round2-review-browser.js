@@ -782,6 +782,33 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
+    // Kasper's second layout, his last tile (Trialtest, live on PR 2455): A, B and C wait for him with the card at Kasper
+    // Approval; his Approve on C, the last, moves the card to the client. It is his own answer: the page never says
+    // "answered in another window".
+    for (const [w, h, label] of [[1440, 900, 'route kasper last tile 1440']].filter(() => part('routek'))) {
+      const vs = three().map(v => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: null }));
+      const t = await start('kasper', true, vs, { width: w, height: h, layout2: true, beforeOpen: async t2 => {
+        await keepGateway(t2);
+        const card = t2.state.cards.find(c => c.id === 'rs1');
+        Object.assign(card, { video_status: 'Kasper Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'Kasper Approval' });
+        if (t2.T_native) Object.assign(t2.T_native, { status: 'kasper_approval' });
+      } });
+      const said = [];
+      for (const [l, i] of [['A', 0], ['B', 1], ['C', 2]]) {
+        await waitFor(async () => !!(await R(t, `return !!r.querySelector('[data-trk-ok="${l}"]:not([disabled])');`)), 60);
+        await press(t, `[data-trk-ok="${l}"]`);
+        await waitFor(async () => !!t.T.versions[i].kasper_ok_at, 60);
+        await sleep(i === 2 ? 3500 : 1500);
+        said.push(await R(t, `return (r.textContent || '').replace(/\\s+/g, ' ');`));
+      }
+      const moved = routeMoved(t, 'Client Approval', 'client_approval');
+      const bad = said.map((x, i) => /another window/i.test(x) ? 'ABC'[i] + ': ' + (x.match(/[A-Z][^.]{0,80}another window[^.]*\./) || [''])[0] : '').filter(Boolean);
+      ok(moved && !bad.length, `${label}: his own approves on A, B and C move the card to the client and never say "another window" (moved ${moved}; ${bad.join(' | ') || 'none'})`);
+      ok(/Approved, sent to the client/.test(said[2]), `${label}: after C the stage says it in his own words: "Approved, sent to the client"`);
+      await shot(t, 'route-kasper-last-tile-1440');
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
     // The client link shows only versions that have come through the team: A and C, not B (still with Kasper).
     for (const [w, h, label] of [[1440, 900, 'route client 1440'], [390, 844, 'route client 390']].filter(() => part('routec'))) {
       const vs = three().map((v, i) => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: i === 1 ? null : '2026-10-29T08:30:00.000Z' }));

@@ -54,6 +54,8 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
     const shape = () => Object.assign({ enabled: true, winner_letter: null }, L.readShape(T.versions, { client: false, mainLink: String(vid.file_url || ''), cardStatus: card.video_status }));
     const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) }).catch(() => {});
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
+    // The sharing check (probe: true), as Production's Assets ask it: T.dead names the letters whose link is gone.
+    if (b.action === 'read' && b.probe) return reply(Object.assign({ ok: true }, shape(), { link_states: Object.fromEntries(T.versions.map(v => [v.letter, { state: (T.dead || []).includes(v.letter) ? 'expired' : 'available', http_status: (T.dead || []).includes(v.letter) ? 404 : 200 }])) }));
     if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
     return reply({ ok: false, error: 'unknown_action' });
   });
@@ -167,6 +169,23 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         ok(!page.errors.length, `${tag}: no page errors`);
         await page.close();
       }
+    }
+    // Trialeyes E4 (2026-10-29): a dead Frame.io link is said on its row once checked, not only by the player later.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      T.dead = ['B'];
+      const page = await open(1440, 900, 'light');
+      await openList(page);
+      await page.waitForFunction(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].some(n => n.textContent.trim() === 'link not found'), null, { timeout: 5000 }).catch(() => {});
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      ok(lab('B') === 'link not found' && lab('A') === 'waiting' && T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), `dead link: B says "link not found", A keeps its state, after one sharing check of the card (${lab('A')} | ${lab('B')})`);
+      ok(/does not open a video/.test((R.find(r => /^Video B/.test(r.t)) || {}).title || ''), 'dead link: its hover says what to do');
+      const n = T.calls.filter(c => c.probe).length;
+      await page.click('.cal-link-post .trl-chev'); await sleep(200); await page.click('.cal-link-post .trl-chev'); await sleep(400);
+      ok(T.calls.filter(c => c.probe).length === n, `dead link: closing and opening the list again checks nothing more (${T.calls.filter(c => c.probe).length - n} more)`);
+      T.dead = [];
+      await page.close();
     }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
     // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.

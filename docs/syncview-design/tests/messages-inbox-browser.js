@@ -73,6 +73,8 @@ const MAIN = { width: 390, height: 844 };   // the phone, where this Messages pa
     let postedGone = false;
     let oldBackend = false;
     let inboxDelay = 0;
+    // > 0: the next inbox read is answered from the list as it is when it arrives, this many ms later.
+    let inboxHoldMs = 0;
     let inboxCalls = 0;
     let withWriters = false;
     let withTwin = false;
@@ -109,6 +111,7 @@ const MAIN = { width: 390, height: 844 };   // the phone, where this Messages pa
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
       if (oldBackend) return route.fulfill({ status: 400, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'invalid_deliverable_id' }) });
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });
+      if (body.action === 'inbox' && inboxHoldMs) { inboxCalls++; const held = conversations(), ms = inboxHoldMs; inboxHoldMs = 0; await sleep(ms); return reply({ ok: true, scope: 'all', conversations: held }); }
       if (body.action === 'inbox') { inboxCalls++; if (inboxDelay) await sleep(inboxDelay); return reply({ ok: true, scope: 'all', conversations: conversations() }); }
       marks.push(body.post_id + ':' + body.state);
       const conv = conversations().find(c => c.post_id === body.post_id);
@@ -349,11 +352,18 @@ const MAIN = { width: 390, height: 844 };   // the phone, where this Messages pa
       await cold.close();
     }
 
-    // L: a client sharing your name is not you
-    withTwin = true;
+    // L: a client sharing your name is not you. The twin arrives while a read that started before it is still on its
+    // way (as a live refresh can be): the forced read asked for then must still run once that read lands
+    // (on main 2026-10-29 it was dropped, and the list stayed without the twin).
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
+    inboxHoldMs = 1500;   // long enough that the second ask surely lands while the first read is out
+    const callsBefore = inboxCalls;
     await page.evaluate(() => { _msgState.openId = ''; _msgLoad(true); });   // on a phone an open conversation hides the list
+    await until(() => inboxCalls > callsBefore, 3000);
+    withTwin = true;
+    const midRead = await page.evaluate(() => { const busy = _msgState.loading; _msgLoad(true); return busy; });
+    check(midRead, 'L: the forced read is asked for while the earlier read is still on its way');
     check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_twin"]'))), 'L: the same-name conversation is listed');
     const lRow = await page.evaluate(() => { const r = document.querySelector('#msgPage [data-msg-conv="p_twin"]'); return { text: r.innerText, badge: (r.querySelector('.msg-unread') || {}).textContent || '0' }; });
     check(lRow.badge === '1', "L: the client's message counts as unread (" + lRow.badge + ')');

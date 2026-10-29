@@ -42,7 +42,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0, pictures: null,
+        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0, pictures: null, again: false,
     };
     let _msgTimer = null;
     const _msgFallbackHooks = [];
@@ -228,7 +228,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        unread counts on the Kasper tab and the Messages button. */
     async function _msgLoad(force) {
         if (!_msgCanUse()) { _msgPaintCounts(); return; }
-        if (_msgState.unavailable || _msgState.loading) return;
+        if (_msgState.unavailable) return;
+        // A forced read asked for while one is on its way runs once that one lands: the read on its way may have
+        // started before the change that asked for this one (a live refresh, Mark unread), and dropping it left the
+        // list without that change until the 60 s safety net.
+        if (_msgState.loading) { if (force) _msgState.again = true; return; }
+        _msgState.again = false;
         if (!force && _msgState.loaded && !_msgState.fromCache && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
@@ -270,6 +275,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         _msgPaintCounts();
         _msgPaint();
+        if (_msgState.again) return _msgLoad(true);
     }
     function _msgUnreadConversations() {
         if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, every signed-in staff member on desktop)
@@ -305,7 +311,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.owner = ''; _msgState.failStatus = 0;
+            _msgState.epoch++; _msgState.loading = false; _msgState.again = false; _msgState.owner = ''; _msgState.failStatus = 0;
             _msgCacheClear();
             _msgPaintCounts(); _msgLeavePage();
             return;
@@ -314,7 +320,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_msgState.owner && _msgState.owner !== _msgMyId()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.failStatus = 0;   // a refusal the last one got is not theirs
+            _msgState.epoch++; _msgState.loading = false; _msgState.again = false; _msgState.failStatus = 0;   // a refusal the last one got is not theirs
             _msgCacheClear();
             _msgPaintCounts();
         }

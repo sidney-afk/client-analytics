@@ -198,13 +198,15 @@ export function extractProfileJson(text) {
 // ({ text }, each carrying a "- received: <iso>" line); sinceIso is when the
 // profile file was last written (empty if it does not exist yet). Returns the
 // profile of the newest change filed after sinceIso, or null when the file is
-// already up to date.
-export function pickPendingProfile(files, sinceIso) {
+// already up to date. folder (when given) must match the change's brain folder line.
+export function pickPendingProfile(files, sinceIso, folder = "") {
   const since = Date.parse(sinceIso || "") || 0;
   let best = null;
   for (const f of files || []) {
     const text = String((f && f.text) || "");
     if (!text.includes(PROFILE_MARKER)) continue;
+    // The change must name this client's folder, not just resemble it.
+    if (folder && !text.includes(`\n- brain folder: ${folder}\n`)) continue;
     const r = /^- received: (\S+)/m.exec(text);
     const at = r ? Date.parse(r[1]) : NaN;
     if (!(at > since)) continue;

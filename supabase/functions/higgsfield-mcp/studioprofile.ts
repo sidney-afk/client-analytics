@@ -26,21 +26,26 @@ async function readPendingProfile(folder: string): Promise<unknown | null> {
   try {
     const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
     const c = await gh(`commits?path=${encodeURIComponent(`clients/${folder}/${PROFILE_FILE}`)}&sha=${ref}&per_page=1`, false);
+    // Without the file's write date every old input would look pending, so any
+    // doubt here means "start from the file".
+    if (!c.ok) return null;
+    const list = await c.json();
     let since = "";
-    if (c.ok) {
-      const list = await c.json();
-      since = list?.[0]?.commit?.committer?.date || "";
+    if (Array.isArray(list) && list.length) {
+      since = list[0]?.commit?.committer?.date || "";
+      if (!(Date.parse(since) > 0)) return null;
     }
     const day = (since || "1970-01-01").slice(0, 10);
     const d = await gh(`contents/inputs/syncview-changes?ref=${ref}`, false);
     if (!d.ok) return null;
+    // <date>-<folder>-<8 hex>.md: the folder part must be exactly this client's.
     const names: string[] = (await d.json()).map((x: { name: string }) => x.name)
-      .filter((n: string) => n.includes(`-${folder}-`) && n.slice(0, 10) >= day);
+      .filter((n: string) => n.slice(0, 10) >= day && /^\d{4}-\d{2}-\d{2}-(.+)-[0-9a-f]{8}\.md$/.exec(n)?.[1] === folder);
     const files = await Promise.all(names.slice(-10).map(async (n) => {
       const r = await gh(`contents/inputs/syncview-changes/${n}?ref=${ref}`, true);
       return { text: r.ok ? await r.text() : "" };
     }));
-    return pickPendingProfile(files, since);
+    return pickPendingProfile(files, since, folder);
   } catch (_e) {
     return null;
   }

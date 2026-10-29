@@ -130,14 +130,16 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   assert.ok(/text: profileChangeText\(where\.folder, stamped\)/.test(saveFn));
   assert.ok(/if \(!where\.folder\) return `Could not save:/.test(saveFn), 'no unmatched profile files');
   // Two saves seconds apart: the second starts from the first, not the old file.
-  const filed = (at, profile) => ({ text: `VIDEO PROFILE\n- received: ${at}\n\n\`\`\`json\n${JSON.stringify(profile)}\n\`\`\`\n` });
+  const filed = (at, profile, folder = 'demo') => ({ text: `# SyncView change for ${folder}\n\n- received: ${at}\n- brain folder: ${folder}\n\nVIDEO PROFILE\n\n\`\`\`json\n${JSON.stringify(profile)}\n\`\`\`\n` });
   const first = { fonts: { main: 'Roc Grotesk Bold' }, notes: 'a' };
   const older = { fonts: { main: 'Inter' } };
-  assert.deepStrictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:40:00.000Z'), first, 'a save filed after the file was written is the base');
+  assert.deepStrictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:40:00.000Z', 'demo'), first, 'a save filed after the file was written is the base');
+  assert.strictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first, 'demo-west')], '2026-10-28T19:40:00.000Z', 'demo'), null, 'another client whose folder only contains this one is ignored');
   assert.strictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:50:00.000Z'), null, 'a save the file already holds is not pending');
   assert.deepStrictEqual(p.pickPendingProfile([filed('2026-10-28T19:30:00.000Z', older), filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:00:00.000Z'), first, 'the newest pending save wins');
   assert.strictEqual(p.pickPendingProfile([{ text: 'not a profile' }, { text: 'VIDEO PROFILE\n- received: 2026-10-28T19:48:07.000Z\n```json\nnope\n```' }], ''), null, 'unreadable changes are ignored');
   assert.deepStrictEqual(p.mergeProfile(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], ''), { notes: 'b' }).fonts, { main: 'Roc Grotesk Bold' }, 'the second save keeps the first save fonts');
+  assert.ok(/if \(!c\.ok\) return null;/.test(ci) && /exactly this client/.test(ci), 'an unreadable history or a look-alike folder never selects a pending save');
   assert.ok(/const pending = await readPendingProfile\(where\.folder\);\s*if \(pending\) current = pending;/.test(ci), 'the save looks for pending saves');
 
   // The checklist names what is missing or cannot be confirmed.

@@ -179,18 +179,26 @@ async function startIfPosted(supabase: SupabaseClient, client: string, postId: s
   const r = autoTrialPatches(versions, { cardStatus: card.video_status, postedAt: card.video_status_at, nowMs: Date.now(), mainLink: link });
   if (!r.patches.length) return { versions, winner: winnerLetter };
   const now = new Date().toISOString();
+  /* The card's winner first: it is the only truth (settleWinner), so a refused write leaves nothing done and the next
+     read tries again. The other order left a version row saying winner with no card winner: read as on trial with no
+     24 h, nothing retried and no pick showed (Codex on #2444). If the version's own write is then refused (it changed
+     since the read, or the database refused it), the card's winner is taken back, so it never names a cut nobody
+     approved (Codex on #2445); the next read starts again from the version as it now is. */
+  let wroteWinner = false;
   try {
-    /* The card's winner first: it is the only truth (settleWinner), so a refused write leaves nothing done and the next
-       read tries again, and a version write refused after it still reads as the winner. The other order left a version
-       row saying winner with no card winner: read as on trial with no 24 h, nothing retried and no pick showed (Codex
-       on #2444). */
     if (r.winner) {
       const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: r.winner, updated_at: now, updated_by: "posted" })
         .eq("client", client).eq("post_id", postId);
       if (error) throw new Error("winner_write_failed");
+      wroteWinner = true;
     }
     await applyChanges(supabase, versions, r.patches as Change[], now);
   } catch (_e) {
+    if (wroteWinner) {
+      const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: winnerLetter ?? null, updated_at: now, updated_by: "posted" })
+        .eq("client", client).eq("post_id", postId).eq("winner_letter", r.winner as string);
+      if (error) console.warn(JSON.stringify({ fn: FN, auto_trial: "winner_not_taken_back", post_id: postId }));
+    }
     console.warn(JSON.stringify({ fn: FN, auto_trial: "not_started", post_id: postId }));
     return { versions, winner: winnerLetter };
   }

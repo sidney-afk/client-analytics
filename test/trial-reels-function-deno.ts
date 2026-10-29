@@ -482,6 +482,24 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   ok(again.body.ok === true && v("A").status === "winner" && tables.trial_reel_cards[0].winner_letter === "A" && again.body.winner_letter === "A",
     "the next read makes A the winner (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
 }
+// Codex on #2445: the version changed between the read and the write (the studio, or another request), so its write
+// is refused as a conflict: the card's winner written first is taken back, never left naming a cut nobody approved.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "approved", posted_at: null, trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.trial_reel_cards[0].winner_letter = null;
+  moved.id = "vA";
+  const conflict = await step({ action: "read" });
+  ok(conflict.body.ok === true && tables.trial_reel_cards[0].winner_letter === null && v("A").status === "approved",
+    "a version changed mid-read: its write is refused and the card's winner is taken back (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
+  moved.id = "";
+  const after = await step({ action: "read" });
+  ok(after.body.ok === true && v("A").status === "winner" && tables.trial_reel_cards[0].winner_letter === "A", "the next read, on the version as it now is, makes A the winner");
+}
+
 // A card already stuck by the old order (a "winner" row, no card winner): the next read heals it.
 {
   for (const r of tables.studio_trial_versions) {

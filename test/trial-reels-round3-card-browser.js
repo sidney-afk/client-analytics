@@ -55,6 +55,14 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
     const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) }).catch(() => {});
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
     if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
+    // A new version, as the function adds it; T.addDelay holds the answer (a slow line).
+    if (b.action === 'version_add') {
+      if (T.addDelay) await sleep(T.addDelay);
+      const res = L.addVersion(T.versions, b.link, String(vid.file_url || ''));
+      if (res.error) return reply({ ok: false, error: res.error });
+      T.versions.push({ id: 'v' + res.letter, letter: res.letter, status: 'waiting', frame_url: res.link, revision: 0, updated_at: new Date().toISOString(), post_id: 'p_t1' });
+      return reply(Object.assign({ ok: true }, shape()));
+    }
     return reply({ ok: false, error: 'unknown_action' });
   });
 
@@ -167,6 +175,36 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         ok(!page.errors.length, `${tag}: no page errors`);
         await page.close();
       }
+    }
+    // Trialeyes E7, E8, E9 (2026-10-29): the counts agree, a client drop shows on the collapsed row, a new version says
+    // "saving…" until the server has it, and leaving the page while it is unsaved asks first.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      Object.assign(T.versions[0], { status: 'approved', client_ok_at: '2026-10-29T01:00:00.000Z' });   // A approved
+      Object.assign(T.versions[1], { client_pass_at: '2026-10-29T01:05:00.000Z' });                      // B: the client's "Not this one"
+      Object.assign(T.versions[2], { status: 'dropped' });                                                 // C dropped by the team
+      const page = await open(1440, 900, 'light');
+      const row = await state(page);
+      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 dropped by the client/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
+      await openList(page);
+      T.addDelay = 1500;
+      await page.click('.trl-list .trl-add button');
+      await sleep(200);
+      await page.fill('.trl-list .trl-add .trl-link-input', LINK('E'));
+      await page.keyboard.press('Enter');
+      await sleep(300);
+      const saving = (await rowsOf(page)).find(r => /^Video E/.test(r.t));
+      ok(saving && saving.lab === 'saving…', `saving: the new version says "saving…" while the server takes it (${saving && saving.lab})`);
+      let asked = '';
+      page.once('dialog', d => { asked = d.type(); d.dismiss().catch(() => {}); });
+      await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); window.__blocked = e.defaultPrevented; });
+      ok(await page.evaluate(() => window.__blocked), 'saving: leaving the page while it is unsaved asks first (beforeunload is held)');
+      await sleep(1800);
+      const done = (await rowsOf(page)).find(r => /^Video E/.test(r.t));
+      ok(done && done.lab !== 'saving…' && T.versions.some(v => v.letter === 'E'), `saving: once saved it says its state (${done && done.lab})`);
+      ok(!(await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })), 'saving: once saved, leaving asks nothing');
+      T.addDelay = 0;
+      await page.close();
     }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
     // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.

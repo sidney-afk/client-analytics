@@ -35243,3 +35243,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 586. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a new version said "waiting" before it was saved, and a quick reload lost it; the counts disagreed; a client's drop did not show on the collapsed row (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - E7: a new version showed "waiting" at once while the server took about 4 s. A reload 80 ms after Enter lost Video D silently.
+  - E8: the row read "Video · 4 1/1 approved". The 4 counted dropped versions; the 1/1 did not.
+  - E9: after a client's "Not this one" on B, with A approved, the card went green Approved and the collapsed row read "1/1 approved". Nothing said there was a drop to act on.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A version being added says "saving…" until the server answers.
+  - While any trial write is on its way, leaving the page asks first (`beforeunload`).
+  - "Video · N" counts live versions, as the "m/n approved" beside it does.
+  - The collapsed row adds "· 1 dropped by the client" ("1 dropped" when narrow), with the same words in the hover.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks "Video · 2 1/1 approved · 1 dropped by the client", then "saving…" on a slow add, the held page leave, and the state once saved. It fails on main.

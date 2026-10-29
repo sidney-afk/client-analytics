@@ -8,7 +8,8 @@
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { findClientFolder, parseAudience, parseBrainFacts } from "../brain/parse.mjs";
-import { b64, changePath, MAX_CHANGE_CHARS, recordChange } from "../brain/change.mjs";
+import { b64, MAX_CHANGE_CHARS, changePath, recordChange } from "../brain/change.mjs";
+import { handbookChangeReply, handbookChangeText, handbookPagesIn, handbookPageName, handbookPath, handbookReply } from "./handbook.mjs";
 import { brainView } from "./brainview.mjs";
 import { checkQuestionId, markAnswered, questionFor, reopenQuestion } from "./questions.mjs";
 
@@ -359,4 +360,48 @@ function putQuestions(folder: string, text: string, sha: string, message: string
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, content: b64(text), sha, branch: Deno.env.get("BRAIN_BRANCH") || "main" }),
   });
+}
+
+// The team handbook (company/handbook-*.md in the brain). Page: a name like
+// "team", "start" for the index, or empty for the index. Read only.
+export async function handbookRead(page: string): Promise<string> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
+  const name = handbookPageName(page);
+  if (!name) return `"${page}" is not a handbook page name. Ask for the index (handbook "start") to see the pages.`;
+  const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  const list = await gh(`contents/company?ref=${ref}`);
+  if (!list.ok) return `Could not read the Synchro Brain (${list.status}). Try again in a minute; do not answer as if the handbook said nothing.`;
+  const pages = handbookPagesIn(((await list.json()) as Array<{ name: string }>).map((i) => i.name));
+  if (!pages.includes(name)) return pages.length ? `The handbook has no page "${name}". Pages: ${pages.join(", ")}.` : "The handbook is not in the Synchro Brain yet.";
+  const r = await gh(`contents/${handbookPath(name)}?ref=${ref}`, true);
+  if (!r.ok) return `Could not read the handbook page "${name}" (${r.status}). Try again in a minute.`;
+  return handbookReply(name, await r.text(), pages);
+}
+
+// Files a handbook change like a client change (same inbox, same format). The
+// first line of the filed text says which page and whether it may be applied.
+export async function handbookChange(page: string, whatChanged: string, factId: string, member: string): Promise<string> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
+  const name = handbookPageName(page);
+  if (!name) return `"${page}" is not a handbook page name. Nothing was saved.`;
+  const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  const list = await gh(`contents/company?ref=${ref}`);
+  if (!list.ok) return `Could not read the Synchro Brain (${list.status}). Nothing was saved; try again in a minute.`;
+  const pages = handbookPagesIn(((await list.json()) as Array<{ name: string }>).map((i) => i.name));
+  if (!pages.includes(name)) return `The handbook has no page "${name}". Pages: ${pages.join(", ")}. Nothing was saved.`;
+  if (!String(whatChanged || "").trim()) return "Say what changed first.";
+  const folder = `handbook-${name}`;
+  const result = await recordChange({
+    slug: folder,
+    text: handbookChangeText(name, whatChanged),
+    factId,
+    heading: `Handbook page ${name}`,
+    from: `${member} via Claude connector`,
+    role: "Claude connector",
+    folders: [folder],
+    gh: (path: string, init: RequestInit) => gh(path, false, init),
+    branch: Deno.env.get("BRAIN_BRANCH") || "main",
+  });
+  if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
+  return handbookChangeReply(name, true);
 }

@@ -35430,3 +35430,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix (the Supervisor's ruling, 2026-10-29):** on a trial card, a sent video change closes the box. A small "Change sent for Video C" stays above the buttons for the rest of the visit, so the next version shows its own Approve and "Not this one". Kasper's polished layout takes the same path. A refused change still goes back into the box with its words, as before.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`, the polished client page, 1440 by arrow and 390 by dot). It fails without the fix exactly as Trialtest saw it: A's Approve is missing and the box is open.
 - **Codex on #2444:** the note first said "Sent" as soon as the change was queued, so a refused save still showed it. It now reads "Sending the change for Video C…" while the save runs and "Change sent" only once it lands; a refused or declined change clears it and keeps its own Try again. Checked in the same part with a refused save (fails without the change: "Change sent for Video C" over "Not saved").
+
+## 603. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a version's refused "change asked" mark was never tried again while the page stayed open; two wording nits (Trialtest, live on #2444, session Trials)
+
+- **What happened (session Trialtest, live, client link, card at Client Approval with A, B, C):**
+  - The client asked for a change on B, with trial-reels' version write (`answer`, kind change) forced to fail once.
+  - The change request and the team's note went through, and the page said the mark "will be tried again in a moment".
+  - B was still "waiting" on the server 111 s later. Nothing retried it.
+- **Why:** the kept write (`_trvPending`, 194) was sent again only on the next versions read. A client page left open does not read again until a redraw after its cache expires.
+- **Fix:** a refused or lost write is tried again on its own while the page is open, after 3 s, then 10 s, then 30 s, then every 60 s. One try runs at a time, and a read that comes first still sends it. A version that is gone, dropped or decided still stops it, as before.
+- **Nit 1 (offline):** the dialog said "Your change request was sent" while the toast said it was still waiting for the connection. It now says "Your words are kept", which is true both ways.
+- **Nit 2 (390, the SMM card):** a version the client dropped read "no access" (or "link not found") once its link check failed. It keeps "Client dropped" now (`_trlLinkBadHtml`, 189).
+- **Proven:**
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=retry`, 1440 and 390): one refused write, then no touch. It fails on main (1 try, B still waiting after 15 s). With the fix B is "change asked" after 3 s.
+  - `test/trial-reels-round3-card-browser.js` (dead link on a client-dropped version, 1440 and 390): it fails on main.
+  - `trial-reels-review-browser`'s refused-write check now looks at the kept write before the 3 s retry.

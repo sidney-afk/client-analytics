@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard|e1|e10|push|e11|hint runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard|e1|e10|push|e11|hint|retry runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -472,6 +472,20 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const n = await R(t, `const n = r.querySelector('.trv-sent'); return n ? n.textContent.trim() : '';`);
       const row = await R(t, `const d = r.querySelector('#drow'); return d ? d.innerText.replace(/\\s+/g, ' ').trim() : '';`);
       ok(!/Change sent/.test(n) && await retry(), `refused: no "Change sent" ("${n}"), and the change offers Try again ("${row.slice(0, 160)}")`);
+      await t.ctx.close();
+    }
+    // Trialtest, live on #2444: the version's own "change asked" write refused once was never tried again while the
+    // page stayed open (the retry waited for a versions read that never came). It is tried again on its own now.
+    for (const [w, h, label] of [[1440, 900, 'client 1440'], [390, 844, 'client 390']].filter(() => part('retry'))) {
+      const t = await start('client', true, three(), Object.assign({ width: w, height: h, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      if (!/Video B of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      t.T.failChange = 1;
+      await askChange(t, 'Fictional note: a calmer start on B.');
+      const t0 = Date.now();
+      await waitFor(async () => t.T.versions[1].status === 'change asked', 150);
+      const tries = t.T.calls.filter(c => c.action === 'answer' && c.kind === 'change' && c.letter === 'B').length;
+      ok(t.T.versions[1].status === 'change asked' && tries >= 2, `${label}: a refused version mark is tried again on its own: B is "change asked" on the server after ${Math.round((Date.now() - t0) / 1000)} s (${tries} tries)`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
 

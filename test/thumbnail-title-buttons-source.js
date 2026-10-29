@@ -147,7 +147,7 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); checks++; };
   const sw = read('src/index/188-review-stage-switch.js.part');
   // No switch since session Permafive (2026-10-29): the buttons are for every signed-in staff member, never the client
   // link, and 188 no longer reads thumbnail_title_buttons_staff (docs/syncview-design/tests/staff-switch-all-browser.js runs it).
-  ok(!/thumbnail_title_buttons_staff'/.test(sw.replace(/\/\*[\s\S]*?\*\//g, '')) && /function svThumbTitleButtonsOn\(\) \{ return svStaffSignedIn\(\); \}/.test(sw), 'no switch row is read: every signed-in staff member');
+  ok(!/thumbnail_title_buttons_staff'/.test(stripBlockComments(sw)) && /function svThumbTitleButtonsOn\(\) \{ return svStaffSignedIn\(\); \}/.test(sw), 'no switch row is read: every signed-in staff member');
   ok(/svThumbTitleButtonsOn\(\)/.test(page) && /_isClientLink/.test(page), 'the page draws nothing for someone who is not signed-in staff, and never on a client link');
   // The run-status read on opening a post: only an admin or SMM asks (the server answers everyone else 403).
   ok(/function _prodTtLazyStatus\(key, client\) \{\s*(?:\/\/[^\n]*\n\s*)*if \(!client \|\| !_prodTtRoleOk\(\)/.test(page), 'only an admin or SMM asks for a run\'s status on opening a post');

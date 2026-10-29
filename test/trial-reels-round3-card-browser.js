@@ -54,11 +54,15 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
     const shape = () => Object.assign({ enabled: true, winner_letter: null }, L.readShape(T.versions, { client: false, mainLink: String(vid.file_url || ''), cardStatus: card.video_status }));
     const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) }).catch(() => {});
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
-    if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
     if (b.action === 'version_new_cut') {
       const res = L.newCutPatch(T.versions, b.letter);
       if (res.error) return reply({ ok: false, error: res.error });
       Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+      return reply(Object.assign({ ok: true }, shape()));
+    }
+    if (b.action === 'read') {
+      // A read of a Posted card starts its approved versions, as trial-reels does (the 30 s list is still the stale one).
+      if (T.startOnRead && card.video_status === 'Posted') (L.trialPatches(T.versions, Date.now()).patches || []).forEach(p => Object.assign(T.versions.find(v => v.id === p.id), p.patch));
       return reply(Object.assign({ ok: true }, shape()));
     }
     return reply({ ok: false, error: 'unknown_action' });
@@ -255,6 +259,25 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       const kept = await page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'));
       ok(kept, 'late chart.js: the card still listens on the trial-reels channel after the CDN\'s other script lands');
       await S.ctx.unroute('**/chart.js@*/**', hold);
+      await page.close();
+    }
+    // Trialeyes E15 (2026-10-29): a card just set to Posted reads itself again at once, so "On trial" shows without
+    // waiting for the next 30 s list.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      T.versions.forEach((v, i) => { if (i < 3) Object.assign(v, { status: 'approved', client_ok_at: '2026-10-28T10:00:00.000Z' }); });
+      const was = card.video_status;
+      card.video_status = 'Posted'; T.startOnRead = true;
+      const t0 = Date.now();
+      const page = await open(1440, 900, 'light');
+      await page.waitForFunction(() => { const s = [...document.querySelectorAll('.cal-link-post.trl-main')].find(n => n.offsetParent); return s && /On trial/.test(s.innerText); }, null, { timeout: 8000, polling: 100 }).catch(() => {});
+      const st = await state(page);
+      ok(/On trial/.test(st) && Date.now() - t0 < 12000, `Posted card: "On trial" shows straight after Posted, not on the next 30 s list ("${st}")`);
+      ok(T.calls.some(c => c.action === 'read' && c.post_id === 'p_t1'), 'Posted card: it reads that one card again');
+      const n = T.calls.filter(c => c.action === 'read').length;
+      await sleep(1500);
+      ok(T.calls.filter(c => c.action === 'read').length === n, `Posted card: one re-read, not a loop (${n} then ${T.calls.filter(c => c.action === 'read').length})`);
+      card.video_status = was; T.startOnRead = false;
       await page.close();
     }
   } catch (e) {

@@ -35254,6 +35254,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 589. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a card with one version went "on trial" against nothing; Posted showed on the card only on the next 30 s list (Trialeyes E15, E16, session Trials)
+
+- **What happened (Trialeyes' walk):**
+  - E16: a card whose other versions were all dropped, with one approved version left, was set to Posted and that one version went "On trial · 24 h left", a test with nothing to test against. The Supervisor's ruling: with one live version, Posted makes it the winner straight away.
+  - E15: after Posted, the staff card kept "3/3 approved" until the next 30-second list, though the function had already started the trial.
+- **Fix:**
+  - `supabase/functions/trial-reels/logic.mjs`: `autoTrialPatches` takes the card's link; with exactly one live version, approved, whose link is the card's, it returns that version as the winner (`posted_at` set) instead of putting it on trial.
+  - `supabase/functions/trial-reels/index.ts`: `startIfPosted` writes the card's `winner_letter` (by "posted") and a `winner_set` ledger row when that happens; every caller uses the winner it returns. Auto-deployed on merge; not a Section 4 function.
+  - `src/index/189-trial-reels-card.js.part`: a Posted card whose approved versions have not started reads that one card again at once (one read per Posted time, never a loop) and repaints its row.
+  - `docs/features/TRIAL_REELS_PLAN.md`: the `trial_start` row says so.
+- **Proven:** `test/trial-reels-logic.js` and `test/trial-reels-function-deno.ts` (one live version: Posted makes it the winner; two still go on trial), and `test/trial-reels-round3-card-browser.js` ("On trial" shows straight after Posted, one read, no loop), which fails on main.
+
 ## 580. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a refused link on "+ Add version" opened a full-screen dialog and lost the pasted text; plain text and YouTube got different rules (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live at 1440):**

@@ -440,6 +440,26 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   globalThis.fetch = slowFetch;
 }
 
+// One live version left (Trialeyes E16, Supervisor's call, 2026-10-29): Posted makes it the winner at once, with no
+// 24 h trial and no trophy step, and the card's winner is written; the client then sees only it.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "approved", posted_at: null, trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.deliverables[0].file_url = "https://f.io/fixture-one";
+  tables.trial_reel_cards[0].winner_letter = null;
+  Object.assign(tables.calendar_posts[0], { video_status: "Approved", video_status_at: "2026-10-29T09:00:00.000Z" });
+  const before = await step({ action: "read" });
+  ok(before.body.ok === true && v("A").status === "approved", "one live version, not Posted yet: nothing starts");
+  Object.assign(tables.calendar_posts[0], { video_status: "Posted", video_status_at: "2026-10-29T10:00:00.000Z" });
+  const one = await step({ action: "read" });
+  ok(one.body.ok === true && v("A").status === "winner" && !v("A").trial_ends_at && tables.trial_reel_cards[0].winner_letter === "A" && one.body.winner_letter === "A",
+    "one live version: Posted makes it the winner at once, no 24 h trial (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
+  ok(tables.calendar_post_events.some((e) => e.action === "trial_winner_set"), "with a winner_set ledger row");
+}
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

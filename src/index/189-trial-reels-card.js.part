@@ -66,6 +66,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _trlOpen = new Set();  // pids whose versions list is open
     const _trlEditing = {};      // pid -> letter being edited
     const _trlDraft = {};        // pid -> { letter, text, err }: a link the page refused, kept in its field with why
+    const _trlPostedAsked = new Set();   // pid|Posted time: the one re-read a Posted card gets
     const _trlBusy = new Set();  // pid|action in flight
     /* Every action answers at once (owner, 2026-10-27: "everything should feel fast"). The row is drawn from the last
        server answer with the changes still in flight laid over it; a change leaves the list when its answer lands, so
@@ -377,6 +378,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!shape || !shape.enabled) return null;
         const vs = shape.versions || [];
         const winner = vs.find(x => x.status === 'winner');
+        /* The card has just been set to Posted and its approved versions have not started yet: read this one card again
+           now, so "On trial" (or the one version's win) shows at once, not on the next 30 s list (Trialeyes E15). */
+        if (post.video_status === 'Posted' && vs.some(x => x.status === 'approved') && !vs.some(x => ['on trial', 'winner', 'lost'].includes(x.status))) {
+            const k = pid + '|' + String(post.video_status_at || post.updated_at || '');
+            if (!_trlPostedAsked.has(k)) { _trlPostedAsked.add(k); setTimeout(() => { _trlFresh(post).then(j => { if (j) _trlRepaintField(pid); }).catch(() => {}); }, 0); }
+        }
         // With no version yet, the list stands open: its only row is where the first link is pasted.
         const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);

@@ -403,7 +403,7 @@ export function trialPatches(versions, nowMs) {
  * is no trial. Once started it stays, even if the card leaves Posted before a winner (nothing is lost). Nothing to do
  * answers no patches.
  */
-export function autoTrialPatches(versions, { cardStatus, postedAt, nowMs }) {
+export function autoTrialPatches(versions, { cardStatus, postedAt, nowMs, mainLink }) {
   if (clean(cardStatus, 40) !== "Posted") return { patches: [] };
   if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { patches: [] };
   const ready = versions.filter((v) => v.status === STATUS.approved && !passed(v));
@@ -411,6 +411,14 @@ export function autoTrialPatches(versions, { cardStatus, postedAt, nowMs }) {
   const t = Date.parse(clean(postedAt, 40));
   const startMs = Number.isFinite(t) ? t : nowMs;
   const at = new Date(startMs).toISOString(), ends = new Date(startMs + TRIAL_MS).toISOString();
+  /* One live version left (the only one not dropped, nor the client's "Not this one"): nothing to compare, so Posted
+     makes it the winner at once, with no 24 h and no trophy step (Supervisor's call, Trialeyes E16, 2026-10-29). Only
+     when the card already carries its link, as a winner the SMM picks must; otherwise the trial starts as before. */
+  const inPlay = versions.filter((v) => live(v) && !passed(v));
+  if (ready.length === 1 && inPlay.length === 1 && mainLink !== undefined && clean(mainLink, 2048) && clean(mainLink, 2048) === clean(ready[0].frame_url, 2048)) {
+    const w = ready[0];
+    return { winner: w.letter, patches: [{ id: w.id, letter: w.letter, from: w.status, patch: { status: STATUS.winner, posted_at: at } }] };
+  }
   return { patches: ready.map((v) => ({ id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.trial, posted_at: at, trial_ends_at: ends } })) };
 }
 

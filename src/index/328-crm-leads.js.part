@@ -263,7 +263,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!_crmState.loaded) _crmLoad(false); else _crmLoad(true);
         /* Everything loads at once, so moving between sections never waits. */
         if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences' && _crmState.tab !== 'step') _crmLoadSequences(!!_crmState.seqs);
-        if (_crmState.tab !== 'today' && _crmState.tab !== 'home') _crmLoadToday(!!_crmState.today);
+        if (_crmState.tab !== 'today') _crmLoadToday(!!_crmState.today);
     }
     function _crmSignIn() { _syncviewOfferStaffSignIn('leads'); }
     /* Our drafted sequences, split by whether they can send yet. */

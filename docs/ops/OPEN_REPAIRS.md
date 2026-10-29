@@ -35253,4 +35253,8 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - On the client link only, one plain line sits under "TRIAL": "We'll test each version for 24 h and keep the best one."
   - At phone width, "Approve all" and "Finish reviewing" each take a full-width line of their own and never wrap inside.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e11`) checks the client at 390 (light and dark) and at 1440, and that the SMM's page has no such line. Both buttons stay on one line. It fails on main.
+- **Also (Trialeyes E20, E21):**
+  - E20: on the client link, Back while typing a change left SyncView, because the link is the first page in history, and the words were lost. Words in the change box not yet sent now make leaving ask first (`beforeunload`, 195).
+  - E21: at 390, Kasper's "Finish reviewing 0 of 4" wrapped. The same one-line rule now covers his page.
+  - Both are checked in `TRL_PART=e11`. E21 fails on main (51 px).
 - **E13 (Kasper's orange "Tweaks are on Frame" reads as a status, not a button):** the button and its style predate trial reels (#2291 and earlier). Left as is, as the Supervisor asked.

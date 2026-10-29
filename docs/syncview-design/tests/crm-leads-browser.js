@@ -390,7 +390,7 @@ async function run(browser, origin, viewport) {
   await page.waitForSelector('[data-crm-seq="no_show"]');
   const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
   expect(/Waiting for approval/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
-  expect(/Day 2\s+9am their time\s+Email · Approved/.test(seqText) && /2\s+messages/.test(seqText) && /2\s+days/.test(seqText) && /1\s+waiting for approval/.test(seqText), label + ': a step reads day, hour, channel and approval in plain words (' + seqText.replace(/\s+/g, ' ').slice(0, 300) + ')');
+  expect(/Day 2\s+9am their time\s+Email, Approved/.test(seqText) && /2\s+messages/.test(seqText) && /2\s+days/.test(seqText) && /1\s+waiting for approval/.test(seqText), label + ': a step reads day, hour, channel and approval in plain words (' + seqText.replace(/\s+/g, ' ').slice(0, 300) + ')');
   expect(!(await page.locator('#crmSeqs .crm-badge, #crmSeqs .crm-chan').count()) && await boxesInBoxes(page) === '', label + ': no step chips and no box inside a box');
   expect(await page.locator('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'false', label + ': a sequence that is off says so');
   if (SHOTS) await shoot(page, 'leads-sequences-' + label, true);

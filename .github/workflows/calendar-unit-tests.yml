@@ -594,6 +594,7 @@ jobs:
           Client link in a dark browser, frame by frame (dark from the first frame, loading screen in the page's shape)|node test/client-link-dark-first-paint-browser.js
           New review page as one system (one Kasper header on every section, Messages inside the tab, no page scroll, the app's colour tokens)|node test/review-stage-one-system-browser.js
           Save problems page reads the refusal log|node docs/syncview-design/tests/save-problems-browser.js
+          Kasper's queue waits for the client list (skeleton, then every card at once; the notice names no client)|node docs/syncview-design/tests/kasper-roster-race-browser.js
           The client review page, gauntlet 2 (a post that left the list, words kept per post, a long caption, Escape, arrow keys)|node test/review-stage-gauntlet2-browser.js
           Every save on the new review stage ends on screen (no stuck Saving, a slow server says so, a refused save offers Try again)|node test/review-stage-save-browser.js
           The review page answers every approve, change and note at once (under 150 ms, three modes, phone and desktop, slow server)|node test/review-stage-instant-browser.js

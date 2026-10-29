@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok|e1 runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|e1|e10 runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -424,6 +424,33 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       d = await dec(t);
       ok(/Change asked/.test(d.said) && /cut the first second/.test(d.said + (await R(t, `return [...r.querySelectorAll('.dq')].map(n => n.textContent).join('|');`))), `${label}: Video B keeps its own "Change asked" and note ("${d.said}")`);
       await shot(t, 'e1-' + label.replace(/\s+/g, '-'));
+      ok(!t.errors.length && !d.overflow, `${label}: no page errors, no sideways scroll (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- Trialeyes E10 (2026-10-29): "Not this one" on the last open version keeps saying so on its own screen ----------
+    // A and C approved by the client; B is the last one waiting; "Not this one" on B lets the card move to Approved.
+    // B's screen keeps "the team will take Video B out" (never the card's "Approved · Change my mind") and its dot a cross.
+    for (const [w, h, label] of [[390, 844, 'client 390'], [1440, 900, 'client 1440']].filter(() => part('e10'))) {
+      const at = '2026-10-29T01:00:00.000Z';
+      const vs = three().map(v => v.letter === 'B' ? v : Object.assign(v, { status: 'approved', client_ok_at: at }));
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      await press(t, '[data-trv-go="B"]');
+      await sleep(500);
+      await press(t, '[data-pass="video"]');
+      await waitFor(async () => !!t.T.versions[1].client_pass_at, 40);
+      await waitFor(async () => t.state.upserts.some(u => u.video_status === 'Approved'), 60);
+      await sleep(3500);
+      // The page may have moved on to the Thumbnail (the video is done): back to the Video step, on B.
+      if (await R(t, `const b = r.querySelector('.stp[data-step="video"]'); return !!b && b.getAttribute('aria-current') !== 'step';`)) { await press(t, '.stp[data-step="video"]'); await sleep(600); }
+      if (!/Video B of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      const d = await dec(t);
+      const card = t.state.upserts.some(u => u.video_status === 'Approved');
+      const cross = await R(t, `const i = r.querySelector('[data-trv-go="B"] i'); return i ? getComputedStyle(i, '::after').content : '';`);
+      ok(card, `${label}: the card moved to Approved (the other versions carried it)`);
+      ok(/Video B of 3/.test(d.bar) && /the team will take Video B out/.test(d.said) && !/Approved|Change my mind/.test(d.said), `${label}: B's screen keeps its own "Not this one", never the card's "Approved" ("${d.said}")`);
+      ok(/pass/.test(d.dots.split(',')[1] || '') && /×/.test(cross), `${label}: B's dot shows the drop with a cross (${d.dots} | ${cross})`);
+      await shot(t, 'e10-' + label.replace(/\s+/g, '-'));
       ok(!t.errors.length && !d.overflow, `${label}: no page errors, no sideways scroll (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

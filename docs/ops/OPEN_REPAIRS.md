@@ -35258,3 +35258,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
 - **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
+
+## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 390):**
+  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
+  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
+- **Fix:**
+  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
+  - The passed dot gets a small cross mark beside its struck letter.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.

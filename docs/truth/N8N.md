@@ -14,8 +14,9 @@
 > METRICS), and five workflows were added since (four active, one inactive temporary check).
 > The ids named in prose that are absent from the live list (`6OtjILbhkYLY6yVE`,
 > `CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`, `19ZqxaOt09KPLGx1`, `lGwC9WWPVJtxphtf`, `MJbMZ789B5ExZz9x`,
-> `DBQvKxonjhTt7rKC`, `FPQo6G2zi8WcIfa1`, `wP0yLVDIOJph1bcM`, `xEhLpKwNv8uTaeAK` and
-> `ZJOtYpQZj73DcBB1`) are archived or deleted; the live Kasper Ad Performance pull
+> `DBQvKxonjhTt7rKC`, `FPQo6G2zi8WcIfa1`, `wP0yLVDIOJph1bcM` and
+> `ZJOtYpQZj73DcBB1`) are archived or deleted (corrected 2026-10-29: `xEhLpKwNv8uTaeAK`, once listed here, is
+> not a workflow but the id of the n8n data table `booking_recovery`, which is live); the live Kasper Ad Performance pull
 > `2Ax4c78jgI7roXzv` is Active. NOT re-verified this pass: every per-workflow node topology and
 > behavioural claim, the findings and standing hazards, which still rest on their older dated
 > evidence. Individual execution health was not measured.

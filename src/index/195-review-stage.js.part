@@ -2308,6 +2308,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // "Approve all (4 waiting)": every version this reviewer has not answered, then today's approve (Probe E4).
     function _rsTrialAll(m) {
         const cur = _rsModelById(m.id) || m;
+        R.S.acted.add(m.id + '|video');
         svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true, () => _rsTrialToTweaks(_rsModelById(m.id) || cur),
             letters => { if (R.mode === 'smm') svCalResolveVersionTweaks(m.id, 'video', letters); });
     }
@@ -3165,6 +3166,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsApprove(m, comp, how, trialDone) {
         // Trial reels (194): the version on screen is answered first; today's approve runs once the stage is done.
         if (comp === 'video' && m.trial && !m.trial.winner && !trialDone) {
+            // This page answered it: when the part stops waiting, it never reads "Approved in another window" (Trialtest,
+            // live on PR 2452: Kasper's own Approve on a tile, with the card already with the client).
+            R.S.acted.add(m.id + '|' + comp);
             svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); }, false, () => _rsTrialToTweaks(_rsModelById(m.id) || m),
                 letters => { if (R.mode === 'smm') svCalResolveVersionTweaks(m.id, comp, letters); });
             return;
@@ -4042,7 +4046,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         svTrialReviewBindTiles(el, m, R.mode, {
             approve: () => _rsApprove(cur(), 'video', ''),
             change: () => _rsStartChange('video', 'stage'),
-            all: () => svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true, () => _rsTrialToTweaks(cur())),
+            all: () => { R.S.acted.add(m.id + '|video'); return svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true, () => _rsTrialToTweaks(cur())); },
         });
     }
     function _rsL2Render(m) {

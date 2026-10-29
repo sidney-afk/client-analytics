@@ -209,10 +209,12 @@ ok(staffAfter.body.card_behind === true, "until that save lands, staff see card_
 // puts every approved version on trial, its 24 h counted from the card's Posted time, with a trial_start ledger row.
 const early = await step({ action: "trial_start" });
 ok(early.status === 409 && early.body.error === "trial_starts_when_posted" && !W_on(), "the trial cannot be started by hand before the card is Posted (" + early.status + " " + early.body.error + ")");
-Object.assign(tables.calendar_posts[0], { video_status: "Posted", video_status_at: "2026-10-28T12:00:00.000Z" });
+// Posted an hour ago, so the 24 h are never up yet, whatever day the suite runs (a fixed date went stale on 2026-10-29).
+const postedAt = new Date(Date.now() - 3600000).toISOString(), trialEndsAt = new Date(Date.parse(postedAt) + 86400000).toISOString();
+Object.assign(tables.calendar_posts[0], { video_status: "Posted", video_status_at: postedAt });
 const bT = broadcasts.length;
 const trial = await step({ action: "read" });
-ok(trial.body.ok === true && ["A", "B", "C", "E"].every((l) => v(l).status === "on trial" && v(l).posted_at === "2026-10-28T12:00:00.000Z" && v(l).trial_ends_at === "2026-10-29T12:00:00.000Z"),
+ok(trial.body.ok === true && ["A", "B", "C", "E"].every((l) => v(l).status === "on trial" && v(l).posted_at === postedAt && v(l).trial_ends_at === trialEndsAt),
   "the card is Posted: the next read puts every approved version on trial, 24 h from the card's Posted time");
 ok(tables.calendar_post_events.filter((e) => e.action === "trial_trial_start").length === 4 && broadcasts.length > bT, "with a trial_start ledger row per version, said on the channel");
 const again = await step({ action: "read" });

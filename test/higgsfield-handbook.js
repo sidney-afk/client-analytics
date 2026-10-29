@@ -56,6 +56,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.ok(!/required: \["client"/.test(bc), 'client is no longer required on either tool');
   assert.ok(/name === "client_brain" && String\(args\.handbook/.test(idx) && /handbookRead\(String\(args\.handbook\)\)/.test(idx), 'client_brain dispatches the handbook option');
   assert.ok(/name === "brain_change" && String\(args\.handbook_page/.test(idx) && /handbookChange\(/.test(idx), 'brain_change dispatches the handbook option');
+  assert.ok(/call client_brain with handbook \\"start\\" before answering; never search local or downloaded files/.test(idx), 'the server instructions send company questions to the handbook');
   const guide = read('docs/ops/HANDBOOK_GUIDE_ROW.md');
   assert.ok(/'handbook'/.test(guide) && /needs Sidney|Sidney's to decide/.test(guide), 'guide row text exists');
 

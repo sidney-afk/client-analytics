@@ -469,8 +469,9 @@ async function callOutcome(db: SupabaseClient, id: string, body: Record<string, 
   return json({ ok: true, person: after, enrolment });
 }
 
-/* Report: one row per source with how many people came in, booked a call,
-   showed up and signed. "Booked" and "showed" count anyone whose timeline or
+/* Report: one row per source with how many people came in, filled in the
+   form (an ad lead, or a form event from n8n), booked a call, showed up and
+   signed. "Booked" and "showed" count anyone whose timeline or
    current stage ever reached that point, so a later stage still counts. */
 const BOOKED_STAGES = ["call1_booked", "no_show", "call1_done", "call2_done", "won"];
 const SHOWED_STAGES = ["call1_done", "call2_done", "won"];
@@ -483,11 +484,12 @@ async function reportView(db: SupabaseClient) {
   }
   const reached = new Map<string, Set<string>>();
   for (let from = 0; from < 100000; from += 1000) {
-    const page = must(await db.from("crm_events").select("person_id,kind,detail").in("kind", ["stage_changed", "booked", "call_outcome"])
+    const page = must(await db.from("crm_events").select("person_id,kind,detail").in("kind", ["stage_changed", "booked", "call_outcome", "imported"])
       .order("id").range(from, from + 999)) || [];
     for (const e of page as any[]) {
       const set = reached.get(e.person_id) || new Set<string>();
-      if (e.kind === "booked") set.add("call1_booked");
+      if (e.kind === "imported") { const ev = e.detail && e.detail.event; if (ev === "form_submit" || ev === "form_capture") set.add("form"); }
+      else if (e.kind === "booked") set.add("call1_booked");
       else if (e.kind === "call_outcome") set.add(e.detail && e.detail.outcome === "showed" ? "call1_done" : "no_show");
       else if (e.detail && e.detail.to) set.add(String(e.detail.to));
       reached.set(e.person_id, set);
@@ -503,10 +505,11 @@ async function reportView(db: SupabaseClient) {
   const rows = new Map<string, any>();
   for (const p of people) {
     const k = p.source_id || "none";
-    const row = rows.get(k) || { source_id: p.source_id || null, people: 0, booked: 0, showed: 0, won: 0, won_value: 0 };
+    const row = rows.get(k) || { source_id: p.source_id || null, people: 0, form: 0, booked: 0, showed: 0, won: 0, won_value: 0 };
     const set = reached.get(p.id) || new Set<string>();
     set.add(p.stage);
     row.people++;
+    if (p.lead_type === "ad_lead" || set.has("form")) row.form++;
     if (BOOKED_STAGES.some((s) => set.has(s))) row.booked++;
     if (SHOWED_STAGES.some((s) => set.has(s))) row.showed++;
     if (p.stage === "won") { row.won++; row.won_value += values[p.id] || 0; }

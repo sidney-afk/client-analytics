@@ -35243,3 +35243,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 589. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a card with one version went "on trial" against nothing; Posted showed on the card only on the next 30 s list (Trialeyes E15, E16, session Trials)
+
+- **What happened (Trialeyes' walk):**
+  - E16: a card whose other versions were all dropped, with one approved version left, was set to Posted and that one version went "On trial · 24 h left", a test with nothing to test against. The Supervisor's ruling: with one live version, Posted makes it the winner straight away.
+  - E15: after Posted, the staff card kept "3/3 approved" until the next 30-second list, though the function had already started the trial.
+- **Fix:**
+  - `supabase/functions/trial-reels/logic.mjs`: `autoTrialPatches` takes the card's link; with exactly one live version, approved, whose link is the card's, it returns that version as the winner (`posted_at` set) instead of putting it on trial.
+  - `supabase/functions/trial-reels/index.ts`: `startIfPosted` writes the card's `winner_letter` (by "posted") and a `winner_set` ledger row when that happens; every caller uses the winner it returns. Auto-deployed on merge; not a Section 4 function.
+  - `src/index/189-trial-reels-card.js.part`: a Posted card whose approved versions have not started reads that one card again at once (one read per Posted time, never a loop) and repaints its row.
+  - `docs/features/TRIAL_REELS_PLAN.md`: the `trial_start` row says so.
+- **Proven:** `test/trial-reels-logic.js` and `test/trial-reels-function-deno.ts` (one live version: Posted makes it the winner; two still go on trial), and `test/trial-reels-round3-card-browser.js` ("On trial" shows straight after Posted, one read, no loop), which fails on main.

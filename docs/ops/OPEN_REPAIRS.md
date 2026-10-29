@@ -35254,6 +35254,17 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 582. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a dead Frame.io link saved silently as a normal waiting version (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** a Frame.io link that no longer exists saved as an ordinary "waiting" version. Only the player, later, said Frame.io didn't know it.
+- **Fix (`src/index/189-trial-reels-card.js.part`):** the card runs the same sharing check as Production's Assets (`trial-reels` read with `probe: true`) after a version's link is saved, and once per card when its versions list first opens.
+  - A link the check finds gone says "link not found" on its row. A locked one says "no access". The hover says what to do.
+  - The verdict is kept per link, so a new link drops it.
+  - No server change.
+- **Measured from this session:** a dead `f.io` link and a dead `next.frame.io/share` link both answer 404 (the check says "expired"). An `app.frame.io/reviews` link answers 200 for any id, so a dead one of those can't be told apart.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks that B, dead, says "link not found" after one check, and that reopening the list checks nothing more. It fails on main.
+- **Also (Trialeyes E18, 2026-10-29):** in Production's Assets, a version link that never existed read "Expired". A 404 from the provider now reads "Not found" (245). This is checked in `test/trial-reels-production-browser.js`.
+
 ## 589. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a card with one version went "on trial" against nothing; Posted showed on the card only on the next 30 s list (Trialeyes E15, E16, session Trials)
 
 - **What happened (Trialeyes' walk):**

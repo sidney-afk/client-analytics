@@ -1824,6 +1824,7 @@
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="winner"] { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with Kasper"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with client"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }
         .trl-v .trl-ico, .trl-v .trl-pick { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 5px;

@@ -60,6 +60,8 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
       return reply(Object.assign({ ok: true }, shape()));
     }
+    // The sharing check (probe: true), as Production's Assets ask it: T.dead names the letters whose link is gone.
+    if (b.action === 'read' && b.probe) return reply(Object.assign({ ok: true }, shape(), { link_states: Object.fromEntries(T.versions.map(v => [v.letter, { state: (T.dead || []).includes(v.letter) ? 'expired' : 'available', http_status: (T.dead || []).includes(v.letter) ? 404 : 200 }])) }));
     if (b.action === 'read') {
       // A read of a Posted card starts its approved versions, as trial-reels does (the 30 s list is still the stale one).
       if (T.startOnRead && card.video_status === 'Posted') (L.trialPatches(T.versions, Date.now()).patches || []).forEach(p => Object.assign(T.versions.find(v => v.id === p.id), p.patch));
@@ -241,6 +243,23 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       if (!other) ok(T.versions[2].status === 'waiting' && moved, `new cut: the last open change's new cut sends the card back to For SMM Approval (deliverable ${vid.status})`);
       else ok(T.versions[2].status === 'waiting' && !moved, `new cut: with B's change still open, C's new cut leaves the card in Tweaks Needed (deliverable ${vid.status})`);
       card.video_status = 'For SMM Approval'; vid.status = 'smm_approval';
+      await page.close();
+    }
+    // Trialeyes E4 (2026-10-29): a dead Frame.io link is said on its row once checked, not only by the player later.
+    if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {
+      reset();
+      T.dead = ['B'];
+      const page = await open(1440, 900, 'light');
+      await openList(page);
+      await page.waitForFunction(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].some(n => n.textContent.trim() === 'link not found'), null, { timeout: 5000 }).catch(() => {});
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      ok(lab('B') === 'link not found' && lab('A') === 'waiting' && T.calls.some(c => c.action === 'read' && c.probe === true && c.post_id === 'p_t1'), `dead link: B says "link not found", A keeps its state, after one sharing check of the card (${lab('A')} | ${lab('B')})`);
+      ok(/does not open a video/.test((R.find(r => /^Video B/.test(r.t)) || {}).title || ''), 'dead link: its hover says what to do');
+      const n = T.calls.filter(c => c.probe).length;
+      await page.click('.cal-link-post .trl-chev'); await sleep(200); await page.click('.cal-link-post .trl-chev'); await sleep(400);
+      ok(T.calls.filter(c => c.probe).length === n, `dead link: closing and opening the list again checks nothing more (${T.calls.filter(c => c.probe).length - n} more)`);
+      T.dead = [];
       await page.close();
     }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the

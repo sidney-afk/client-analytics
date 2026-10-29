@@ -67,6 +67,32 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _trlEditing = {};      // pid -> letter being edited
     const _trlDraft = {};        // pid -> { letter, text, err }: a link the page refused, kept in its field with why
     const _trlPostedAsked = new Set();   // pid|Posted time: the one re-read a Posted card gets
+    /* Each version link's sharing check, the same one Production's Assets run (trial-reels read with probe: true): kept
+       per link, so a dead Frame.io link is said on its row once checked, not only when the player fails on it
+       (Trialeyes E4, 2026-10-29). Checked after a link is saved, and once per card when its list first opens. */
+    const _trlLinkState = {};    // pid|letter -> { url, state }
+    const _trlChecked = new Set(), _trlChecking = new Set();
+    function _trlCheckLinks(pid, again) {
+        const post = _trlPost(pid);
+        if (!post || _trlChecking.has(pid) || (!again && _trlChecked.has(pid))) return;
+        _trlChecked.add(pid); _trlChecking.add(pid);
+        svTrialCall({ action: 'read', client: _trlSlug(post.client || calState.client), post_id: pid, probe: true })
+            .then(json => {
+                const st = (json && json.link_states) || {};
+                for (const v of (json && json.versions) || []) if (st[v.letter] && v.frame_url) _trlLinkState[pid + '|' + v.letter] = { url: String(v.frame_url), state: String(st[v.letter].state || '') };
+                _trlRepaintField(pid);
+            })
+            .catch(() => {})
+            .finally(() => _trlChecking.delete(pid));
+    }
+    // A link the check found dead or locked: its row says so (the words of Production's Assets row).
+    function _trlLinkBadHtml(pid, v) {
+        const k = _trlLinkState[pid + '|' + v.letter];
+        if (!k || !v.frame_url || k.url !== String(v.frame_url) || ['dropped', 'lost', 'winner'].includes(v.status)) return '';
+        if (k.state === 'expired') return '<span class="trl-lab" data-l="link not found" title="This link does not open a video. Paste the right link for Video ' + _calEscAttr(v.letter) + '.">link not found</span>';
+        if (k.state === 'permission_denied') return '<span class="trl-lab" data-l="no access" title="This link asks for a sign-in. Share it so anyone with the link can view it.">no access</span>';
+        return '';
+    }
     const _trlBusy = new Set();  // pid|action in flight
     /* Every action answers at once (owner, 2026-10-27: "everything should feel fast"). The row is drawn from the last
        server answer with the changes still in flight laid over it; a change leaves the list when its answer lands, so
@@ -409,6 +435,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _trlListHtml(pid, shape) {
         const vs = shape.versions || [];
+        if (vs.some(v => v.frame_url) && !_isClientLink) setTimeout(() => _trlCheckLinks(pid), 0);
         const p = _calEscAttr(pid);
         const up = _trlTrialUp(shape);
         const rows = vs.map(v => {
@@ -425,7 +452,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // link was pasted asks for no link (Trialtest, 2026-10-28).
             const name = v.frame_url ? '<a class="trl-l trl-name" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">Video ' + _calEsc(v.letter) + '</a>'
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>' + (v.status === 'dropped' ? '' : '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>');
-            const label = svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>';
+            const label = _trlLinkBadHtml(pid, v) || (svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -494,6 +521,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const json = await svTrialCall(Object.assign({ client: slug, post_id: pid }, body));
             const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
             if (json.versions) e.cards[pid] = Object.assign({}, e.cards[pid] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
+            if (key === 'link') _trlCheckLinks(pid, true);
             return json;
         } catch (e) {
             // This one card read again now (a list read would keep the change still in flight over it).

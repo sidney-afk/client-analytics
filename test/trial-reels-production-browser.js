@@ -46,7 +46,7 @@ async function shot(page, name) {
     frame_url: l === 'E' ? null : LINK(l), revision: 0, updated_at: '2026-10-27T09:00:00.000Z', post_id: 'p_t1' }));
   // What the function's sharing check answers for each version (a fresh link answers available).
   const states = () => Object.fromEntries(T.versions.map(v => [v.letter, !v.frame_url ? { state: 'missing' }
-    : ({ B: { state: 'permission_denied', http_status: 403 }, C: { state: 'unavailable' } })[v.letter] || { state: 'available', http_status: 200 }]));
+    : ({ B: { state: 'permission_denied', http_status: 403 }, C: { state: 'unavailable' }, D: T.deadD ? { state: 'expired', http_status: 404 } : null })[v.letter] || { state: 'available', http_status: 200 }]));
   const mainLink = () => String(vid.file_url || card.asset_url || '');
   const reset = (versions, link) => { T.versions = versions; vid.file_url = link; card.asset_url = link; };
 
@@ -253,6 +253,15 @@ async function shot(page, name) {
     const ms = Date.now() - t0;
     r = await rows(page);
     ok(r.some(x => /Video E/.test(x.label) && /approved/.test(x.value)) && ms < 2000, `push: the client's approve on Video E shows on the Assets panel in ${ms} ms (under 2 s)`);
+    await page.close();
+
+    // Trialeyes E18 (2026-10-29): a link that never existed (404) reads "Not found", never "Expired".
+    T.deadD = true;
+    page = await open(1440, 900);
+    r = await rows(page);
+    const dRow = r.filter(x => x.trial)[3];
+    ok(dRow && dRow.state === 'Not found', `a link that never existed reads "Not found" (${dRow && dRow.state})`);
+    T.deadD = false;
     await page.close();
 
     // A read that fails for any reason but "no versions here" never hides the versions: it says so, with Retry.

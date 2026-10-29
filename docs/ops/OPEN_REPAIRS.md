@@ -35507,6 +35507,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
   - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
 
+## 607. [2026-10-29 UTC, BUILT, NOT MERGED] Client link: the "Open the thumbnail" card overflowed its tile when the thumbnail is in Frame.io (session Linkcheck)
+
+- **What happened:** on the review page's Thumbnail step, a card whose thumbnail is a Frame.io link shows "The thumbnail is in Frame.io." and an "Open the thumbnail" card. The card's open-in-new icon had no size (the video's own fallback link sizes its icon to 16 px, this one never did), so it drew at about 135 px, filled the card and pushed the label off to the right, clipped ("Ope / thum"). Seen live at 390 by the Supervisor on two real client links and the test client, with and without the client page's polish; it was the same at 1440.
+- **Fix (195):** the icon is 16 px and never shrinks or grows, the label stays on one line, and the tile keeps a 16 px inner margin so the card never touches its edge.
+- **Proven:** `test/review-stage-thumb-frame-browser.js` (review-stage fixture, Thumbnail step, 1440 and 390, light and dark, polish off and on) checks that the icon is at most 20 px, the card sits inside the tile and the label is whole on one line inside the card. It fails 16 times on main (135 px icon, 2 lines, 57 px overflow) and passes with the fix.
+
 ## 609. [2026-10-29 UTC, BUILT, NOT MERGED] Five staff features made permanent (no switch), and no thumbnail-titles status read for staff it refuses (session Permafive)
 
 - **What the owner asked (2026-10-29, ~17:05 UTC):** "Yes, let's put them permanent." Five staff features had been on for every staff member since 27/28 Oct through rows in `syncview_runtime_flags` (`{"all": true, "staff": [14 ids]}`) and were watched clean for two days: the unread badges with Notes and Messages (`unread_badges_v2`), the staff phone polish (`phone_polish_staff`), caption history (`caption_history_staff`), the Production thumbnail title buttons (`thumbnail_title_buttons_staff`) and Frame.io comments in a card's Notes (`frame_comments_in_notes_staff`). A deleted, mistyped or failed read of any of those rows turned the feature off for everyone.

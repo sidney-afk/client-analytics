@@ -841,7 +841,7 @@ Switch values below are the live values read on 2026-10-28.
 - "Did they show?" for calls that have passed: **Showed** moves the person to Call 1 done. **No-show** moves them to No-show and adds them to the No-show automation.
 - Automatic sends due in the next 24 hours, with their state.
 
-**Report:** one row per source, with People, Booked, Showed up and Signed. It also has "Same person twice?" for merging.
+**Report:** one row per source, with the stages left to right, each in its own colour: Filled in the form (came from an ad form, or the form was sent or started), Booked, Showed up and Signed, then Total at the far right. It also has "Same person twice?" for merging.
 
 **Automations:**
 - Every email and text a lead gets by itself, grouped by when it starts.

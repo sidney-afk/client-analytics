@@ -2031,6 +2031,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-thumb-frame-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client and cards, one card's thumbnail a fictional Frame.io link), no hosted credentials and no live data. Opens the client link's Thumbnail step at 1440x900 and 390x844, light and dark, polish off and on, and checks the Open the thumbnail card's icon is at most 20 px, the card sits inside the tile and its label is whole on one line.",
+      "reproduce": "node test/review-stage-thumb-frame-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-ten-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

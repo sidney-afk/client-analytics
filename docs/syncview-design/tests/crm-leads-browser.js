@@ -173,7 +173,7 @@ async function run(browser, origin, viewport) {
         state.toggles.push(body);
         const s = state.seqs.find(x => x.id === body.sequence_id); s.active = body.active; return json({ ok: true, sequence: s });
       }
-      if (body.action === 'report') return json({ ok: true, sources: [{ id: 's1', name: 'Made-up batch', kind: 'csv_import' }], rows: [{ source_id: 's1', people: 4, booked: 2, showed: 1, won: 1, won_value: 0 }] });
+      if (body.action === 'report') return json({ ok: true, sources: [{ id: 's1', name: 'Made-up batch', kind: 'csv_import' }], rows: [{ source_id: 's1', people: 4, form: 3, booked: 2, showed: 1, won: 1, won_value: 0 }] });
       if (body.action === 'duplicates') return json({ ok: true, groups: state.merged ? [] : [[state.people[0], Object.assign({}, state.people[1], { id: '00000000-0000-4000-8000-000000000009', display_name: state.people[0].display_name })]] });
       if (body.action === 'merge') { state.merged = body; return json({ ok: true, person: state.people[0] }); }
       if (body.action === 'due' || body.action === 'log_send') return json({ ok: false, error: 'unauthorized' }, 401);
@@ -273,9 +273,9 @@ async function run(browser, origin, viewport) {
   if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
   await page.click('#crmTop [data-crm-nav="report"]');
   await page.waitForSelector('.crm-report tbody tr');
-  expect(/Made-up batch\s+4\s+2\s+1\s+1/.test(await page.locator('.crm-report tbody').innerText()), label + ': the Report shows people, booked, showed and signed per source');
+  expect(/Made-up batch\s+3\s+2\s+1\s+1\s+4/.test(await page.locator('.crm-report tbody').innerText()), label + ': the Report shows filled the form, booked, showed, signed, then the total, per source');
   if (SHOTS) await shoot(page, label + '-report');
-  expect(await page.locator('.crm-report thead th').count() === 5, label + ': the Report has column titles');
+  expect(await page.locator('.crm-report thead th').count() === 6 && (await page.locator('.crm-report thead th').last().innerText()).trim() === 'Total', label + ': the Report has column titles, Total last');
   const mergeBtn = page.locator('#crmReport .crm-btn', { hasText: 'Merge' });
   expect(await mergeBtn.count() === 1, label + ': the Report lists the same person twice with a Merge button');
   await mergeBtn.click();

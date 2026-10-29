@@ -24,6 +24,12 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const cleaned = h.cleanPage(page);
   assert.ok(!cleaned.includes('<!--') && cleaned.includes('Nine to five.'), 'brain blocks are stripped, text kept');
 
+  // Bookkeeping never reaches the answer, inside a comment or loose.
+  const loose = '# Page\n\n## Who\nid:      company.x.who\nowner:   sidney\nstatus:  written\nsource:  inputs/x.md\nupdated: 2026-10-28\nKasper is the founder.\n\n## Note\nSource: the sheet.\nowner: the SMM keeps the list.\n';
+  const looseOut = h.cleanPage(loose);
+  assert.ok(!/owner:\s+sidney|status:|updated:|inputs\/x\.md/.test(looseOut) && looseOut.includes('Kasper is the founder.'), 'loose bookkeeping lines are dropped');
+  assert.ok(looseOut.includes('Source: the sheet.') && looseOut.includes('owner: the SMM keeps the list.'), 'single prose lines that look alike stay');
+
   const reply = h.handbookReply('team', page, ['start', 'team', 'work']);
   assert.ok(reply.includes('Nine to five.') && /Other pages[^\n]*start, work/.test(reply), 'page text and the other pages');
   assert.ok(/index/.test(h.handbookReply('start', 'x', ['start', 'team'])), 'the index says how to reach a page');
@@ -46,8 +52,11 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const bc = idx.slice(idx.indexOf('name: "client_brain"'), idx.indexOf('name: "import_file"'));
   assert.ok(/handbook: \{ type: "string"/.test(bc) && /handbook_page: \{ type: "string"/.test(bc), 'both tools offer the handbook option');
   assert.ok(!/required: \["client"/.test(bc), 'client is no longer required on either tool');
-  assert.ok(/name === "client_brain" && String\(args\.handbook/.test(idx) && /handbookRead\(String\(args\.handbook\)\)/.test(idx), 'client_brain dispatches the handbook option');
-  assert.ok(/name === "brain_change" && String\(args\.handbook_page/.test(idx) && /handbookChange\(/.test(idx), 'brain_change dispatches the handbook option');
+  assert.ok(/name === "client_brain" && \(String\(args\.handbook/.test(idx) && /handbookRead\(/.test(idx), 'client_brain dispatches the handbook option');
+  assert.ok(/name === "brain_change" && \(String\(args\.handbook_page/.test(idx) && /handbookChange\(/.test(idx), 'brain_change dispatches the handbook option');
+  assert.ok(idx.includes('call client_brain with topic \\"handbook\\"') && idx.includes('never search local or downloaded files'), 'the server instructions send company questions to the handbook');
+  assert.ok(/handbookTopic = \/\^\\s\*handbook\(\?::/.test(idx) && /handbookRead\(String\(args\.handbook \|\| \(handbookTopic/.test(idx), 'client_brain topic handbook and handbook:<page> reach the reader');
+  assert.ok(/handbookFact = /.test(idx) && /handbookChange\(String\(args\.handbook_page \|\| \(handbookFact/.test(idx), 'brain_change fact_id handbook:<page> reaches the filer');
   const guide = read('docs/ops/HANDBOOK_GUIDE_ROW.md');
   assert.ok(/'handbook'/.test(guide) && /needs Sidney|Sidney's to decide/.test(guide), 'guide row text exists');
 

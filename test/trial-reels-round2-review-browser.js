@@ -809,6 +809,29 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
+    // ...and another window's answer still says so: Kasper only looks; another window approves every version and the
+    // card moves to the client.
+    for (const [w, h, label] of [[1440, 900, 'route kasper other window 1440']].filter(() => part('routek'))) {
+      const vs = three().map(v => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: null }));
+      const t = await start('kasper', true, vs, { width: w, height: h, layout2: true, beforeOpen: async t2 => {
+        await keepGateway(t2);
+        const card = t2.state.cards.find(c => c.id === 'rs1');
+        Object.assign(card, { video_status: 'Kasper Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'Kasper Approval' });
+        if (t2.T_native) Object.assign(t2.T_native, { status: 'kasper_approval' });
+      } });
+      await waitFor(async () => !!(await R(t, `return !!r.querySelector('[data-trk-ok="A"]');`)), 60);
+      t.T.versions.forEach(v => { v.kasper_ok_at = new Date().toISOString(); });
+      Object.assign(t.state.cards.find(c => c.id === 'rs1'), { video_status: 'Client Approval', status: 'Client Approval', updated_at: new Date().toISOString() });
+      // The page hears it through the next read of the versions (the 30 s re-read; the broadcast is not mocked here).
+      await sleep(31000);
+      await t.page.evaluate(() => _kasperLoadReview(true));
+      await sleep(3000);
+      const said = await R(t, `return (r.textContent || '').replace(/\\s+/g, ' ');`);
+      ok(/answered in another window/.test(said) && !/Approved, sent to the client, so it has left/.test(said),
+        `${label}: a card another window answered still says "answered in another window" (${(said.match(/[A-Z][^.]{0,80}(another window|left your list)[^.]*\./) || ['none'])[0]})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
     // The client link shows only versions that have come through the team: A and C, not B (still with Kasper).
     for (const [w, h, label] of [[1440, 900, 'route client 1440'], [390, 844, 'route client 390']].filter(() => part('routec'))) {
       const vs = three().map((v, i) => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: i === 1 ? null : '2026-10-29T08:30:00.000Z' }));

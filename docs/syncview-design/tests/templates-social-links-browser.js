@@ -62,7 +62,11 @@ const EXPECT = {
       await page.waitForSelector('.tpl-client-head [data-tpl-social]', { state: 'attached', timeout: 15000 });
     };
     const svAreaReady = () => page.waitForFunction(() => !!svAreaApi('templates'), null, { timeout: 15000 });
-    const links = () => page.$$eval('.tpl-client-head [data-tpl-social] a', as => as.map(a => ({
+    // Query and read in ONE evaluate. page.$$eval queries and then reads in two
+    // round trips, and the client page redraws itself whenever background data
+    // lands (the onboarding index, the brain), so a redraw between the two left
+    // it reading a detached link: 0x0, "not visible" (main 6ecca04).
+    const links = () => page.evaluate(() => Array.from(document.querySelectorAll('.tpl-client-head [data-tpl-social] a'), a => ({
       platform: a.dataset.platform, href: a.getAttribute('href'), target: a.target, rel: a.rel,
       visible: !!(a.offsetWidth || a.offsetHeight), hasIcon: !!a.querySelector('.cal-client-link-ico svg'),
     })));
@@ -82,7 +86,7 @@ const EXPECT = {
       const calendar = await page.evaluate(n => _calSocialLinksFor(n).map(l => [l.key, l.url]), name);
       if (JSON.stringify(calendar) !== JSON.stringify(gotPairs)) failures.push(`${name}: Templates links differ from the Calendar's ${JSON.stringify(calendar)}`);
       if (!want.length) {
-        const box = await page.$eval('.tpl-client-head [data-tpl-social]', el => ({ w: el.offsetWidth, h: el.offsetHeight }));
+        const box = await page.evaluate(() => { const el = document.querySelector('.tpl-client-head [data-tpl-social]'); return { w: el.offsetWidth, h: el.offsetHeight }; });
         if (box.w || box.h) failures.push(`${name}: the empty strip still takes space (${box.w}x${box.h})`);
       }
       console.log(`templates-social-links: ${name}: ${got.map(l => l.platform).join(', ') || 'none'}`);

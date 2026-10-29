@@ -35431,6 +35431,28 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`, the polished client page, 1440 by arrow and 390 by dot). It fails without the fix exactly as Trialtest saw it: A's Approve is missing and the box is open.
 - **Codex on #2444:** the note first said "Sent" as soon as the change was queued, so a refused save still showed it. It now reads "Sending the change for Video C…" while the save runs and "Change sent" only once it lands; a refused or declined change clears it and keeps its own Try again. Checked in the same part with a refused save (fails without the change: "Change sent for Video C" over "Not saved").
 
+## 602. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a refused winner write at Posted left a one-version card stuck (Codex on #2444, session Trials)
+
+- **What could happen:** with one live version left, Posted makes it the winner (597).
+  - `startIfPosted` (trial-reels `index.ts`) wrote the version row's "winner" first, then the card's `winner_letter`.
+  - If the second write was refused, the row said winner and the card had no winner.
+  - The next read saw the row as on trial (`settleWinner`, since the card's letter is the only truth) with no 24 h end. `autoTrialPatches` then started nothing, because a version was on trial, and the page showed no pick. The card stayed stuck.
+- **Fix:** the card's winner is written first.
+  - A refused write now leaves nothing done, and the next read tries again.
+  - A version write refused after it still reads as the winner, because the card's letter decides.
+- **And the next read heals a card already stuck (the Supervisor's ask):** `autoTrialPatches` (logic.mjs) takes a Posted card whose one live version reads on trial with no 24 h end and makes it the winner (card and row). A real trial, with its 24 h end, is left alone.
+- **Proven (the heal):** `test/trial-reels-logic.js` (the stuck card and a real trial) and the function test, which seeds a winner row with no card winner and checks the next read writes card winner A. Both fail on main.
+- **Proven:** `test/trial-reels-function-deno.ts` refuses the card's write once. Without the fix, A stays "winner" with no card winner on both reads. With it, the first read leaves A approved and the next one makes A the winner, card and row (89 checks with the heal). The Deno type ratchet holds.
+- **Codex on #2445:** with the winner first, a version write refused after it (the version changed since the read, for example a new cut) left the card naming a cut nobody approved. The card's winner is now taken back when the version's write fails, and the next read starts again from the version as it now is. The function test moves the version mid-read and checks both (91 checks).
+- **Way back:** revert the PR; the merge lane redeploys trial-reels from main.
+
+## 604. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: the Calendar's 30 s re-read threw "_isClientLink is not defined" on a slow load (Templink, session Templink)
+
+- **What happened:** while chasing a one-off red `templates-social-links-browser.js` on main 6ecca04 (CI run 40848470532), 1 in about 80 parallel local runs failed with a page error instead: `ReferenceError: _isClientLink is not defined`, thrown from part 11 (`sv-11-core`).
+- **Why:** `_trlRefresh` (189) starts a 5 s `setInterval` as soon as its part runs and reads `_isClientLink` bare. `_isClientLink` is a `const` declared in 260, which ships in a later part (`sv-15-core`). The parts are written in order and the parser waits for each, so timers from an earlier part can fire while a later part is still downloading. When part 15 takes longer than 5 s to arrive, every tick throws until it does. A slow phone or a loaded CI runner can hit that, and the boot-clean suites count it as a page error.
+- **Fix:** `_trlRefresh` returns while `_isClientLink` is still undeclared (`typeof _isClientLink === 'undefined'`), the same guard 040 already uses for the same read. The refresh starts on the first tick after part 15 has run, so nothing is lost.
+- **Proven:** the Templates social-links suite with part 15 held back 7 s: before the fix one `ReferenceError` at `sv-11-core …:862`, after it none. The unchanged suite then ran 60 times in parallel with no page error.
+
 ## 603. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: a version's refused "change asked" mark was never tried again while the page stayed open; two wording nits (Trialtest, live on #2444, session Trials)
 
 - **What happened (session Trialtest, live, client link, card at Client Approval with A, B, C):**

@@ -405,6 +405,15 @@ export function trialPatches(versions, nowMs) {
  */
 export function autoTrialPatches(versions, { cardStatus, postedAt, nowMs, mainLink }) {
   if (clean(cardStatus, 40) !== "Posted") return { patches: [] };
+  const linkIs = (v) => mainLink !== undefined && !!clean(mainLink, 2048) && clean(mainLink, 2048) === clean(v.frame_url, 2048);
+  /* A card the old write order left stuck (Codex on #2444): its one live version reads on trial with no 24 h end (a
+     "winner" row and no card winner), so nothing would start and no pick shows. The next read makes it the winner. */
+  const held = versions.filter((v) => live(v) && !passed(v));
+  if (held.length === 1 && held[0].status === STATUS.trial && !held[0].trial_ends_at && linkIs(held[0])
+    && !versions.some((v) => v.status === STATUS.winner || v.status === STATUS.lost)) {
+    const w = held[0];
+    return { winner: w.letter, patches: [{ id: w.id, letter: w.letter, from: w.status, patch: { status: STATUS.winner, posted_at: w.posted_at || new Date(nowMs).toISOString() } }] };
+  }
   if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { patches: [] };
   const ready = versions.filter((v) => v.status === STATUS.approved && !passed(v));
   if (!ready.length) return { patches: [] };

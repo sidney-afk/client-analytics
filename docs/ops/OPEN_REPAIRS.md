@@ -35406,7 +35406,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - "Video A approved" (green);
   - "Video C waits: Video B's change is with the editor" (plain);
   - B keeps today's "Change asked" with its note.
-- **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
+- **With 587 (the owner's choice (a), merged first; combined PR, 2026-10-29):** the card now stays where it is while C still waits, so C shows its own Approve (never B's quote). Its "waits: Video B's change is with the editor" line is drawn only once the card is in Tweaks Needed. B says "Change asked on Video B" with its note, never Approve again (`svTrialReviewAsked`, 194). The `e1` part checks both.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
 - **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
 
@@ -35418,3 +35418,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Note:** without Collaborative mode the client's Sheet and Month show finished posts only, so a card still under review is not on them and shows no tag.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=hint`) at 1440 and 390: "3 versions" beside the Sheet title, the tap opens the Review page on Video A, and the Month card says it too. Fails on main.
 
+
+## 601. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after a change was sent, the change box stayed open and the next version had no Approve (Trialtest, session Trials)
+
+- **What happened (session Trialtest, live check of #2434 on the client link, 390 and 1440):**
+  - On a card with A, B and C at Client Approval, the client asked for a change on C.
+  - The box stayed open ("Change to the video · Sent · Add another change, or finish reviewing").
+  - Moving to A (dot or arrow) showed no "Approve Video A", only Cancel, "Ask for change" and "Finish reviewing".
+  - Approve came back only after Cancel, which reads to a client like taking the change back.
+- **Why:** the polished client page (`review_client_polish`) keeps the box open on the same part for the next change (`_rsCpQueueChange`, 195). On a trial card that part is the video of every version.
+- **Fix (the Supervisor's ruling, 2026-10-29):** on a trial card, a sent video change closes the box. A small "Change sent for Video C" stays above the buttons for the rest of the visit, so the next version shows its own Approve and "Not this one". Kasper's polished layout takes the same path. A refused change still goes back into the box with its words, as before.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`, the polished client page, 1440 by arrow and 390 by dot). It fails without the fix exactly as Trialtest saw it: A's Approve is missing and the box is open.

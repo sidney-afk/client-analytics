@@ -437,9 +437,33 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await t.ctx.close();
     }
 
+    // Trialtest (2026-10-29, after #2434): once a change is sent, the box closes with "Change sent for Video C", and the
+    // next version shows its own Approve and "Not this one", never the sent change's box (whose Cancel read like taking
+    // the change back).
+    for (const [w, h, label, go] of [[1440, 900, 'client 1440', 'arrow'], [390, 844, 'client 390', 'dot']].filter(() => part('keepcard'))) {
+      // The live client link runs the polished page (review_client_polish), whose change box stays open for the next change.
+      const t = await start('client', true, three(), Object.assign({ width: w, height: h, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
+      await askChange(t, 'Fictional note: a warmer colour on C.');
+      await waitFor(async () => t.T.versions[2].status === 'change asked', 50);
+      await sleep(800);
+      const sentNote = () => R(t, `const n = r.querySelector('.trv-sent'); return n ? n.textContent.trim() : '';`);
+      ok(!(await R(t, `return !!r.querySelector('#drow textarea');`)) && /Change sent for Video C/.test(await sentNote()), `${label}: once sent, the box closes and says "Change sent for Video C" ("${await sentNote()}")`);
+      await press(t, go === 'dot' ? '[data-trv-go="A"]' : '[data-trv-step="-1"]');
+      await sleep(700);
+      if (go === 'arrow') { await press(t, '[data-trv-step="-1"]'); await sleep(700); }
+      const d = await dec(t);
+      const box = await R(t, `return !!r.querySelector('#drow textarea');`);
+      ok(/Video A of 3/.test(d.bar) && /^Approve/.test(d.ok) && !box, `${label} (${go}): after C's change is sent, A shows its own Approve, not the change box ("${d.bar}" | "${d.ok}" | box ${box})`);
+      ok(await R(t, `return !!r.querySelector('[data-pass="video"]');`) && /Change sent for Video C/.test(await sentNote()), `${label} (${go}): A offers "Not this one" too, and the "Change sent for Video C" note stays`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
     // ---------- Trialeyes E1 (2026-10-29): after a change on one version, another version never shows that change ----------
-    // The SMM approves A, then asks for a change on B: the card goes to Tweaks Needed (plan section 5), and C, which
-    // nobody has looked at, says its own state, never B's "Change asked" quote; A says it is approved.
+    // The SMM approves A, then asks for a change on B: C still waits, so the card stays (OPEN_REPAIRS 587) and C, which
+    // nobody has looked at, keeps its own Approve, never B's "Change asked" quote; A says it is approved; B says its own
+    // "Change asked" and note, never Approve again.
     for (const [w, h, label] of [[1440, 900, 'SMM review'], [390, 844, 'SMM review 390']].filter(() => part('e1'))) {
       const vs = three().map(v => Object.assign(v, { kasper_ok_at: null, smm_ok_at: null }));
       // The SMM's saves go through Production's gateway: it commits them, as live (the fixture's own answer is for phones).
@@ -462,7 +486,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await sleep(300);
       await inS(t.page, '#ta').fill('Fictional note: cut the first second.');
       await inS(t.page, '#sendBtn').click();
-      await waitFor(async () => t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed') && t.T.versions[1].status === 'change asked', 80);
+      await waitFor(async () => t.T.versions[1].status === 'change asked', 80);
+      await sleep(900);
       ok(t.T.versions[1].status === 'change asked' && !!t.T.versions[0].smm_ok_at && t.T.versions[2].status === 'waiting' && !t.T.versions[2].smm_ok_at, `${label}: the server has A approved by the SMM, B's change, C untouched`);
       // The page moves on to the Thumbnail after the video's answer, as today: go back to the Video step.
       await sleep(600);
@@ -472,7 +497,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await sleep(700);
       let d = await dec(t);
       ok(/Video C of 3/.test(d.bar) && !/cut the first second/.test(d.said + d.bar) && !/Change asked/.test(d.said), `${label}: Video C never shows B's change ("${d.said}")`);
-      ok(/Video C waits: Video B's change is with the editor/.test(d.said), `${label}: Video C says it waits for B's change ("${d.said}")`);
+      // C still waits for the SMM, so the card stays where it is and C keeps its own Approve (the owner's choice (a),
+      // OPEN_REPAIRS 587; before it, C said it waited for B's change).
+      ok(/^Approve/.test(d.ok) && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'), `${label}: Video C keeps its own Approve while B's change is open, and the card stays ("${d.ok}")`);
       await shot(t, 'e1-C-' + label.replace(/\s+/g, '-'));
       await press(t, '[data-trv-go="A"]');
       await sleep(700);

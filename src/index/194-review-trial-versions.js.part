@@ -143,6 +143,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_trvAnswer(cur, stage) === 'ok') return '<span class="dst ok"><span class="ck">' + TRV_CHECK + '</span>Video ' + _calEsc(cur.letter) + ' approved</span>';
         return '<span class="dst">Video ' + _calEsc(cur.letter) + ' waits: ' + who + '</span>';
     }
+    /* The version on screen has a change open while the card stays where it is (the owner's choice (a), OPEN_REPAIRS
+       587): its own "Change asked" and note, never Approve again over a change just sent. Null otherwise. */
+    function svTrialReviewAsked(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return null;
+        const cur = _trvCurOf(m, mode);
+        return cur && cur.status === 'change asked' ? { letter: cur.letter, note: String(cur.change_note || '') } : null;
+    }
     // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
     function svTrialReviewAnswered(m, mode) {
         return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'ok');
@@ -587,5 +594,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml
+  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked
 };

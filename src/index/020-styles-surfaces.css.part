@@ -1794,6 +1794,10 @@
            ("0/3", "5 h left") and stay in the link's hover. */
         .cal-link-post.trl-main .cal-link-pill-open { container-type: inline-size; }
         .cal-link-post.trl-main .trl-main-label, .cal-link-post .trl-state { flex: none; white-space: nowrap; }
+        /* A client's drop is the one state too long to step back ("0/4 approved · 1 dropped by the client" was cut to
+           "1 d…" at 390): it goes on to a second line instead (Trialtest, 2026-10-29). Every other state keeps today's
+           one-line height. */
+        .cal-link-post .trl-state.trl-state-wrap { flex: 0 1 auto; min-width: 0; white-space: normal; }
         .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; }
         .cal-link-post .trl-state-n { display: none; }
         @container (max-width: 160px) { .cal-link-post .trl-state-w { display: none; } .cal-link-post .trl-state-n { display: inline; } }
@@ -1827,6 +1831,7 @@
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="change asked"] { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="on trial"] { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="winner"] { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
+        :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with SMM"] { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with Kasper"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with client"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
         .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }

@@ -35468,3 +35468,23 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The same part, offline: the notice's offline words, and the mark sent as soon as the page is back online (0.1 s, not its next timer).
   - `test/trial-reels-round3-card-browser.js` (dead link on a client-dropped version, 1440 and 390): it fails on main.
   - `trial-reels-review-browser`'s refused-write check now looks at the kept write before the 3 s retry.
+
+## 605. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version out for a change held every other version at that stage (per-version routing, Sidney's decision, session Trials)
+
+- **What happened:** when the SMM or Kasper asked for a change on one trial version, the card went to Tweaks Needed and every other version waited for that one new cut, even the versions that stage had already approved. Sidney (2026-10-29, via the Supervisor): "Other videos should go to Kasper while one of them is out for a change."
+- **Rule now (written first in `docs/features/TRIAL_REELS_PLAN.md`, section 5, "Per-version routing"):**
+  - Each live version has a place: with SMM, with Kasper, with client, approved, waiting for a new cut, client-dropped, dropped.
+  - A reviewer is done when no live version waits for them and at least one has their OK. The card then moves on through today's stage approve, so the approved versions reach the next reviewer straight away.
+  - The card's status is the front: how far the work has got. It never moves back while work ahead still waits. The changed version catches up through per-version overrides: the SMM's Review tab still lists a card at Kasper or Client Approval for it, and Kasper's queue lists a Client Approval card while a version waits for him.
+  - The client's change keeps option (a): the card stays in Client Approval while other versions wait for the client.
+  - The client link shows only versions that came through the team.
+- **Fix:**
+  - `trial-reels/logic.mjs`: `placeOf`, `kasperOnRoute`, `stageDone` per version, the client's `ready` and `stageReady` through the team, and `place` and `stages_done` on every staff read.
+  - Review pages (194, 195): a change with the stage otherwise done moves the card on, never to Tweaks Needed; a card ahead of a stage is never moved back.
+  - Kasper's queue (190, 330) and the SMM's card and Production (189) say per version where it is. A version with no link stays "waiting".
+  - Held 390 nit bundled: the collapsed row's words wrap to a second line instead of being cut to "1 d…" (020).
+- **Codex on PR 2452, three findings, all reproduced and fixed:**
+  - A card sent whole to Kasper (no SMM OK on any version) put every version with the SMM, so Kasper's OK on one finished his stage. `placeOf` now counts such a card's versions as through the SMM.
+  - The client's change routing read only the versions on screen, so a change on A sent the card to Tweaks Needed while B was still with Kasper. It now reads every version.
+  - The SMM's approve that forwarded the card marked every open change request done, including the one on the version still waiting for its cut. It now leaves open the requests of versions still in "change asked" (through a one-call hint read by `_calOpenTweaksForComp`, so `_calReviewApprove` stays byte-identical to main for the client path's guard). When that version's new cut passes the SMM while the card is already further on, its own request is marked done then.
+- **Proven:** logic test 159 checks, Deno function test 96. In `trial-reels-round2-review-browser.js`, the new route, routek and routec parts at 1440 and 390 fail 11 times on main's page code and pass with the change. The round-3 card test's collapsed-row check fails at 390 and 1440 without the CSS. Every trial-reels browser suite passes.

@@ -48,7 +48,7 @@ import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComme
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
-import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml } from './189-trial-reels-card.js';
+import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -2388,6 +2388,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
         const cs = _calNormStatus(post[comp + '_status'] || '');
         if (cs === 'Kasper Approval') return true;
+        // Per-version routing (189): a trial card already with the client is still his while a version waits for him.
+        if (comp === 'video' && cs === 'Client Approval' && svTrialWaitsWith(post, 'kasper')) return true;
         if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) {
             // "Approve after tweaks" is Kasper's explicit pre-clearance: he is
             // done with this component and has consented to skip his own
@@ -2571,7 +2573,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         return _calComponentsFor(post).filter(c =>
             !(c === 'graphic' && !_calCompLinked(post, c))
             && _kasperCompReviewable(post, c)
-            && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+            && (_calNormStatus(post[c + '_status'] || '') === 'Kasper Approval'
+                || c === 'video' && _calNormStatus(post[c + '_status'] || '') === 'Client Approval' && svTrialWaitsWith(post, 'kasper')));
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -3855,7 +3858,29 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!post) return [];
         const list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return [];
-        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c));
+        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c) && !_calTweakKept(c));
+    }
+    /* Trial reels, per-version routing: while the SMM's Review tab forwards the card, the change requests of versions
+       still waiting for their new cut ("Video B: ...") are not the ones the send answers, so they stay open (Codex on
+       PR 2452). Set only for that one call; _calReviewApprove itself stays as main has it (the client path's guard). */
+    let _calKeepTweakLetters = null;
+    function _calTweakKept(c) {
+        return !!_calKeepTweakLetters && _calKeepTweakLetters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(c.body || '')));
+    }
+    function svCalReviewApproveKeeping(pid, comp, dest, letters) {
+        _calKeepTweakLetters = Array.isArray(letters) && letters.length ? letters : null;
+        try { window._calReviewApprove(pid, comp, dest); } finally { _calKeepTweakLetters = null; }
+    }
+    /* The SMM approves a version's new cut while the card is already further on: nothing forwards the card, so that
+       version's own change requests ("Video C: ...") are marked done here, as the forward would have done. */
+    function svCalResolveVersionTweaks(pid, comp, letters) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !Array.isArray(letters) || !letters.length || _calReviewMode() !== 'smm' || !_calCanResolveComment()) return;
+        const ids = _calOpenTweaksForComp(post, comp).filter(t => letters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || '')))).map(t => t.id);
+        if (!ids.length) return;
+        if (_prodCanonicalCommentGate(post, comp).linked) { _calReviewResolveCanonical(post, comp, ids, 'kasper').catch(() => {}); return; }
+        if (_calCanonicalCrosswalkPending(post, comp)) return;
+        if (_calResolveTweaksDone(post, comp, ids)) { _calWatchNoteSave(pid); _calRefreshCommentsBtn(pid); _calUpdateCardStatusDisplay(pid); }
     }
     /* Mark the given root change-requests done on a component — stamp
        done/done_by/done_at, bump the per-comment merge clock, and queue the
@@ -4175,7 +4200,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         editInOrganizerFromPreview, openCalComments, openCalPreview, svCardNotesIntent
     });
 export {
-  openCalComments,
+  openCalComments, svCalReviewApproveKeeping, svCalResolveVersionTweaks,
   _CAL_LOCK_ICO, _calCommentSendPending, _calFindCompForCommentId,
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,

@@ -224,8 +224,9 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
       const col = await page.evaluate(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].map(n => n.textContent.trim() + '=' + getComputedStyle(n).backgroundColor));
       const bg = t => (col.find(c => c.startsWith(t + '=')) || '').split('=')[1];
-      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'waiting', `stages ${theme}: A says "with Kasper", B "with client", C "waiting" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
-      ok(bg('with Kasper') && bg('with Kasper') !== bg('waiting') && bg('with client') !== bg('waiting') && bg('with Kasper') !== bg('with client'), `stages ${theme}: each has its own colour, none the grey of "waiting" (${col.join(' | ')})`);
+      // Per-version routing (Sidney, 2026-10-29): the one nobody has looked at yet is "with SMM".
+      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'with SMM', `stages ${theme}: A says "with Kasper", B "with client", C "with SMM" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
+      ok(bg('with Kasper') && bg('with SMM') && new Set([bg('with Kasper'), bg('with client'), bg('with SMM')]).size === 3, `stages ${theme}: each has its own colour (${col.join(' | ')})`);
       ok(/SMM: approved · Kasper: waiting/.test((R.find(r => /^Video A/.test(r.t)) || {}).title || ''), `stages ${theme}: A's hover still says who said what`);
       await shot(page, 'r3-stages-' + theme);
       await page.close();
@@ -270,6 +271,27 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       T.dead = [];
       await page.close();
     }
+    // Trialtest via the Supervisor (2026-10-29, held nit): at 390 the collapsed row "0/2 approved · 1 dropped by the
+    // client" was cut to "0/2 approved · 1 d…" beside the switch. Every word shows, on a second line if it must.
+    for (const w of [390, 1440].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[2], { client_pass_at: '2026-10-29T01:05:00.000Z' });
+      const page = await open(w, 844, 'light');
+      const st = await page.evaluate(() => {
+        const n = [...document.querySelectorAll('.cal-link-post .trl-state')].filter(x => x.offsetParent).pop();
+        if (!n) return null;
+        // The label around it clips (overflow hidden), so the words must fit inside the label, not only inside the row.
+        const row = n.closest('.cal-link-label');
+        const cut = [row, n, ...n.querySelectorAll('*')].filter(e => e.offsetParent && e.scrollWidth > e.clientWidth + 1).length;
+        const r = n.getBoundingClientRect(), rr = row.getBoundingClientRect();
+        return { t: n.innerText.replace(/\s+/g, ' ').trim(), cut, inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowCut: row.scrollWidth > row.clientWidth + 1 };
+      });
+      ok(st && /0\/2 approved/.test(st.t) && /1 (client-dropped|dropped by the client)/.test(st.t) && !st.cut && st.inside && !st.rowCut,
+        `${w}: the collapsed row says every word of "0/2 approved · 1 dropped by the client", none cut (${JSON.stringify(st)})`);
+      await shot(page, 'r3-collapsed-drop-' + w);
+      await page.close();
+    }
+
     // Trialtest, live on #2444 (390): a version the client dropped keeps "Client dropped" when its link check fails, never
     // "no access" (the team takes it off the card either way).
     for (const w of [1440, 390].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {

@@ -7,8 +7,8 @@
  * touches it:
  *   1. switch off for this client: the staff card, Production and the client link are today's, and nothing writes;
  *   2. the card's switch on; links pasted on the card (A, B, C) and in Production (D, E), each showing on the other;
- *   3. the SMM's Review tab: OKs on A and B, a change asked on C, Approve all on the rest; the card goes to Tweaks Needed;
- *   4. C's new cut pasted on the card: only C starts again (Q3); the SMM OKs C and today's Approve to Kasper runs;
+ *   3. the SMM's Review tab: OKs on A and B, a change asked on C, Approve all on the rest; the others take the card to Kasper;
+ *   4. C's new cut pasted on the card: only C starts again (Q3); the SMM OKs C while the card stays with Kasper;
  *   5. Kasper's Review Session: Approve all, then his approve moves the card to the client;
  *   6. the client link: two versions approved one at a time, the rest with Approve all; today's approve: Approved;
  *   7. the staff card: the trial starts, the 24 h timer, the trophy once it is up, the winner picked (today's attach
@@ -423,7 +423,7 @@ const DID = 'del_vid_1';
     page = await openCal();
     await openList(page);
     let rows = await listRows(page);
-    ok(rows.length === 5 && rows.every((r, i) => r.href === LINK(LETTERS[i])) && rows.every(r => r.lab === 'waiting'), '2 the card shows the links pasted in Production; each row says "waiting" (owner, 2026-10-28: every row says its state)');
+    ok(rows.length === 5 && rows.every((r, i) => r.href === LINK(LETTERS[i])) && rows.every(r => r.lab === 'with SMM'), '2 the card shows the links pasted in Production; each row says "with SMM" (owner, 2026-10-28: every row says its state)');
     oneLink('2 all links in');
     await page.close();
 
@@ -447,16 +447,18 @@ const DID = 'del_vid_1';
     await RS.inS(t.page, '[data-chg="video"]').click();
     await RS.inS(t.page, '#ta').fill('Fictional note: the hook word should land on the beat.');
     await RS.inS(t.page, '#sendBtn').click();
-    await until(() => V('C').status === 'change asked' && /Tweaks Needed/.test(videoStatusSent(t.n0, t.g0)));
+    await until(() => V('C').status === 'change asked' && /Kasper Approval/.test(videoStatusSent(t.n0, t.g0)));
     ok(V('C').status === 'change asked' && V('C').change_by === 'smm' && ['A', 'B', 'D', 'E'].every(l => V(l).status === 'waiting'), '3 SMM: a change asked on Video C is on C only');
     if (process.env.JOURNEY_DEBUG) console.log('DEBUG upserts', JSON.stringify(rstate.upserts.slice(t.n0)).slice(0, 1500), 'gateway', JSON.stringify(rstate.gateway.slice(t.g0)).slice(0, 1500));
     let st = fromReview(t.n0, t.g0);
-    ok(st === 'Tweaks Needed' && /Video C: Fictional note/.test(String(card.video_tweaks || '')), `3 today's change request starts "Video C:" and the card goes to Tweaks Needed (${st})`);
+    // Per-version routing (Sidney, 2026-10-29): A, B, D and E passed the SMM, so they take the card on to Kasper now;
+    // C waits for its new cut by itself.
+    ok(st === 'Kasper Approval' && /Video C: Fictional note/.test(String(card.video_tweaks || '')), `3 today's change request starts "Video C:" and the other versions take the card on to Kasper Approval (${st})`);
     ok(ledgerSince(l0) === 'trial_approve(A) trial_approve(B) trial_approve(D) trial_approve(E) trial_change(C)', `3 ledger: ${ledgerSince(l0)}`);
     await t.ctx.close();
-    S.setCardField(PID, { video_status: 'Tweaks Needed', status: 'Tweaks Needed' }, 'review-page');
+    S.setCardField(PID, { video_status: 'Kasper Approval', status: 'Kasper Approval' }, 'review-page');
 
-    // ============ 4. C's new cut: only C starts again (Q3); the SMM OKs it; Approve to Kasper ============
+    // ============ 4. C's new cut: only C starts again (Q3); the SMM OKs it while the card is with Kasper ============
     page = await openCal();
     l0 = W.ledger.length;
     await pasteOnCard(page, 'C', NEW_C, true);
@@ -468,14 +470,19 @@ const DID = 'del_vid_1';
     ok(rows[2].href === NEW_C, '4 the card\'s Video C row opens the new cut');
     oneLink('4');
     await page.close();
-    S.setCardField(PID, { video_status: 'For SMM Approval', status: 'For SMM Approval' }, 'editor');
+    // The card stays at Kasper Approval; the SMM's Review tab still lists it, for C alone.
     t = await openReview('smm');
     b = await bar(t);
-    ok(/^Video C of 5/.test(b.text), `4 SMM: the page opens on the one version waiting for the SMM (${b.text})`);
+    ok(/^Video C of 5/.test(b.text), `4 SMM: the card is with Kasper and the SMM's page opens on C, the one version waiting for them (${b.text})`);
     await approveOnScreen(t);
-    await until(() => /Kasper Approval/.test(videoStatusSent(t.n0, t.g0)));
-    st = fromReview(t.n0, t.g0);
-    ok(!!V('C').smm_ok_at && st === 'Kasper Approval', `4 SMM: C OK'd, the stage is done, today's Approve to Kasper (${st})`);
+    await until(() => !!V('C').smm_ok_at);
+    await new Promise(r => setTimeout(r, 1500));
+    ok(!!V('C').smm_ok_at && !videoStatusSent(t.n0, t.g0), `4 SMM: C OK'd and on to Kasper; the card stays where it is (${videoStatusSent(t.n0, t.g0) || 'no status write'})`);
+    // C's new cut answered its change request: marked done here, though nothing forwarded the card.
+    await new Promise(r => setTimeout(r, 1500));
+    fromReview(t.n0, t.g0);
+    const cNotes = (() => { try { return JSON.parse(card.video_tweaks || '[]').filter(c => /Video C: Fictional note/.test(String(c.body || ''))); } catch (e) { return []; } })();
+    ok(cNotes.length >= 1 && cNotes.every(c => c.done), `4 SMM: C's change request is marked done with its approve (${JSON.stringify(cNotes.map(c => !!c.done))})`);
     await t.ctx.close();
 
     // ============ 5. Kasper: Approve all, then his approve sends the card to the client ============

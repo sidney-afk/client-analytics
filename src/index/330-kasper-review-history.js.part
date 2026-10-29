@@ -55,7 +55,7 @@ import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
 import { svFrameFlagWait, svFrameWarm, svFrameWatchBtnHtml } from './187-frame-viewer.js';
 import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from './188-review-stage-switch.js';
-import { svTrialPrime } from './189-trial-reels-card.js';
+import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -481,6 +481,9 @@ import { svTrialPrime } from './189-trial-reels-card.js';
             _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
+        // Per-version routing (189): the trial clients' versions are read first, so a card already with the client
+        // still lands in this queue while one of its versions waits for Kasper (the test client only today).
+        try { await svTrialPrimeWait(WL_CLIENT_NAMES); } catch (e) {}
         // Fast path: ONE batched webhook call covers every client needing a
         // network read (two Google API calls server-side) instead of a
         // calendar-get round trip per client. The 5-min cache is honoured

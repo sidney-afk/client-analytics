@@ -295,6 +295,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (slug && !seen.has(slug) && svTrialReelsOn(slug)) { seen.add(slug); _trlLoad(slug); }
         });
     }
+    /* Per-version routing (plan section 5): Kasper's queue reads its trial clients' versions before it is cut, so a card
+       already with the client still reaches him while one of its versions waits for him. Resolves when every read has
+       landed or failed (a failed read leaves the queue as the card's status says). */
+    function svTrialPrimeWait(clients) {
+        if (_isClientLink) return Promise.resolve();
+        const slugs = [...new Set((clients || []).map(c => _trlSlug(c)).filter(slug => slug && svTrialReelsOn(slug)))];
+        return Promise.all(slugs.map(slug => Promise.resolve(_trlLoad(slug)).catch(() => null))).then(() => undefined);
+    }
+    /* Does a version of this staff card wait for this reviewer (`smm` or `kasper`), by the function's own `place`? False
+       when the card is not a trial card, its versions are not read yet, or a winner is picked. */
+    function svTrialWaitsWith(post, stage) {
+        if (!post || !post.id || !_trlStaffOn(post)) return false;
+        const slug = _trlSlug(post.client || calState.client), e = slug && _trlCards[slug];
+        const shape = e && e.cards && e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions) || shape.versions.some(v => v.status === 'winner')) return false;
+        return shape.versions.some(v => v.place === stage);
+    }
     // The staff list of one client, shared with the review page: { at, cards } once read (a failed read has no cards).
     function svTrialListShared(slug, force) {
         return Promise.resolve(_trlLoad(slug, !!force)).then(e => ({ at: e.at, cards: Object.assign({}, e.cards) }));
@@ -434,7 +451,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         let s = String(status || '');
         // A waiting version that has passed a stage says where it is now (Trialeyes, 2026-10-29: an SMM-approved
         // version read "waiting" in the same grey as one nobody had seen), in the card status colours of that stage.
-        if (v && s === 'waiting' && !v.client_pass_at) s = v.kasper_ok_at ? 'with client' : v.smm_ok_at ? 'with Kasper' : s;
+        // Per-version routing (Sidney, 2026-10-29): every version says whose it is, by the function's `place` ("with SMM",
+        // "with Kasper", "with client"); a read without it goes by the stamps as before. A version with no link yet stays
+        // "waiting": nobody has anything to look at.
+        if (v && s === 'waiting' && !v.client_pass_at && v.frame_url) {
+            const at = v.place || (v.kasper_ok_at ? 'client' : v.smm_ok_at ? 'kasper' : 'smm');
+            s = at === 'client' ? 'with client' : at === 'kasper' ? 'with Kasper' : at === 'smm' ? 'with SMM' : s;
+        }
         if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
         // The client said "Not this one" (owner, 2026-10-28): the team sees it and drops the version.
         if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client dropped" title="' + _calEscAttr('The client dropped this version: take it off the card. ' + _trlStagesTitle(v)) + '">Client dropped</span>';
@@ -481,7 +504,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
             + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '">' + ext
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
-            + (tiny.html ? '<span class="trl-state">' + tiny.html + '</span>' : '') + '</span></button>'
+            + (tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-wrap' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
             + '<span class="trl-fill" aria-hidden="true"></span>'
             + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'
@@ -1015,6 +1038,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted,
+  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

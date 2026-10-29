@@ -423,7 +423,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
     }
     /* A refused or lost write is tried again on its own, sooner first, while the page stays open (Trialtest, live on
-       #2444: the retry waited for a versions read, and a client page left open never read again). A read that comes
+       PR 2444: the retry waited for a versions read, and a client page left open never read again). A read that comes
        first sends it too (_trvFlush); one try at a time. */
     const TRV_RETRY_MS = [3000, 10000, 30000, 60000];
     function _trvRetryLater(job) {

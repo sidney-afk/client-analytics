@@ -19,8 +19,9 @@
  *     L a caption note refused by the card save stays "Not sent" across a
  *       reopen and a refresh, and Retry saves it once
  *     K a card refreshed during its link lookup does not keep Send locked
- *     M the link lookup counts as running from the moment the dialog opens:
- *       Send is drawn disabled, never ready and then refused (OPEN_REPAIRS 431)
+ *     M the link lookup counts as running from the moment the dialog opens (and, since round 9, Send stays ready
+ *       through it: the note is taken and goes once the lookup is done):
+ *       Send is never drawn ready and then refused (OPEN_REPAIRS 431)
  *     F a reply from the Messages page shows in the chat at once, then is saved
  *   Client, review link (own fixture; the caption part, saved on the card):
  *     G a plain comment shows "Sending…" at once and clears when saved
@@ -223,10 +224,14 @@ async function staffLanes(view) {
       const p = calState.posts.find(x => x.id === 'p_t1');
       const btn = document.querySelector('#calCommentsModal .cal-cm-send');
       return { inFlight: _prodCrosswalkInFlight(p), pending: _calCommentSendPending(p, _prodCanonicalCommentGate(p, 'video')),
-        sendPendingDrawn: !!(btn && btn.disabled && btn.getAttribute('data-send-pending') === '1') };
+        // Not held for the notes (an empty box may still disable it: that is the empty box, not the lookup).
+        sendReadyDrawn: !!(btn && !btn.hasAttribute('data-send-pending')) };
     });
     check(atOpen.inFlight && atOpen.pending, tag('M: the link lookup is already running when the dialog has opened (' + JSON.stringify(atOpen) + ')'));
-    check(atOpen.sendPendingDrawn, tag('M: Send is drawn waiting for the notes at the first paint, not ready and then refused'));
+    // Round 9 (staff; every signed-in staff member since 2026-10-29, session Permafive): Send no longer waits for the
+    // notes. It is drawn ready at the first paint and a note sent then is taken and goes once the lookup is done
+    // (notes-quick-open-reply-browser.js proves the send); it is never drawn ready and then refused.
+    check(atOpen.sendReadyDrawn, tag('M: Send is not held for the notes at the first paint (a note sent now is taken, never refused)'));
     crosswalkDelay = 0;
     check(await until(() => page.evaluate(() => {
       const p = calState.posts.find(x => x.id === 'p_t1');

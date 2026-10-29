@@ -414,7 +414,9 @@ async function statesRun(browser, origin) {
     expect(pageErrors.length === 0, `error: no page errors (${pageErrors.join(' | ')})`);
     await ctx.close();
   }
-  // 2. the comments fail alone: the video is fine, the list says so with Try again
+  // 2. the comments fail alone: the video is fine, the list says so in one muted line. Frame.io comments in Notes are
+  //    on for every signed-in staff member since 2026-10-29 (session Permafive), and their design (session Framenotes)
+  //    is one quiet line with no Try again and no box (frame-comments-in-notes-browser.js, C).
   {
     const state = makeState({ cards: [card('v1', 'Video card', FRAME, 1)] });
     state.view = (n, body) => (body.part === 'comments' && !state.okNow ? { status: 502, body: { ok: false, message: 'no' } } : { status: 200, body: answerFor(body) });
@@ -424,10 +426,7 @@ async function statesRun(browser, origin) {
     await page.waitForSelector('#calCommentsFeed .cal-cm-fio-note', { timeout: 8000 });
     expect((await page.locator('#calCommentsFeed .cal-cm-fio-note').innerText()).includes('could not be loaded'), 'comments fail: the list says the Frame.io comments could not be loaded');
     expect(await page.locator('#calCommentsFeed .cal-cm-fio-skeleton').count() === 0, 'comments fail: and stops showing loading rows');
-    state.okNow = true;
-    await page.locator('#calCommentsFeed .cal-cm-fio-retry').click();
-    await waitFio(page);
-    expect(await page.locator('#calCommentsFeed .cal-cm-row.is-frameio').count() >= 2, 'comments fail: Try again brings them in');
+    expect(await page.locator('#calCommentsFeed .cal-cm-fio-note.is-quiet').count() === 1 && await page.locator('#calCommentsFeed .cal-cm-fio-retry').count() === 0, 'comments fail: one quiet line, no Try again');
     expect(pageErrors.length === 0, `comments fail: no page errors (${pageErrors.join(' | ')})`);
     await ctx.close();
   }
@@ -643,7 +642,9 @@ async function flagRun(browser, origin) {
     expect(state.flagReads >= 1, `switch: ${label}: the page read the switch row`);
     expect(want ? shownNow >= 1 : shownNow === 0, `switch: ${label}: the play icon is ${want ? 'shown' : 'hidden'} on the Calendar card (${shownNow} visible)`);
     expect(await canOpen(page) === want, `switch: ${label}: the player ${want ? 'opens with the notes' : 'is not in the Notes, and the icon cannot open it even by calling it'}`);
-    expect(want || state.calls.length === 0, `switch: ${label}: ${want ? 'ok' : 'nothing was asked of the function'}`);
+    // With the player off, Notes still reads the card's Frame.io comments (every signed-in staff member since 2026-10-29,
+    // session Permafive; frame-comments-in-notes-browser.js), never the video.
+    expect(want || state.calls.every(c => c.part === 'comments'), `switch: ${want ? label + ': ok' : label + ': no video was asked of the function, only the Notes\' comments (' + state.calls.map(c => c.part).join(',') + ')'}`);
     expect(pageErrors.length === 0, `switch: ${label}: no page errors (${pageErrors.join(' | ')})`);
     await ctx.close();
   }

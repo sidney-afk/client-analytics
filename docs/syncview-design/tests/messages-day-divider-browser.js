@@ -5,7 +5,8 @@
  * ten characters of their UTC timestamp, so for the team (UTC-6) a note sent
  * at 7:30pm landed under the NEXT day; and on a desktop the divider read
  * "2026-10-17" while the phone read "Sat, 17 Oct 2026". Now every note sits
- * under its own local day, and the divider reads as a date on every screen.
+ * under its own local day, and the divider reads as a date on every screen (on a desktop, the round-5 Messages'
+ * short form, "Sat 17 Oct"; every signed-in staff member has it since 2026-10-29).
  *
  * Fully mocked (lost-work-lib.js), fictional data, browser clock in
  * America/Guatemala.  Run: node docs/syncview-design/tests/messages-day-divider-browser.js
@@ -50,8 +51,13 @@ async function run(width) {
     });
     const days = order.filter(x => x[0] === '#');
     check(days.length === 2, tag + ': two day dividers for two local days (' + JSON.stringify(days) + ')');
-    check(days[0] === '#Sat, 17 Oct 2026' && days[1] === '#Sun, 18 Oct 2026', tag + ': dividers read as dates (' + JSON.stringify(days) + ')');
-    const sun = order.indexOf('#Sun, 18 Oct 2026');
+    // On a desktop page every signed-in staff member has the round-5 Messages (327, no switch since 2026-10-29), whose
+    // day lines are short ("Sat 17 Oct"); a phone keeps the full date.
+    // The short form adds the year only when it is not this year (327 _svuDayLabel), so the fixture dates stay valid later.
+    const thisYear = new Date().getFullYear() === 2026;
+    const want = width < 500 ? ['#Sat, 17 Oct 2026', '#Sun, 18 Oct 2026'] : (thisYear ? ['#Sat 17 Oct', '#Sun 18 Oct'] : ['#Sat 17 Oct 2026', '#Sun 18 Oct 2026']);
+    check(days[0] === want[0] && days[1] === want[1], tag + ': dividers read as dates (' + JSON.stringify(days) + ')');
+    const sun = order.indexOf(want[1]);
     check(sun > order.indexOf('Evening note.') && sun > order.indexOf('Late note.') && sun < order.indexOf('Next morning note.'),
       tag + ': the 7:30pm and 11:55pm notes stay under Saturday ' + JSON.stringify(order));
     check(!(page.errors || []).length, tag + ': no page errors');

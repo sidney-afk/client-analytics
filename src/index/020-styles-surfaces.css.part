@@ -9204,6 +9204,8 @@ html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px
  html.sv-phone-polish body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar,
  html.sv-phone-polish body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar { row-gap:0;margin-bottom:4px; }
  html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=grid],[data-thumb-mode=list]) .thumb-collection-bar { padding-block:4px; }
+/* Its loading skeleton's bar (133) keeps the same slimmer height, so nothing moves when the posts arrive. */
+html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; }
  /* A "Refreshing" or "Couldn't refresh" notice there still gets its room. */
  html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] > .cal-toolbar > .cal-toolbar-right:has(> :is(.cal-refreshing,.cal-stale-notice):not([hidden])) { margin-top:8px; }
 }

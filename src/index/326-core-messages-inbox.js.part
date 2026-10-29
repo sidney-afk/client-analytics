@@ -305,7 +305,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.owner = '';
+            _msgState.epoch++; _msgState.loading = false; _msgState.owner = ''; _msgState.failStatus = 0;
             _msgCacheClear();
             _msgPaintCounts(); _msgLeavePage();
             return;
@@ -314,7 +314,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_msgState.owner && _msgState.owner !== _msgMyId()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false;
+            _msgState.epoch++; _msgState.loading = false; _msgState.failStatus = 0;   // a refusal the last one got is not theirs
             _msgCacheClear();
             _msgPaintCounts();
         }
@@ -351,6 +351,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (!_msgCanUse() || _msgState.unavailable || _isClientLink || _msgBootDone()) return;
             // Hidden, on Production, or another read already on its way: look again later, asking nothing.
             if (document.hidden || !_msgBootPageOk() || _msgState.loading) { _msgBootLoad(); return; }
+            // Another read (the round-5 badges' own, 327) was already refused for this person: asking again only earns
+            // another refusal (session Permafive, 2026-10-29).
+            if (_msgState.failStatus === 401 || _msgState.failStatus === 403) return;
             const asker = _msgMyId();
             await _msgLoad(false);
             if (_msgBootDone() || _msgState.unavailable || asker !== _msgMyId()) return;

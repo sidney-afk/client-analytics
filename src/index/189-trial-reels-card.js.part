@@ -1012,6 +1012,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted
+  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

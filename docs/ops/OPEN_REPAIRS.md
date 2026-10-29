@@ -35243,3 +35243,20 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 583. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Production's Assets and a second client tab did not take the live push (Trialtest, session Trials)
+
+- **What happened (session Trialtest's overnight live pass on the test client):**
+  - A client's answer reached the SMM's Calendar card in about 1 s.
+  - On Production's Assets it showed only after 15 to 42 s, or not within 45 s. Staff drop and bring-back behaved the same.
+  - A second client tab showed another tab's change only after about 25 s, from its 30 s refresh.
+- **Why:** only the staff Calendar listened on the `trial-reels` broadcast (OPEN_REPAIRS 567).
+- **Fix:**
+  - `svTrialOnChange` (189) lets another page register for the same one channel, with the same hash-only message.
+  - Production's Assets (245) reads the card it shows again when its card's hash arrives.
+  - The review pages (194), meaning Kasper's, the SMM's and the client link, read their client's cards again.
+  - Each joins the channel only once it has loaded a trial card. A burst reads once, and another card's hash reads nothing.
+- **Proven:**
+  - `test/trial-reels-production-browser.js`: the client's approve shows on the Assets panel in about 0.2 s.
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=push`): another tab's approve shows on the client page in about 0.2 s.
+  - Both fail on main, where neither page listens.

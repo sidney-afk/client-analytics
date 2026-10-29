@@ -235,6 +235,26 @@ async function shot(page, name) {
       && await page.evaluate(l => !!document.querySelector('.trl-prod-v[data-trl-slot="E"] a[href="' + l + '"]'), LINK('E')), 'the field closes and the row opens the new link, checked again');
     await page.close();
 
+    // Trialtest bug 2 (2026-10-29): a change made elsewhere (here, the client approves Video E) reaches the Assets panel
+    // at once through trial-reels' broadcast, as it reaches the Calendar card; another card's hash reads nothing.
+    page = await open(1440, 900);
+    const joined = await page.waitForFunction(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels'), null, { timeout: 8000 }).then(() => true).catch(() => false);
+    ok(joined, 'push: the Assets panel listens on the one trial-reels channel');
+    const fire = hh => page.evaluate(x => (window.__rtChannels || []).filter(c => c.name === 'trial-reels').forEach(c => c._cbs.forEach(k => { try { k.cb({ event: 'changed', payload: { h: x } }); } catch (e) {} })), hh);
+    let r0 = T.calls.filter(c => c.action === 'read').length;
+    await fire('0123456789ab');
+    await sleep(600);
+    ok(T.calls.filter(c => c.action === 'read').length === r0, "push: another card's change reads nothing");
+    const eBefore = T.versions[4].frame_url;
+    Object.assign(T.versions[4], { frame_url: eBefore || LINK('E'), status: 'approved', client_ok_at: new Date().toISOString() });
+    const t0 = Date.now();
+    await fire(require('crypto').createHash('sha256').update('p_t1').digest('hex').slice(0, 12));
+    await page.waitForFunction(() => [...document.querySelectorAll('.prod-assets-list .prod-asset-row')].some(n => /Video E/.test(n.innerText) && /approved/.test(n.innerText)), null, { timeout: 4000, polling: 50 }).catch(() => {});
+    const ms = Date.now() - t0;
+    r = await rows(page);
+    ok(r.some(x => /Video E/.test(x.label) && /approved/.test(x.value)) && ms < 2000, `push: the client's approve on Video E shows on the Assets panel in ${ms} ms (under 2 s)`);
+    await page.close();
+
     // A read that fails for any reason but "no versions here" never hides the versions: it says so, with Retry.
     T.down = true;
     page = await open(1440, 900);

@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|push runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -365,6 +365,34 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       // A version the SMM has not looked at is "with the team" on its tile, never "change asked".
       ok(/with the team/.test(tile.a) && !/change asked/.test(tile.a), `kasper tiles: a version still with the SMM says "with the team", not "change asked" ("${tile.a}")`);
       await shot(t, 'cok-kasper-tiles');
+      await t.ctx.close();
+    }
+
+    // ---------- Trialtest minor 3 (2026-10-29): a second client tab hears trial-reels' broadcast ----------
+    // Another tab answers Video B; this tab, open on the card, shows it at once (not on its 30 s refresh) and reads
+    // only when the hash is this client's card.
+    if (part('push')) {
+      const REC = `if (!window.__rtChannels) window.__rtChannels = [];
+        if (!window.supabase) window.supabase = { createClient: function () { return {
+          channel: function (name) { var ch = { name: name, _cbs: [], on: function (t, f, cb) { ch._cbs.push({ f: f, cb: cb }); return ch; },
+            subscribe: function () { window.__rtChannels.push(ch); return ch; }, unsubscribe: function () {} }; return ch; },
+          removeChannel: function () { return Promise.resolve(); } }; } };`;
+      const t = await start('client', true, three(), { beforeOpen: async t2 => t2.ctx.route(u => /supabase-js/.test(u.href), route => route.fulfill({ status: 200, contentType: 'application/javascript', headers: CORS, body: REC })) });
+      const joined = await waitFor(async () => t.page.evaluate(() => (window.__rtChannels || []).some(c => c.name === 'trial-reels')), 50);
+      ok(joined, 'second tab: the client page listens on the one trial-reels channel');
+      const fire = hh => t.page.evaluate(x => (window.__rtChannels || []).filter(c => c.name === 'trial-reels').forEach(c => c._cbs.forEach(k => { try { k.cb({ event: 'changed', payload: { h: x } }); } catch (e) {} })), hh);
+      let n0 = t.T.calls.filter(c => c.action === 'list').length;
+      await fire('0123456789ab');
+      await sleep(600);
+      ok(t.T.calls.filter(c => c.action === 'list').length === n0, 'second tab: another card\'s change reads nothing');
+      // The other tab approved Video B.
+      Object.assign(t.T.versions[1], { status: 'approved', client_ok_at: new Date().toISOString() });
+      const h = require('crypto').createHash('sha256').update('rs1').digest('hex').slice(0, 12);
+      const t0 = Date.now();
+      await fire(h);
+      const seen = await waitFor(async () => /ok/.test((await dec(t)).dots.split(',')[1] || ''), 30);
+      ok(seen && Date.now() - t0 < 2000 && t.T.calls.filter(c => c.action === 'list').length > n0, `second tab: the other tab's approve on B shows here in ${Date.now() - t0} ms (dots ${(await dec(t)).dots})`);
+      ok(!t.errors.length, 'second tab: no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
 

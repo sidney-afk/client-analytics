@@ -430,7 +430,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + '</span>';
             const pick = up && v.status === 'on trial'
                 ? '<button type="button" class="trl-pick" title="Make this the winner" aria-label="Make this the winner" onclick="svTrialPick(\'' + p + '\',\'' + l + '\')">' + TRL_TROPHY + '</button>' : '';
-            return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>';
+            return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>'
+                + (v.status === 'dropped' ? '' : _trlElsewhereHtml(pid, v.frame_url));
         }).join('');
         // The 24 h start by themselves once the card is Posted (owner, 2026-10-28): no "Start the 24 h" link here.
         return '<div class="trl-list">' + rows + _trlAddHtml(pid, vs) + '</div>';
@@ -438,6 +439,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The next free letter (A to G), to add a version by pasting its link. Until 2026-10-27 a card listed only the
        versions the AI editor had logged, so a card it had not logged had nowhere to paste a link. Gone once the trial
        starts. */
+    /* A version's link that another card of this client also carries (its Video link, or one of its versions): kept, as
+       the team may mean it, and said under the row in a quiet line (Trialeyes E17, 2026-10-29). Only cards this page has
+       loaded are looked at. */
+    function _trlElsewhereHtml(pid, link) {
+        link = String(link || '');
+        if (!link) return '';
+        const here = (calState.posts || []).find(p => p.id === pid);
+        const slug = here && _trlSlug(here.client || calState.client);
+        const cached = (slug && _trlCards[slug] && _trlCards[slug].cards) || {};
+        const other = (calState.posts || []).find(p => p.id !== pid && (!here || p.client === here.client)
+            && (String(p.asset_url || '') === link || ((cached[p.id] && cached[p.id].versions) || []).some(x => x.status !== 'dropped' && String(x.frame_url || '') === link)));
+        if (!other) return '';
+        const name = String(other.name || '').trim() || 'another card';
+        return '<div class="trl-link-note">This link is also on \u201c' + _calEsc(name) + '\u201d.</div>';
+    }
     // Why the page did not take a link, under its field (never a dialog, and the text stays to fix).
     function _trlErrHtml(pid, dr) {
         return dr ? '<div class="trl-link-err" id="trl-err-' + _calEscAttr(pid) + '" role="alert">' + _calEsc(dr.err) + '</div>' : '';

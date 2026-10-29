@@ -173,11 +173,22 @@ async function shot(page, name) {
       ok(/approved/.test(rows[0]) && /change asked/.test(rows[2]) && /dropped/.test(rows[3]) && /waiting/.test(rows[4]) && /Paste the Frame\.io link/.test(rows[4]), `${label}: a mixed review shows each label, and E asks for its link`);
       await shot(page, label + '-review-open');
       ok(!rows.join(' ').includes('Fictional hook') && !(await page.$('.trl-list .hook')), `${label}: no hook text anywhere`);
+      // Trialeyes E17 (2026-10-29): Video E's link is already another card's Video link. It saves (the team may mean
+      // it), and the row says where else it is, in a quiet note, never a dialog.
+      await page.evaluate(l => calState.posts.push({ id: 'p_t2', client: calState.posts[0].client, name: 'Test card two', asset_url: l, video_status: 'In Progress' }), LINK('E'));
       await page.click('.trl-list .trl-v:nth-child(5) .trl-paste');
       await page.fill('.trl-link-input', LINK('E'));
       await page.keyboard.press('Enter');
       await sleep(900);
       ok(T.calls.some(c => c.action === 'version_link_set' && c.letter === 'E' && c.link === LINK('E')) && T.versions[4].frame_url === LINK('E'), `${label}: pasting Video E's link saves it`);
+      const elsewhere = await page.evaluate(() => {
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find(n => /^Video E/.test(n.innerText.trim()));
+        const note = row && row.nextElementSibling && row.nextElementSibling.classList.contains('trl-link-note') ? row.nextElementSibling : null;
+        return { note: note ? note.textContent.trim() : '', notes: document.querySelectorAll('.trl-list .trl-link-note').length, dialog: !!document.querySelector('.sv-confirm, .modal-overlay.show, [role="alertdialog"]') };
+      });
+      ok(/also on .Test card two./i.test(elsewhere.note) && elsewhere.notes === 1 && !elsewhere.dialog, `${label}: a link another card carries saves, and its row says so quietly (${JSON.stringify(elsewhere)})`);
+      await shot(page, label + '-elsewhere');
+      await page.evaluate(() => { calState.posts = calState.posts.filter(p => p.id !== 'p_t2'); });
       // Default (b): "New cut ready" on Video C (a change asked), only in the row's hover tools.
       ok(!(await page.$('.trl-list .trl-v:nth-child(2) .trl-ico[title="New cut ready"]')), `${label}: no "New cut ready" on a version that is not asked to change`);
       await page.hover('.trl-list .trl-v:nth-child(3)');

@@ -35507,6 +35507,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
   - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
 
+## 607. [2026-10-29 UTC, BUILT, NOT MERGED] Client link: the "Open the thumbnail" card overflowed its tile when the thumbnail is in Frame.io (session Linkcheck)
+
+- **What happened:** on the review page's Thumbnail step, a card whose thumbnail is a Frame.io link shows "The thumbnail is in Frame.io." and an "Open the thumbnail" card. The card's open-in-new icon had no size (the video's own fallback link sizes its icon to 16 px, this one never did), so it drew at about 135 px, filled the card and pushed the label off to the right, clipped ("Ope / thum"). Seen live at 390 by the Supervisor on two real client links and the test client, with and without the client page's polish; it was the same at 1440.
+- **Fix (195):** the icon is 16 px and never shrinks or grows, the label stays on one line, and the tile keeps a 16 px inner margin so the card never touches its edge.
+- **Proven:** `test/review-stage-thumb-frame-browser.js` (review-stage fixture, Thumbnail step, 1440 and 390, light and dark, polish off and on) checks that the icon is at most 20 px, the card sits inside the tile and the label is whole on one line inside the card. It fails 16 times on main (135 px icon, 2 lines, 57 px overflow) and passes with the fix.
+
 ## 608. [2026-10-29 UTC, BUILT, NOT MERGED] Test: `client-review-requests-unchanged` sometimes missed its last write-refusal report (session Trials, asked by the Supervisor)
 
 - **What happened:** on PR 2452 and PR 2455, `test/client-review-requests-unchanged-browser.js` sometimes failed "Request changes: requests differ from main". The recorded run ends with a `write-diagnostics` report (`browser_claim`, code `legacy_tweak_confirmation_pending`), and that report was missing from the failing run.

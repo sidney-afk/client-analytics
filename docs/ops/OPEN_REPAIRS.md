@@ -35488,3 +35488,21 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The client's change routing read only the versions on screen, so a change on A sent the card to Tweaks Needed while B was still with Kasper. It now reads every version.
   - The SMM's approve that forwarded the card marked every open change request done, including the one on the version still waiting for its cut. It now leaves open the requests of versions still in "change asked" (through a one-call hint read by `_calOpenTweaksForComp`, so `_calReviewApprove` stays byte-identical to main for the client path's guard). When that version's new cut passes the SMM while the card is already further on, its own request is marked done then.
 - **Proven:** logic test 159 checks, Deno function test 96. In `trial-reels-round2-review-browser.js`, the new route, routek and routec parts at 1440 and 390 fail 11 times on main's page code and pass with the change. The round-3 card test's collapsed-row check fails at 390 and 1440 without the CSS. Every trial-reels browser suite passes.
+
+## 606. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: three front-end notes from the live check of per-version routing (Trialtest, live on PR 2452, session Trials)
+
+- **What happened (session Trialtest, live, test client):**
+  - **Kasper's tiles at 1440:** the card was at Client Approval and B was back from its new cut with the SMM's OK. Kasper approved B's tile in his Review Session, and the panel under the player said "Approved in another window." above "Approved · Change my mind". He had approved it in that window.
+  - **Left bar:** the SMM card's opened version list had a pink bar down its left edge, which predates PR 2452. Sidney's rule is no coloured left-edge highlights.
+  - **390 wrap:** the collapsed row "0/2 approved · 1 dropped by the client" wrapped to three lines (the PR 2452 wrap).
+- **Why:**
+  - The review page's trial answer (`_rsApprove`'s trial branch, and the two Approve-all paths) never marked the part as answered on this page. When the version's answer left the part no longer waiting, `_rsElsewhere` took it for another window's answer.
+  - The bar was `.trl-list`'s 2 px `border-left`.
+  - The long phrase had no short form for the card's width, which is about 190 px at every screen size.
+- **Fix:**
+  - Every trial approve path marks the part answered on this page, as today's approve already does.
+  - The bar is gone; the indent alone ties the versions to the Video row.
+  - A narrow row says "0/2 · 1 dropped" on one line, as the Supervisor asked. The card is about 190 px wide at every screen size, so 1440 shows the short form too. The link's tooltip and accessible name keep the whole phrase "0 of 2 approved, 1 dropped by the client". The other trial surfaces (review pages, Kasper's tiles, Production rows) were checked and have no coloured left edge.
+- **Proven:**
+  - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
+  - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.

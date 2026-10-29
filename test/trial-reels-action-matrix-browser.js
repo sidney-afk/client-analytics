@@ -537,6 +537,10 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
       await page.dblclick('.cal-link-post .trl-sw-slot'); await sleep(2000);
       await inv(page, P + '.sw-dbl', `${sz} a double click on the switch`, {});
       ok(P + '.sw-dbl.agree', !!W.sw.enabled === !!(await page.$('.trl-main')), `${sz} after a double click the switch on screen is the backend's (${W.sw.enabled})`);
+      // The first click can leave "Turn off trial reels?" open: on a phone the staff phone polish (every signed-in staff
+      // member since 2026-10-29) puts the switch where the second click lands inside the dialog, not on its backdrop.
+      // The person cancels it; the next step must not press its "Turn off".
+      await page.evaluate(() => { const o = document.getElementById('confirmOverlay'); if (o && o.classList.contains('active')) dismissConfirm(); }); await sleep(300);
       if (!W.sw.enabled) { await page.click('.cal-link-post .trl-sw-slot'); await sleep(1500); }
       await openList(page);
 

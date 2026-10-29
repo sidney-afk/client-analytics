@@ -35507,7 +35507,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
   - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.
 
-## 608. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Kasper's last tile approve read "answered in another window" (Trialtest, live on PR 2455, session Trials)
+## 609. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Kasper's last tile approve read "answered in another window" (Trialtest, live on PR 2455, session Trials)
 
 - **What happened (session Trialtest, live, test client):** the card was at Kasper Approval with A, B and C through the SMM, in Kasper's Review Session, layout 2 at 1440. He approved the A tile, then B, then C. A and B were fine since PR 2455. After C, the last approve, the card moved to Client Approval and the stage said "This was answered in another window, so it has left your list. Nothing more to do here." above his own toast "Video approved — sent to client · Undo".
 - **Why:** the last version's answer moves the card on by itself, so the card leaves Kasper's lists while it is still on stage. A card on stage that has left his lists is drawn as `gone`. For a `gone` card, `_rsElsewhere` returned "another window" unless a refused note had left words for it, and it never asked whether this page had answered.

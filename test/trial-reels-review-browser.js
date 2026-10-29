@@ -313,7 +313,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await inS(t.page, '[data-chg="video"]').click();
     await inS(t.page, '#ta').fill('Shorter end card.');
     await inS(t.page, '#sendBtn').click();
-    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'); i++) await sleep(100);
+    // Checked before the page's own retry (3 s, Trialtest on #2444): the change request went, the version's mark is kept.
+    for (let i = 0; i < 25 && !t.state.upserts.slice(n0).some(u => /Video D: Shorter end card\./.test(String(u.video_tweaks || ''))); i++) await sleep(100);
     ok(t.state.upserts.slice(n0).some(u => /Video D: Shorter end card\./.test(String(u.video_tweaks || ''))) && t.T.versions[3].status === 'waiting'
       && await t.page.evaluate(() => /Video D/.test(localStorage.getItem('syncview_trv_pending_v1') || '') || /"letter":"D"/.test(localStorage.getItem('syncview_trv_pending_v1') || '')),
       'a refused version write: today\'s change request still goes, and the version\'s change waits in this browser');

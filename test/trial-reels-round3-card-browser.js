@@ -270,6 +270,22 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       T.dead = [];
       await page.close();
     }
+    // Trialtest, live on #2444 (390): a version the client dropped keeps "Client dropped" when its link check fails, never
+    // "no access" (the team takes it off the card either way).
+    for (const w of [1440, 390].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[1], { client_pass_at: '2026-10-29T01:05:00.000Z' });
+      T.dead = ['B'];
+      const page = await open(w, 900, 'light');
+      await openList(page);
+      await page.waitForFunction(() => true, null, { timeout: 100 }).catch(() => {});
+      await sleep(1200);
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      ok(lab('B') === 'Client dropped' && T.calls.some(c => c.probe), `dead link ${w}: a client-dropped version keeps "Client dropped" after the link check (${lab('B')})`);
+      T.dead = [];
+      await page.close();
+    }
     // Trialeyes E7, E8, E9 (2026-10-29): the counts agree, a client drop shows on the collapsed row, a new version says
     // "saving…" until the server has it, and leaving the page while it is unsaved asks first.
     if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {

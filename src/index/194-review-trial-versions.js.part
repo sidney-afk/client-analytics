@@ -418,10 +418,29 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (['version_not_found', 'version_dropped', 'version_on_trial', 'trial_reels_off', 'not_enabled'].includes(String(err && err.code || ''))) {
                 const list = _trvPending(), i = list.indexOf(job);
                 if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
-            }
+            } else _trvRetryLater(job);
             return false;
         }
     }
+    /* A refused or lost write is tried again on its own, sooner first, while the page stays open (Trialtest, live on
+       PR 2444: the retry waited for a versions read, and a client page left open never read again). A read that comes
+       first sends it too (_trvFlush); one try at a time. */
+    const TRV_RETRY_MS = [3000, 10000, 30000, 60000];
+    function _trvRetryLater(job) {
+        if (job.retryT || !_trvPending().includes(job)) return;
+        const ms = TRV_RETRY_MS[Math.min(job.tries || 0, TRV_RETRY_MS.length - 1)];
+        job.tries = (job.tries || 0) + 1;
+        job.retryT = setTimeout(() => {
+            job.retryT = 0;
+            if (job.inFlight || !_trvPending().includes(job)) return;
+            job.inFlight = true;
+            _trvSendChange(job).finally(() => { job.inFlight = false; });
+        }, ms);
+    }
+    // The connection is back: every kept write goes at once, not on its next timer.
+    window.addEventListener('online', () => {
+        _trvPending().filter(j => !j.inFlight).forEach(j => { clearTimeout(j.retryT); j.retryT = 0; j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
+    });
     function _trvFlush(slug) {
         _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
     }
@@ -447,7 +466,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         job.inFlight = true;
         _trvSendChange(job).then(ok => {
             job.inFlight = false;
-            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", 'Your change request was sent. Marking Video ' + letter + ' as changed will be tried again in a moment.');
+            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", navigator.onLine === false
+                ? 'You are offline. Marking Video ' + letter + ' as changed goes once your connection is back.'
+                : 'Your words are kept. Marking Video ' + letter + ' as changed will be tried again in a moment.');
         });
         // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
         return frameNote ? text : 'Video ' + letter + ': ' + text;

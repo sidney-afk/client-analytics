@@ -88,7 +88,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // A link the check found dead or locked: its row says so (the words of Production's Assets row).
     function _trlLinkBadHtml(pid, v) {
         const k = _trlLinkState[pid + '|' + v.letter];
-        if (!k || !v.frame_url || k.url !== String(v.frame_url) || ['dropped', 'lost', 'winner'].includes(v.status)) return '';
+        // A version the client dropped keeps "Client dropped": the team takes it off the card either way (Trialtest).
+        if (!k || !v.frame_url || k.url !== String(v.frame_url) || ['dropped', 'lost', 'winner'].includes(v.status) || v.client_pass_at) return '';
         if (k.state === 'expired') return '<span class="trl-lab" data-l="link not found" title="This link does not open a video. Paste the right link for Video ' + _calEscAttr(v.letter) + '.">link not found</span>';
         if (k.state === 'permission_denied') return '<span class="trl-lab" data-l="no access" title="This link asks for a sign-in. Share it so anyone with the link can view it.">no access</span>';
         return '';

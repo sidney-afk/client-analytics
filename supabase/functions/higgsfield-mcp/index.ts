@@ -191,7 +191,7 @@ const INSTRUCTIONS = [
   "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then wait_for_job with all the job_ids.",
   "B-roll is always made in two steps with the broll-photo-then-video recipe: first a still image they approve (redo it until they like it), then that exact image is animated. Never make b-roll straight from text to video unless they ask for that.",
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
-  "Whenever a client is named, call client_brain before answering, without being asked. When someone states something new and lasting about a client, save it with brain_change and confirm in one line; never for notes about one video.",
+  "Whenever a client is named, call client_brain before answering, without being asked. For any question about the company, a teammate (for example \"who is Sidney\"), who does what, who films where or how to do something, call client_brain with topic \"handbook\" (the index; any client value works, and then topic \"handbook:<page>\" for a page) before answering; never search local or downloaded files, and never answer from memory. Lines like owner, status, source and updated in the brain are bookkeeping, not facts about people. When someone states something new and lasting about a client, save it with brain_change and confirm in one line; never for notes about one video.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image takes under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
@@ -1402,9 +1402,12 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
-  if (name === "client_brain" && String(args.handbook || "").trim()) return await handbookRead(String(args.handbook));
+  // The handbook is also reachable through the existing topic and fact_id fields, so a chat that has not refreshed its tool list can still use it.
+  const handbookTopic = /^\s*handbook(?::\s*([^\s].*))?\s*$/i.exec(String(args.topic || ""));
+  if (name === "client_brain" && (String(args.handbook || "").trim() || handbookTopic)) return await handbookRead(String(args.handbook || (handbookTopic && handbookTopic[1]) || "start"));
   if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who));
-  if (name === "brain_change" && String(args.handbook_page || "").trim()) return await handbookChange(String(args.handbook_page), String(args.what_changed || ""), String(args.fact_id || ""), author);
+  const handbookFact = /^\s*handbook:\s*([^\s].*)$/i.exec(String(args.fact_id || ""));
+  if (name === "brain_change" && (String(args.handbook_page || "").trim() || handbookFact)) return await handbookChange(String(args.handbook_page || (handbookFact && handbookFact[1])), String(args.what_changed || ""), handbookFact ? "" : String(args.fact_id || ""), author);
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author, String(args.question_id || ""));
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());

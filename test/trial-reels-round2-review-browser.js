@@ -459,6 +459,21 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
+    // A refused change never says "Change sent" (Codex on #2444): the note goes, and the words come back into the box.
+    if (part('keepcard')) {
+      const t = await start('client', true, three(), { width: 1440, height: 900, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } });
+      if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
+      t.state.writeFail = 50;   // the card's save is refused
+      await askChange(t, 'Fictional note: a warmer colour on C.');
+      // The refused change keeps its own Try again and its words (the save path's "Your unsent words").
+      const retry = () => R(t, `return !!r.querySelector('[data-retry="video"]');`);
+      await waitFor(retry, 80);
+      await sleep(400);
+      const n = await R(t, `const n = r.querySelector('.trv-sent'); return n ? n.textContent.trim() : '';`);
+      const row = await R(t, `const d = r.querySelector('#drow'); return d ? d.innerText.replace(/\\s+/g, ' ').trim() : '';`);
+      ok(!/Change sent/.test(n) && await retry(), `refused: no "Change sent" ("${n}"), and the change offers Try again ("${row.slice(0, 160)}")`);
+      await t.ctx.close();
+    }
 
     // ---------- Trialeyes E1 (2026-10-29): after a change on one version, another version never shows that change ----------
     // The SMM approves A, then asks for a change on B: C still waits, so the card stays (OPEN_REPAIRS 587) and C, which

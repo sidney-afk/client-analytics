@@ -1040,7 +1040,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
-.trv-sent{margin:0 0 6px}
+.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 12px}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-8px;right:-6px;width:20px;height:20px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;box-shadow:none;color:var(--text-secondary);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:11px;height:11px}
@@ -2611,9 +2611,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, x = m.parts.find(p => p.key === S.step);
         const el = _rsQ('drow');
         const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
-        const sentL = (S.trvSent && S.trvSent[m.id]) || [];
+        const tsent = (S.trvSent && S.trvSent[m.id]) || {}, ls = st => Object.keys(tsent).filter(l => tsent[l] === st).sort();
+        const sentL = ls('sent'), sendingL = ls('sending'), trvOn = x && x.key === 'video' && !m.gone;
         const note = (elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '')
-            + (sentL.length && x && x.key === 'video' && !m.gone ? '<div class="trv-sent"><span class="cp-st cp-done" role="status">' + RI.check + 'Change sent for Video ' + _re(sentL.join(', ')) + '</span></div>' : '');
+            + (trvOn && (sentL.length || sendingL.length) ? '<div class="trv-sent">'
+                + (sentL.length ? '<span class="cp-st cp-done" role="status">' + RI.check + 'Change sent for Video ' + _re(sentL.join(', ')) + '</span>' : '')
+                + (sendingL.length ? '<span class="cp-st" role="status">Sending the change for Video ' + _re(sendingL.join(', ')) + '…</span>' : '')
+                + '</div>' : '');
         const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(_rsModelById(m.id) || m)); };
         if (!x) { if (_rsCalm(el, note, m)) bindMove(); return; }
         let d;
@@ -3256,15 +3260,23 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsCpQSave(key, []);
         });
     }
+    // A trial card's sent changes, by version: 'sending' while the save runs, 'sent' once it landed, '' when refused.
+    function _rsTrvMark(pid, letter, st) {
+        const S = R.S;
+        if (!letter) return;
+        const t = S.trvSent || (S.trvSent = {}), cur = t[pid] || (t[pid] = {});
+        if (st === 'sending' && cur[letter] === 'sent') return;
+        if (st) cur[letter] = st; else if (cur[letter] === 'sending') delete cur[letter];
+    }
     function _rsCpQueueChange(m, k, text, where, letter) {
         const S = R.S, key = m.id + '|' + k;
         // A trial card's change closes the box once sent, so the next version shows its own Approve and "Not this one";
         // a small "Change sent for Video C" says it went (Trialtest, 2026-10-29: the open box's Cancel read like taking
         // the change back).
+        // It says "Sent" only once the save lands; a refused one goes back into the box as before (Codex on #2444).
         const trv = k === 'video' && !!letter && !!(m.trial && !m.trial.winner);
         if (trv) {
-            const sent = S.trvSent || (S.trvSent = {}), ls = sent[m.id] || (sent[m.id] = []);
-            if (!ls.includes(letter)) ls.push(letter);
+            _rsTrvMark(m.id, letter, 'sending');
             S.note = Object.assign(_rsBlankNote(), { vis: S.note.vis });
         } else S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
         const q = S.chgQ[key] || (S.chgQ[key] = []);
@@ -3280,8 +3292,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, key = m.id + '|' + k, q = S.chgQ[key];
         if (!q) return;
         q.busy = true;
-        let sent = false;
+        let sent = false, inLetter = '';
         const giveBack = (why) => {
+            [inLetter].concat(q.map(n => n.letter)).forEach(l => _rsTrvMark(m.id, l, ''));
             const rest = q.splice(0).map(n => n.body);
             delete S.chgQ[key];
             _rsCpQSave(key, []);
@@ -3330,9 +3343,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 // part); every change still waiting goes back into the box.
                 if (_rsError(cur, k)) { giveBack('Not sent. Your next words are back in the box.'); _rsRender(); return; }
                 S.cpSent[key] = (S.cpSent[key] || 0) + 1;
+                _rsTrvMark(m.id, inLetter, 'sent');
             }
             if (!q.length) { delete S.chgQ[key]; _rsRender(); return; }
             const nx = q.shift();
+            inLetter = nx.letter || '';
             _rsCpQSave(key, q);
             delete S.cpBack[key];
             _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '' });

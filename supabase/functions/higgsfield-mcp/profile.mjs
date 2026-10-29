@@ -179,3 +179,64 @@ export function draftReply(clientName, lookBullets, specs) {
   const fields = Object.entries(PROFILE_FIELDS).map(([k, v]) => `- ${k}: ${v}`).join("\n");
   return `${clientName} has no video profile yet.${known ? ` Here is what the Synchro Brain already knows about the look, to draft a first one from:\n\n${known}` : " The Synchro Brain has no Look notes for this client yet either."}\n\nA profile is one JSON object. Proposed fields (any other field is kept too):\n${fields}\n\nDraft it with the person, show it, and save it with studio_profile_save only after they agree.`;
 }
+
+// The JSON block of a filed profile change (see profileChangeText), or null.
+export function extractProfileJson(text) {
+  const m = /```json\s*([\s\S]*?)```/.exec(String(text || ""));
+  if (!m) return null;
+  try {
+    const v = JSON.parse(m[1]);
+    return isObj(v) ? v : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// A save is filed as a brain input and written to the file a few minutes
+// later, so a second save moments after the first must start from the first
+// one, not from the old file. files are filed profile changes for the client
+// ({ text }, each carrying a "- received: <iso>" line); sinceIso is when the
+// profile file was last written (empty if it does not exist yet). Returns the
+// profile of the newest change filed after sinceIso, or null when the file is
+// already up to date.
+export function pickPendingProfile(files, sinceIso) {
+  const since = Date.parse(sinceIso || "") || 0;
+  let best = null;
+  for (const f of files || []) {
+    const text = String((f && f.text) || "");
+    if (!text.includes(PROFILE_MARKER)) continue;
+    const r = /^- received: (\S+)/m.exec(text);
+    const at = r ? Date.parse(r[1]) : NaN;
+    if (!(at > since)) continue;
+    const profile = extractProfileJson(text);
+    if (profile && (!best || at > best.at)) best = { at, profile };
+  }
+  return best ? best.profile : null;
+}
+
+// Pieces of a profile that are missing or point at things the connector
+// cannot confirm. A save still goes through; the reply lists these so nobody
+// treats an incomplete profile as ready. Plain sentences.
+export function profileChecklist(profile) {
+  const p = isObj(profile) ? profile : {};
+  const out = [];
+  const set = (v) => (typeof v === "string" ? v.trim() !== "" : Array.isArray(v) ? v.length > 0 : isObj(v) ? Object.keys(v).length > 0 : v != null);
+  if (!isObj(p.fonts) || !set(p.fonts.main)) out.push("fonts.main is not set");
+  if (!isObj(p.colours) || !set(p.colours)) out.push("colours are not set");
+  if (!isObj(p.subtitles) || !set(p.subtitles.style)) out.push("subtitles.style is not set");
+  if (!set(p.music)) out.push("the music rule is not set");
+  if (!set(p.handle)) out.push("the on-screen handle is not set");
+  const files = new Set();
+  let text = "";
+  const walk = (v) => {
+    if (typeof v === "string") {
+      text += " " + v;
+      for (const m of v.matchAll(/[A-Za-z0-9_-]+\.(?:cube|onnx|ttf|otf|woff2?|mp3|wav)\b/gi)) files.add(m[0]);
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (isObj(v)) Object.values(v).forEach(walk);
+  };
+  walk(p);
+  for (const f of files) out.push(`it names the file ${f}; the connector cannot see the studio kit, so check it is bundled in the studio zip and not only on someone's computer`);
+  if (/eleven\s?labs|music_v\d|suno|udio/i.test(String(p.music || ""))) out.push("the music rule names a music tool, but the connector has no music route yet: music is a manual step for the social media manager");
+  return out;
+}

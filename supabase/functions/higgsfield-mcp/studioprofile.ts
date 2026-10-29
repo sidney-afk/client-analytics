@@ -9,7 +9,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { parseBrainFacts, parseBrief } from "../brain/parse.mjs";
 import { recordChange } from "../brain/change.mjs";
 import { brainFolder, findClient, gh } from "./clientinfo.ts";
-import { PROFILE_FILE, PROFILE_MAX_CHARS, draftReply, mergeProfile, profileChangeText, profileFactId, profileJson, profileProblems, profileReply, stampProfile } from "./profile.mjs";
+import { PROFILE_FILE, PROFILE_MAX_CHARS, draftReply, mergeProfile, pickPendingProfile, profileChangeText, profileChecklist, profileFactId, profileJson, profileProblems, profileReply, stampProfile } from "./profile.mjs";
 
 async function readProfile(folder: string): Promise<{ text?: string; missing?: boolean; error?: string }> {
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
@@ -17,6 +17,33 @@ async function readProfile(folder: string): Promise<{ text?: string; missing?: b
   if (r.status === 404) return { missing: true };
   if (!r.ok) return { error: String(r.status) };
   return { text: await r.text() };
+}
+
+// Saves filed after the profile file was last written, which the brain has not
+// processed yet. Best effort: any failure here returns null and the save starts
+// from the file, as before.
+async function readPendingProfile(folder: string): Promise<unknown | null> {
+  try {
+    const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+    const c = await gh(`commits?path=${encodeURIComponent(`clients/${folder}/${PROFILE_FILE}`)}&sha=${ref}&per_page=1`, false);
+    let since = "";
+    if (c.ok) {
+      const list = await c.json();
+      since = list?.[0]?.commit?.committer?.date || "";
+    }
+    const day = (since || "1970-01-01").slice(0, 10);
+    const d = await gh(`contents/inputs/syncview-changes?ref=${ref}`, false);
+    if (!d.ok) return null;
+    const names: string[] = (await d.json()).map((x: { name: string }) => x.name)
+      .filter((n: string) => n.includes(`-${folder}-`) && n.slice(0, 10) >= day);
+    const files = await Promise.all(names.slice(-10).map(async (n) => {
+      const r = await gh(`contents/inputs/syncview-changes/${n}?ref=${ref}`, true);
+      return { text: r.ok ? await r.text() : "" };
+    }));
+    return pickPendingProfile(files, since);
+  } catch (_e) {
+    return null;
+  }
 }
 
 export async function studioProfile(db: SupabaseClient, client: string): Promise<string> {
@@ -70,6 +97,9 @@ export async function studioProfileSave(db: SupabaseClient, client: string, prof
     if (prof.text !== undefined) {
       try { current = JSON.parse(prof.text); } catch (_e) { return `Could not save: ${p.client_name}'s current video profile is not valid JSON. Save the whole profile again with replace set to true.`; }
     }
+    // A save filed moments ago is not in the file yet: start from it.
+    const pending = await readPendingProfile(where.folder);
+    if (pending) current = pending;
   }
   const stamped = stampProfile(mergeProfile(current, profile), member, new Date().toISOString());
   const json = profileJson(stamped);
@@ -86,5 +116,7 @@ export async function studioProfileSave(db: SupabaseClient, client: string, prof
     branch: Deno.env.get("BRAIN_BRANCH") || "main",
   });
   if (!result.ok) return result.error === "text_too_long" ? "Could not save: the profile is too long; shorten the notes." : "Could not save: the profile was empty.";
-  return `Sent. ${p.client_name}'s video profile will be filed in the Synchro Brain within a few minutes (studio_profile shows the old one until then). This is what was sent:\n\n${json}`;
+  const todo = profileChecklist(stamped);
+  const check = todo.length ? `\n\nSaved, but not ready to use as a complete profile. Check these:\n${todo.map((x) => `- ${x}`).join("\n")}` : "\n\nChecklist: every basic piece is set.";
+  return `Sent. ${p.client_name}'s video profile will be filed in the Synchro Brain within a few minutes (studio_profile shows the old one until then).${check}\n\nThis is what was sent:\n\n${json}`;
 }

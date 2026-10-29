@@ -129,6 +129,25 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   assert.ok(!/method: "PUT"/.test(ci), 'studioprofile.ts never PUTs a brain file itself');
   assert.ok(/text: profileChangeText\(where\.folder, stamped\)/.test(saveFn));
   assert.ok(/if \(!where\.folder\) return `Could not save:/.test(saveFn), 'no unmatched profile files');
+  // Two saves seconds apart: the second starts from the first, not the old file.
+  const filed = (at, profile) => ({ text: `VIDEO PROFILE\n- received: ${at}\n\n\`\`\`json\n${JSON.stringify(profile)}\n\`\`\`\n` });
+  const first = { fonts: { main: 'Roc Grotesk Bold' }, notes: 'a' };
+  const older = { fonts: { main: 'Inter' } };
+  assert.deepStrictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:40:00.000Z'), first, 'a save filed after the file was written is the base');
+  assert.strictEqual(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:50:00.000Z'), null, 'a save the file already holds is not pending');
+  assert.deepStrictEqual(p.pickPendingProfile([filed('2026-10-28T19:30:00.000Z', older), filed('2026-10-28T19:48:07.000Z', first)], '2026-10-28T19:00:00.000Z'), first, 'the newest pending save wins');
+  assert.strictEqual(p.pickPendingProfile([{ text: 'not a profile' }, { text: 'VIDEO PROFILE\n- received: 2026-10-28T19:48:07.000Z\n```json\nnope\n```' }], ''), null, 'unreadable changes are ignored');
+  assert.deepStrictEqual(p.mergeProfile(p.pickPendingProfile([filed('2026-10-28T19:48:07.000Z', first)], ''), { notes: 'b' }).fonts, { main: 'Roc Grotesk Bold' }, 'the second save keeps the first save fonts');
+  assert.ok(/const pending = await readPendingProfile\(where\.folder\);\s*if \(pending\) current = pending;/.test(ci), 'the save looks for pending saves');
+
+  // The checklist names what is missing or cannot be confirmed.
+  assert.deepStrictEqual(p.profileChecklist(full), [], 'a complete profile has nothing to check');
+  const list = p.profileChecklist({ fonts: {}, music: 'ElevenLabs music_v2 soft guitar', colours: { look: 'approved709.cube' } });
+  assert.ok(list.some((x) => x.includes('fonts.main')) && list.some((x) => x.includes('subtitles.style')) && list.some((x) => x.includes('handle')));
+  assert.ok(list.some((x) => x.includes('approved709.cube') && x.includes('studio zip')), 'a named kit file is flagged');
+  assert.ok(list.some((x) => x.includes('no music route')), 'a music tool the connector lacks is flagged');
+  assert.ok(/profileChecklist\(stamped\)/.test(ci) && /not ready to use as a complete profile/.test(ci), 'the reply carries the checklist');
+
   // The draft reads brief.md and editing.md only (never money.md).
   const viewFn = ci.slice(ci.indexOf('export async function studioProfile('), ci.indexOf('export async function studioProfileSave'));
   assert.ok(/read\("brief"\), read\("editing"\)/.test(viewFn));

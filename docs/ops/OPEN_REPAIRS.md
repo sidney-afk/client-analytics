@@ -35255,3 +35255,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Plain text and other sites now get one sentence: "Paste a Frame.io, Google Drive or Dropbox link to the video."
   - A refusal from the server still uses today's dialog.
 - **Proven:** `test/trial-reels-round3-card-browser.js` covers plain text, YouTube and A's link at 1440 and 390, light and dark. It checks the text is kept with the reason under the field, no dialog appears, a click away keeps both, and Escape closes the field. It fails on main.
+
+## 581. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: "Video · 0" with an open-link icon and nothing to open; the "+ Add version" tooltip covered the row above (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - Switched on with no version yet, the row read "Video · 0" and still showed the open-link icon.
+  - The "+ Add version" hover tip ("Add Video B by pasting its link") covered the Video A row and spilled past the card's left edge.
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - With no version the row reads "Video", and it shows the open-link icon only when the card has a link.
+  - "+ Add version" has no hover tip. Its spoken name still names the next letter.
+- **Not built yet:** the switched-off toggle explains itself only in its hover tip (none on a phone). That is a look question, put to the Supervisor.
+- **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).

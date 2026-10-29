@@ -361,13 +361,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // With no version yet, the list stands open: its only row is where the first link is pasted.
         const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);
-        const main = winner ? 'Video ' + winner.letter : 'Video · ' + vs.length;
+        // No version yet: "Video", never "Video · 0" (Trialeyes E5, 2026-10-29).
+        const main = winner ? 'Video ' + winner.letter : vs.length ? 'Video · ' + vs.length : 'Video';
+        // The open-link icon only when there is a link to open.
+        const ext = String(post.asset_url || '').trim() ? parts.extIco : '';
         const p = _calEscAttr(pid);
         // The row's parts are sibling buttons, styled as one row: the link (opens the video on the card), the state's
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
         const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
-            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr('Open the video' + (tiny.words ? '. ' + tiny.words : '')) + '">' + parts.extIco
+            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '">' + ext
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
             + (tiny.html ? '<span class="trl-state">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
@@ -434,7 +437,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + next + '"></div>' + _trlErrHtml(pid, dr);
         }
         // A minimal "+ Add version" that opens the paste field (owner, 2026-10-28: no "Video E  Paste the Frame.io link").
-        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" title="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button></div>';
+        // No hover tip: the button says what it does, and the tip covered the row above (Trialeyes E6, 2026-10-29).
+        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" aria-label="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button></div>';
     }
 
     // ---- actions -----------------------------------------------------------------------------------------------

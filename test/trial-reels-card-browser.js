@@ -9,7 +9,7 @@
  * the projection onto the card). Proves:
  *   - switch off (trial_reels_pages does not list the client): the card is exactly today's, no trial control anywhere;
  *   - switch on, card off: a faint switch inside the Video row, and the card is still today's height;
- *   - card on: the row reads "Video · 5" with "2/4 approved", still today's height; the small arrow opens the
+ *   - card on: the row reads "Video · 4" (the live versions; D is dropped) with "2/4 approved", still today's height; the small arrow opens the
  *     versions (Video A…E), each label shown, "Paste the Frame.io link" on the one with no link; pasting saves it;
  *     dropping and bringing back a version;
  *   - 24 h up: only a muted trophy in the state slot ("Trial over: pick the winner"), no "on trial" labels in the list
@@ -148,7 +148,7 @@ async function shot(page, name) {
       await sleep(900);
       ok(T.calls.some(c => c.action === 'switch_set' && c.enabled === true && c.post_id === 'p_t1'), `${label}: the switch sends switch_set on`);
       let txt = await rowText(page);
-      ok(/Video · 5/.test(txt) && /2\/4 approved/.test(txt), `${label}: the row reads "Video · 5" and "2/4 approved" (${txt})`);
+      ok(/Video · 4/.test(txt) && /2\/4 approved/.test(txt), `${label}: the row reads "Video · 4" (live versions only, E8) and "2/4 approved" (${txt})`);
       // Switched on, the list opens by itself (owner, 2026-10-27); the arrow folds it, and the card is today's height.
       ok(!!(await page.$('.trl-list')) && await page.$eval('.cal-link-post .trl-chev', b => b.getAttribute('aria-expanded')) === 'true', `${label}: switched on, the versions list opens by itself`);
       await page.click('.cal-link-post .trl-chev');

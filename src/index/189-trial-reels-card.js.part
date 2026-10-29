@@ -332,7 +332,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* A version's label: a pill, except "dropped", which is plain muted text (owner, 2026-10-27: still said, never a
        pill). sv-dropped-note is the one shared class; the card, Production and the review pages all use it. */
     function svTrialLabelHtml(status, v) {
-        const s = String(status || '');
+        let s = String(status || '');
+        // A waiting version that has passed a stage says where it is now (Trialeyes, 2026-10-29: an SMM-approved
+        // version read "waiting" in the same grey as one nobody had seen), in the card status colours of that stage.
+        if (v && s === 'waiting' && !v.client_pass_at) s = v.kasper_ok_at ? 'with client' : v.smm_ok_at ? 'with Kasper' : s;
         if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
         // The client said "Not this one" (owner, 2026-10-28): the team sees it and drops the version.
         if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client dropped" title="' + _calEscAttr('The client dropped this version: take it off the card. ' + _trlStagesTitle(v)) + '">Client dropped</span>';

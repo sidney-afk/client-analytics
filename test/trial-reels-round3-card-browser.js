@@ -168,6 +168,23 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await page.close();
       }
     }
+    // Trialeyes E2 (2026-10-29): a waiting version says how far it got, never the grey "waiting" of one nobody saw.
+    for (const theme of ['light', 'dark'].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[0], { kasper_ok_at: null });                      // A: the SMM said yes
+      Object.assign(T.versions[2], { smm_ok_at: null, kasper_ok_at: null });   // C: nobody has looked yet
+      const page = await open(1440, 900, theme);
+      await openList(page);
+      const R = await rowsOf(page);
+      const lab = l => (R.find(r => new RegExp('^Video ' + l).test(r.t)) || {}).lab;
+      const col = await page.evaluate(() => [...document.querySelectorAll('.trl-list .trl-v .trl-lab')].map(n => n.textContent.trim() + '=' + getComputedStyle(n).backgroundColor));
+      const bg = t => (col.find(c => c.startsWith(t + '=')) || '').split('=')[1];
+      ok(lab('A') === 'with Kasper' && lab('B') === 'with client' && lab('C') === 'waiting', `stages ${theme}: A says "with Kasper", B "with client", C "waiting" (${lab('A')} | ${lab('B')} | ${lab('C')})`);
+      ok(bg('with Kasper') && bg('with Kasper') !== bg('waiting') && bg('with client') !== bg('waiting') && bg('with Kasper') !== bg('with client'), `stages ${theme}: each has its own colour, none the grey of "waiting" (${col.join(' | ')})`);
+      ok(/SMM: approved · Kasper: waiting/.test((R.find(r => /^Video A/.test(r.t)) || {}).title || ''), `stages ${theme}: A's hover still says who said what`);
+      await shot(page, 'r3-stages-' + theme);
+      await page.close();
+    }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
     // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.
     if (!process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop') {

@@ -35243,3 +35243,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 579. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a version the SMM approved read "waiting" in the same grey as one nobody had seen (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):** after the SMM approved Video A, the card's versions list still said A "waiting", in the same grey as the unreviewed C. Only the hover said "SMM: approved".
+- **Fix:** `svTrialLabelHtml` (`src/index/189-trial-reels-card.js.part`) shows a waiting version's place in the chain:
+  - "with Kasper" once the SMM has approved it;
+  - "with client" once Kasper has too.
+
+  Each tag uses the card status colours of that stage (Kasper Approval, Client Approval). The hover still names who said what, and Production's rows get the same labels.
+- **Proven:** `test/trial-reels-round3-card-browser.js` checks A "with Kasper", B "with client" and C "waiting", each in its own colour, in light and dark. It fails on main.

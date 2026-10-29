@@ -48,7 +48,7 @@ import { svFrameSyncPlayIcon, svFrameTileAttrs } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
 import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-switch.js';
-import { svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.js';
+import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.js';
     // Staff Calendar phone chrome delegates every action to its native control.
     // Nothing is mounted at desktop widths or on another staff surface.
     let _calStaffPhoneState = null;
@@ -4021,7 +4021,7 @@ import { svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.j
                 titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
             }
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_isClientLink ? '' : _calNameSyncSlotHtml(pid)}${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_isClientLink ? svTrialClientTagHtml(p, false) : _calNameSyncSlotHtml(pid)}${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)

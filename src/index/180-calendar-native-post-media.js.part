@@ -62,6 +62,7 @@ import { _prodRestRows } from './210-production-state-writes.js';
 import { svFrameThumbAttrs } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-model.js';
+import { svTrialClientTagHtml } from './189-trial-reels-card.js';
     async function _calFetchNativeBatchPostCounts(batches) {
         const rowsIn = Array.isArray(batches) ? batches : [];
         const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
@@ -3435,7 +3436,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // knows what its own batch colours mean, so it's client-only.
         const colorTitle = (_isClientLink && color) ? ' title="Color tag. Shows which batch this card is in."' : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_isClientLink ? svTrialClientTagHtml(p, true) : ''}${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
 
     function renderCalMonth() {

@@ -15,6 +15,7 @@ import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSke
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
+import { svTrialReviewWanted } from './189-trial-reels-card.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -1532,6 +1533,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsCur() {
         const all = _rsAll();
         let m = all.find(x => x.id === R.S.curId);
+        // A client's "N versions" tag on Sheet or Month opens that card (194).
+        const want = R.mode === 'client' && svTrialReviewWanted(false);
+        if (want) {
+            const w = all.find(x => x.id === want);
+            if (w) { svTrialReviewWanted(true); if (w !== m) { m = w; R.S.curId = w.id; R.S.step = _rsFirstStep(w); } }
+        }
         _rsDraftsSettle(all);
         if (!m) {
             const q = _rsQueue(), had = R.S.curId;   // had: a post was on stage (not the recap, not a first draw)

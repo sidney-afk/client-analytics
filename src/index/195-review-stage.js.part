@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -2506,6 +2506,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
         // (review of #2235); on a part already answered, the answer shows.
         else if (saving && (S.pressed[m.id + '|' + x.key] || x.st === 'wait') && !(R.cp && S.cpOk[ck] && x.st === 'ok')) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'wait');
+        // A trial card: the version on screen says its own state, never the card's (another version's change note, or
+        // "Approved" over a version the client said "Not this one" to).
+        else if ((x.st === 'chg' || x.st === 'ok') && x.key === 'video' && svTrialReviewChangeHtml(m, R.mode, x.st)) d = svTrialReviewChangeHtml(m, R.mode, x.st);
         else if (x.st === 'ok' && R.mode === 'smm') d = '<span class="dst ok"><span class="ck' + (x.route === 'client' ? ' tocl' : '') + '">' + (x.route === 'client' ? RI.skip : RI.check) + '</span>Approved to ' + (x.route === 'client' ? 'client' : 'Kasper') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'ok') d = '<span class="dst ok"><span class="ck">' + (x.dec === 'aat' ? RI.aat : RI.check) + '</span>' + (x.dec === 'aat' ? 'Approved after tweaks' : 'Approved') + (x.when ? ' <span class="when">' + _re(_rsWhen(x.when)) + '</span>' : '') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'chg' && x.frame) d = '<span class="dst chg"><span class="ck chg">' + RI.frame + '</span>Tweaks are on Frame</span>' + (m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
@@ -2516,6 +2519,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             d = _rsActions(x, '');
         }
         const settled = !saving || (R.cp && S.cpOk[ck] && x.st === 'ok');
+        // That version's own state colours the row: approved green, waiting plain, never the other version's change.
+        const trv = (x.st === 'chg' || x.st === 'ok') && x.key === 'video' && !S.editing && !saving && svTrialReviewChangeHtml(m, R.mode, x.st);
+        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : '', saving };
         const dc = cpOk ? ' cp-checking' : x.st === 'ok' && d && !S.editing && settled ? ' is-ok' + (R.cp && S.cpOk[ck] ? ' cp-settle' : '') : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         return { d, dc, saving };
     }

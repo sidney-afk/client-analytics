@@ -35254,6 +35254,31 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 584. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: after "Not this one" on the last open version, its screen said the card's "Approved" (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 390):**
+  - Right after "Not this one" on Video B, B's screen said "the team will take Video B out".
+  - About 3 s later, when the other versions moved the card to Approved, it said "Approved · just now · Change my mind" while still on B. B's dot showed no cross. It read as "B approved".
+- **Fix:**
+  - The version on screen wins over the card's part state. `svTrialReviewChangeHtml` (194, used by `_rsActiveD` in 195) keeps "Not this one: the team will take Video B out" on the client link, and "Client dropped Video B: take it off the card" for staff, on a passed version's screen.
+  - The passed dot gets a small cross mark beside its struck letter.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e10`) at 390 and 1440. It fails on the commit before: it read "Approved just now", with no cross.
+
+## 591. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels review page: after a change on one version, a version nobody had reviewed showed that change's quote and no Approve (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live, the SMM's Review tab at 1440):**
+  - The SMM approved Video A, then asked for a change on Video B.
+  - The card went to Tweaks Needed, as plan section 5 says.
+  - Video C, which nobody had looked at, then showed B's "Change asked" and B's quote instead of its own state.
+- **Why:** while the card's video part has a change asked, `_rsActiveD` (195) draws that part's last change note on whichever version is on screen.
+- **Fix:** on a trial card, `svTrialReviewChangeHtml` (194) gives each version its own state:
+  - "Video A approved" (green);
+  - "Video C waits: Video B's change is with the editor" (plain);
+  - B keeps today's "Change asked" with its note.
+- **Not changed:** the card still goes to Tweaks Needed on one version's change, as plan section 5 says. Whether the other versions should keep moving instead is Sidney's call, put to him by the Supervisor.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e1`) at 1440 and 390. It fails on main: C read "Change asked".
+- **Also (Trialtest nit, 2026-10-29):** a refused "Not this one" was titled "Video C was not passed on". It now reads "Video C was not saved", with the same plain body. This is checked in `TRL_PART=dblclick` and `pass`.
+
 ## 587. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version's change took the whole card to Tweaks Needed, so the reviewer lost the other versions and nothing brought the card back (Trialtest bug 1, Trialeyes E1 and E14, session Trials)
 
 - **What happened (live, test client):**

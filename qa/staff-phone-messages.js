@@ -50,7 +50,9 @@ async function main(){
    await p.setViewportSize({width,height:420});await p.waitForTimeout(200);const bounds=await p.locator('.msg-reply').boundingBox();assert(bounds.y+bounds.height<=421,'Composer must fit above the simulated keyboard');await shot(p,'messages-keyboard',width,theme);await p.setViewportSize({width,height:844});
    await p.setViewportSize({width:1440,height:900});await p.waitForTimeout(150);
    assert.equal(await p.locator('.thumb-msg-options').count(),0,'Desktop restores its native actions');
-   assert(await p.locator('.msg-act[title="Mark as unread"]').isVisible(),'Desktop mark action is unchanged');
+   // A desktop page draws the round-5 header (327; every signed-in staff member since 2026-10-29): no "Mark as unread"
+   // (round 8), the conversation's own Close instead.
+   await p.locator('.svu-chat-close').waitFor({timeout:3000});assert(await p.locator('.svu-chat-close').isVisible()&&!(await p.locator('.msg-act[title="Mark as unread"]').isVisible()),'Desktop draws its own header actions');
    assert.equal(await box.inputValue(),'A retained fictional reply.','Resize keeps the draft');
    await p.setViewportSize({width,height:844});await p.waitForTimeout(150);assert(await p.getByRole('button',{name:'More conversation actions'}).isVisible());
    await p.getByRole('button',{name:'Back to conversations'}).tap();await p.waitForTimeout(120);assert(await p.locator('[data-msg-conv="message-fixture-0"]').evaluate(n=>n===document.activeElement),'Back restores conversation focus: '+await p.evaluate(()=>JSON.stringify({active:document.activeElement?.outerHTML.slice(0,200),id:_msgState.openId,returning:_msgPhone.returning,focus:_msgPhone.focusId,history:history.state,list:document.querySelector('.msg-convs')?.scrollTop})));

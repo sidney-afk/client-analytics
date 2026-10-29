@@ -235,6 +235,10 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({items:_kasperState.items.map(i=>({id:i.post.id,v:i.post.video_status,c:i.post.caption_status,e:i._errors})),steps:[...document.getElementById('svReviewStage').shadowRoot.querySelectorAll('.stp')].map(e=>({cls:e.className,part:e.dataset.step})),title:document.getElementById('svReviewStage').shadowRoot.querySelector('#side').textContent})));
   check(await inS(t.page, '#finishBtn').isEnabled(), label + ': staff Finish enabled');
   await shot(t, label.replaceAll('/', '-') + '-answered', '#drow');
+  // With the polish (every signed-in staff member since 2026-10-29) the change's box stays open above Finish for the next
+  // change, so on a phone Finish can sit just below the screen: it is scrolled to, as a person would, before the check
+  // that the approval message does not cover it.
+  await inS(t.page, '#finishBtn').scrollIntoViewIfNeeded();
   const receipt = await t.page.evaluate(() => {
     const toast = document.querySelector('.sv-toast.show'), host = document.getElementById('svReviewStage');
     const b = host.shadowRoot.querySelector('#finishBtn').getBoundingClientRect();

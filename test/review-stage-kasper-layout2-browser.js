@@ -227,6 +227,12 @@ async function titles(page) { return (await look(page)).heading; }
     expect(!!chg && /Make the title bigger/.test(String(chg.graphic_tweaks || '')), 'Send saves the change request, with its words, on the thumbnail');
     await sleep(900);
     L = await look(t.page);
+    // Kasper's Review Session has the polish for every signed-in staff member (no switch since 2026-10-29): a sent
+    // change keeps its box open on the part with "Sent", for the next one; closing it, the part reads Change asked.
+    expect(/Sent/.test(L.panes.graphic.text) && await inS(t.page, '#ta').count() === 1, 'the change is Sent and its box stays open for the next one');
+    await inS(t.page, '#cmpCancel').click();
+    await sleep(500);
+    L = await look(t.page);
     expect(/Change asked/.test(L.panes.graphic.text), 'the thumbnail reads Change asked');
     expect(!L.panes.video.approve && L.panes.video.mediaVisible && L.panes.graphic.approve === false && L.panes.caption.approve, 'the approved video keeps its picture; the thumbnail asked a change, the caption still waits');
     // the caption

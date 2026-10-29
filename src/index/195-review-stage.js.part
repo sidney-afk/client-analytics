@@ -2950,6 +2950,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // the decision row (its save problems, Finish) unless the box being typed in is in it
         const dr = _rsQ('drow');
         if (dr && !dr.contains(R.root.activeElement)) _rsDecide();
+        else if (dr) {
+            // The box is in the decision row (a change asked on the stage): the row is not redrawn under the caret, but
+            // its Finish still follows the saves. It stayed greyed until the box lost its caret, so on a phone Kasper
+            // had no Finish to press after his last change (session Permafive, 2026-10-29). Its glow's delay changes
+            // on every draw, so only a change of state draws it again.
+            const fin = dr.querySelector('.dfin');
+            if (fin) {
+                const h = _rsFinishHtml(m), key = h.replace(/animation-delay:-?\d+ms/, '');
+                if (fin.__cpKey !== key) { fin.__cpKey = key; fin.innerHTML = h; _rsBindFinish(m, fin); }
+            }
+        }
         const ts = _rsQ('tscroll'), c = _rsQ('chat');
         if (ts && c) {
             const html = _rsThreadHtml(m);
@@ -3341,7 +3352,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 sent = false;
                 // Refused: it keeps its own words and Try again (that retry is the one the save path accepts next on this
                 // part); every change still waiting goes back into the box.
-                if (_rsError(cur, k)) { giveBack('Not sent. Your next words are back in the box.'); _rsRender(); return; }
+                if (_rsError(cur, k)) {
+                    giveBack('Not sent. Your next words are back in the box.');
+                    // The refusal always shows. While the box has the caret the page only does the typing paint, which
+                    // never redraws the box's own block, so its "Sent" stayed and the refusal never drew (Kasper's stage
+                    // box, found by the reviewer gauntlet; session Permafive, 2026-10-29). The box is drawn again (its
+                    // words are kept in S.note) and gets its caret back.
+                    const hadCaret = !!R.root && R.root.activeElement === _rsQ('ta');
+                    _rsRender({ force: true });
+                    if (hadCaret) _rsFocusTa();
+                    return;
+                }
                 S.cpSent[key] = (S.cpSent[key] || 0) + 1;
                 _rsTrvMark(m.id, inLetter, 'sent');
             }

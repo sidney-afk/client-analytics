@@ -300,10 +300,10 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 #### Auto-posted
 - A post at **Scheduled** turns **Posted** by itself once its scheduled day has ended (US Eastern time). The check runs every 15 minutes, behind the scenes, with no button.
 - A card it has moved once is never moved again, so a person's undo wins.
-- **Switch:** `calendar_auto_posted`, on for **one real client only** (not the test client).
+- **Switch:** `calendar_auto_posted`, on for **all clients** (its list is `*`).
 
 #### Thumbnail titles
-- ⋮ More → **Thumbnail title prompt** edits the client's prompt. A background job uses it to write a title into a new, empty thumbnail sub-issue's description from the client's filming plan. It never overwrites what a person wrote. **Switch:** `thumbnail_titles`, one real client only.
+- ⋮ More → **Thumbnail title prompt** edits the client's prompt. A background job uses it to write a title into a new, empty thumbnail sub-issue's description from the client's filming plan. It never overwrites what a person wrote. **Switch:** `thumbnail_titles`, on for all clients (its list is `*`).
 - The **Thumbnail titles** / **Write title** buttons are on the Production page, not the card (admins and SMMs only). **Switch:** `thumbnail_title_buttons_staff` (all staff).
 
 #### What the client sees when staff act
@@ -554,7 +554,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - **Practical details:** only admins and SMMs can run it. A run continues if you close the tab, and there is one run per post.
 - **Switches:**
   - `thumbnail_title_buttons_staff` (the buttons): on for all staff.
-  - `thumbnail_titles` (a separate automatic background writer of titles): on for one real client only.
+  - `thumbnail_titles` (a separate automatic background writer of titles): on for all clients (its list is `*`).
 
 #### How a Calendar card and its Production work item stay in sync
 
@@ -910,7 +910,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | Switch | What a teammate notices | Who has it on |
 | --- | --- | --- |
 | `analytics_hidden` | The Analytics tab and client Analytics | No row: hidden for everyone |
-| `calendar_auto_posted` | Scheduled posts turn Posted by themselves after their day ends | One real client (not the test client) |
+| `calendar_auto_posted` | Scheduled posts turn Posted by themselves after their day ends | All clients (`*`) |
 | `calendar_card_write_clients` | Card saves use the newer save path | All clients |
 | `write_ui_reroute_clients`, `calendar_upsert_ef_clients`, `sample_review_ef_clients`, `settings_ef_clients` | Create Post opens the dialog, and saves and settings go through the server (for other clients, Create Post adds a blank card) | A list of 38 clients, including the test client |
 | `caption_generate_ef_clients` | Generate caption | All clients |
@@ -920,7 +920,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `unread_badges_v2` | Unread pictures on Notes, and New / To answer in Messages | All staff |
 | `phone_polish_staff` | Smoother phone layout | All staff |
 | `thumbnail_title_buttons_staff` | **Thumbnail titles** and **Write title** buttons in Production | All staff |
-| `thumbnail_titles` | Background job that writes titles into new thumbnail sub-issues | One real client (not the test client) |
+| `thumbnail_titles` | Background job that writes titles into new thumbnail sub-issues | All clients (`*`) |
 | `thumbnail_revision_v2` | Compare old and new thumbnail on the card | On |
 | `workload_calm_staff` | Calm Workload design | All staff |
 | `review_stage_client_pages` | The guided client Review page and the SMM Review tab | All clients |

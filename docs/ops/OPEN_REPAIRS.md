@@ -35483,4 +35483,8 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - Review pages (194, 195): a change with the stage otherwise done moves the card on, never to Tweaks Needed; a card ahead of a stage is never moved back.
   - Kasper's queue (190, 330) and the SMM's card and Production (189) say per version where it is. A version with no link stays "waiting".
   - Held 390 nit bundled: the collapsed row's words wrap to a second line instead of being cut to "1 d…" (020).
-- **Proven:** logic test 156 checks, Deno function test 96. In `trial-reels-round2-review-browser.js`, the new route, routek and routec parts at 1440 and 390 fail 11 times on main's page code and pass with the change. The round-3 card test's collapsed-row check fails at 390 and 1440 without the CSS. Every trial-reels browser suite passes.
+- **Codex on PR 2452, three findings, all reproduced and fixed:**
+  - A card sent whole to Kasper (no SMM OK on any version) put every version with the SMM, so Kasper's OK on one finished his stage. `placeOf` now counts such a card's versions as through the SMM.
+  - The client's change routing read only the versions on screen, so a change on A sent the card to Tweaks Needed while B was still with Kasper. It now reads every version.
+  - The SMM's approve that forwarded the card marked every open change request done, including the one on the version still waiting for its cut. It now leaves open the requests of versions still in "change asked".
+- **Proven:** logic test 159 checks, Deno function test 96. In `trial-reels-round2-review-browser.js`, the new route, routek and routec parts at 1440 and 390 fail 11 times on main's page code and pass with the change. The round-3 card test's collapsed-row check fails at 390 and 1440 without the CSS. Every trial-reels browser suite passes.

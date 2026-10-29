@@ -148,11 +148,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return 'tweaks';
         const stage = _trvStage(mode);
         if (_trvCardAhead(m.post, stage)) return 'ahead';
-        const rest = m.trial.versions.filter(v => v.letter !== letter && _trvLive(v) && !v.client_pass_at && v.status !== 'change asked');
+        // From every version, not only the ones on screen: the client's list leaves out the versions still with the team,
+        // and those keep the card where it is (Codex on PR 2452).
+        const all = (m.trial.shape && Array.isArray(m.trial.shape.versions)) ? m.trial.shape.versions : m.trial.versions;
+        const rest = all.filter(v => v.letter !== letter && _trvLive(v) && !v.client_pass_at && v.status !== 'change asked');
         if (rest.some(v => _trvAnswer(v, stage) === 'wait')) return 'keep';
         if (stage !== 'client' && rest.some(v => !!v[stage + '_ok_at'])) return 'move';
         if (rest.some(v => ['smm', 'kasper', 'client', 'team'].includes(_trvPlace(v)))) return 'keep';
         return 'tweaks';
+    }
+    /* The versions still waiting for their new cut: forwarding the card answers the other versions' change requests,
+       never theirs (Codex on PR 2452: the SMM's approve marked B's open request done while B waited for its cut). */
+    function svTrialReviewOpenChanges(m) {
+        if (!m || !m.trial || m.trial.winner) return [];
+        const all = (m.trial.shape && Array.isArray(m.trial.shape.versions)) ? m.trial.shape.versions : m.trial.versions;
+        return all.filter(v => _trvLive(v) && v.status === 'change asked').map(v => v.letter);
     }
     function _trvCurOf(m, mode) {
         const vs = m.trial.versions;
@@ -671,5 +681,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange
+  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
 };

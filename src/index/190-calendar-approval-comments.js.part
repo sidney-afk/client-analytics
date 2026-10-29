@@ -744,11 +744,14 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        same canonical or card-JSON resolve, then the same approve. A toast says how many were marked done and offers
        Undo, which reopens exactly those. With NO open change-requests it routes directly, exactly as before. The client
        surface never resolves tweaks (_calCanResolveComment is SMM-only). */
-    function _calReviewApprove(pid, comp, dest) {
+    /* `keepLetters` (trial reels, per-version routing): the versions still waiting for their new cut. Their change
+       requests ("Video B: ...") stay open when the other versions go on; only the rest are marked done. */
+    function _calReviewApprove(pid, comp, dest, keepLetters) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         if (_calReviewMode() === 'smm' && _calCanResolveComment()) {
-            const open = _calOpenTweaksForComp(post, comp);
+            const keep = Array.isArray(keepLetters) ? keepLetters : [];
+            const open = _calOpenTweaksForComp(post, comp).filter(t => !keep.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || ''))));
             if (open.length) {
                 const key = pid + '|' + comp;
                 if (_calReviewState.saving[key]) return;

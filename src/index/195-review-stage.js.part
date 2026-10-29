@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -3177,7 +3177,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp); R.S.menu = '';
         if (R.mode === 'client') window._calReviewApprove(m.id, comp);
-        else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper');
+        else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper', comp === 'video' ? svTrialReviewOpenChanges(m) : null);
         else if (m.sample) window._sxrKasperApproveComp(m.id, comp);
         else window._kasperApproveComp(m.id, comp, 'client');
         if (R.mode === 'kasper' && R.l2) _rsL2UndoArm(m.id, comp);

@@ -83,6 +83,15 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     ok(L.stageDone(kMixed, 'kasper', 'Kasper Approval'), "B's new cut is back with the SMM: Kasper is done with A and C, so they go to the client");
     ok(!L.stageDone([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW }), v('B', { smm_ok_at: NOW })], 'kasper', 'Kasper Approval'), 'B through the SMM waits for Kasper: not done');
     ok(!L.stageDone([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW, status: 'change asked' }), v('B')], 'kasper', 'Kasper Approval'), "a version Kasper asked to change doesn't count as passed");
+    // Sent to Kasper the whole-card way (today's Approve or the status menu, no SMM OK on any version): every version is
+    // with Kasper, so his OK on A alone does not finish his stage (Codex on PR 2452).
+    const whole = [v('A', { kasper_ok_at: NOW }), v('B'), v('C')];
+    ok(!L.stageDone(whole, 'kasper', 'Kasper Approval') && whole.map(x => L.placeOf(x, whole, 'Kasper Approval')).join() === 'client,kasper,kasper',
+      "a card sent whole to Kasper: B and C still wait for him after A, so he is not done");
+    const wholeAll = whole.map(x => Object.assign({}, x, { kasper_ok_at: NOW }));
+    ok(L.stageDone(wholeAll, 'kasper', 'Kasper Approval'), 'and once he has answered all three, he is done');
+    const wholeC = [v('A'), v('B')];
+    ok(wholeC.map(x => L.placeOf(x, wholeC, 'Client Approval')).join() === 'client,client', 'a card sent whole to the client: every version is with the client');
     // Kasper on the route, and where each version is.
     ok(L.kasperOnRoute([v('A', { smm_ok_at: NOW })], 'Kasper Approval') && L.kasperOnRoute([v('A', { smm_ok_at: NOW, kasper_ok_at: NOW })], 'Client Approval')
       && !L.kasperOnRoute([v('A', { smm_ok_at: NOW })], 'Client Approval'), "Kasper is on the route unless the card reached the client with no version through him");

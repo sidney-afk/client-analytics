@@ -696,6 +696,11 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       await sleep(1500);
       ok(routeMoved(t, 'Kasper Approval', 'kasper_approval') && !routeMoved(t, 'Tweaks Needed', 'tweak'),
         `${label}: A and C approved, B changed: the card goes on to Kasper Approval now, never to Tweaks Needed`);
+      // B's change request stays open for the editor: forwarding A and C never marks it done (Codex on PR 2452).
+      const bNote = await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); let l = []; try { l = typeof _calCommentsFor === 'function' ? _calCommentsFor(p, 'video') : JSON.parse(p.video_tweaks || '[]'); } catch (e) {} return (l || []).filter(c => /Video B: Fictional note/.test(String(c.body || c.text || ''))).map(c => ({ done: !!c.done })); });
+      const resolved = (t.gw || []).filter(g => !['status', 'comment'].includes(g.op)).map(g => g.op);
+      ok(bNote.length >= 1 && bNote.every(c => !c.done) && !t.state.upserts.some(u => /Video B: Fictional note[^\]]*"done":true/.test(String(u.video_tweaks || ''))),
+        `${label}: B's change request stays open while A and C go on (${JSON.stringify(bNote)} | other writes: ${resolved.join(',') || 'none'})`);
       // B's new cut is in (its OKs cleared, as the function's "New cut ready" does), while the card is at Kasper Approval.
       const card = t.state.cards.find(c => c.id === 'rs1');
       card.video_status = 'Kasper Approval'; card.status = 'Kasper Approval';
@@ -752,6 +757,21 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const d = await dec(t);
       const letters = await R(t, `return [...r.querySelectorAll('[data-trv-go]')].map(b => b.dataset.trvGo).join('');`);
       ok(/of 2/.test(d.bar) && letters === 'AC', `${label}: the client sees A and C only, never B while it is with Kasper ("${d.bar}" | ${letters})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+    // A waits for the client, B is with Kasper (out of the client's sight), C is approved: a change on A keeps the card in
+    // Client Approval, because B still has to reach the client (Codex on PR 2452: the routing read only the versions on
+    // screen and sent the card to Tweaks Needed).
+    for (const [w, h, label] of [[1440, 900, 'route client change 1440'], [390, 844, 'route client change 390']].filter(() => part('routec'))) {
+      const vs = three().map((v, i) => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: i === 1 ? null : '2026-10-29T08:30:00.000Z' },
+        i === 2 ? { status: 'approved', client_ok_at: '2026-10-29T09:00:00.000Z' } : {}));
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h, beforeOpen: keepGateway }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      if (!/Video A of 2/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="A"]'); await sleep(600); }
+      await askChange(t, 'Fictional note: a calmer start on A.');
+      await waitFor(async () => t.T.versions[0].status === 'change asked', 60);
+      await sleep(3000);
+      ok(t.T.versions[0].status === 'change asked' && !tweaked(t), `${label}: A's change keeps the card in Client Approval while B is still with Kasper (no Tweaks Needed)`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

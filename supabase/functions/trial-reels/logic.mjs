@@ -234,7 +234,9 @@ export function placeOf(v, versions, cardStatus) {
   if (v.status === STATUS.change) return "new_cut";
   if (passed(v)) return "client_dropped";
   if (v.status === STATUS.approved) return "approved";
-  if (!v.smm_ok_at) return "smm";
+  // A card sent on whole (today's Approve or the status menu, no SMM OK on any version) counts every version as through
+  // the SMM for the stage it was sent to (Codex on PR 2452: else Kasper's OK on one version finished his stage).
+  if (!v.smm_ok_at && !sentOnWhole(versions, "kasper", cardStatus) && !sentOnWhole(versions, "client", cardStatus)) return "smm";
   if (!v.kasper_ok_at && kasperOnRoute(versions, cardStatus)) return "kasper";
   return "client";
 }

@@ -35520,6 +35520,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix (test only):** after each action, the test waits until the writes have finished instead of for a fixed time. It waits at least the old 2.5 s, then until 1.5 s pass with no new write, with a 15 s cap. The recorded requests and the function hashes are unchanged.
 - **Proven:** 12 copies run at once on a 4-core machine: the old test failed 2 of 12 runs, the new one failed none. Run alone, it passed 3 of 3.
 
+## 609. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: Kasper's last tile approve read "answered in another window" (Trialtest, live on PR 2455, session Trials)
+
+- **What happened (session Trialtest, live, test client):** the card was at Kasper Approval with A, B and C through the SMM, in Kasper's Review Session, layout 2 at 1440. He approved the A tile, then B, then C. A and B were fine since PR 2455. After C, the last approve, the card moved to Client Approval and the stage said "This was answered in another window, so it has left your list. Nothing more to do here." above his own toast "Video approved — sent to client · Undo".
+- **Why:** the last version's answer moves the card on by itself, so the card leaves Kasper's lists while it is still on stage. A card on stage that has left his lists is drawn as `gone`. For a `gone` card, `_rsElsewhere` returned "another window" unless a refused note had left words for it, and it never asked whether this page had answered.
+- **Fix:** a `gone` card this page answered says what Finish says, in his own words: "Approved, sent to the client" (or "Sent to the editors"), "so it has left your list. Nothing more to do here." A card answered in another window still says so.
+- **Proven:** `trial-reels-round2-review-browser.js` routek, layout 2 at 1440: approving A, B and C moves the card to the client. It failed on main (C: "answered in another window") and passes now; the stage then reads "Approved, sent to the client". The counter-case, in the same part: Kasper only looks, another window approves every version and the card moves to the client. The stage still says "answered in another window".
+
 ## 610. [2026-10-29 UTC, BUILT, NOT MERGED] Messages inbox: a forced re-read asked for while a read was on its way was dropped, so a live change could stay off the list for up to 60 s (session Mainrace)
 
 - **What happened:** `messages-inbox-browser.js` went red once on main c87aece (entry-links-boot (3), job 123676864145): "L: the same-name conversation is listed", then `TypeError: Cannot read properties of null (reading 'innerText')` on the next read of that row. The commit only touched trial reels.

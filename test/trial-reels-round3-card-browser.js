@@ -300,13 +300,15 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         const r = n.getBoundingClientRect(), rr = row.getBoundingClientRect();
         const lh = parseFloat(getComputedStyle(n).lineHeight) || parseFloat(getComputedStyle(n).fontSize) * 1.2;
         return { t: n.innerText.replace(/\s+/g, ' ').trim(), cut, inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowCut: row.scrollWidth > row.clientWidth + 1,
-          lines: Math.round(r.height / lh), title: (n.closest('[title]') || {}).title || '' };
+          lines: Math.round(r.height / lh), title: (n.closest('[title]') || {}).title || '', aria: (n.closest('button') || {}).getAttribute ? n.closest('button').getAttribute('aria-label') || '' : '' };
       });
-      ok(st && /0\/2/.test(st.t) && /1 (client-dropped|dropped by the client)/.test(st.t) && !st.cut && st.inside && !st.rowCut,
+      ok(st && /0\/2/.test(st.t) && /1 (dropped|dropped by the client)$/.test(st.t) && !st.cut && st.inside && !st.rowCut,
         `${w}: the collapsed row says the client's drop, none of it cut (${JSON.stringify(st)})`);
-      // Trialtest, live on PR 2452: the long form wrapped to three lines at 390; the short "1 client-dropped" keeps it
-      // to two at most.
-      ok(st && st.lines <= 2, `${w}: the client's drop takes two lines at most (${st && st.lines} lines: "${st && st.t}")`);
+      // Trialtest, live on PR 2452 (the Supervisor: one line at 390): the long form wrapped to three lines; a narrow row
+      // says "0/2 · 1 dropped" on one line, and the whole phrase stays in its tooltip and accessible name.
+      ok(st && st.lines === 1, `${w}: the client's drop stays on one line (${st && st.lines} lines: "${st && st.t}")`);
+      ok(st && /0 of 2 approved, 1 dropped by the client/.test(st.title) && /0 of 2 approved, 1 dropped by the client/.test(st.aria),
+        `${w}: the tooltip and the accessible name keep the whole phrase ("${st && st.title}" | "${st && st.aria}")`);
       await shot(page, 'r3-collapsed-drop-' + w);
       await page.close();
     }
@@ -336,7 +338,7 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       Object.assign(T.versions[2], { status: 'dropped' });                                                 // C dropped by the team
       const page = await open(1440, 900, 'light');
       const row = await state(page);
-      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 client-dropped/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
+      ok(/Video · 2\b/.test(row) && /1\/1\b/.test(row) && /1 dropped\b/.test(row) && /1 of 1 approved, 1 dropped by the client/.test(await page.evaluate(() => (document.querySelector('.cal-link-post.trl-main .cal-link-pill-open') || {}).title || '')), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
       await openList(page);
       T.addDelay = 1500;
       await page.click('.trl-list .trl-add button');

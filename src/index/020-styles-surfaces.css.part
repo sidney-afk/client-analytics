@@ -1794,15 +1794,14 @@
            ("0/3", "5 h left") and stay in the link's hover. */
         .cal-link-post.trl-main .cal-link-pill-open { container-type: inline-size; }
         .cal-link-post.trl-main .trl-main-label, .cal-link-post .trl-state { flex: none; white-space: nowrap; }
-        /* A client's drop is the one state too long to step back ("0/4 approved · 1 dropped by the client" was cut to
-           "1 d…" at 390): it goes on to a second line instead (Trialtest, 2026-10-29). Every other state keeps today's
-           one-line height. */
-        .cal-link-post .trl-state.trl-state-wrap { flex: 0 1 auto; min-width: 0; white-space: normal; }
         .cal-link-post .trl-state { font-size: 10.5px; font-weight: 700; }
         .cal-link-post .trl-state-n { display: none; }
         @container (max-width: 160px) { .cal-link-post .trl-state-w { display: none; } .cal-link-post .trl-state-n { display: inline; } }
+        /* A client's drop on a narrow row ("0/4 approved · 1 dropped by the client" was cut to "1 d…", then wrapped to three
+           lines): it steps back to "0/4 · 1 dropped" on one line, the whole phrase in the link's tooltip and accessible
+           name (Trialtest and the Supervisor, 2026-10-29). */
         .cal-link-post .trl-drop-n { display: none; }
-        @container (max-width: 320px) { .cal-link-post .trl-drop-w { display: none; } .cal-link-post .trl-drop-n { display: inline; } }
+        @container (max-width: 320px) { .cal-link-post .trl-drop-w, .cal-link-post .trl-state-drop .trl-state-w { display: none; } .cal-link-post .trl-drop-n { display: inline; } }
         /* No coloured bar down the left (Sidney: no coloured left-edge highlights; Trialtest, live on PR 2452): the
            indent alone says the versions belong to the Video row. */
         .trl-list { display: flex; flex-direction: column; gap: 3px; margin: -2px 0 8px 10px; padding-left: 10px; }

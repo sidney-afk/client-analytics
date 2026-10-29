@@ -35502,7 +35502,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix:**
   - Every trial approve path marks the part answered on this page, as today's approve already does.
   - The bar is gone; the indent alone ties the versions to the Video row.
-  - A narrow row says "1 client-dropped" (two lines at most), and the link's hover keeps the whole phrase.
+  - A narrow row says "0/2 · 1 dropped" on one line, as the Supervisor asked. The card is about 190 px wide at every screen size, so 1440 shows the short form too. The link's tooltip and accessible name keep the whole phrase "0 of 2 approved, 1 dropped by the client". The other trial surfaces (review pages, Kasper's tiles, Production rows) were checked and have no coloured left edge.
 - **Proven:**
   - `trial-reels-round2-review-browser.js` routek: Kasper's tile approve at 1440 failed on main ("Approved in another window.") and passes now.
-  - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the two-line check at 390 and 1440, failed on main and pass now.
+  - `trial-reels-round3-card-browser.js`: the no-left-edge check at 1440 and 390, and the one-line check with the whole phrase in the tooltip and accessible name at 390 and 1440, failed on main and pass now.

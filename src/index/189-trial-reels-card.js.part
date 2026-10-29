@@ -424,9 +424,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const live = vs.filter(v => TRL_LIVE(v) && !v.client_pass_at);
         // A version the client said "Not this one" to is the team's to drop: the collapsed row says so (Trialeyes E9).
         const passed = vs.filter(v => TRL_LIVE(v) && v.client_pass_at).length;
-        // On a narrow row (the card is about 190 px wide at every screen size) it says "1 client-dropped": the long form
-        // wrapped to three lines at 390 (Trialtest, live on PR 2452); the link's hover keeps the whole phrase.
-        const drop = passed ? ' · ' + passed + '<span class="trl-drop-w"> dropped by the client</span><span class="trl-drop-n"> client-dropped</span>' : '';
+        // On a narrow row (the card is about 190 px wide at every screen size) it steps back to "0/2 · 1 dropped", on one
+        // line: the long form wrapped to three lines at 390 (Trialtest, live on PR 2452). The link's tooltip and
+        // accessible name keep the whole phrase.
+        const drop = passed ? ' · ' + passed + '<span class="trl-drop-w"> dropped by the client</span><span class="trl-drop-n"> dropped</span>' : '';
         const dropWords = passed ? ', ' + passed + ' dropped by the client' : '';
         if (!live.length) return passed ? { text: passed + ' dropped by the client', html: drop.slice(3), words: passed + ' dropped by the client' } : { text: '' };
         const n = live.filter(v => v.status === 'approved').length;
@@ -504,9 +505,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
         const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
-            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '">' + ext
+            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '"'
+            + (tiny.words ? ' aria-label="' + _calEscAttr(main + '. ' + tiny.words + '. ' + (ext ? 'Open the video' : 'No video link yet')) + '"' : '') + '>' + ext
             + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
-            + (tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-wrap' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>'
+            + (tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-drop' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>'
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
             + '<span class="trl-fill" aria-hidden="true"></span>'
             + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'

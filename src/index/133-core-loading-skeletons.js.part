@@ -491,8 +491,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + line(i % 2 ? '38%' : '46%', 13) + line(i % 3 ? '58%' : '64%', 10) + '</div>' + line('64px', 12) + '</div>').join('') + '</div>');
         }
         if (view === 'automations') {
-            const item = i => '<div class="crm-auto-item">' + line(i % 2 ? '52%' : '64%', 13) + line('64px', 11) + '</div>';
-            return wrap('<div class="crm-auto-head">' + line('220px', 28) + line('360px', 13) + '</div><div class="crm-auto-line" style="--crm-steps:3">' + [3, 2, 2].map(n => '<div class="crm-auto-step">' + _svSkel('sv-skeleton-pill', 'width:32px;height:32px;border-radius:50%;') + '<div class="crm-auto-title">' + line('60%', 16) + '</div>' + Array.from({ length: n }, (_, i) => item(i)).join('') + '</div>').join('') + '</div>');
+            return wrap('<div class="crm-home-head crm-auto-head">' + line('240px', 34) + line('320px', 14) + '</div><div class="crm-home-tiles crm-auto-tiles">' + [0, 1, 2, 3].map(() => _svSkel('sv-skeleton', 'display:block;height:200px;border-radius:20px;')).join('') + '</div>');
         }
         if (view === 'sequences') {
             return wrap('<div class="crm-seqs">' + [0, 1].map(() => '<div class="crm-sheet crm-seq"><div class="crm-seq-head"><div class="crm-seq-title">' + line('44%', 16) + line('70%', 11) + '</div>' + _svSkel('sv-skeleton-pill', 'width:38px;height:22px;') + '</div>'

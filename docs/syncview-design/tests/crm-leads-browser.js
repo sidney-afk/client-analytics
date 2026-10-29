@@ -384,7 +384,7 @@ async function run(browser, origin, viewport) {
 
   // Automations.
   await page.click('#crmTop [data-crm-nav="sequences"]');
-  await page.waitForSelector('#crmSeqs .crm-auto-item');
+  await page.waitForSelector('#crmSeqs .crm-auto-tile');
   expect(await page.locator('#crmSide').isVisible() === (viewport.width >= 721) && (viewport.width < 721 || await page.locator('.crm-tree-head[aria-expanded="true"]').count() === 0), label + ': Automations has the side menu, its folders closed');
   await page.click('#crmSeqs [data-crm-nav="own:q1"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
@@ -414,6 +414,9 @@ async function run(browser, origin, viewport) {
 
   // An n8n automation as a read-only sequence with its exact wording.
   await page.click('#crmTop [data-crm-nav="sequences"]');
+  await page.click('#crmSeqs [data-crm-nav="step:1"]');
+  await page.waitForSelector('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
+  expect(/Filled in the form/.test(await page.locator('#crmSeqs h1').innerText()) && /step=|step%3A1/.test(page.url()), label + ': a step tile opens that step with its own address');
   await page.click('#crmSeqs [data-crm-nav="n8n:didnt_book_doctors"]');
   await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
   if (!label.startsWith('390')) {
@@ -439,12 +442,14 @@ async function run(browser, origin, viewport) {
   expect(await boxesInBoxes(page) === '', label + ': the n8n sequence has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-n8n-' + label, true);
   await page.click('#crmTop .crm-up');
-  await page.waitForSelector('#crmSeqs .crm-auto-step');
-  expect(true, label + ': Back on an automation returns to the Automations menu');
+  await page.waitForFunction(() => /Filled in the form/.test((document.querySelector('#crmSeqs h1') || {}).textContent || ''));
+  expect(true, label + ': Back on an automation returns to its step');
+  await page.click('#crmTop .crm-up');
+  await page.waitForSelector('#crmSeqs [data-crm-nav="step:1"]');
+  expect(true, label + ': Back on a step returns to the Automations menu');
   const ovText = await page.locator('#crmSeqs').innerText();
-  expect(!(await page.locator('#crmSeqs .crm-tile').count()) && await page.locator('#crmSeqs .crm-auto-pin').count() >= 1, label + ': Automations is a timeline, not tiles');
-  expect(/messages|Off/.test(ovText) && !/Every automatic email and text/.test(ovText) && /Automations/.test(ovText), label + ': the Automations page is a menu of tiles, its explanation in a hover');
-  expect(await page.locator('#crmSeqs .crm-auto-sub', { hasText: 'Doctors' }).count() === 1, label + ': Doctors has its own heading on Automations');
+  expect(/Step 1/.test(ovText) && /Filled in the form/.test(ovText) && !/After the ad form/.test(ovText), label + ': Automations shows the steps of a lead\u2019s story as tiles');
+  expect(/sending|off/.test(ovText) && !/Every automatic email and text/.test(ovText) && /Automations/.test(ovText), label + ': the Automations page is a menu of tiles, its explanation in a hover');
   if (SHOTS) await shoot(page, 'leads-seq-overview-' + label, true);
   expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
   if (label.startsWith('1360')) {

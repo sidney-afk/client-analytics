@@ -226,20 +226,20 @@ async function run(browser, origin, viewport) {
   expect(await page.locator('#crmTop [data-crm-nav="home"]').count() === 1 && await page.locator('#crmTop #crmSearch').count() === 1, label + ': other pages have a way home and the search');
   await page.click('#crmTop [data-crm-nav="pipeline"]');
   await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
-  expect(await page.locator('[data-crm-temp]').count() === 2 && await page.locator('[data-crm-temp="cold"] [data-crm-card]').count() === 1 && await page.locator('[data-crm-temp="warm"] [data-crm-card]').count() === 3, label + ': Leads splits into Cold (Dream 100) and Warm');
+  expect(await page.locator('[data-crm-temp="all"] [data-crm-card]').count() === 4 && !(await page.locator('[data-crm-temp="cold"], [data-crm-temp="warm"]').count()), label + ': All shows cold and warm leads mixed in one list');
   expect(!(await page.locator('.crm-stage-hint').count()) && !/We have not reached out yet/.test(await page.locator('.crm-board').innerText()), label + ': no explainer lines next to the section titles');
   if (viewport.width >= 500) expect(/Name\s+Stage\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': Leads has Name, Stage, Where they came from, Niche, Next step and Due columns');
   expect(!(await page.locator('.crm-lead-owner').count()), label + ': no owner on the lines');
-  await page.click('[data-crm-temp="cold"] .crm-stage-toggle');
-  await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"] .crm-stage-body'));
-  expect(await page.locator('[data-crm-temp="cold"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a section folds');
-  await page.click('[data-crm-temp="cold"] .crm-stage-toggle');
+  await page.click('#crmTempSeg [data-crm-show="cold"]');
   await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');
+  expect(await page.locator('[data-crm-card]').count() === 1 && !(await page.locator('[data-crm-temp="warm"]').count()), label + ': Cold shows only the cold lead (Dream 100)');
   await page.click('#crmTempSeg [data-crm-show="warm"]');
-  await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"] .crm-stage-body') && document.querySelector('[data-crm-temp="warm"] .crm-stage-body'));
-  expect(true, label + ': the Warm toggle folds Cold and opens Warm');
+  await page.waitForFunction(() => !document.querySelector('[data-crm-temp="cold"]') && document.querySelectorAll('[data-crm-temp="warm"] [data-crm-card]').length === 3);
+  expect(true, label + ': Warm shows only the three warm leads');
+  const tw = await page.evaluate(() => { const b = document.querySelector('[data-crm-temp="warm"] .crm-stage-toggle'), h = b.parentElement; return b.getBoundingClientRect().width < h.getBoundingClientRect().width / 2; });
+  expect(tw, label + ': a section title only highlights under the mouse, not across the whole row');
   await page.click('#crmTempSeg [data-crm-show="all"]');
-  await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');
+  await page.waitForSelector('[data-crm-temp="all"] [data-crm-card]');
   const first = page.locator('[data-crm-card="00000000-0000-4000-8000-000000000001"]');
   const text = await first.innerText();
   expect(/Made-up Studio/.test(text) && /To contact/.test(text) && /First DM/.test(text) && (viewport.width < 500 || /Fitness/.test(text)), label + ': a lead line shows name, stage, niche and next step');
@@ -264,7 +264,7 @@ async function run(browser, origin, viewport) {
     await page.click('[data-crm-col="name"]');
     expect(/↑/.test(await page.locator('[data-crm-col="name"]').innerText()), label + ': clicking Name sorts by name');
     await page.click('[data-crm-col="name"]'); await page.click('[data-crm-col="name"]');
-    const stripes = await page.evaluate(() => { const r = document.querySelectorAll('[data-crm-temp="warm"] .crm-lead'); return [getComputedStyle(r[0]).backgroundColor, getComputedStyle(r[1]).backgroundColor]; });
+    const stripes = await page.evaluate(() => { const r = document.querySelectorAll('[data-crm-temp="all"] .crm-lead'); return [getComputedStyle(r[0]).backgroundColor, getComputedStyle(r[1]).backgroundColor]; });
     expect(stripes[0] !== stripes[1], label + ': rows alternate a subtle background (' + stripes.join(' / ') + ')');
   }
   expect(await boxesInBoxes(page) === '', label + ': Leads has no box inside a box (' + await boxesInBoxes(page) + ')');
@@ -384,7 +384,7 @@ async function run(browser, origin, viewport) {
 
   // Automations.
   await page.click('#crmTop [data-crm-nav="sequences"]');
-  await page.waitForSelector('#crmSeqs .crm-seq-tile');
+  await page.waitForSelector('#crmSeqs .crm-auto-item');
   expect(await page.locator('#crmSide').isVisible() === (viewport.width >= 721) && (viewport.width < 721 || await page.locator('.crm-tree-head[aria-expanded="true"]').count() === 0), label + ': Automations has the side menu, its folders closed');
   await page.click('#crmSeqs [data-crm-nav="own:q1"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
@@ -438,11 +438,13 @@ async function run(browser, origin, viewport) {
   expect(!(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-switch, [data-crm-seq="didnt_book_doctors"] .crm-btn').count()), label + ': an n8n sequence cannot be changed here');
   expect(await boxesInBoxes(page) === '', label + ': the n8n sequence has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-n8n-' + label, true);
-  await page.click('#crmTop [data-crm-nav="sequences"]');
-  await page.waitForSelector('#crmSeqs .crm-group');
+  await page.click('#crmTop .crm-up');
+  await page.waitForSelector('#crmSeqs .crm-auto-step');
+  expect(true, label + ': Back on an automation returns to the Automations menu');
   const ovText = await page.locator('#crmSeqs').innerText();
-  expect(/Sending|Off/.test(ovText) && !/Every automatic email and text/.test(ovText) && /Automations/.test(ovText), label + ': the Automations page is a menu of tiles, its explanation in a hover');
-  expect(await page.locator('#crmSeqs .crm-seq-sub', { hasText: 'Doctors' }).count() === 1, label + ': Doctors has its own heading on Automations');
+  expect(!(await page.locator('#crmSeqs .crm-tile').count()) && await page.locator('#crmSeqs .crm-auto-pin').count() >= 1, label + ': Automations is a timeline, not tiles');
+  expect(/messages|Off/.test(ovText) && !/Every automatic email and text/.test(ovText) && /Automations/.test(ovText), label + ': the Automations page is a menu of tiles, its explanation in a hover');
+  expect(await page.locator('#crmSeqs .crm-auto-sub', { hasText: 'Doctors' }).count() === 1, label + ': Doctors has its own heading on Automations');
   if (SHOTS) await shoot(page, 'leads-seq-overview-' + label, true);
   expect(!(await page.locator('#crmRefresh, .crm-main [aria-label="Refresh"]').count()), label + ': the page has no Refresh button');
   if (label.startsWith('1360')) {

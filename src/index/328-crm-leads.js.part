@@ -156,6 +156,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             _crmState.truncated = !!data.truncated;
             _crmState.loaded = true;
             _crmState.error = '';
+            _crmSaveCache();
         } catch (e) {
             if (gen === _crmState.gen) _crmState.error = _crmErrorText(e);
         } finally {
@@ -226,6 +227,20 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
 
     // ── Page ─────────────────────────────────────────────────────────────
+    /* The last lists, kept for this browser tab only, so a reload paints at once
+       and fresh data replaces it quietly. Cleared on sign-out. */
+    const CRM_CACHE_KEY = 'sv_crm_cache_v1';
+    function _crmSaveCache() {
+        try { sessionStorage.setItem(CRM_CACHE_KEY, JSON.stringify({ people: _crmState.loaded ? _crmState.people : null, sources: _crmState.sources, truncated: _crmState.truncated, seqs: _crmState.seqs, n8n: _crmState.n8n, today: _crmState.today })); } catch (e) {}
+    }
+    function _crmReadCache() {
+        if (_crmState.loaded || _crmState.seqs || _crmState.today) return;
+        let c = null; try { c = JSON.parse(sessionStorage.getItem(CRM_CACHE_KEY) || 'null'); } catch (e) { c = null; }
+        if (!c || typeof c !== 'object') return;
+        if (Array.isArray(c.people)) { _crmState.people = c.people; _crmState.sources = Array.isArray(c.sources) ? c.sources : []; _crmState.truncated = !!c.truncated; _crmState.loaded = true; }
+        if (Array.isArray(c.seqs)) { _crmState.seqs = c.seqs; _crmState.n8n = Array.isArray(c.n8n) ? c.n8n : []; }
+        if (c.today && Array.isArray(c.today.due)) _crmState.today = c.today;
+    }
     function _crmRenderPage(el) {
         if (!el) return;
         _crmInjectStyles();
@@ -233,6 +248,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             el.innerHTML = '<div class="crm-page"><div class="crm-gate"><h1>Leads</h1><p>Leads holds contact details, so it is open to admins. Sign in with an admin account to see it.</p><button type="button" class="crm-btn crm-btn-primary" onclick="_crmSignIn()">Sign in</button></div></div>';
             return;
         }
+        _crmReadCache();
         const v = _crmViewFromUrl(); if (v) _crmApplyView(v);
         el.innerHTML = '<div class="crm-page"><div class="crm-top" id="crmTop"></div><div class="crm-app">'
             + '<nav class="crm-side" id="crmSide" aria-label="Automations"></nav>'
@@ -245,7 +261,9 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         try { history.replaceState(Object.assign({}, history.state, { crmView: _crmViewKey(), crmIdx: _crmIdx() }), '', _crmViewUrl(_crmViewKey())); } catch (e) {}
         if (_crmState.tab === 'person' && _crmState.openId) _crmOpenPerson(_crmState.openId, { page: true });
         if (!_crmState.loaded) _crmLoad(false); else _crmLoad(true);
-        if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences' && _crmState.tab !== 'step') _crmLoadSequences(!!_crmState.seqs);   // home and the side menu list the automations
+        /* Everything loads at once, so moving between sections never waits. */
+        if (_crmState.tab !== 'seq' && _crmState.tab !== 'sequences' && _crmState.tab !== 'step') _crmLoadSequences(!!_crmState.seqs);
+        if (_crmState.tab !== 'today' && _crmState.tab !== 'home') _crmLoadToday(!!_crmState.today);
     }
     function _crmSignIn() { _syncviewOfferStaffSignIn('leads'); }
     /* Our drafted sequences, split by whether they can send yet. */
@@ -276,6 +294,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     function _crmSubFolded(key) {
         const o = _crmState.treeOpen || {};
         if (key in o) return !o[key];
+        if (_crmState.tab === 'step' && CRM_STEPS[_crmState.stepIdx] && key === CRM_STEPS[_crmState.stepIdx][0]) return false;
         const k = _crmState.tab === 'seq' ? _crmState.seqKey : '';
         return !(k && _crmSeqGroups().some(g => g.items.some(x => x.key === k && (key === g.title || key === g.title + ' / ' + x.sub))));
     }
@@ -284,11 +303,17 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     /* The four steps of a lead's story, each with a one-line hint. */
     const CRM_STEPS = [['Filled in the form', 'Until they book a call'], ['Booked a call', 'Until the call happens'], ['Had the call', 'Follow-ups and no-shows'], ['Became a client', 'Welcome and onboarding']];
     function _crmStepOf(key) { const g = _crmSeqGroups().find(g => g.items.some(x => x.key === key)); const i = g ? CRM_STEPS.findIndex(x => x[0] === g.title) : -1; return i; }
+    /* Inside a group the group's name is not repeated ("Didn't book: doctors" under Doctors reads "Didn't book"),
+       and a group's automations run in the order a lead meets them. */
+    function _crmShortName(name, sub) { return sub ? String(name).replace(new RegExp('\\s*[:\\u2013-]\\s*' + sub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i'), '') : name; }
+    const CRM_FLOW = [/^right after/i, /^didn/i, /^left/i];
+    function _crmFlowRank(name) { const i = CRM_FLOW.findIndex(r => r.test(name)); return i < 0 ? 9 : i; }
     function _crmSeqGroups() {
         const out = [];
         const add = (title, items) => { if (items.length) out.push({ title, items }); };
         const n8n = (_crmState.n8n || []).map(s => ({ key: 'n8n:' + s.key, name: s.name, desc: s.description, count: (s.messages || []).filter(m => m.live !== false).length, live: !!s.active, where: 'n8n', group: _crmN8nGroup(s.key)[0], sub: _crmN8nGroup(s.key)[1] }))
-            .sort((a, b) => CRM_SUB_ORDER.indexOf(a.sub) - CRM_SUB_ORDER.indexOf(b.sub));
+            .map(x => Object.assign(x, { short: _crmShortName(x.name, x.sub) }))
+            .sort((a, b) => (CRM_SUB_ORDER.indexOf(a.sub) - CRM_SUB_ORDER.indexOf(b.sub)) || (_crmFlowRank(a.name) - _crmFlowRank(b.name)));
         const own = (_crmState.seqs || []).map(s => ({ key: 'own:' + s.id, name: s.name, desc: s.description, count: s.steps.length, live: _crmSeqReady(s), where: 'SyncView' }));
         add('Filled in the form', n8n.filter(x => x.group === 'Filled in the form'));
         add('Booked a call', n8n.filter(x => x.group === 'Booked a call'));
@@ -316,7 +341,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                         const shut = _crmSubFolded(g.title);
                         return '<div class="crm-tree-g' + (shut ? ' is-folded' : '') + '"><button type="button" class="crm-tree-head" aria-expanded="' + !shut + '" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(g.title) + '</span><span class="crm-tree-n">' + g.items.length + '</span></button>'
                             + (shut ? '' : '<div class="crm-tree-body"><button type="button" class="crm-tree-line" aria-label="' + _calEscAttr('Fold ' + g.title) + '" title="Fold" onclick="_crmFoldGroup(' + _jsAttrArg(g.title) + ')"></button>'
-                            + _crmWithSubs(g.items, x => _crmSideItem(x.key, x.name, t === 'seq' && k === x.key), (n, html, c) => {
+                            + _crmWithSubs(g.items, x => _crmSideItem(x.key, x.short || x.name, t === 'seq' && k === x.key), (n, html, c) => {
                                 const fk = g.title + ' / ' + n, sh = _crmSubFolded(fk);
                                 return '<div class="crm-tree-g crm-tree-subg' + (sh ? ' is-folded' : '') + '"><button type="button" class="crm-tree-head" aria-expanded="' + !sh + '" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')">' + CRM_CHEVRON + '<span>' + _calEsc(n) + '</span><span class="crm-tree-n">' + c + '</span></button>'
                                     + (sh ? '' : '<div class="crm-tree-body"><button type="button" class="crm-tree-line" aria-label="' + _calEscAttr('Fold ' + n) + '" title="Fold" onclick="_crmFoldGroup(' + _jsAttrArg(fk) + ')"></button>' + html + '</div>') + '</div>';
@@ -345,18 +370,23 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
            follow-ups. A step opens its own page with one tile per automation. */
         const shade = i => ' style="--crm-tint:' + (16 + i * 9) + '%"';
         const groups = _crmSeqGroups(), step = _crmState.tab === 'step' ? _crmState.stepIdx : -1;
-        const autoTile = (x, i) => '<button type="button" class="crm-home-tile crm-auto-tile' + (x.live ? '' : ' is-off') + '"' + shade(i) + ' data-crm-nav="' + _calEscAttr(x.key) + '" onclick="_crmGo(' + _jsAttrArg(x.key) + ')"><span class="crm-tile-name">' + _calEsc(x.name) + '</span>' + (x.desc ? '<span class="crm-tile-desc">' + _calEsc(x.desc) + '</span>' : '') + '<span class="crm-tile-fact"><b>' + (x.count || 0) + '</b><span>' + (x.count === 1 ? 'message' : 'messages') + (x.live ? ', sending' : ', off') + '</span></span></button>';
+        const short = _crmShortName;
+        const autoTile = (x, i, sub) => '<button type="button" class="crm-home-tile crm-auto-tile' + (x.live ? '' : ' is-off') + '"' + shade(i) + ' data-crm-nav="' + _calEscAttr(x.key) + '" onclick="_crmGo(' + _jsAttrArg(x.key) + ')"><span class="crm-tile-name">' + _calEsc(short(x.name, sub)) + '</span>' + (x.desc ? '<span class="crm-tile-desc">' + _calEsc(x.desc) + '</span>' : '') + '<span class="crm-tile-fact"><b>' + (x.count || 0) + '</b><span>' + (x.count === 1 ? 'message' : 'messages') + (x.live ? '' : ', off') + '</span></span></button>';
+        /* A group's automations in the order a lead meets them, as a row joined by a line. */
+        const rank = x => _crmFlowRank(x.name);
+        const runs = (items, i) => _crmRuns(items).map(r => (r.sub ? '<section class="crm-auto-run"><h3 class="crm-auto-title">' + _calEsc(r.sub) + '</h3>' : '<section class="crm-auto-run">')
+            + '<div class="crm-home-tiles crm-auto-tiles crm-auto-flow">' + r.items.slice().sort((a, b) => rank(a) - rank(b)).map(x => autoTile(x, i, r.sub)).join('') + '</div></section>').join('');
         if (step >= 0) {
             const g = groups.find(g => g.title === CRM_STEPS[step][0]);
             el.innerHTML = '<header class="crm-home-head crm-auto-head"><h1>' + _calEsc(CRM_STEPS[step][0]) + '</h1><p>Step ' + (step + 1) + ' of ' + CRM_STEPS.length + '. ' + _calEsc(CRM_STEPS[step][1]) + '.</p></header>'
-                + (g ? '<div class="crm-home-tiles crm-auto-tiles">' + g.items.map(x => autoTile(x, step)).join('') + '</div>' : '<div class="crm-empty"><p>Nothing goes out at this step yet.</p></div>');
+                + (g ? runs(g.items, step) : '<div class="crm-empty"><p>Nothing goes out at this step yet.</p></div>');
             return;
         }
         const steps = CRM_STEPS.map((st, i) => [st, i, groups.find(g => g.title === st[0])]).filter(x => x[2]);
         const rest = groups.filter(g => !CRM_STEPS.some(st => st[0] === g.title));
         el.innerHTML = '<header class="crm-home-head crm-auto-head"><h1>Automations</h1><p>What a lead gets by itself, step by step.</p></header>'
-            + '<div class="crm-home-tiles crm-auto-tiles">' + steps.map(([st, i, g]) => { const off = g.items.filter(x => !x.live).length, n = g.items.length;
-                return '<button type="button" class="crm-home-tile crm-auto-tile"' + shade(i) + ' data-crm-nav="step:' + (i + 1) + '" onclick="_crmGo(\'step:' + (i + 1) + '\')"><span class="crm-auto-step-n">Step ' + (i + 1) + '</span><span class="crm-tile-name">' + _calEsc(st[0]) + '</span><span class="crm-tile-desc">' + _calEsc(st[1]) + '</span><span class="crm-tile-fact"><b>' + n + '</b><span>' + (n === 1 ? 'automation' : 'automations') + (off ? ', ' + off + ' off' : ', all sending') + '</span></span></button>'; }).join('') + '</div>'
+            + '<div class="crm-home-tiles crm-auto-tiles crm-auto-flow">' + steps.map(([st, i, g]) => { const off = g.items.filter(x => !x.live).length, n = g.items.length;
+                return '<button type="button" class="crm-home-tile crm-auto-tile"' + shade(i) + ' data-crm-nav="step:' + (i + 1) + '" onclick="_crmGo(\'step:' + (i + 1) + '\')"><span class="crm-auto-step-n">Step ' + (i + 1) + '</span><span class="crm-tile-name">' + _calEsc(st[0]) + '</span><span class="crm-tile-desc">' + _calEsc(st[1]) + '</span><span class="crm-tile-fact"><b>' + n + '</b><span>' + (n === 1 ? 'automation' : 'automations') + (off ? ', ' + off + ' off' : '') + '</span></span></button>'; }).join('') + '</div>'
             + rest.map(g => '<section class="crm-auto-more"><h3 class="crm-auto-title">' + _calEsc(g.title) + '</h3><div class="crm-home-tiles crm-auto-tiles">' + g.items.map(x => autoTile(x, 0)).join('') + '</div></section>').join('');
     }
     /* Sending or not, as a dot and one word; where it runs is in the hover. */
@@ -403,6 +433,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (_crmState.tab === 'person' && key !== was) { _crmState.personPage = false; _crmClosePanel(true); }
         else if (_crmState.openId && !/^person:/.test(key)) _crmClosePanel(true);
         if (!_crmApplyView(key)) return;
+        if (_crmState.tab === 'step' && _crmState.treeOpen && CRM_STEPS[_crmState.stepIdx]) delete _crmState.treeOpen[CRM_STEPS[_crmState.stepIdx][0]];
         if (_crmState.tab === 'seq' && _crmState.treeOpen) _crmSeqGroups().forEach(g => g.items.forEach(x => { if (x.key === key) { delete _crmState.treeOpen[g.title]; delete _crmState.treeOpen[g.title + ' / ' + x.sub]; } }));
         if (!(opts && opts.fromHistory) && key !== was) {
             try { const i = _crmIdx() + 1; history.pushState(Object.assign({}, history.state, { crmView: key, crmIdx: i }), '', _crmViewUrl(key)); } catch (e) {}
@@ -997,6 +1028,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if (gen !== _crmState.gen) return;
             _crmState.today = { due: d.due_people || [], calls: d.calls_passed || [], sends: d.sends_today || [] };
             _crmState.todayError = '';
+            _crmSaveCache();
         } catch (e) {
             if (gen === _crmState.gen && !_crmState.today) _crmState.todayError = _crmErrorText(e);
         } finally {
@@ -1078,6 +1110,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             _crmState.seqs = d.sequences || [];
             _crmState.n8n = Array.isArray(d.n8n) ? d.n8n : [];
             _crmState.seqError = '';
+            _crmSaveCache();
         } catch (e) {
             if (gen === _crmState.gen && !_crmState.seqs) _crmState.seqError = _crmErrorText(e);
         } finally {
@@ -1169,8 +1202,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     function _crmN8nSeqHtml(s) {
         const msgs = Array.isArray(s.messages) ? s.messages : [];
         const live = msgs.filter(m => m.live !== false).length;
-        return '<article class="crm-seq is-n8n" data-crm-seq="' + _calEscAttr(s.key) + '">'
-            + '<header class="crm-view-head crm-seq-head"><h2' + (s.description ? ' title="' + _calEscAttr(s.description) + '"' : '') + '>' + _calEsc(s.name) + '</h2>' + _crmLiveDot(!!s.active, 'n8n') + '</header>'
+        /* Same header as the Automations and step pages: big centred title, one line under it. */
+        const st = _crmStepOf('n8n:' + s.key), sub = _crmN8nGroup(s.key)[1];
+        return '<article class="crm-seq is-n8n crm-seq-detail-tint" data-crm-seq="' + _calEscAttr(s.key) + '">'
+            + '<header class="crm-home-head crm-auto-head crm-seq-head"><h1' + (s.description ? ' title="' + _calEscAttr(s.description) + '"' : '') + '>' + _calEsc(s.name) + '</h1><p>' + (st >= 0 ? _calEsc('Step ' + (st + 1) + ', ' + CRM_STEPS[st][0].toLowerCase() + (sub ? ', ' + sub.toLowerCase() : '') + '. ') : '') + _crmLiveDot(!!s.active, 'n8n') + '</p></header>'
             + (s.stops_when ? '<p class="crm-seq-stop"><span>Stops when</span> ' + _calEsc(s.stops_when) + '</p>' : '')
             + '<ol class="crm-steps">' + msgs.map(m => '<li class="crm-step' + (m.live === false ? ' is-off' : '') + '"><div class="crm-step-when"><span class="crm-step-day">' + _calEsc(m.label || (m.channel === 'sms' ? 'Text' : 'Email')) + '</span><span class="crm-step-hour">' + _calEsc(m.when || '') + '</span></div>'
                 + '<div class="crm-step-main">' + _crmMsgHtml(m.channel, m.subject, m.text, m.sender) + '</div></li>').join('') + '</ol>'
@@ -1330,6 +1365,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
        and make every read still in flight land nowhere. */
     function _crmPurgeSensitiveState() {
         _crmState.gen++;
+        try { sessionStorage.removeItem(CRM_CACHE_KEY); } catch (e) {}
         if (_crmState.openId) { _crmState.openId = ''; _crmState.person = null; _crmPaintPanel(); if (_crmPanelLayer) { try { svLayerRelease(_crmPanelLayer, { focus: false }); } catch (e) {} _crmPanelLayer = null; } }
         if (_crmStepLayer) { try { svLayerRelease(_crmStepLayer, { focus: false }); } catch (e) {} _crmStepLayer = null; }
         Object.assign(_crmState, {
@@ -1526,6 +1562,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '/* Round 6: colour start menu. */.crm-top{justify-content:center;flex-direction:column;align-items:stretch;gap:12px}.crm-top .crm-crumbs{justify-content:center;padding:0 0 12px;border-bottom:1px solid var(--crm-hair)}.crm-top:not(.is-home) .crm-search{align-self:center}.crm-crumb{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 15px;font-size:0.84rem;font-weight:600}.crm-crumb.is-here{background:var(--surface-hover)}.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--crm-c)}.crm-c-today{--crm-c:var(--crm-c-today)}.crm-c-pipeline{--crm-c:var(--crm-c-leads)}.crm-c-report{--crm-c:var(--crm-c-report)}.crm-c-sequences{--crm-c:var(--crm-c-auto)}.crm-home-head{text-align:center;padding:40px 0 0}.crm-home-head h1{margin:0;font-size:2.6rem;font-weight:800}.crm-home-head p{margin:8px 0 0;color:var(--text-secondary)}#crmHome>.crm-search{max-width:620px;margin:24px auto 36px}.crm-home-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:18px;max-width:1120px;margin:0 auto}.crm-home-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:200px;padding:24px;border:0;border-radius:20px;font:inherit;text-align:left;cursor:pointer;color:var(--crm-on-c);background:linear-gradient(140deg,var(--crm-c),color-mix(in srgb,var(--crm-c) 55%,black));transition:transform .12s,filter .12s}.crm-home-tile:hover{transform:translateY(-2px);filter:brightness(1.06)}.crm-home-tile:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}.crm-home-tile .crm-tile-name{font-size:1.35rem;font-weight:700}.crm-home-tile .crm-tile-desc{color:inherit;opacity:.85;font-size:0.84rem}.crm-home-tile .crm-tile-fact{margin-top:auto;display:flex;flex-direction:column;color:inherit;font-weight:500;font-size:0.8rem}.crm-tile-fact b{font-size:2.1rem;font-weight:800;line-height:1.1}.crm-fact-skel{display:block;width:70px;height:34px;border-radius:8px;opacity:.5}.crm-empty-day{text-align:center;padding:56px 0 24px}.crm-empty-check{display:grid;place-items:center;width:88px;height:88px;margin:0 auto 20px;border-radius:50%;font-size:2.4rem;color:var(--crm-c-report);background:radial-gradient(circle,color-mix(in srgb,var(--crm-c-report) 28%,transparent),transparent 70%)}.crm-empty-day h2{margin:0;font-size:1.8rem;font-weight:700}.crm-empty-day>p{margin:8px 0 0;color:var(--text-secondary)}.crm-coming{max-width:640px;margin:32px auto 0;text-align:left}.crm-coming h3{margin:0 0 6px;font-size:0.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}.crm-coming-row{display:flex;justify-content:space-between;gap:16px;width:100%;padding:13px 4px;border:0;border-bottom:1px solid var(--crm-hair);background:transparent;font:inherit;font-size:0.86rem;color:var(--text-primary);text-align:left;cursor:pointer}.crm-coming-row:hover{background:var(--surface-hover)}.crm-coming-when{color:var(--text-secondary);white-space:nowrap}.crm-empty-btns{display:flex;gap:10px;justify-content:center;margin-top:28px}.crm-pill{min-height:40px;padding:8px 18px;border:1px solid var(--crm-hair);border-radius:999px;background:transparent;font:inherit;font-size:0.84rem;font-weight:600;color:var(--text-primary);cursor:pointer}.crm-pill.is-main{background:var(--crm-c-today);border-color:var(--crm-c-today);color:var(--crm-on-c)}'
             + '/* Round 7: fixed menu row, profile page, calmer automations. */.crm-page>.crm-top{margin:0 0 18px}.crm-top:not(.is-home) .crm-search{width:min(520px,100%)}.crm-pill.is-main.crm-c-pipeline,.crm-pill.is-main.crm-c-sequences{background:var(--crm-c);border-color:var(--crm-c);color:var(--crm-on-c)}.crm-pill.is-main:hover{filter:brightness(1.08)}.crm-results:not([hidden]),.crm-col-menu{animation:crmPop .14s ease-out}@keyframes crmPop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){.crm-results:not([hidden]),.crm-col-menu{animation:none}}.crm-panel.is-page{position:static;width:auto;max-width:760px;margin:0 auto 48px;border:0;background:transparent;z-index:auto}.crm-panel.is-page .crm-panel-head{padding:8px 0 18px;flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:16px}.crm-panel.is-page .crm-panel-head h2{font-size:1.9rem;font-weight:800}.crm-panel.is-page .crm-panel-body{padding:18px 0 0;overflow:visible}.crm-leads-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-right:0}.crm-seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface-subtle)}.crm-seg-btn{min-height:32px;padding:5px 14px;border:0;border-radius:999px;background:transparent;font:inherit;font-size:0.8rem;font-weight:600;color:var(--text-secondary);cursor:pointer}.crm-seg-btn:hover{color:var(--text-primary)}.crm-seg-btn.is-on{background:var(--crm-c-leads);color:var(--crm-on-c)}.crm-seg-btn:focus-visible{outline:2px solid var(--focus-ring)}.crm-auto-head{padding:12px 0 28px}.crm-auto-head h1{font-size:2.1rem}.crm-auto-group{max-width:1120px;margin:0 auto 30px}.crm-auto-group .crm-group-title{font-size:1.05rem;font-weight:700;color:var(--text-primary)}.crm-auto-group .crm-seq-sub{font-size:0.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700}.crm-auto-group .crm-tiles{gap:10px}.crm-seq-tile{border:0;border-left:3px solid var(--crm-c-auto);border-radius:12px;background:color-mix(in srgb,var(--crm-c-auto) 9%,transparent);min-height:84px}.crm-seq-tile:hover{background:color-mix(in srgb,var(--crm-c-auto) 16%,transparent)}.crm-seq-tile.is-off{border-left-color:var(--text-muted);background:var(--surface-subtle)}'
             + '/* Round 8: timeline automations, back button, quiet hovers. */.crm-auto-head{padding:12px 0 36px;max-width:1120px;margin:0 auto}.crm-auto-line{list-style:none;margin:0 auto 40px;padding:0;max-width:1120px;display:grid;grid-template-columns:repeat(var(--crm-steps),minmax(0,340px));gap:48px;position:relative}.crm-auto-line::before{content:"";position:absolute;left:0;right:0;top:15px;height:1px;background:var(--crm-hair)}.crm-auto-step{position:relative;min-width:0}.crm-auto-pin{position:relative;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:1.5px solid var(--crm-c-auto);background:var(--white);color:var(--crm-c-auto);font-size:0.8rem;font-weight:700}.crm-auto-title{margin:16px 0 12px;font-size:1.1rem;font-weight:700;letter-spacing:-0.01em;color:var(--text-primary)}.crm-auto-sub{margin:14px 0 4px;font-size:0.74rem;font-weight:600;color:var(--text-muted)}.crm-auto-item{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:calc(100% + 20px);margin:0 -10px;padding:9px 10px;border:0;border-radius:8px;background:transparent;font:inherit;text-align:left;color:var(--text-primary);cursor:pointer;transition:background-color .15s ease-out}.crm-auto-item:hover{background:color-mix(in srgb,var(--crm-c-auto) 8%,transparent)}.crm-auto-item:focus-visible{outline:2px solid var(--focus-ring)}.crm-auto-name{font-size:0.9rem;font-weight:600;min-width:0}.crm-auto-item.is-off .crm-auto-name{font-weight:500;color:var(--text-muted)}.crm-auto-n{font-size:0.76rem;color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums}.crm-auto-more{max-width:1120px;margin:0 auto 32px;padding-top:24px;border-top:1px solid var(--crm-hair)}.crm-auto-more .crm-auto-title{margin-top:0}.crm-auto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));column-gap:40px}@media (max-width:800px){.crm-auto-line{grid-template-columns:minmax(0,1fr);gap:24px}.crm-auto-line::before{display:none}}.crm-up{display:inline-flex;align-items:center;gap:6px;min-height:34px;margin-right:8px;padding:6px 12px 6px 8px;border:1px solid var(--crm-hair);border-radius:999px;background:transparent;font:inherit;font-size:0.78rem;font-weight:600;color:var(--text-primary);cursor:pointer;transition:background-color .15s ease-out}.crm-up:hover{background:var(--surface-hover)}.crm-up:focus-visible{outline:2px solid var(--focus-ring)}.crm-up svg{width:14px;height:14px}.crm-stage-toggle{width:auto;padding:8px 10px;margin-left:-2px;transition:background-color .15s ease-out}.crm-sheet .crm-stage-head{display:flex}.crm-skel-cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.5fr) 150px;padding:10px 0 10px 28px;gap:0}.crm-skel-cols>*{margin-right:24px}.crm-skel .crm-auto-line{margin-top:8px}.crm-auto-tiles{margin:0 auto 12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}.crm-auto-tile{color:var(--text-primary);background:linear-gradient(150deg,color-mix(in srgb,var(--crm-c-auto) var(--crm-tint,20%),var(--white)),color-mix(in srgb,var(--crm-c-auto) calc(var(--crm-tint,20%) + 10%),var(--white)))}.crm-auto-tile:hover{filter:none;background:color-mix(in srgb,var(--crm-c-auto) calc(var(--crm-tint,20%) + 14%),var(--white))}.crm-auto-tile .crm-tile-desc{opacity:1;color:var(--text-secondary)}.crm-auto-tile .crm-auto-step-n{color:color-mix(in srgb,var(--crm-c-auto) 70%,var(--text-primary));opacity:1}.crm-auto-tile.is-off{background:var(--surface-subtle);color:var(--text-muted)}.crm-auto-step-n{font-size:0.78rem;font-weight:700;opacity:.85}.crm-auto-tile .crm-tile-fact b{font-size:1.9rem;font-weight:700;line-height:1.1}.crm-auto-more{border-top:0;padding-top:28px}.crm-tree-head,.crm-tree-sub{text-transform:none;letter-spacing:0}'
+            + '/* Round 9: one style everywhere. */.crm-auto-run{max-width:1120px;margin:0 auto 28px}.crm-auto-run .crm-auto-title{margin:0 0 12px}.crm-auto-flow{position:relative}.crm-auto-flow>.crm-auto-tile{position:relative;min-height:170px}.crm-auto-flow>.crm-auto-tile+.crm-auto-tile::before{content:"";position:absolute;left:-18px;top:50%;width:18px;height:2px;background:color-mix(in srgb,var(--crm-c-auto) 45%,transparent)}.crm-cols .crm-col:first-child .crm-col-btn{padding-left:8px;margin-left:-8px;width:calc(100% + 8px)}.crm-seq-detail-tint{max-width:1120px;margin:0 auto}.crm-seq-detail-tint .crm-seq-head{display:block;text-align:center}.crm-seq-detail-tint .crm-seq-head p{display:flex;justify-content:center;align-items:center;gap:6px}.crm-seq-detail-tint .crm-seq-stop{text-align:center;padding-left:0}.crm-seq-detail-tint .crm-mail,.crm-seq-detail-tint .crm-bubble{background:color-mix(in srgb,var(--crm-c-auto) 10%,var(--white));border-color:color-mix(in srgb,var(--crm-c-auto) 22%,transparent)}.crm-home-tile,.crm-auto-tile{transition:transform .18s cubic-bezier(.2,.8,.2,1),background-color .18s ease-out,filter .18s ease-out}.crm-main>#crmBody>*{animation:crmFade .18s ease-out}@keyframes crmFade{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){.crm-main>#crmBody>*{animation:none}}'
             + '@media (max-width:720px){'
             + '.crm-app{flex-direction:column;align-items:stretch;gap:10px}.crm-main{width:100%}.crm-side{position:static;width:100%;flex-direction:column;gap:8px}.crm-side .crm-search{width:100%;margin:0}.crm-side .crm-search .search-bar-pill{min-height:40px}.crm-side-nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}.crm-side-nav::-webkit-scrollbar{display:none}.crm-report .crm-num{width:52px}.crm-report thead th{position:static}.crm-side-title,.crm-side-group,.crm-side-skel,.crm-tree-head,.crm-tree-line,.crm-side-chev{display:none}.crm-side{max-height:none;overflow:visible}.crm-side-section,.crm-tree,.crm-tree-g,.crm-tree-body{display:flex;flex-direction:row;margin:0;padding:0;border:0;gap:4px}.crm-cols{position:static}.crm-side-parent:not([aria-current]){font-weight:500;color:var(--text-secondary)}.crm-side-item{width:auto;min-height:34px;flex-shrink:0;white-space:nowrap;border-radius:999px;padding:6px 12px}.crm-view-head{padding-right:84px}.crm-seq .crm-step{grid-template-columns:1fr}.crm-seq-facts{gap:20px}'
             + '.crm-step{grid-template-columns:1fr;gap:4px}.crm-step-when{flex-direction:row;gap:8px;align-items:baseline}.crm-sys-table,.crm-sys-table tbody,.crm-sys-table tr,.crm-sys-table td{display:block;width:auto}.crm-sys-table thead{display:none}.crm-sys-table tr{padding:10px 4px;border-top:1px solid var(--crm-hair)}.crm-sys-table tbody tr:first-child{border-top:0}.crm-sys-table td{border:0;padding:3px 4px}.crm-sys-table td:not(.crm-sys-c-name)::before{content:attr(data-label);display:block;font-size:0.62rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}'

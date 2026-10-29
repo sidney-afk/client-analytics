@@ -32,6 +32,15 @@ async function open(browser, server, rowsRef, counts) {
   });
   await seedStaffIdentity(context, ADMIN);
   const page = await context.newPage();
+  // The queue's reads still on their way. A clock step lets the page start a read; its answer arrives in real time,
+  // and only then does the page set its next timer. Under a loaded CI runner that took longer than the 15 ms run()
+  // used to give it, so the next clock step ran with no timer set and a read went missing (#2431, 2026-10-29).
+  page.svInFlight = 0;
+  const queueRead = r => /tiktok-upload/.test(r.url());
+  const settled = r => { if (queueRead(r)) page.svInFlight = Math.max(0, page.svInFlight - 1); };
+  page.on('request', r => { if (queueRead(r)) page.svInFlight++; });
+  page.on('requestfinished', settled);
+  page.on('requestfailed', settled);
   await page.clock.install();
   await page.goto(`http://127.0.0.1:${server.address().port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#tkQueueCol', { timeout: 20000 });
@@ -43,7 +52,9 @@ async function open(browser, server, rowsRef, counts) {
   assert.ok(busy < 2500, 'the idle page does work every frame (10 clock seconds took ' + busy + ' ms); look for a render loop');
   return { context, page };
 }
-async function run(page, seconds) { for (let i = 0; i < seconds / 10; i++) { await page.clock.runFor(10000); await real(15); } await real(60); }
+// Each 10 clock seconds, then the reads they started are answered before the clock moves on (up to 2 real seconds).
+async function settle(page) { for (let w = 0; w < 100 && page.svInFlight > 0; w++) await real(20); await real(15); }
+async function run(page, seconds) { for (let i = 0; i < seconds / 10; i++) { await page.clock.runFor(10000); await settle(page); } await real(60); }
 
 (async () => {
   const server = await serveStatic();

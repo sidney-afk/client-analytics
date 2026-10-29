@@ -601,6 +601,7 @@ jobs:
           The review page answers every approve, change and note at once (under 150 ms, three modes, phone and desktop, slow server)|node test/review-stage-instant-browser.js
           A refresh paints the right skeleton and keeps the tab|node test/refresh-skeleton-browser.js
           The review stage's play button has its final look from the first frame (frame by frame, light and dark, 1440 and 390)|node test/review-stage-first-frame-browser.js
+          The client link's "Open the thumbnail" card fits its tile (Frame.io thumbnail, small icon, whole label, light and dark, 1440 and 390)|node test/review-stage-thumb-frame-browser.js
           A post answered elsewhere stays on the review stage, marked, and typed words go to the team as a note|node test/review-stage-elsewhere-browser.js
           Smooth part switching on the new review page (only the media fades; panel, header, strip never blink)|node test/review-stage-smooth-browser.js
           Client link first paint, frame by frame (saved theme from the first frame, review-shaped loading screen, no old-page flash)|node test/first-paint-theme-browser.js

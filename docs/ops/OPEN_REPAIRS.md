@@ -35243,3 +35243,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 587. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels: one version's change took the whole card to Tweaks Needed, so the reviewer lost the other versions and nothing brought the card back (Trialtest bug 1, Trialeyes E1 and E14, session Trials)
+
+- **What happened (live, test client):**
+  - A client's "Ask for a change" on Video A, on a card sent straight to Client Approval, moved the card to Tweaks Needed. The client then had no Approve on B, the reads said `ready=false` for every other version, and the card left the client's list.
+  - The same happened on the SMM's tab: approve A, change B, and C was never reviewable. "New cut ready" reset the version but never brought the card back.
+- **The owner chose (a)** (2026-10-29, about 02:4x UTC, via the Supervisor). The rule set is in `docs/features/TRIAL_REELS_PLAN.md` section 5.
+- **Fix:**
+  - **While another version still waits for this reviewer:** the change goes to the editor as today's tweak note, but the card keeps its status. This is `keepStatus` on `_calReviewRequestTweak` (190) and `_kasperRequestTweakComp` (330), and the client queue (185) keeps it for a replay.
+  - **Once nothing else waits:** the card goes to Tweaks Needed, status only (`_rsTrialToTweaks`, 195; `svTrialReviewKeepsCard` and `_trvSettlesToTweaks`, 194).
+  - **"New cut ready" or a new link on the last open change:** the card goes back to For SMM Approval through today's status pick (`_trlBackToReview`, 189).
+  - Only a card with the Trial reels switch on, for a client `trial_reels_pages` lists, takes any new branch.
+- **Proven:**
+  - `test/trial-reels-round2-review-browser.js` (`TRL_PART=keepcard`) runs four paths: the client at 390 on a card sent straight to the client (bug 1), the client at 1440 (E14), the SMM (E1) and Kasper. In each, the change is recorded and its note goes to the editor; the card stays while B and C wait; B shows its own Approve; and only after B and C are answered does the card go to Tweaks Needed. It fails on main: 12 checks.
+  - `test/trial-reels-round3-card-browser.js` checks that "New cut ready" sends the card back to For SMM Approval, and leaves it in Tweaks Needed while another change is open.

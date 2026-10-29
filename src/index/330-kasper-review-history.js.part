@@ -1966,7 +1966,9 @@ import { svTrialPrime } from './189-trial-reels-card.js';
         }
     }
 
-    async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks) {
+    // `opts.keepStatus`: trial reels only, as _calReviewRequestTweak (OPEN_REPAIRS 587): the note goes, the part keeps its status.
+    async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks, opts) {
+        const keepStatus = !!(opts && opts.keepStatus);
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
@@ -2011,8 +2013,10 @@ import { svTrialPrime } from './189-trial-reels-card.js';
         };
         list.push(newComment);
         _calSetCommentsFor(item.post, comp, list);
-        item.post[subKey] = 'Tweaks Needed';
-        item.post.status = computeOverallStatus(item.post);
+        if (!keepStatus) {
+            item.post[subKey] = 'Tweaks Needed';
+            item.post.status = computeOverallStatus(item.post);
+        }
         // "Approve after tweaks" pre-clears this component for the client: the
         // editor applies the fix and routes back to For SMM Approval, where the
         // badge tells the SMM it's already cleared by Kasper. A plain "Send"
@@ -2024,7 +2028,7 @@ import { svTrialPrime } from './189-trial-reels-card.js';
         // sheet row doesn't read "approved at <date>" on a card now in
         // Tweaks Needed. (Persist passes through pending=null since
         // _kasperPersistPost writes the whole row, not a pending diff.)
-        _calClearStaleApprovals(item.post, null);
+        if (!keepStatus) _calClearStaleApprovals(item.post, null);
         item.post.updated_at = new Date().toISOString();
         item._touchedComps.add(comp);
         item._drafts[comp] = '';
@@ -2038,12 +2042,12 @@ import { svTrialPrime } from './189-trial-reels-card.js';
                 post: item.post, component: comp, comment: newComment, audience: 'internal',
                 isTweak: true, round: newComment.round, clientSlug: item.slug,
                 repairLane: 'kasper-calendar',
-                repairEdits: {
+                repairEdits: keepStatus ? { [comp + '_tweaks']: _calStringifyComments(_calCommentsFor(item.post, comp)) } : {
                     [comp + '_status']: item.post[comp + '_status'],
                     status: item.post.status,
                     [comp + '_tweaks']: _calStringifyComments(_calCommentsFor(item.post, comp))
                 },
-                reserveStatusIntent: { status: item.post[comp + '_status'] }
+                reserveStatusIntent: keepStatus ? null : { status: item.post[comp + '_status'] }
             });
             nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
             _writeUiAdoptRepairAck(item.post, acknowledgement);

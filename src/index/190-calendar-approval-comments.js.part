@@ -1064,7 +1064,11 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         }
         return true;
     }
-    function _calReviewRequestTweak(pid, comp) {
+    /* `opts.keepStatus` (trial reels only, OPEN_REPAIRS 587, owner's choice (a), 2026-10-29): the change request goes to
+       the editor as today's tweak note, but the part keeps its status, because other versions of the video still wait for
+       this reviewer. Nothing else calls it with that option. */
+    function _calReviewRequestTweak(pid, comp, opts) {
+        const keepStatus = !!(opts && opts.keepStatus);
         const initialPost = calState.posts.find(p => p.id === pid);
         if (!initialPost) return;
         const key = pid + '|' + comp;
@@ -1083,7 +1087,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         let deferredLegacyOutboxIds = [];
         // The queue stores this request's action id before the first send
         // (185), so a replay after a crash or reload reuses it.
-        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
+        if (_isClientLink) _calCrqBegin('request', pid, comp, keepStatus ? { body: rawDraft, keepStatus: true } : { body: rawDraft });
         // The note shows in the part's thread from the click, "Sending…". Its
         // id is learned under the target lock below (where the action identity
         // is minted or adopted), so the saved note then takes its place.
@@ -1199,19 +1203,19 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 };
                 if (!existing) list.push(newComment);
                 _calSetCommentsFor(post, comp, list);
-                post[comp + '_status'] = 'Tweaks Needed';
+                if (!keepStatus) post[comp + '_status'] = 'Tweaks Needed';
                 _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', role);
                 post.status = computeOverallStatus(post);
                 post.updated_at = new Date().toISOString();
                 _calReviewState.drafts[key] = '';
                 delete _calReviewState.draftActionIds[key];
                 const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('calendar', pid, comp);
-                const repairEdits = {
+                const repairEdits = keepStatus ? { [comp + '_tweaks']: _calStringifyComments(list) } : {
                     [comp + '_status']: post[comp + '_status'],
                     status: post.status,
                     [comp + '_tweaks']: _calStringifyComments(list)
                 };
-                _calClearStaleApprovals(post, repairEdits);
+                if (!keepStatus) _calClearStaleApprovals(post, repairEdits);
                 const optimisticFields = {};
                 Object.keys(previousFields).forEach(field => {
                     optimisticFields[field] = post[field];
@@ -1245,7 +1249,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                         isTweak: _calMsgIsTweak(newComment),
                         round: newComment.round,
                         repairEdits: Object.assign({}, repairEdits),
-                        reserveStatusIntent: { status: post[comp + '_status'] },
+                        reserveStatusIntent: keepStatus ? null : { status: post[comp + '_status'] },
                         deferLegacyUntilSourceSave: true
                     });
                 const deferredLegacyComment =

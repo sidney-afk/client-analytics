@@ -262,6 +262,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         p.catch(() => {}).finally(() => { if (_trvChain[m.id] === p) delete _trvChain[m.id]; });
         return p;
     }
+    /* The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a change on one version keeps the card where it is while
+       another live version still waits for this reviewer; only that version waits for its new cut. Once nothing waits
+       for this reviewer and a change is open, the card goes to Tweaks Needed as today (the note already went). */
+    function _trvOthersWait(versions, stage) {
+        return (versions || []).some(v => _trvLive(v) && !v.client_pass_at && v.status !== 'change asked' && _trvAnswer(v, stage) === 'wait');
+    }
+    // After a change is asked on the version on screen (already marked "change asked" here): keep the card's status?
+    function svTrialReviewKeepsCard(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvOthersWait(m.trial.versions, _trvStage(mode)));
+    }
+    // After an answer that did not finish the stage: does the card now go to Tweaks Needed?
+    function _trvSettlesToTweaks(versions, stage) {
+        return !_trvOthersWait(versions, stage) && (versions || []).some(v => _trvLive(v) && !v.client_pass_at && v.status === 'change asked');
+    }
     function _trvDone(json, mode) {
         const stage = _trvStage(mode);
         return stage === 'client' ? !!json.card_approvable : !!(json.stages_done && json.stages_done[stage]);
@@ -273,7 +287,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRV_SETTLE_MS = 700;
     const _trvMovedAt = {};   // post id -> when an answer last moved the page to the next version
     const _trvJustMoved = m => Date.now() - (_trvMovedAt[m.id] || 0) < TRV_SETTLE_MS;
-    async function svTrialReviewApprove(m, mode, proceed, all) {
+    async function svTrialReviewApprove(m, mode, proceed, all, toTweaks) {
         if (!all && _trvJustMoved(m)) return;
         const letter = _trvCurOf(m, mode).letter, stage = _trvStage(mode), slug = m.trial.slug;
         const body = all ? { kind: 'approve_all' } : { kind: 'approve', letter };
@@ -297,6 +311,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return;
         }
         if (_trvDone(json, mode)) { proceed(); return; }
+        if (typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, stage)) toTweaks();
         if (!local) {
             const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
             if (next) _trvCur[m.id] = next.letter;
@@ -306,7 +321,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* "Not this one" on the version on screen: at once, as Approve is; the page moves on to the next version still
        waiting. A refused pass puts the version back and says so. Once every other version is approved, `proceed` is
        today's approve on the video part (a passed version does not hold the card back). */
-    async function svTrialReviewPass(m, mode, proceed) {
+    async function svTrialReviewPass(m, mode, proceed, toTweaks) {
         if (_trvJustMoved(m) || !svTrialReviewCanPass(m, mode)) return;
         const letter = _trvCurOf(m, mode).letter, slug = m.trial.slug;
         const e = _trv[slug], card = e && e.cards[m.id];
@@ -334,6 +349,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return;
         }
         if (_trvDone(json, mode)) proceed();
+        else if (typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, 'client')) toTweaks();
     }
     /* A change on the version on screen: today's change request goes at once, naming it, and the version's own change
        is written too. That write is kept in this browser until the function takes it, and sent again after every
@@ -531,5 +547,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
-  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
+  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam
 };

@@ -54,9 +54,11 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const bc = idx.slice(idx.indexOf('name: "client_brain"'), idx.indexOf('name: "import_file"'));
   assert.ok(/handbook: \{ type: "string"/.test(bc) && /handbook_page: \{ type: "string"/.test(bc), 'both tools offer the handbook option');
   assert.ok(!/required: \["client"/.test(bc), 'client is no longer required on either tool');
-  assert.ok(/name === "client_brain" && String\(args\.handbook/.test(idx) && /handbookRead\(String\(args\.handbook\)\)/.test(idx), 'client_brain dispatches the handbook option');
-  assert.ok(/name === "brain_change" && String\(args\.handbook_page/.test(idx) && /handbookChange\(/.test(idx), 'brain_change dispatches the handbook option');
-  assert.ok(/call client_brain with handbook \\"start\\" before answering; never search local or downloaded files/.test(idx), 'the server instructions send company questions to the handbook');
+  assert.ok(/name === "client_brain" && \(String\(args\.handbook/.test(idx) && /handbookRead\(/.test(idx), 'client_brain dispatches the handbook option');
+  assert.ok(/name === "brain_change" && \(String\(args\.handbook_page/.test(idx) && /handbookChange\(/.test(idx), 'brain_change dispatches the handbook option');
+  assert.ok(idx.includes('call client_brain with topic \\"handbook\\"') && idx.includes('never search local or downloaded files'), 'the server instructions send company questions to the handbook');
+  assert.ok(/handbookTopic = \/\^\\s\*handbook\(\?::/.test(idx) && /handbookRead\(String\(args\.handbook \|\| \(handbookTopic/.test(idx), 'client_brain topic handbook and handbook:<page> reach the reader');
+  assert.ok(/handbookFact = /.test(idx) && /handbookChange\(String\(args\.handbook_page \|\| \(handbookFact/.test(idx), 'brain_change fact_id handbook:<page> reaches the filer');
   const guide = read('docs/ops/HANDBOOK_GUIDE_ROW.md');
   assert.ok(/'handbook'/.test(guide) && /needs Sidney|Sidney's to decide/.test(guide), 'guide row text exists');
 

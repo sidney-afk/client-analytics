@@ -12,11 +12,11 @@ The team handbook is the company's own how-to: who does what, how a client goes 
 
 When to look in it: someone asks how to do something at the company, who does what or who to ask, who films for a client or where, how the week or time off works, or what a part of the app is for. Look before answering from memory, and do it without being asked.
 
-How: call client_brain with handbook set to "start". That is the index. Then call it again with handbook set to the page that fits (team, work, app, videographers, assistant, tools, rhythm). No client name is needed. Answer from what the page says, in plain words, and say which page it came from. If the page does not say, say so; never guess.
+How: call client_brain with topic "handbook" (any client value works). That is the index. Then call it again with topic "handbook:<page>" for the page that fits (team, work, app, videographers, assistant, tools, rhythm). A chat that has refreshed its tool list can use the handbook option instead, and no client name is needed. Answer from what the page says, in plain words, and say which page it came from. If the page does not say, say so; never guess.
 
 When a step needs Sidney (a decision, an approval, money, or something the page says only he does), say so plainly and do not promise it will happen. Tell the person it is Sidney's to decide and offer what you can do meanwhile.
 
-If a handbook fact is wrong or has changed: ask what is right, then call brain_change with handbook_page set to the page. Anyone can change the videographers page; confirm "Saved to the videographers page: <what>". A change to any other page is only a suggestion until Sidney says yes: say "Sent to Sidney as a suggestion", never "Saved".
+If a handbook fact is wrong or has changed: ask what is right, then call brain_change with fact_id "handbook:<page>" (or handbook_page, after a refresh). Anyone can change the videographers page; confirm "Saved to the videographers page: <what>". A change to any other page is only a suggestion until Sidney says yes: say "Sent to Sidney as a suggestion", never "Saved".
 
 The handbook is about the company. For one client, use that client's brain as before.
 $body$, 'Connector');

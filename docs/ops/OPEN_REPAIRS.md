@@ -35243,3 +35243,15 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `src/index/194-review-trial-versions.js.part`: a small "Client approved" tag beside "Video A of 3" (the SMM's Review tab and Kasper's standard layout), under the name on Kasper's tiles, and in the dot's spoken name. The team's own answer is unchanged: the SMM's Approve works, and Kasper's page still says the SMM looks at it first (stage order). A tile still with the SMM now says "with the team", never "change asked".
   - `src/index/189-trial-reels-card.js.part`: a dropped version asks for no link.
 - **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=cok`) at 1440 and 390, light and dark, and `test/trial-reels-round3-card-browser.js`; each fails on main (14 and 4 checks).
+
+## 580. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a refused link on "+ Add version" opened a full-screen dialog and lost the pasted text; plain text and YouTube got different rules (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live at 1440):**
+  - A wrong link on "+ Add version" opened the full-screen "did not save" dialog, and the pasted text was gone. The wrong links tried were A's own link, a YouTube link and plain text.
+  - Plain text read "Frame.io only", while YouTube read "Frame.io, Google Drive or Dropbox".
+- **Fix (`src/index/189-trial-reels-card.js.part`):**
+  - A link the page refuses before sending stays in its field, marked invalid, with the reason under it (`role="alert"`). This covers a link that isn't https, another site, and another version's link. A version row's own link field gets the same treatment.
+  - Enter keeps the focus there to fix it. A click away keeps the text and the reason, and Escape closes the field.
+  - Plain text and other sites now get one sentence: "Paste a Frame.io, Google Drive or Dropbox link to the video."
+  - A refusal from the server still uses today's dialog.
+- **Proven:** `test/trial-reels-round3-card-browser.js` covers plain text, YouTube and A's link at 1440 and 390, light and dark. It checks the text is kept with the reason under the field, no dialog appears, a click away keeps both, and Escape closes the field. It fails on main.

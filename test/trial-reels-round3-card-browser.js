@@ -126,8 +126,33 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         await page.click('.trl-list .trl-add button');
         await sleep(250);
         ok(!!(await page.$('.trl-list .trl-add .trl-link-input')) && await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('trl-link-input')), `${tag}: pressing it opens the paste field, focused`);
+        // Trialeyes E3 (2026-10-29): a link the page refuses says why under its field and keeps the text; one sentence
+        // for plain text and another site alike; never a dialog.
+        const addErr = () => page.evaluate(() => {
+          const i = document.querySelector('.trl-list .trl-add .trl-link-input'), e = document.querySelector('.trl-list .trl-link-err');
+          const o = document.getElementById('confirmOverlay');
+          return { val: i ? i.value : null, focused: document.activeElement === i, err: e ? e.textContent.trim() : '', invalid: i ? i.getAttribute('aria-invalid') : null,
+            modal: !!(o && o.classList.contains('active')), wide: document.documentElement.scrollWidth > window.innerWidth + 1 };
+        });
+        const sentence = 'Paste a Frame.io, Google Drive or Dropbox link to the video.';
+        for (const [typed, want] of [['not a link at all', sentence], ['https://www.youtube.com/watch?v=fixture', sentence], [LINK('A'), 'Another version already has this link. Each version needs its own.']]) {
+          await page.fill('.trl-list .trl-add .trl-link-input', typed);
+          await page.keyboard.press('Enter');
+          await sleep(300);
+          const e = await addErr();
+          ok(e.val === typed && e.err === want && e.invalid === 'true' && e.focused && !e.modal && !e.wide, `${tag}: "${typed.slice(0, 24)}" is refused under the field, the text kept, no dialog (${JSON.stringify(e)})`);
+        }
+        await shot(page, 'r3-add-refused-' + label + '-' + theme);
+        // A click away keeps the field, its text and its reason; Escape then closes it.
+        await page.mouse.click(3, h - 3);
+        await sleep(300);
+        let e2 = await addErr();
+        ok(e2.val === LINK('A') && /Another version/.test(e2.err) && !e2.modal, `${tag}: a click away keeps the refused link and its reason (${JSON.stringify(e2)})`);
+        await page.click('.trl-list .trl-add .trl-link-input');
         await page.keyboard.press('Escape');
         await sleep(250);
+        e2 = await addErr();
+        ok(e2.val === null && !e2.err && !!(await page.$('.trl-list .trl-add .trl-addbtn')), `${tag}: Escape closes it and "+ Add version" is back`);
         await shot(page, 'r3-card-' + label + '-' + theme);
         // ---- 7: the row's pencil, then Escape: one list, never two ----
         // Escape and a click away, three times over (the Supervisor's ask): the list never doubles.

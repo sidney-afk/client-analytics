@@ -775,6 +775,12 @@ function installBfcacheSyntheticNetwork(config) {
         state.supportReads.push({ at, kind: 'brain_folders', url: url.href });
         return jsonResponse({ ok: true, frame: [], raw: [] });
       }
+      // Caption history is on for every signed-in staff member since 2026-10-29 (session Permafive, no switch), so the
+      // Calendar asks which cards on screen have an earlier caption; this synthetic board has none.
+      if (url.pathname === '/functions/v1/caption-generate' && url.searchParams.get('action') === 'caption_history_index') {
+        state.supportReads.push({ at, kind: 'caption_history_index', url: url.href });
+        return jsonResponse({ ok: true, available: true, changed: [] });
+      }
       if (url.pathname === '/rest/v1/team_members') {
         state.supportReads.push({ at, kind: 'team_members', url: url.href });
         return jsonResponse([{
@@ -1371,6 +1377,11 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       // once per calendar; this offline operator has none saved.
       if (url.pathname === '/functions/v1/brain') {
         await fulfillJson(route, { ok: true, frame: [], raw: [] });
+        return;
+      }
+      // Caption history (every signed-in staff member since 2026-10-29): no card on this board has an earlier caption.
+      if (url.pathname === '/functions/v1/caption-generate' && url.searchParams.get('action') === 'caption_history_index') {
+        await fulfillJson(route, { ok: true, available: true, changed: [] });
         return;
       }
       if (url.pathname === '/rest/v1/team_members') {

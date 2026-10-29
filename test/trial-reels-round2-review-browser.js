@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|hint runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -369,6 +369,39 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     }
 
     // ---------- 2: the review page keeps the reel's shape while the next version loads ----------
+    // ---------- The client's Sheet and Month (the Supervisor's ruling, 2026-10-29): a small muted "N versions" tag beside
+    // the card's title says there are several versions; tapping it opens the Review page on the first waiting version. ----------
+    for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('hint'))) {
+      const t = await start('client', true, three());
+      // Collaborative mode on: without it the client's Sheet and Month show finished posts only, so a card still to
+      // review is not on them at all.
+      await t.page.evaluate(() => { calState.settings = Object.assign({}, calState.settings, { collab_mode: true }); onCalViewChange('organizer'); });
+      const tagOf = sel => t.page.evaluate(q => {
+        const n = [...document.querySelectorAll(q)].find(x => x.offsetParent);
+        if (!n) return null;
+        const cs = getComputedStyle(n), host = n.closest('.cal-card, .cal-month-pill'), title = host && host.querySelector('.cal-fld-name, .cal-month-pill-name');
+        const r = n.getBoundingClientRect(), tr = title ? title.getBoundingClientRect() : null;
+        return { t: n.textContent.trim(), size: parseFloat(cs.fontSize), color: cs.color, bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius),
+          beside: !!tr && Math.abs((r.top + r.bottom) / 2 - (tr.top + tr.bottom) / 2) < 14, inside: !!host && r.right <= host.getBoundingClientRect().right + 1 };
+      }, sel);
+      let sheet = null;
+      for (let i = 0; i < 40 && !(sheet = await tagOf('#calView .cal-card .cal-trial-tag')); i++) await sleep(150);
+      ok(sheet && sheet.t === '3 versions' && sheet.size <= 11 && sheet.radius > 0 && sheet.radius <= 6 && sheet.beside && sheet.inside, `${label}: the client's Sheet card says "3 versions" in a small tag beside its title (${JSON.stringify(sheet)})`);
+      await shot(t, 'hint-sheet-' + label);
+      await t.page.evaluate(() => { const n = [...document.querySelectorAll('#calView .cal-card .cal-trial-tag')].find(x => x.offsetParent); if (n) n.click(); });
+      await waitNew(t);
+      await sleep(800);
+      const opened = await t.page.evaluate(() => calState.view);
+      const d = await dec(t);
+      ok(opened === 'review' && /^on/.test(d.dots.split(',')[0] || ''), `${label}: tapping it opens the Review page on the first waiting version (${opened}, ${d.dots})`);
+      await t.page.evaluate(() => onCalViewChange('month'));
+      let month = null;
+      for (let i = 0; i < 40 && !(month = await tagOf('#calView .cal-month-pill .cal-trial-tag')); i++) await sleep(150);
+      await shot(t, 'hint-month-' + label);
+      ok(month && month.t === '3 versions' && month.inside, `${label}: the Month card says "3 versions" too (${JSON.stringify(month)})`);
+      ok(!t.errors.length, `${label} hint: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
     for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'phone']].filter(() => part('shape'))) {
       const t = await start('client', true, three(), Object.assign({ beforeOpen: async t2 => {
         t2.state.cards.forEach(c => { c.thumbnail_url = ''; });

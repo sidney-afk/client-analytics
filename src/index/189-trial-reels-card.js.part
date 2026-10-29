@@ -4,7 +4,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
-import { _calLinkFieldHtml } from './160-calendar-organize-ui.js';
+import { _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -113,6 +113,47 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlSay(e, what) {
         showNotify(what + ' did not save', svTrialErrorText(e));
     }
+    /* The client's Sheet and Month (the Supervisor's ruling, 2026-10-29): a trial card looked like any card, and nothing
+       said there were several versions. A small muted "3 versions" tag beside the title (the live versions the client
+       still has to answer) opens the Review page on that card, at its first waiting version. It lives here, in the core
+       part, as the Sheet and Month do (the review page's own part loads later). One read of the client's trial cards,
+       kept 30 s; the Sheet or Month draws again when it lands. */
+    const _trlTagCards = {};   // slug -> { at, cards, promise }
+    let _trlWantPid = '';
+    function _trlClientWaits(v) {
+        if (v.status !== 'waiting' || v.client_pass_at || v.client_ok_at) return false;
+        return v.ready === undefined || v.ready !== false;
+    }
+    function svTrialClientTagHtml(post, month) {
+        if (!_isClientLink || !post || !post.id) return '';
+        const slug = _trlSlug(post.client || calState.client);
+        if (!slug || !svTrialReelsOn(slug)) return '';
+        const e = _trlTagCards[slug] || (_trlTagCards[slug] = { at: 0, cards: {}, promise: null });
+        if (!e.promise && Date.now() - e.at > TRL_LIST_TTL_MS) {
+            e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+                .then(json => { e.cards = (json && json.cards) || {}; }, () => {})
+                .finally(() => {
+                    const first = !e.at;
+                    e.at = Date.now(); e.promise = null;
+                    if (first && ['organizer', 'month'].includes(calState.view)) _calRenderBody({ preserveScroll: true });
+                });
+        }
+        const shape = e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions) || shape.versions.some(v => v.status === 'winner')) return '';
+        const n = shape.versions.filter(_trlClientWaits).length;
+        if (!n) return '';
+        const words = n + (n === 1 ? ' version' : ' versions');
+        const go = 'svTrialClientReview(\'' + _calEscAttr(post.id) + '\')';
+        return month
+            ? '<span class="cal-trial-tag" title="Review the versions" onclick="event.stopPropagation();' + go + '">' + words + '</span>'
+            : '<button type="button" class="cal-trial-tag" title="Review the versions" onclick="' + go + '">' + words + '</button>';
+    }
+    function svTrialClientReview(pid) {
+        _trlWantPid = String(pid || '');
+        onCalViewChange('review');
+    }
+    // The card the tag asked the Review page to open ('' when none); `done` clears it once the page is on it (195).
+    function svTrialReviewWanted(done) { const p = _trlWantPid; if (done) _trlWantPid = ''; return p; }
     /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. */
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
@@ -832,6 +873,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
+  svTrialAttachBack, svTrialCall, svTrialClientTagHtml, svTrialListShared, svTrialReviewWanted, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

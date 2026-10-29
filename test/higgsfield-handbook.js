@@ -24,6 +24,14 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const cleaned = h.cleanPage(page);
   assert.ok(!cleaned.includes('<!--') && cleaned.includes('Nine to five.'), 'brain blocks are stripped, text kept');
 
+  // Bookkeeping never reaches the answer, inside a comment or loose.
+  const loose = '# Page\n\n## Who\nid:      company.x.who\nowner:   sidney\nstatus:  written\nsource:  inputs/x.md\nupdated: 2026-10-28\nKasper is the founder.\n\n## Note\nSource: the sheet.\nowner: the SMM keeps the list.\n';
+  const looseOut = h.cleanPage(loose);
+  assert.ok(!/owner:\s+sidney|status:|updated:|inputs\/x\.md/.test(looseOut) && looseOut.includes('Kasper is the founder.'), 'loose bookkeeping lines are dropped');
+  assert.ok(looseOut.includes('Source: the sheet.') && looseOut.includes('owner: the SMM keeps the list.'), 'single prose lines that look alike stay');
+  const real = fs.existsSync(path.join(ROOT, 'test/fixtures/handbook-page.md')) ? read('test/fixtures/handbook-page.md') : '';
+  if (real) assert.ok(!/owner:|status:|updated:/.test(h.cleanPage(real)), 'fixture page is clean');
+
   const reply = h.handbookReply('team', page, ['start', 'team', 'work']);
   assert.ok(reply.includes('Nine to five.') && /Other pages[^\n]*start, work/.test(reply), 'page text and the other pages');
   assert.ok(/index/.test(h.handbookReply('start', 'x', ['start', 'team'])), 'the index says how to reach a page');

@@ -35254,6 +35254,21 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The notice is now a count in plain words and names no client: "Cards from 1 client at Kasper Approval are not shown", with either "the client list is still loading" or "not on the client list".
 - **Proven:** `docs/syncview-design/tests/kasper-roster-race-browser.js` (offline, Clients Info held back 4 s). It fails on main (1 card drawn before the list, a short queue, a notice naming three slugs, never 4 cards). With the fix: skeleton while waiting, 4 cards at once, no notice; a client that really is missing from the list gets the count-only notice.
 
+## 585. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels client page: nothing said why there are several versions; the bottom buttons wrapped at 390 (Trialeyes, session Trials)
+
+- **What happened (session Trialeyes, live):**
+  - Nothing on the client link explained "TRIAL", or why there were several versions.
+  - At 390, "Finish reviewing 0 of 2" and "Approve all (2 waiting)" each wrapped onto two lines inside their buttons.
+- **Fix (`src/index/194-review-trial-versions.js.part`):**
+  - On the client link only, one plain line sits under "TRIAL": "We'll test each version for 24 h and keep the best one."
+  - At phone width, "Approve all" and "Finish reviewing" each take a full-width line of their own and never wrap inside.
+- **Proven:** `test/trial-reels-round2-review-browser.js` (`TRL_PART=e11`) checks the client at 390 (light and dark) and at 1440, and that the SMM's page has no such line. Both buttons stay on one line. It fails on main.
+- **Also (Trialeyes E20, E21):**
+  - E20: on the client link, Back while typing a change left SyncView, because the link is the first page in history, and the words were lost. Words in the change box not yet sent now make leaving ask first (`beforeunload`, 195).
+  - E21: at 390, Kasper's "Finish reviewing 0 of 4" wrapped. The same one-line rule now covers his page.
+  - Both are checked in `TRL_PART=e11`. E21 fails on main (51 px).
+- **E13 (Kasper's orange "Tweaks are on Frame" reads as a status, not a button):** the button and its style predate trial reels (#2291 and earlier). Left as is, as the Supervisor asked.
+
 ## 582. [2026-10-29 UTC, BUILT, NOT MERGED] Trial reels card: a dead Frame.io link saved silently as a normal waiting version (Trialeyes, session Trials)
 
 - **What happened (session Trialeyes, live at 1440):** a Frame.io link that no longer exists saved as an ordinary "waiting" version. Only the player, later, said Frame.io didn't know it.

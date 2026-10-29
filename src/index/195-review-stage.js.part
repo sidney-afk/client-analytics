@@ -1171,6 +1171,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 
     /* ---------- state ---------- */
     function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '', trialLetter: '' }; }
+    /* The client link is often the first page in the tab's history, so Back leaves SyncView: words typed in the change
+       box and not sent ask first (Trialeyes E20, 2026-10-29). Staff pages keep their own drafts as before. */
+    window.addEventListener('beforeunload', e => {
+        if (!R.S || R.mode !== 'client' || !String((R.S.note && R.S.note.text) || '').trim()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false, l2: false, cp: false, cpNewFrom: null

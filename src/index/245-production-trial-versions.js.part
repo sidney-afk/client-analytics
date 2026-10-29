@@ -99,7 +99,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 : '<span>Not provided</span>';
             const pill = state === 'checking' && url
                 ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
-                : '<span class="prod-asset-state" data-state="' + _calEscAttr(state) + '">' + _calEsc(h.stateLabel(state)) + '</span>';
+                // A link that never existed (the provider answers 404) is "Not found", not "Expired" (Trialeyes E18).
+                : '<span class="prod-asset-state" data-state="' + _calEscAttr(state) + '">' + _calEsc(state === 'expired' && Number(((shape.link_states || {})[v.letter] || {}).http_status) === 404 ? 'Not found' : h.stateLabel(state)) + '</span>';
             const edit = h.readOnly ? '' : '<button class="prod-assets-action prod-asset-edit" type="button" data-trl-edit="' + _calEscAttr(v.letter) + '"'
                 + ' onclick="return svTrialProdEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(v.letter) + ')"' + h.gateAttrs + '>Edit</button>';
             const row = '<div class="prod-asset-row trl-prod-v" data-trl-slot="' + _calEscAttr(v.letter) + '">'

@@ -46,7 +46,7 @@ async function shot(page, name) {
     frame_url: l === 'E' ? null : LINK(l), revision: 0, updated_at: '2026-10-27T09:00:00.000Z', post_id: 'p_t1' }));
   // What the function's sharing check answers for each version (a fresh link answers available).
   const states = () => Object.fromEntries(T.versions.map(v => [v.letter, !v.frame_url ? { state: 'missing' }
-    : ({ B: { state: 'permission_denied', http_status: 403 }, C: { state: 'unavailable' } })[v.letter] || { state: 'available', http_status: 200 }]));
+    : ({ B: { state: 'permission_denied', http_status: 403 }, C: { state: 'unavailable' }, D: T.deadD ? { state: 'expired', http_status: 404 } : null })[v.letter] || { state: 'available', http_status: 200 }]));
   const mainLink = () => String(vid.file_url || card.asset_url || '');
   const reset = (versions, link) => { T.versions = versions; vid.file_url = link; card.asset_url = link; };
 
@@ -233,6 +233,15 @@ async function shot(page, name) {
     const rowE = r.find(x => x.label === 'Deliverable file · Video E');
     ok(!(await page.$('[data-trl-editor]')) && /^Open link/.test(rowE.value) && rowE.state === 'Available'
       && await page.evaluate(l => !!document.querySelector('.trl-prod-v[data-trl-slot="E"] a[href="' + l + '"]'), LINK('E')), 'the field closes and the row opens the new link, checked again');
+    await page.close();
+
+    // Trialeyes E18 (2026-10-29): a link that never existed (404) reads "Not found", never "Expired".
+    T.deadD = true;
+    page = await open(1440, 900);
+    r = await rows(page);
+    const dRow = r.filter(x => x.trial)[3];
+    ok(dRow && dRow.state === 'Not found', `a link that never existed reads "Not found" (${dRow && dRow.state})`);
+    T.deadD = false;
     await page.close();
 
     // A read that fails for any reason but "no versions here" never hides the versions: it says so, with Retry.

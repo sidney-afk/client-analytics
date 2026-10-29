@@ -35253,3 +35253,4 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - No server change.
 - **Measured from this session:** a dead `f.io` link and a dead `next.frame.io/share` link both answer 404 (the check says "expired"). An `app.frame.io/reviews` link answers 200 for any id, so a dead one of those can't be told apart.
 - **Proven:** `test/trial-reels-round3-card-browser.js` checks that B, dead, says "link not found" after one check, and that reopening the list checks nothing more. It fails on main.
+- **Also (Trialeyes E18, 2026-10-29):** in Production's Assets, a version link that never existed read "Expired". A 404 from the provider now reads "Not found" (245). This is checked in `test/trial-reels-production-browser.js`.

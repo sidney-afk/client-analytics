@@ -35439,9 +35439,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - B was still "waiting" on the server 111 s later. Nothing retried it.
 - **Why:** the kept write (`_trvPending`, 194) was sent again only on the next versions read. A client page left open does not read again until a redraw after its cache expires.
 - **Fix:** a refused or lost write is tried again on its own while the page is open, after 3 s, then 10 s, then 30 s, then every 60 s. One try runs at a time, and a read that comes first still sends it. A version that is gone, dropped or decided still stops it, as before.
-- **Nit 1 (offline):** the dialog said "Your change request was sent" while the toast said it was still waiting for the connection. It now says "Your words are kept", which is true both ways.
+- **Nit 1 (offline):** the dialog said "Your change request was sent" while the toast said it was still waiting for the connection. Offline, it now says "You are offline. Marking Video B as changed goes once your connection is back" (the Supervisor's wording ask), and the kept marks go the moment the connection is back. Online it says "Your words are kept" and the mark is tried again in a moment.
 - **Nit 2 (390, the SMM card):** a version the client dropped read "no access" (or "link not found") once its link check failed. It keeps "Client dropped" now (`_trlLinkBadHtml`, 189).
 - **Proven:**
   - `test/trial-reels-round2-review-browser.js` (`TRL_PART=retry`, 1440 and 390): one refused write, then no touch. It fails on main (1 try, B still waiting after 15 s). With the fix B is "change asked" after 3 s.
+  - The same part, offline: the notice's offline words, and the mark sent as soon as the page is back online (0.1 s, not its next timer).
   - `test/trial-reels-round3-card-browser.js` (dead link on a client-dropped version, 1440 and 390): it fails on main.
   - `trial-reels-review-browser`'s refused-write check now looks at the kept write before the 3 s retry.

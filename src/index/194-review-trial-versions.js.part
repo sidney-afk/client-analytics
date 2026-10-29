@@ -437,6 +437,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trvSendChange(job).finally(() => { job.inFlight = false; });
         }, ms);
     }
+    // The connection is back: every kept write goes at once, not on its next timer.
+    window.addEventListener('online', () => {
+        _trvPending().filter(j => !j.inFlight).forEach(j => { clearTimeout(j.retryT); j.retryT = 0; j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
+    });
     function _trvFlush(slug) {
         _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
     }
@@ -462,7 +466,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         job.inFlight = true;
         _trvSendChange(job).then(ok => {
             job.inFlight = false;
-            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", 'Your words are kept. Marking Video ' + letter + ' as changed will be tried again in a moment.');
+            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", navigator.onLine === false
+                ? 'You are offline. Marking Video ' + letter + ' as changed goes once your connection is back.'
+                : 'Your words are kept. Marking Video ' + letter + ' as changed will be tried again in a moment.');
         });
         // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
         return frameNote ? text : 'Video ' + letter + ': ' + text;

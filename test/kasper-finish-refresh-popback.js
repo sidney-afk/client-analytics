@@ -83,6 +83,7 @@ function _kasperGetSeenAt(pid){ return _seenMap[pid] || ''; }
 function _kasperMarkSeenAt(pid, ts){ _seenMap[pid] = ts || ''; }
 function _calKasperUrgentActive(){ return false; }   // OPEN_REPAIRS 316: no live ping in these scenarios
 function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → base 3 components
+function svTrialWaitsWith(){ return false; }   // no trial reels here: no version waits for Kasper behind the card
 `;
 
 const REAL = [

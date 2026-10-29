@@ -35264,5 +35264,5 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix (`src/index/189-trial-reels-card.js.part`):**
   - With no version the row reads "Video", and it shows the open-link icon only when the card has a link.
   - "+ Add version" has no hover tip. Its spoken name still names the next letter.
-- **Not built yet:** the switched-off toggle explains itself only in its hover tip (none on a phone). That is a look question, put to the Supervisor.
+- **The switched-off toggle (E5, the Supervisor's ruling 2026-10-29):** it now says "Trial reels" in a small muted word beside the switch, at 1440 and 390, without growing its one-line row; the hover tip stays for the mouse.
 - **Proven:** `test/trial-reels-empty-card-browser.js` at 1440 and 390, and `test/trial-reels-card-browser.js` (no tip, spoken name).

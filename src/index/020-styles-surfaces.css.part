@@ -1784,6 +1784,7 @@
         .cal-link-post .trl-sw-slot:hover .trl-sw, .cal-link-post .trl-sw-slot:focus-visible .trl-sw { background: color-mix(in srgb, var(--text-secondary) 70%, transparent); transform: scale(1.08); }
         .cal-link-post .trl-sw-slot.on:hover .trl-sw, .cal-link-post .trl-sw-slot.on:focus-visible .trl-sw { background: color-mix(in srgb, var(--sv-slot-video-fg) 80%, var(--text-primary)); }
         .cal-link-post .trl-sw-slot:focus-visible { outline: none; }
+        .cal-link-post .trl-sw-word { margin-right: 5px; font-size: 10px; font-weight: 600; white-space: nowrap; color: var(--text-muted); }
         .cal-link-post .trl-chev svg { width: 10px; height: 10px; transition: transform .15s; }
         .cal-link-post.trl-open .trl-chev svg { transform: rotate(180deg); }
         .cal-link-post.trl-open .trl-chev:hover svg { transform: rotate(180deg) scale(1.2); }

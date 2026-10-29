@@ -126,6 +126,16 @@ async function shot(page, name) {
       T.flag = true;
       page = await open(w, h);
       ok(!!(await page.$('.cal-link-post .trl-sw-slot[aria-checked="false"]')), `${label}: switch on, card off: a faint switch inside the Video row`);
+      // Trialeyes E5 (2026-10-29): the off switch says what it is without a hover, in a small muted word, and the row
+      // keeps its one line.
+      const offWord = await page.evaluate(() => {
+        const b = document.querySelector('.cal-link-post .trl-sw-slot[aria-checked="false"]'), w = b && b.querySelector('.trl-sw-word'), row = b && b.closest('.cal-link-post');
+        if (!w || !row) return null;
+        const r = w.getBoundingClientRect(), rr = row.getBoundingClientRect();
+        w.style.display = 'none'; const bare = Math.round(row.getBoundingClientRect().height); w.style.display = '';
+        return { t: w.textContent.trim(), shown: r.width > 0 && r.height > 0, size: parseFloat(getComputedStyle(w).fontSize), inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowH: Math.round(rr.height), bare };
+      });
+      ok(offWord && offWord.t === 'Trial reels' && offWord.shown && offWord.size <= 11 && offWord.inside && offWord.rowH === offWord.bare, `${label}: the off switch reads "Trial reels", small, inside its one-line row (${JSON.stringify(offWord)})`);
       const knob = await page.evaluate(() => {
         const el = document.querySelector('.cal-link-post .trl-sw'), root = document.documentElement, was = root.getAttribute('data-theme'), out = {};
         for (const t of ['light', 'dark']) { root.setAttribute('data-theme', t); out[t] = getComputedStyle(el, '::after').backgroundColor; }

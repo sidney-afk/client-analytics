@@ -341,7 +341,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '"' + (v ? ' title="' + _calEscAttr(_trlStagesTitle(v)) + '"' : '') + '>' + _calEsc(s) + '</span>';
     }
 
-    /* The switch alone, for a card whose switch is off (today's row plus this, faint until hover). '' when the page
+    /* The switch alone, for a card whose switch is off (today's row plus this), with a small muted "Trial reels" word so
+       it says what it is without a hover (Trialeyes E5, Supervisor's call, 2026-10-29: phones have no hover). '' when the page
        switch does not list the client, on a client link, or before the switch read is in. */
     function svTrialSwitchHtml(pid, post) {
         if (!_trlStaffOn(post)) return '';
@@ -349,7 +350,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (shape && shape.enabled) return '';
         const p = _calEscAttr(pid);
         return '<button type="button" class="trl-sw-slot" role="switch" aria-checked="false" title="Trial reels: off. Turn on to post this video as several versions"'
-            + ' aria-label="Trial reels" onclick="svTrialToggle(\'' + p + '\',true)"><i class="trl-sw"></i></button>';
+            + ' aria-label="Trial reels" onclick="svTrialToggle(\'' + p + '\',true)"><span class="trl-sw-word" aria-hidden="true">Trial reels</span><i class="trl-sw"></i></button>';
     }
     /* The whole Video row for a card whose switch is on; null otherwise (the caller draws today's row). */
     function svTrialVideoRowHtml(pid, v, post, parts) {

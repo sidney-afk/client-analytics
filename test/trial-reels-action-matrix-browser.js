@@ -424,11 +424,14 @@ const short = u => String(u || '').replace('https://f.io/fixture-matrix-', '…'
         await versionPencil(page, 2);
         await page.fill('.trl-link-input', bad);
         await page.keyboard.press('Enter'); await sleep(1000);
-        const said = await notices(page);
+        // Since Trialeyes E3 (2026-10-29) a link the page refuses is said under its field, which stays open with the
+        // text to fix (never a dialog); Escape closes it.
+        const said = await page.evaluate(() => { const e = document.querySelector('.trl-list .trl-link-err'), i = document.querySelector('.trl-list .trl-link-input'); return (e ? e.textContent : '') + (i ? ' [' + i.value + ']' : ''); });
         const bid = P + '.bad.' + what.replace(/\W+/g, '-');
-        await inv(page, bid, `${sz} B's pencil, ${what}, Enter`, { open: true, n0: m.n0, writes: 0, a0: m.a0, attaches: 0 });
-        ok(bid + '.said', /did not save/i.test(said), `${sz} ${what}: the refusal is said (${said.slice(0, 120)})`);
+        await inv(page, bid, `${sz} B's pencil, ${what}, Enter`, { open: true, editing: true, n0: m.n0, writes: 0, a0: m.a0, attaches: 0 });
+        ok(bid + '.said', /Frame\.io, Google Drive or Dropbox|Another version already has this link/.test(said) && said.includes('[' + bad + ']'), `${sz} ${what}: the refusal is said under the field, the text kept (${said.slice(0, 120)})`);
         ok(bid + '.kept', V('B').frame_url === LINK('B'), `${sz} ${what}: B keeps its link`);
+        await page.keyboard.press('Escape'); await sleep(300);
         await dismiss(page);
       }
       // A8. Clear B's link (empty, Enter).

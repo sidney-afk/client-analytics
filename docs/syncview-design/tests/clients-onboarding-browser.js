@@ -239,7 +239,9 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
         || sent.body.expected_updated_at !== '2026-10-02T08:00:00.000000+00:00' || sent.body.member_id !== 'qa_admin' || sent.key !== 'qa-admin-key' || sent.body.slug !== 'fixture1') {
         failures.push(`${label}: Mark done sent the wrong thing: ${JSON.stringify(sent)}`);
       }
-      await s.page.waitForTimeout(300);
+      // The marker line draws once the save has answered: wait for it (up to 4 s), not a blind 300 ms, which a loaded
+      // CI runner missed once (#2431, 2026-10-29: "Done · Evidence: …" with no "Marked done by" yet).
+      await s.page.waitForFunction(() => /Marked done by/.test((document.querySelector('[data-step="fixture_step_01"]') || {}).textContent || ''), null, { timeout: 4000 }).catch(() => {});
       const done1 = await text(s, '[data-step="fixture_step_01"]');
       if (!/Done/.test(done1) || !/example\.invalid\/proof/.test(done1) || !/Marked done by QA admin/.test(done1)) failures.push(`${label}: a done step does not show its evidence and who marked it: ${done1.replace(/\s+/g, ' ')}`);
       if (!/1 of 25 required steps done/.test(await text(s, '#cbChecklist'))) failures.push(`${label}: the summary did not move to 1 of 25`);
@@ -262,7 +264,8 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       await s.page.waitForSelector('[data-step="fixture_step_03"].is-skipped', { timeout: 4000 }).catch(() => failures.push(`${label}: the required skip never landed`));
       const reqSent = s.ob.slice(beforeReq).find(c => c.body.action === 'set_step');
       if (!reqSent || reqSent.body.note !== 'Client declined this one.' || reqSent.body.status !== 'skipped') failures.push(`${label}: the required skip sent the wrong thing`);
-      await s.page.waitForTimeout(300);
+      // The same race as the marker line above: the note draws once the save has answered.
+      await s.page.waitForFunction(() => /Client declined this one\./.test((document.querySelector('[data-step="fixture_step_03"]') || {}).textContent || ''), null, { timeout: 4000 }).catch(() => {});
       if (!/Client declined this one\./.test(await text(s, '[data-step="fixture_step_03"]'))) failures.push(`${label}: a skipped step does not show its note`);
       // Cancel leaves nothing behind
       await s.page.click('[data-step="fixture_step_05"] button:has-text("Mark done")');

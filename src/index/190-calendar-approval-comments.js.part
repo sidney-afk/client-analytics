@@ -48,7 +48,7 @@ import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComme
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
-import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml } from './189-trial-reels-card.js';
+import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -2388,6 +2388,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
         const cs = _calNormStatus(post[comp + '_status'] || '');
         if (cs === 'Kasper Approval') return true;
+        // Per-version routing (189): a trial card already with the client is still his while a version waits for him.
+        if (comp === 'video' && cs === 'Client Approval' && svTrialWaitsWith(post, 'kasper')) return true;
         if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) {
             // "Approve after tweaks" is Kasper's explicit pre-clearance: he is
             // done with this component and has consented to skip his own
@@ -2571,7 +2573,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         return _calComponentsFor(post).filter(c =>
             !(c === 'graphic' && !_calCompLinked(post, c))
             && _kasperCompReviewable(post, c)
-            && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+            && (_calNormStatus(post[c + '_status'] || '') === 'Kasper Approval'
+                || c === 'video' && _calNormStatus(post[c + '_status'] || '') === 'Client Approval' && svTrialWaitsWith(post, 'kasper')));
     }
     function _calCommentTotal(post) {
         let n = 0;

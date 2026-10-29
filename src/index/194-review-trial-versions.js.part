@@ -68,8 +68,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!shape || !shape.enabled || !Array.isArray(shape.versions)) return null;
         const winner = shape.versions.find(v => v.status === 'winner');
         if (winner) return mode === 'client' ? { slug, winner, versions: [winner], shape } : null;
-        // One live version still goes through its own answer, so the trial can start once it is approved.
-        const live = shape.versions.filter(_trvLive);
+        // One live version still goes through its own answer, so the trial can start once it is approved. The client link
+        // shows only versions that have come through the team (per-version routing: never one still with the SMM or Kasper).
+        const live = shape.versions.filter(_trvLive).filter(v => mode !== 'client' || v.ready !== false);
         return live.length ? { slug, versions: live, shape } : null;
     }
     /* The card's trial read is not in yet for a client the switch lists: the page draws a row of tile placeholders in
@@ -99,6 +100,60 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The client approved a version this staff reviewer has not answered yet (a card sent straight to Client Approval):
        the team sees that, and its own Approve still works (owner, 2026-10-28: approved things show as approved). */
     const _trvClientOk = (v, stage) => stage !== 'client' && !!v.client_ok_at && !v.client_pass_at && ['wait', 'team'].includes(_trvAnswer(v, stage));
+    /* PER-VERSION ROUTING (Sidney, 2026-10-29: "Other videos should go to Kasper while one of them is out for a change";
+       plan section 5). Each live version has its own place (the function's `place`: smm, kasper, client, approved,
+       new_cut, client_dropped), so a reviewer works the versions waiting for them whatever the card's status says, and
+       the card moves on once nothing waits for a reviewer and one version has passed them. */
+    const TRV_RANK = { 'For SMM Approval': 1, 'Kasper Approval': 2, 'Client Approval': 3, 'Approved': 4, 'Scheduled': 4, 'Posted': 4 };
+    const TRV_STAGE_RANK = { smm: 1, kasper: 2, client: 3 };
+    function _trvPlace(v) {
+        if (v.place) return v.place;
+        // An older read (or a client read) carries no place: the same rules from what it has.
+        if (v.status === 'dropped') return 'dropped';
+        if (v.status === 'change asked') return 'new_cut';
+        if (v.client_pass_at) return 'client_dropped';
+        if (['approved', 'on trial', 'winner', 'lost'].includes(v.status)) return v.status;
+        if (v.ready !== undefined && v.smm_ok_at === undefined) return v.ready ? 'client' : 'team';
+        return !v.smm_ok_at ? 'smm' : !v.kasper_ok_at ? 'kasper' : 'client';
+    }
+    // The card's status is past this reviewer's own (the work went on): their answers move versions, never the card.
+    function _trvCardAhead(post, stage) {
+        const s = String((post && post.video_status) || '').trim();
+        return (TRV_RANK[s] || 0) > (TRV_STAGE_RANK[stage] || 0);
+    }
+    /* Does a version of this card wait for this reviewer? null while the versions are not read yet (the page then goes
+       by the card's status alone, as before). */
+    function svTrialStageWaits(post, mode) {
+        if (!post || !post.id) return null;
+        const slug = _trvSlug(post.client || '');
+        if (!slug || !svTrialReelsOn(slug)) return null;
+        const e = _trv[slug];
+        if (!e || !e.at) { _trvLoad(slug); return null; }
+        const shape = e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions)) return null;
+        if (shape.versions.some(v => v.status === 'winner')) return false;
+        const stage = _trvStage(mode), live = shape.versions.filter(_trvLive);
+        if (live.some(v => _trvPlace(v) === stage)) return true;
+        // The client: nothing for them while the only open version is still with the team; with nothing open anywhere the
+        // card's status decides (today's approve moves it on).
+        if (stage === 'client') return live.some(v => ['smm', 'kasper', 'team'].includes(_trvPlace(v))) ? false : null;
+        return false;
+    }
+    /* After a change on `letter` at this reviewer's stage, what the card does:
+         'ahead'  the card is already further on: it stays (the version waits for its new cut by itself);
+         'keep'   another version still waits for this reviewer, or one is still on its way: it stays (option (a));
+         'move'   nothing waits for this reviewer and another version passed them: it goes on now (SMM and Kasper);
+         'tweaks' nothing waits anywhere: Tweaks Needed, as today. */
+    function svTrialReviewAfterChange(m, mode, letter) {
+        if (!m || !m.trial || m.trial.winner) return 'tweaks';
+        const stage = _trvStage(mode);
+        if (_trvCardAhead(m.post, stage)) return 'ahead';
+        const rest = m.trial.versions.filter(v => v.letter !== letter && _trvLive(v) && !v.client_pass_at && v.status !== 'change asked');
+        if (rest.some(v => _trvAnswer(v, stage) === 'wait')) return 'keep';
+        if (stage !== 'client' && rest.some(v => !!v[stage + '_ok_at'])) return 'move';
+        if (rest.some(v => ['smm', 'kasper', 'client', 'team'].includes(_trvPlace(v)))) return 'keep';
+        return 'tweaks';
+    }
     function _trvCurOf(m, mode) {
         const vs = m.trial.versions;
         const had = vs.find(v => v.letter === _trvCur[m.id]);
@@ -311,14 +366,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trvOthersWait(versions, stage, except) {
         return (versions || []).some(v => v.letter !== except && _trvLive(v) && !v.client_pass_at && v.status !== 'change asked' && _trvAnswer(v, stage) === 'wait');
     }
-    /* After a change is asked on `letter`: does another version still wait for this reviewer, so the card keeps its
-       status? The page's copy of the versions may not have that version marked yet, so it is left out by its letter. */
-    function svTrialReviewKeepsCard(m, mode, letter) {
-        return !!(m && m.trial && !m.trial.winner && _trvOthersWait(m.trial.versions, _trvStage(mode), letter));
-    }
     // After an answer that did not finish the stage: does the card now go to Tweaks Needed?
     function _trvSettlesToTweaks(versions, stage) {
-        return !_trvOthersWait(versions, stage) && (versions || []).some(v => _trvLive(v) && !v.client_pass_at && v.status === 'change asked');
+        const vs = (versions || []).filter(v => _trvLive(v) && !v.client_pass_at);
+        // Per-version routing: a version still on its way to a reviewer holds the card where it is.
+        if (vs.some(v => ['smm', 'kasper', 'client', 'team'].includes(_trvPlace(v)))) return false;
+        return !_trvOthersWait(versions, stage) && vs.some(v => v.status === 'change asked');
     }
     function _trvDone(json, mode) {
         const stage = _trvStage(mode);
@@ -354,8 +407,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trvLoad(slug, true);
             return;
         }
-        if (_trvDone(json, mode)) { proceed(); return; }
-        if (typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, stage)) toTweaks();
+        // A card already further on stays: this answer moved a version, not the card (per-version routing).
+        const ahead = _trvCardAhead(m.post, stage);
+        if (!ahead && _trvDone(json, mode)) { proceed(); return; }
+        if (!ahead && typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, stage)) toTweaks();
         if (!local) {
             const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
             if (next) _trvCur[m.id] = next.letter;
@@ -392,6 +447,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _trvLoad(slug, true);
             return;
         }
+        if (_trvCardAhead(m.post, 'client')) return;
         if (_trvDone(json, mode)) proceed();
         else if (typeof toTweaks === 'function' && _trvSettlesToTweaks(json.versions, 'client')) toTweaks();
     }
@@ -615,5 +671,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked
+  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange
 };

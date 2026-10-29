@@ -199,15 +199,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(!t.errors.length, 'client: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
-    // ---------- a version the SMM has not looked at yet is with the team (Probe rule-miss 13) ----------
+    // ---------- a version the SMM has not looked at yet stays with the team, out of the client's sight (Probe rule-miss 13;
+    // per-version routing, Sidney 2026-10-29: the client link shows only the versions that reached the client) ----------
     t = await start('client', true, fresh(), { noSmm: ['B'] });
     b = await bar(t);
-    const teamDot = await t.page.evaluate(() => { const d = document.getElementById('svReviewStage').shadowRoot.querySelector('.trv-dot[data-trv-go="B"]'); return d ? d.className + '|' + d.getAttribute('aria-label') : ''; });
-    ok(/team/.test(teamDot) && /with the team/.test(teamDot) && b.all === 'Approve all (4 waiting)', 'client: Video B (no SMM OK yet) has a muted dot, "with the team", and is not counted in Approve all (' + teamDot + ' | ' + b.all + ')');
-    await inS(t.page, '.trv [data-trv-go="B"]').click();
-    await sleep(700);
-    const teamRow = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { ok: !!r.querySelector('[data-ok="video"]'), txt: ((r.getElementById('drow') || {}).innerText || '').replace(/\s+/g, ' ') }; });
-    ok(!teamRow.ok && /With the team: the SMM looks at Video B first/.test(teamRow.txt), 'client: on Video B no Approve, only "With the team" (' + teamRow.txt.slice(0, 80) + ')');
+    const teamDot = await t.page.evaluate(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('.trv-dot[data-trv-go="B"]'));
+    ok(!teamDot && /^Video A of 4/.test(b.text) && b.all === 'Approve all (4 waiting)', 'client: Video B (no SMM OK yet) is not shown, and the bar counts the four that reached the client (' + b.text + ' | ' + b.all + ')');
     await t.ctx.close();
 
     // ---------- sent for approval today's way, no version through the SMM: the client answers them (Sidney, 2026-10-27) ----------

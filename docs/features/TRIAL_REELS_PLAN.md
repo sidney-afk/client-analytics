@@ -443,8 +443,10 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   - "on the card" on the winner's Production row (its "winner" label already says it);
   - the label beside "Video A of 5" on the client review (the letter dots already carry each answer);
   - the phone's "Make Video C the winner? Yes / Cancel" row (replaced by the Undo toast).
-  Kept on purpose: "approved", "waiting" and "change asked" while the review is mixed, "dropped" everywhere, and today's
-  own Available/Missing states in Production.
+  Kept on purpose: "approved", "change asked", and where each waiting version is ("with SMM", "with Kasper", "with
+  client"; per-version routing, 2026-10-29) while the review is mixed, "waiting" for a version with no link yet,
+  "dropped" everywhere, and today's own Available/Missing states in Production. A collapsed row whose words do not fit
+  beside "Video · 5" goes on to a second line, never "…" (Trialtest, 2026-10-29).
 - **No numbers are typed** (Q7). After the trial the SMM presses the trophy ("Make this the winner") on one version: that one is
   `winner`, the others `lost`, and the card's link becomes the winner's (above).
 - **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"

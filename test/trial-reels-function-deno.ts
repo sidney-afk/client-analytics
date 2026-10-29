@@ -48,6 +48,8 @@ function matches(row: Row, params: URLSearchParams): boolean {
 }
 
 const moved = { id: "" };
+// The next N writes to this table are refused (a database error), set by a check below.
+const refuse: Record<string, number> = {};
 const W_on = () => tables.studio_trial_versions.some((r) => r.status === "on trial");
 const broadcasts: Row[] = [];
 // Each answer of the stand-in database can be made to take this long (the speed checks at the end).
@@ -79,6 +81,7 @@ const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (r
   }
   if (req.method === "PATCH") {
     const body = await req.json();
+    if (refuse[t] > 0) { refuse[t]--; return out({ code: "57014", message: "fixture refused this write" }, 503); }
     // A row the studio touches between our read and our write (set by a check below).
     const id = (u.searchParams.get("id") || "").replace(/^eq\./, "");
     if (moved.id && id === moved.id) { const row = rows.find((r) => r.id === id); if (row) row.updated_at = "2026-10-27T23:59:59.000Z"; moved.id = ""; }
@@ -458,6 +461,56 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   ok(one.body.ok === true && v("A").status === "winner" && !v("A").trial_ends_at && tables.trial_reel_cards[0].winner_letter === "A" && one.body.winner_letter === "A",
     "one live version: Posted makes it the winner at once, no 24 h trial (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
   ok(tables.calendar_post_events.some((e) => e.action === "trial_winner_set"), "with a winner_set ledger row");
+}
+
+// Codex on #2444: the card's winner write refused once must never leave the card stuck (a version row saying winner,
+// read as on trial with no 24 h, so nothing retries and no pick shows). The next read makes A the winner.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "approved", posted_at: null, trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.trial_reel_cards[0].winner_letter = null;
+  Object.assign(tables.calendar_posts[0], { video_status: "Posted", video_status_at: "2026-10-29T10:00:00.000Z" });
+  refuse.trial_reel_cards = 1;
+  const failed = await step({ action: "read" });
+  ok(failed.body.ok === true && tables.trial_reel_cards[0].winner_letter === null && v("A").status === "approved",
+    "a refused winner write leaves the card as read: A still approved, no winner (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
+  refuse.trial_reel_cards = 0;
+  const again = await step({ action: "read" });
+  ok(again.body.ok === true && v("A").status === "winner" && tables.trial_reel_cards[0].winner_letter === "A" && again.body.winner_letter === "A",
+    "the next read makes A the winner (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
+}
+// Codex on #2445: the version changed between the read and the write (the studio, or another request), so its write
+// is refused as a conflict: the card's winner written first is taken back, never left naming a cut nobody approved.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "approved", posted_at: null, trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.trial_reel_cards[0].winner_letter = null;
+  moved.id = "vA";
+  const conflict = await step({ action: "read" });
+  ok(conflict.body.ok === true && tables.trial_reel_cards[0].winner_letter === null && v("A").status === "approved",
+    "a version changed mid-read: its write is refused and the card's winner is taken back (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
+  moved.id = "";
+  const after = await step({ action: "read" });
+  ok(after.body.ok === true && v("A").status === "winner" && tables.trial_reel_cards[0].winner_letter === "A", "the next read, on the version as it now is, makes A the winner");
+}
+
+// A card already stuck by the old order (a "winner" row, no card winner): the next read heals it.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "winner", posted_at: "2026-10-29T10:00:00.000Z", trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.trial_reel_cards[0].winner_letter = null;
+  const healed = await step({ action: "read" });
+  ok(healed.body.ok === true && tables.trial_reel_cards[0].winner_letter === "A" && healed.body.winner_letter === "A" && v("A").status === "winner",
+    "a card already stuck (winner row, no card winner) is healed by the next read (winner " + tables.trial_reel_cards[0].winner_letter + ")");
 }
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));

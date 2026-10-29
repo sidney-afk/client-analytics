@@ -762,6 +762,26 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
+    // Kasper's second layout (Trialtest, live on PR 2452): his own Approve on B's tile, with the card already with the
+    // client, never reads "Approved in another window".
+    for (const [w, h, label] of [[1440, 900, 'route kasper tiles 1440']].filter(() => part('routek'))) {
+      const vs = three().map((v, i) => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: i === 1 ? null : '2026-10-29T08:30:00.000Z' }));
+      const t = await start('kasper', true, vs, { width: w, height: h, layout2: true, beforeOpen: async t2 => {
+        await keepGateway(t2);
+        const card = t2.state.cards.find(c => c.id === 'rs1');
+        Object.assign(card, { video_status: 'Client Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'Client Approval' });
+        if (t2.T_native) Object.assign(t2.T_native, { status: 'client_approval' });
+      } });
+      await waitFor(async () => !!(await R(t, `return !!r.querySelector('[data-trk-ok="B"]');`)), 60);
+      await press(t, '[data-trk-ok="B"]');
+      await waitFor(async () => !!t.T.versions[1].kasper_ok_at, 60);
+      await sleep(2500);
+      const said = await R(t, `return (r.textContent || '').replace(/\\s+/g, ' ');`);
+      ok(!!t.T.versions[1].kasper_ok_at && !/in another window/i.test(said), `${label}: Kasper's own Approve on B's tile never says "Approved in another window" (${(said.match(/[^.]*another window[^.]*\./i) || ['none'])[0] + ' | B ok ' + !!t.T.versions[1].kasper_ok_at})`);
+      await shot(t, 'route-kasper-tiles-1440');
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
     // The client link shows only versions that have come through the team: A and C, not B (still with Kasper).
     for (const [w, h, label] of [[1440, 900, 'route client 1440'], [390, 844, 'route client 390']].filter(() => part('routec'))) {
       const vs = three().map((v, i) => Object.assign(v, { smm_ok_at: '2026-10-29T08:00:00.000Z', kasper_ok_at: i === 1 ? null : '2026-10-29T08:30:00.000Z' }));

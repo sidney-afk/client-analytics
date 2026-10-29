@@ -424,7 +424,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const live = vs.filter(v => TRL_LIVE(v) && !v.client_pass_at);
         // A version the client said "Not this one" to is the team's to drop: the collapsed row says so (Trialeyes E9).
         const passed = vs.filter(v => TRL_LIVE(v) && v.client_pass_at).length;
-        const drop = passed ? ' · ' + passed + '<span class="trl-state-w"> dropped by the client</span><span class="trl-state-n"> dropped</span>' : '';
+        // On a narrow row (the card is about 190 px wide at every screen size) it says "1 client-dropped": the long form
+        // wrapped to three lines at 390 (Trialtest, live on PR 2452); the link's hover keeps the whole phrase.
+        const drop = passed ? ' · ' + passed + '<span class="trl-drop-w"> dropped by the client</span><span class="trl-drop-n"> client-dropped</span>' : '';
         const dropWords = passed ? ', ' + passed + ' dropped by the client' : '';
         if (!live.length) return passed ? { text: passed + ' dropped by the client', html: drop.slice(3), words: passed + ' dropped by the client' } : { text: '' };
         const n = live.filter(v => v.status === 'approved').length;

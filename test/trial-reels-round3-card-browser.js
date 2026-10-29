@@ -271,6 +271,20 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       T.dead = [];
       await page.close();
     }
+    // No coloured left-edge highlight anywhere (Sidney's rule; Trialtest, live on PR 2452: the opened list had a pink
+    // bar down its left side).
+    for (const w of [1440, 390].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      const page = await open(w, 844, 'light');
+      await openList(page);
+      const edge = await page.evaluate(() => [...document.querySelectorAll('.trl-list, .trl-list *')].filter(n => n.offsetParent).map(n => {
+        const cs = getComputedStyle(n);
+        return { c: n.className, w: parseFloat(cs.borderLeftWidth) || 0, s: cs.borderLeftStyle, r: parseFloat(cs.borderRightWidth) || 0 };
+      }).filter(x => x.w >= 2 && x.s !== 'none' && x.r < 1).map(x => x.c));
+      ok(!edge.length, `${w}: the opened version list has no coloured left edge (${edge.join(' | ') || 'none'})`);
+      await page.close();
+    }
+
     // Trialtest via the Supervisor (2026-10-29, held nit): at 390 the collapsed row "0/2 approved · 1 dropped by the
     // client" was cut to "0/2 approved · 1 d…" beside the switch. Every word shows, on a second line if it must.
     for (const w of [390, 1440].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
@@ -284,10 +298,15 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         const row = n.closest('.cal-link-label');
         const cut = [row, n, ...n.querySelectorAll('*')].filter(e => e.offsetParent && e.scrollWidth > e.clientWidth + 1).length;
         const r = n.getBoundingClientRect(), rr = row.getBoundingClientRect();
-        return { t: n.innerText.replace(/\s+/g, ' ').trim(), cut, inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowCut: row.scrollWidth > row.clientWidth + 1 };
+        const lh = parseFloat(getComputedStyle(n).lineHeight) || parseFloat(getComputedStyle(n).fontSize) * 1.2;
+        return { t: n.innerText.replace(/\s+/g, ' ').trim(), cut, inside: r.right <= rr.right + 1 && r.left >= rr.left - 1, rowCut: row.scrollWidth > row.clientWidth + 1,
+          lines: Math.round(r.height / lh), title: (n.closest('[title]') || {}).title || '' };
       });
-      ok(st && /0\/2 approved/.test(st.t) && /1 (client-dropped|dropped by the client)/.test(st.t) && !st.cut && st.inside && !st.rowCut,
-        `${w}: the collapsed row says every word of "0/2 approved · 1 dropped by the client", none cut (${JSON.stringify(st)})`);
+      ok(st && /0\/2/.test(st.t) && /1 (client-dropped|dropped by the client)/.test(st.t) && !st.cut && st.inside && !st.rowCut,
+        `${w}: the collapsed row says the client's drop, none of it cut (${JSON.stringify(st)})`);
+      // Trialtest, live on PR 2452: the long form wrapped to three lines at 390; the short "1 client-dropped" keeps it
+      // to two at most.
+      ok(st && st.lines <= 2, `${w}: the client's drop takes two lines at most (${st && st.lines} lines: "${st && st.t}")`);
       await shot(page, 'r3-collapsed-drop-' + w);
       await page.close();
     }
@@ -317,7 +336,7 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
       Object.assign(T.versions[2], { status: 'dropped' });                                                 // C dropped by the team
       const page = await open(1440, 900, 'light');
       const row = await state(page);
-      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 dropped by the client/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
+      ok(/Video · 2\b/.test(row) && /1\/1 approved/.test(row) && /1 client-dropped/.test(row), `counts: the collapsed row counts the live versions on both sides and says the client's drop ("${row}")`);
       await openList(page);
       T.addDelay = 1500;
       await page.click('.trl-list .trl-add button');

@@ -29,8 +29,22 @@ export function handbookPagesIn(names) {
 
 // The page as people read it: the <!-- brain ... --> fact blocks are
 // bookkeeping, not text.
+// Also drops a run of two or more bookkeeping lines (id:, owner:, status:,
+// source:, updated:, spec:) that sits outside a comment, so "owner: sidney"
+// is never read as a fact about the company.
+const BOOKKEEPING = /^\s*(id|owner|status|source|updated|spec):\s/;
 export function cleanPage(text) {
-  return String(text || "").replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->\n?/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  const lines = String(text || "").replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->\n?/g, "").split("\n");
+  const kept = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (BOOKKEEPING.test(lines[i])) {
+      let j = i;
+      while (j < lines.length && BOOKKEEPING.test(lines[j])) j++;
+      if (j - i >= 2) { i = j - 1; continue; }
+    }
+    kept.push(lines[i]);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export function handbookReply(page, text, pages) {

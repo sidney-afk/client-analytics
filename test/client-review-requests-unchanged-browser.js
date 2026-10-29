@@ -94,6 +94,22 @@ function normaliseRequest(w) {
   return { method: w.method, path: w.path, headers: w.headers, body };
 }
 
+/* Wait for the writes an action sets off to finish, not for a fixed time. A refused note's write-refusal report
+   (write-diagnostics) goes out only after the legacy outbox has re-read the save to confirm it, with growing pauses of
+   350, 700 and 1050 ms: about 2.2 s after the click, every run. A fixed 2.5 s wait left 0.2 s to spare, so on a busy
+   machine the report sometimes arrived after the test had stopped listening. The page sent it every time; the test
+   missed it. Now: at least the old 2.5 s, then until 1.5 s pass with no new write (at most 15 s). */
+async function settle(page, writes, minMs = 2500, quietMs = 1500, maxMs = 15000) {
+  const start = Date.now();
+  await page.waitForTimeout(minMs);
+  let seen = writes.length, quietSince = Date.now();
+  while (Date.now() - start < maxMs) {
+    await page.waitForTimeout(100);
+    if (writes.length !== seen) { seen = writes.length; quietSince = Date.now(); }
+    else if (Date.now() - quietSince >= quietMs) return;
+  }
+}
+
 async function runSurface(browser, origin, name) {
   const { card: CARD, query, table, tweakComp } = SURFACES[name];
   const ROW = {
@@ -143,7 +159,7 @@ async function runSurface(browser, origin, name) {
   await page.click(approve);
   await page.waitForTimeout(400);
   if (await page.$('#confirmOverlay.active')) await page.click('#confirmYes');
-  await page.waitForTimeout(2500);
+  await settle(page, writes);
   const loadMode = await page.evaluate(() => (self.__svLoad ? self.__svLoad.mode : 'single-file'));
   const approveWrites = writes.slice(before).map(normaliseRequest);
 
@@ -152,7 +168,7 @@ async function runSurface(browser, origin, name) {
   await page.keyboard.type('Review fixture: please shorten the first line.');
   const before2 = writes.length;
   await page.click(`${panel} .cal-review-tweak-btn`);
-  await page.waitForTimeout(2500);
+  await settle(page, writes);
   const tweakWrites = writes.slice(before2).map(normaliseRequest);
   await ctx.close();
   return { approve: approveWrites, requestChanges: tweakWrites, errors, loadMode };

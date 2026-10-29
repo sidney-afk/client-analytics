@@ -303,7 +303,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        send the Calendar no live change, so while a trial card is on screen the list is read every 30 s, and at once
        when the tab comes back after that long. Staff Calendar only; nothing for a client link or a hidden tab.
        _isClientLink is declared in a later part (260); on a slow load the first tick can come before that part has
-       run, and a bare read threw a ReferenceError every 5 s until it did (OPEN_REPAIRS 602). */
+       run, and a bare read threw a ReferenceError every 5 s until it did (OPEN_REPAIRS 604). */
     function _trlRefresh(minAge) {
         if (typeof _isClientLink === 'undefined' || _isClientLink || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
         if (!document.querySelector('#calView .cal-link-post.trl-main')) return;

@@ -147,6 +147,13 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     const one = [v('A', { status: 'approved' }), v('B', { status: 'dropped' }), v('C', { status: 'approved', client_pass_at: NOW })];
     const r1 = L.autoTrialPatches(one, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: one[0].frame_url });
     ok(r1.winner === 'A' && r1.patches.length === 1 && r1.patches[0].patch.status === 'winner' && !r1.patches[0].patch.trial_ends_at, 'one live version: Posted makes it the winner, with no trial');
+    // A card left stuck by the old write order (Codex on #2444): its one live version reads on trial with no 24 h end
+    // (a "winner" row, no card winner). The next read makes it the winner; a real trial (with its 24 h) is left alone.
+    const stuck = [v('A', { status: 'on trial', posted_at: NOW, trial_ends_at: null }), v('B', { status: 'dropped' })];
+    const r4 = L.autoTrialPatches(stuck, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: stuck[0].frame_url });
+    ok(r4.winner === 'A' && r4.patches.length === 1 && r4.patches[0].patch.status === 'winner', 'a stuck one-version card (on trial, no 24 h end): the next read makes it the winner');
+    const real = [v('A', { status: 'on trial', posted_at: NOW, trial_ends_at: '2026-10-29T12:00:00.000Z' }), v('B', { status: 'dropped' })];
+    ok(!L.autoTrialPatches(real, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: real[0].frame_url }).patches.length, 'a real trial with its 24 h end is left alone');
     const two = [v('A', { status: 'approved' }), v('B', { status: 'approved' })];
     const r2 = L.autoTrialPatches(two, { cardStatus: 'Posted', postedAt: NOW, nowMs: Date.parse(NOW), mainLink: two[0].frame_url });
     ok(!r2.winner && r2.patches.every(x => x.patch.status === 'on trial'), 'two live versions: the 24 h trial as before');

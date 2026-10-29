@@ -10,6 +10,8 @@ import { _calCommentsForView, calClientSlug } from './130-calendar-model-cache.j
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
+import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialListShared } from './189-trial-reels-card.js';
 import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     /* TODAY (owner design 2026-09-27, session Compass).
      *
@@ -351,21 +353,42 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
-        const [clients, open, done] = await Promise.all([clientsP,
+        const [clients, open, done, review] = await Promise.all([clientsP,
             _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
-            _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday)),
+            // A trial reels card waiting on a reviewer can hold a version asked to change (_tdyTrialAsks).
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&team=eq.video&origin=eq.calendar&status=' + _tdyIn(['smm_approval', 'kasper_approval', 'client_approval'])).catch(() => [])
         ]);
-        const parents = await _tdyParentIds(open.filter(r => r.status === 'tweak' || _tdyFresh(r)).concat(done));
+        const parents = await _tdyParentIds(open.filter(r => r.status === 'tweak' || _tdyFresh(r)).concat(done, review || []));
         const names = {};
         clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
         const test = new Set(clients.filter(c => String(c.kind || '').toLowerCase() === 'test').map(c => c.slug));
         const real = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid)) && !test.has(r.client_slug);
         const urgent = new Set();
-        const ids = open.filter(real).map(r => r.id);
+        const asks = await _tdyTrialAsks((review || []).filter(real)).catch(() => []);
+        const ids = open.filter(real).concat(asks).map(r => r.id);
         const pages = [];
         for (let i = 0; i < ids.length; i += 100) pages.push(_tdyRest('deliverables', 'select=id,priority&id=' + _tdyIn(ids.slice(i, i + 100))));
         (await Promise.all(pages)).forEach(rows => rows.forEach(r => { if (Number(r.priority) === 1) urgent.add(r.id); }));
-        return { names, open: open.filter(r => real(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(real), urgent: [...urgent] };
+        return { names, open: open.filter(r => real(r) && (r.status === 'tweak' || _tdyFresh(r))).concat(asks), done: done.filter(real), urgent: [...urgent] };
+    }
+    /* Trial reels (OPEN_REPAIRS 587, the owner's choice (a)): a change asked on one version keeps the card in its review
+       stage while other versions still wait for that reviewer, so the video sub-issue keeps its review status and the
+       tweak list above never sees it. The version itself is "change asked" in trial-reels until its new cut is in: such
+       a sub-issue is the editor's work, listed with the tweaks ("changes asked on Video B"). Only clients trial reels is
+       on for are asked, with one list read each; a failed read leaves them out, Today never breaks over it. */
+    async function _tdyTrialAsks(rows) {
+        const cal = (rows || []).filter(r => r.team === 'video' && r.origin === 'calendar' && r.card_id);
+        if (!cal.length) return [];
+        await Promise.race([Promise.resolve(svRsFlagsReady()).catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
+        const slugs = [...new Set(cal.map(r => r.client_slug))].filter(s => svTrialReelsOn(s));
+        const by = {};
+        await Promise.all(slugs.map(s => svTrialListShared(s, true).then(l => { by[s] = (l && l.cards) || {}; }, () => {})));
+        return cal.map(r => {
+            const card = (by[r.client_slug] || {})[r.card_id];
+            const asked = card && card.enabled ? (card.versions || []).filter(v => v.status === 'change asked').map(v => v.letter) : [];
+            return asked.length ? Object.assign({}, r, { status: 'tweak', trialAsk: asked }) : null;
+        }).filter(Boolean);
     }
 
     /* ---------- small pieces ---------- */
@@ -435,7 +458,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';
-        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id, r.origin === 'calendar' ? r.card_id : '', r.client_slug)}</div>`;
+        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' + (r.trialAsk ? ' on Video ' + _calEsc(r.trialAsk.join(', ')) : '') : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id, r.origin === 'calendar' ? r.card_id : '', r.client_slug)}</div>`;
     }
     function _tdyEditorHtml(me, d, view) {
         const q = _tdyEditorQueue(d);
@@ -447,7 +470,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             const name = d.names[r.client_slug] || r.client_slug || '';
             return head + `<div class="tdy-deck"><div class="tdy-pile"><b>${today.length}</b><span>cleared today</span></div><div class="tdy-left"><b>${q.length}</b><span>in the deck</span></div>
                 ${q.length > 2 ? '<div class="tdy-cd c3"></div>' : ''}${q.length > 1 ? '<div class="tdy-cd c2"></div>' : ''}
-                <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div>
+                <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' + (r.trialAsk ? ' on Video ' + _calEsc(r.trialAsk.join(', ')) : '') : ''}</div>
                 ${d.urgent.includes(r.id) ? '<div><span class="tdy-urg">Urgent</span></div>' : ''}${_tdyPipe(r.status)}
                 <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))}${r.origin === 'calendar' && r.card_id ? ',' + _calEscAttr(JSON.stringify(String(r.card_id))) + ',' + _calEscAttr(JSON.stringify(String(r.client_slug))) : ''})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
                 + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')

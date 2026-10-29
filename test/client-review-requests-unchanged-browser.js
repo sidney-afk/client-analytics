@@ -39,6 +39,10 @@
  * (it used to skip it, so the work item never moved). The fixture cards here take the front door or have no work
  * item, so the requests above are unchanged.
  *
+ * OPEN_REPAIRS 587 (2026-10-29): only the _calReviewRequestTweak hash was re-pinned. It takes an opt-in `keepStatus`
+ * that only a trial reels card passes (another version still waits for this reviewer): the note goes, the status stays.
+ * Without it the function runs as before, and the recorded client requests above are unchanged.
+ *
  * No request leaves the machine; every backend answer is local.
  */
 require('./helpers/single-file-index.js'); // split switch on: reads of index.html get the single-file page

@@ -337,7 +337,11 @@ a stage is finished, so every existing rule, notification and sync runs unchange
     `_kasperRequestTweakComp` with `keepStatus`: the note, but no status move, no reserved status intent, no stale-stamp
     clearing. The client's crash-safe queue (185) keeps the option for a replay.
   - **The editor's queue.** The card shows in the editor's Tweaks queue once it goes to Tweaks Needed (above). Before
-    then the change is visible as an open tweak note on the video, and the version row says "change asked".
+    then, while the card keeps its review status, the editor's Today lists the video sub-issue with the tweaks,
+    "changes asked on Video C", for as long as a version of it is "change asked" in trial-reels (`_tdyTrialAsks`, 097;
+    one list read per client trial reels is on for). It leaves once the new cut is in. Production's work item keeps
+    its review status; its Assets rows and the Calendar card say "change asked" on that version, and the note is in
+    the work item's thread. Today, like every editor list, leaves test clients out.
   - **Notifications.** The change's note raises today's comment intent (the staff comment trigger, or the client comment
     event) at once. The "needs tweaks" status intent fires when the card goes to Tweaks Needed, from a staff status
     change as today (a client's status change raises none, as today). The urgent ping is offered at Tweaks Needed, as today.

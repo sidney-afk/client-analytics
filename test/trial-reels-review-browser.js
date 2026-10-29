@@ -295,10 +295,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await inS(t.page, '[data-chg="video"]').click();
     await inS(t.page, '#ta').fill('Make the first word bigger.');
     await inS(t.page, '#sendBtn').click();
-    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'); i++) await sleep(100);
-    const chg = t.state.upserts.slice(n0).find(u => u.video_status === 'Tweaks Needed');
+    // The owner's choice (a), 2026-10-29: the note goes at once, naming the version; the card keeps Client Approval
+    // while other versions still wait for the client (OPEN_REPAIRS 587).
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => /Video C: Make the first word bigger\./.test(String(u.video_tweaks || ''))); i++) await sleep(100);
+    const chg = t.state.upserts.slice(n0).find(u => /Video C: Make the first word bigger\./.test(String(u.video_tweaks || '')));
     ok(t.T.calls.some(c => c.kind === 'change' && c.letter === 'C' && c.note === 'Make the first word bigger.') && t.T.versions[2].status === 'change asked', 'client: Ask for a change records it on Video C');
-    ok(!!chg && /Video C: Make the first word bigger\./.test(String(chg.video_tweaks || '')), 'client: and today\'s change request starts "Video C:"');
+    ok(!!chg && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'), 'client: and today\'s change request starts "Video C:", the card keeping its status while others wait');
     ok(!t.errors.length, 'client change: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 

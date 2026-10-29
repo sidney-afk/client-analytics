@@ -321,11 +321,39 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 | Client (review link) | `client_ok_at`, status `approved` | `_calReviewApprove` on the video part: the card moves to Approved |
 
 - **Approved** needs no version waiting and at least one approved (owner, Q4). All dropped: the card stays where it is.
-- **A change on one version** sends today's change request on the video part, starting "Video C:". The card goes to
-  Tweaks Needed as today and the editor works as today. When the new cut's link is pasted, only C loses its OKs and goes
-  back to `waiting`; it then takes **the normal route, the SMM and Kasper again before the client** (Q3). The card comes
-  back through For SMM Approval and Kasper Approval as today; each stage stops only on the versions that lack that
-  reviewer's OK, and the other versions keep their answers.
+- **A change on one version: the owner's choice (a), 2026-10-29, about 02:4x UTC (OPEN_REPAIRS 587).** It replaces
+  "the card goes to Tweaks Needed as today" (Trialtest's bug 1 and Trialeyes' E1 and E14: one change took every other
+  version away from the reviewer, and nothing brought the card back).
+  - **The card's status at each stage.** While another live version (not dropped, not the client's "Not this one", not
+    itself waiting for a new cut) still waits for this reviewer, the card stays at For SMM Approval, Kasper Approval or
+    Client Approval. Only the changed version waits for its new cut, and its row and dot say "change asked".
+  - **When the card moves on.** Exactly as before: once every live version has this reviewer's OK, the page calls
+    today's stage approve (SMM "Approve to Kasper", `_kasperApproveComp`, `_calReviewApprove`).
+  - **When only changed versions are left.** Once nothing waits for this reviewer and a change is open, the card goes to
+    Tweaks Needed as today, status only: the client link and the SMM's tab through `_calApplyAutoStatus` and
+    `_calFlushCardSave`, Kasper through `_kasperPersistPost`. Each change's note already went when it was asked.
+  - **The editor's change request.** At the moment of asking, the change goes to the editor as today's tweak note
+    ("Video C: …", `is_tweak`, its round, Production's native comment), through `_calReviewRequestTweak` /
+    `_kasperRequestTweakComp` with `keepStatus`: the note, but no status move, no reserved status intent, no stale-stamp
+    clearing. The client's crash-safe queue (185) keeps the option for a replay.
+  - **The editor's queue.** The card shows in the editor's Tweaks queue once it goes to Tweaks Needed (above). Before
+    then, while the card keeps its review status, the editor's Today lists the video sub-issue with the tweaks,
+    "changes asked on Video C", for as long as a version of it is "change asked" in trial-reels (`_tdyTrialAsks`, 097;
+    one list read per client trial reels is on for). It leaves once the new cut is in. Production's work item keeps
+    its review status; its Assets rows and the Calendar card say "change asked" on that version, and the note is in
+    the work item's thread. Today, like every editor list, leaves test clients out.
+  - **Notifications.** The change's note raises today's comment intent (the staff comment trigger, or the client comment
+    event) at once. The "needs tweaks" status intent fires when the card goes to Tweaks Needed, from a staff status
+    change as today (a client's status change raises none, as today). The urgent ping is offered at Tweaks Needed, as today.
+  - **The status sync and Production.** A status move goes through today's paths only (`production-write` status, the
+    native bridge onto `calendar_posts.video_status`), so the deliverable and the card never disagree. A note without a
+    status move writes no status at all. Linear is retired; nothing new reaches it.
+  - **"New cut ready" (or a new link on a changed version).** The version goes back to `waiting` with its OKs cleared
+    (as before). If the card is in Tweaks Needed and no other change is open, the card goes back to For SMM Approval
+    through today's status pick (`_calStatusPick`), so the new cut takes the normal route (Q3) while the other versions
+    keep their answers. With another change still open, the card stays in Tweaks Needed until that one's new cut is in.
+  - **A non-trial card is unchanged.** Every new branch runs only on a card whose Trial reels switch is on, for a client
+    `trial_reels_pages` lists (the test client only).
 - **Dropped** versions are skipped by every stage and by the "every version" count. **Only the team can drop** (Q2); the
   client page has no drop button. **The version on the card can be dropped too** (default awaiting the owner, 2026-10-27,
   Supervisor's call (c)): today's attach first puts the next live version's link on the card, so "on the card" moves to

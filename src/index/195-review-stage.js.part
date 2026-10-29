@@ -1,5 +1,7 @@
 import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
-import { _calComponentsFor, _calIsYouTubeCard, _calNormStatus } from './120-calendar-flags-write-repair.js';
+import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
+import { _calFlushCardSave } from './170-calendar-links-status.js';
+import { _calApplyAutoStatus } from './190-calendar-approval-comments.js';
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
@@ -9,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewKeepsCard, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -2281,7 +2283,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // "Approve all (4 waiting)": every version this reviewer has not answered, then today's approve (Probe E4).
     function _rsTrialAll(m) {
         const cur = _rsModelById(m.id) || m;
-        svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true);
+        svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true, () => _rsTrialToTweaks(_rsModelById(m.id) || cur));
     }
     function _rsMediaThumb(m) {
         const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
@@ -2569,7 +2571,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         el.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); S.menu = S.menu === b.dataset.menu ? '' : b.dataset.menu; _rsDecide(); }));
         el.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => _rsSendChange(cur(), b.dataset.frame, RS_FRAME_NOTE, { where: 'stage' })));
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
-        el.querySelectorAll('[data-pass]').forEach(b => b.addEventListener('click', () => svTrialReviewPass(cur(), R.mode, () => { const c = cur(); _rsApprove(c, 'video', '', true); })));
+        el.querySelectorAll('[data-pass]').forEach(b => b.addEventListener('click', () => svTrialReviewPass(cur(), R.mode, () => { const c = cur(); _rsApprove(c, 'video', '', true); }, () => _rsTrialToTweaks(cur()))));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
         el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
     }
@@ -3098,10 +3100,26 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         };
         setTimeout(tick, 50);
     }
+    /* Trial reels, the owner's choice (a) (OPEN_REPAIRS 587): once nothing on the card waits for this reviewer and a
+       version has a change open, the card goes to Tweaks Needed as today, status only (each change's note already went
+       to the editor when it was asked). The client link, the SMM's tab and Kasper each move it on their own path. */
+    function _rsTrialToTweaks(m) {
+        if (R.mode === 'kasper') {
+            const it = _rsItem(m);
+            if (!it || !it.post || it.post.video_status === 'Tweaks Needed') return;
+            it.post.video_status = 'Tweaks Needed';
+            it.post.status = computeOverallStatus(it.post);
+            _calClearStaleApprovals(it.post, null);
+            it.post.updated_at = new Date().toISOString();
+            _kasperPersistPost(it).then(() => _rsRender(), () => _rsRender({ force: true }));
+            return;
+        }
+        if (_calApplyAutoStatus(m.id, 'client_added', 'video')) _calFlushCardSave(m.id).then(() => _rsRender(), () => _rsRender({ force: true }));
+    }
     function _rsApprove(m, comp, how, trialDone) {
         // Trial reels (194): the version on screen is answered first; today's approve runs once the stage is done.
         if (comp === 'video' && m.trial && !m.trial.winner && !trialDone) {
-            svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); });
+            svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); }, false, () => _rsTrialToTweaks(_rsModelById(m.id) || m));
             return;
         }
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
@@ -3132,8 +3150,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // request names it ("Video C: ..."). Kasper's "Approve after tweaks" too: it says which version the editor
         // fixes (Probe rule-miss 11), and then goes on as today.
         if (comp === 'video' && m.trial && !m.trial.winner && !opts.trial) {
+            // The version the change is about: the one the box was opened on, else the one on screen (as 194 names it).
+            const about = opts.trialLetter && m.trial.versions.some(v => v.letter === opts.trialLetter) ? opts.trialLetter : svTrialReviewLetter(m, R.mode);
             const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter);
-            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true }));
+            // The owner's choice (a): while another version still waits for this reviewer, the card keeps its status.
+            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true, keepStatus: svTrialReviewKeepsCard(m, R.mode, about) }));
             return;
         }
         R.S.saved = null;
@@ -3151,11 +3172,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const it = _rsItem(m);
                 if (!it._drafts) it._drafts = { video: '', graphic: '', caption: '' };
                 it._drafts[comp] = text;
-                if (opts.aat) window._kasperApproveAfterTweaksComp(m.id, comp); else window._kasperRequestTweakComp(m.id, comp);
+                if (opts.keepStatus) window._kasperRequestTweakComp(m.id, comp, !!opts.aat, { keepStatus: true });
+                else if (opts.aat) window._kasperApproveAfterTweaksComp(m.id, comp); else window._kasperRequestTweakComp(m.id, comp);
             }
         } else {
             _calReviewState.drafts[m.id + '|' + comp] = text;
-            window._calReviewRequestTweak(m.id, comp);
+            window._calReviewRequestTweak(m.id, comp, opts.keepStatus ? { keepStatus: true } : undefined);
         }
         // A change the polish's queue sends in the background must not redraw the box under someone typing the next one.
         if (opts.quiet) _rsRender(); else _rsRender({ force: true });
@@ -3940,7 +3962,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         svTrialReviewBindTiles(el, m, R.mode, {
             approve: () => _rsApprove(cur(), 'video', ''),
             change: () => _rsStartChange('video', 'stage'),
-            all: () => svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true),
+            all: () => svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true, () => _rsTrialToTweaks(cur())),
         });
     }
     function _rsL2Render(m) {

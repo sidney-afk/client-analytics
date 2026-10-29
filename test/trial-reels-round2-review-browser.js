@@ -121,7 +121,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   // A press inside the review page's own root, found at the moment of the press (a repaint may have replaced it).
   const press = (t, sel) => t.page.evaluate(q => { const b = document.getElementById('svReviewStage').shadowRoot.querySelector(q); if (b) b.click(); return !!b; }, sel);
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
-  // TRL_PART=pass|kasper|shape|dblclick|cok runs one part (each fails on main by itself).
+  // TRL_PART=pass|kasper|shape|dblclick|cok|keepcard runs one part (each fails on main by itself).
   const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const three = () => fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
 
@@ -365,6 +365,65 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       // A version the SMM has not looked at is "with the team" on its tile, never "change asked".
       ok(/with the team/.test(tile.a) && !/change asked/.test(tile.a), `kasper tiles: a version still with the SMM says "with the team", not "change asked" ("${tile.a}")`);
       await shot(t, 'cok-kasper-tiles');
+      await t.ctx.close();
+    }
+
+    // ---------- The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a change on one version keeps the card ----------
+    // where it is while other versions still wait for this reviewer; the editor gets the note at once; the card goes to
+    // Tweaks Needed only when nothing else waits. Trialtest's bug 1 (the client, a card sent straight to the client),
+    // Trialeyes' E1 (the SMM approves A, asks a change on B) and E14 (the same on the client side), and Kasper.
+    const keepGateway = async t2 => {
+      const native = { status: 'client_approval', at: '2026-10-27T09:00:00.000Z' };
+      t2.T_native = native;
+      await t2.ctx.route('**/rest/v1/deliverables?*', route => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json',
+        body: JSON.stringify([{ id: 'del_rs1', status: native.status, status_at: native.at, updated_at: native.at }]) }));
+      await t2.ctx.route('**/functions/v1/production-write', route => {
+        let b = {}; try { b = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+        if (b.operation === 'attachment') return route.fallback();
+        const at = new Date().toISOString();
+        (t2.gw || (t2.gw = [])).push({ op: b.operation, status: b.status || '', body: b.comment ? b.comment.body : '' });
+        if (b.operation === 'status' && b.status) Object.assign(native, { status: b.status, at });
+        return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(Object.assign({ ok: true, native_committed: true, complete: true, row: { id: b.id || 'del_rs1', status: b.status, updated_at: at } },
+          b.operation === 'comment' && b.comment ? { comment: Object.assign({}, b.comment, { id: b.comment.native_comment_id, created_at: at, updated_at: at, source_created_at: at, source_updated_at: at }) } : {})) });
+      });
+    };
+    const tweaked = t => t.state.upserts.some(u => u.video_status === 'Tweaks Needed') || (t.gw || []).some(g => g.op === 'status' && g.status === 'tweak');
+    const askChange = async (t, note) => {
+      await press(t, '[data-chg="video"]');
+      await sleep(300);
+      await inS(t.page, '#ta').fill(note);
+      await inS(t.page, '#sendBtn').click();
+    };
+    for (const [mode, w, h, label, prep] of [
+      ['client', 390, 844, 'client 390 (bug 1)', vs => vs.map(v => Object.assign(v, { kasper_ok_at: null, smm_ok_at: null }))],
+      ['client', 1440, 900, 'client 1440 (E14)', vs => vs],
+      ['smm', 1440, 900, 'SMM review (E1)', vs => vs.map(v => Object.assign(v, { kasper_ok_at: null, smm_ok_at: null }))],
+      ['kasper', 1280, 860, 'kasper standard', vs => vs.map(v => Object.assign(v, { kasper_ok_at: null }))],
+    ].filter(() => part('keepcard'))) {
+      const vs = prep(three());
+      const t = await start(mode, true, vs, Object.assign({ width: w, height: h, beforeOpen: keepGateway }, mode === 'client' && label.includes('bug 1') ? { noSmm: ['A', 'B', 'C'] } : {}, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      const stage = mode === 'client' ? 'client' : mode;
+      await askChange(t, 'Fictional note: a shorter start on A.');
+      await waitFor(async () => t.T.versions[0].status === 'change asked', 50);
+      await sleep(2500);
+      const said = (t.gw || []).filter(g => g.op === 'comment').map(g => g.body).join('|') + '|' + t.state.upserts.map(u => String(u.video_tweaks || '')).join('|');
+      ok(t.T.versions[0].status === 'change asked' && /Video A: Fictional note: a shorter start on A\./.test(said), `${label}: A's change is recorded and its note goes to the editor ("Video A: ...")`);
+      ok(!tweaked(t), `${label}: while B and C still wait for this reviewer, the card stays where it is (no Tweaks Needed)`);
+      // Back to the Video step and on to B if the page moved elsewhere.
+      if (await R(t, `const b = r.querySelector('.stp[data-step="video"]'); return !!b && b.getAttribute('aria-current') !== 'step';`)) { await press(t, '.stp[data-step="video"]'); await sleep(500); }
+      if (!/Video B of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      let d = await dec(t);
+      ok(/Video B of 3/.test(d.bar) && /^Approve/.test(d.ok), `${label}: B is on screen with its own Approve ("${d.bar}" | "${d.ok}")`);
+      await press(t, '[data-ok="video"]');
+      await waitFor(async () => t.T.versions[1][stage === 'client' ? 'client_ok_at' : stage + '_ok_at'], 40);
+      await sleep(900);
+      ok(!tweaked(t), `${label}: after B, C still waits: the card still stays`);
+      if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
+      await press(t, '[data-ok="video"]');
+      await waitFor(async () => tweaked(t), 60);
+      ok(tweaked(t) && !t.state.upserts.some(u => u.video_status === 'Approved' || u.video_status === 'Kasper Approval' || u.video_status === 'Client Approval' && mode === 'smm'),
+        `${label}: with B and C answered and A's change open, the card goes to Tweaks Needed, never on to the next stage`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
 

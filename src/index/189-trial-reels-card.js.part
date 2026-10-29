@@ -566,7 +566,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             || (['on trial', 'winner', 'lost'].includes(v.status) ? 'version_on_trial' : '');
         if (bad) { _trlSay({ code: bad }, what); _trlRepaintField(pid); return; }
         const apply = s => { const x = _trlFind(s, letter); if (x) x.frame_url = link || null; return s; };
-        if (!v.on_card) return _trlOptimistic(pid, apply, () => _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what));
+        const wasChanged = v.status === 'change asked';
+        if (!v.on_card) return _trlOptimistic(pid, apply, async () => {
+            const json = await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what);
+            if (json && wasChanged) _trlBackToReview(pid, json);
+            return json;
+        });
         // The version on the card: today's path first, then the copy (the function checks they agree).
         return _trlOptimistic(pid, apply, async () => {
             const before = String(post.asset_url || '');
@@ -575,6 +580,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             catch (e) { _trlSay(e, what); return null; }
             const json = await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what);
             if (!json) await _trlAttachBack(post, before, mine, link);
+            else if (wasChanged) _trlBackToReview(pid, json);
             return json;
         });
     }
@@ -660,10 +666,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) x.status = restore ? 'waiting' : 'dropped'; return s; },
             () => _trlRun(pid, 'drop', { action: restore ? 'version_restore' : 'version_drop', letter }, what));
     }
+    /* The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a card waits in Tweaks Needed only while a version's change
+       is open. When the last one's new cut is in, the card goes back to For SMM Approval through today's status pick, so
+       the new cut takes the normal route (the SMM, then Kasper, then the client); the other versions keep their answers. */
+    function _trlBackToReview(pid, json) {
+        const post = _trlPost(pid);
+        if (!post || !json || post.video_status !== 'Tweaks Needed') return false;
+        const open = (json.versions || []).some(v => v.status === 'change asked' && !v.client_pass_at);
+        if (open || typeof window._calStatusPick !== 'function') return false;
+        window._calStatusPick(pid, 'For SMM Approval', 'video');
+        return true;
+    }
     function svTrialNewCut(pid, letter) {
         return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) x.status = 'waiting'; return s; }, async () => {
             const json = await _trlRun(pid, 'newcut', { action: 'version_new_cut', letter }, 'Video ' + letter);
-            if (json) showToast('Video ' + letter + ' goes back to the SMM, then Kasper');
+            if (json) showToast(_trlBackToReview(pid, json) ? 'Video ' + letter + ' is ready: the card goes back to the SMM' : 'Video ' + letter + ' goes back to the SMM, then Kasper');
             return json;
         });
     }

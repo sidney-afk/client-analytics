@@ -55,6 +55,12 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
     const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(obj) }).catch(() => {});
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
     if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
+    if (b.action === 'version_new_cut') {
+      const res = L.newCutPatch(T.versions, b.letter);
+      if (res.error) return reply({ ok: false, error: res.error });
+      Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+      return reply(Object.assign({ ok: true }, shape()));
+    }
     return reply({ ok: false, error: 'unknown_action' });
   });
 
@@ -167,6 +173,29 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
         ok(!page.errors.length, `${tag}: no page errors`);
         await page.close();
       }
+    }
+    // The owner's choice (a), 2026-10-29 (OPEN_REPAIRS 587): a card waits in Tweaks Needed only while a change is open.
+    // "New cut ready" on the last one sends the card back to For SMM Approval (today's status pick); with another change
+    // still open, the card stays.
+    for (const other of [false, true].filter(() => !process.env.TRL_ONLY || process.env.TRL_ONLY === 'desktop')) {
+      reset();
+      Object.assign(T.versions[0], { status: 'approved', client_ok_at: '2026-10-29T01:00:00.000Z' });
+      Object.assign(T.versions[1], other ? { status: 'change asked', change_by: 'client', change_note: 'Fictional note B' } : { status: 'approved', client_ok_at: '2026-10-29T01:00:00.000Z' });
+      Object.assign(T.versions[2], { status: 'change asked', change_by: 'client', change_note: 'Fictional note C' });
+      card.video_status = 'Tweaks Needed'; vid.status = 'tweak';
+      const page = await open(1440, 900, 'light');
+      await openList(page);
+      const u0 = S.upserts.length;
+      const row = await page.$$('.trl-list .trl-v');
+      await row[2].hover();
+      await page.click('.trl-list .trl-v:nth-child(3) .trl-ico[title="New cut ready"]');
+      await page.waitForFunction(() => true, null, { timeout: 100 }).catch(() => {});
+      await sleep(2500);
+      const moved = S.upserts.slice(u0).some(u => u.post && u.post.video_status === 'For SMM Approval') || vid.status === 'smm_approval';
+      if (!other) ok(T.versions[2].status === 'waiting' && moved, `new cut: the last open change's new cut sends the card back to For SMM Approval (deliverable ${vid.status})`);
+      else ok(T.versions[2].status === 'waiting' && !moved, `new cut: with B's change still open, C's new cut leaves the card in Tweaks Needed (deliverable ${vid.status})`);
+      card.video_status = 'For SMM Approval'; vid.status = 'smm_approval';
+      await page.close();
     }
     // chart.js (loaded async from the same CDN as the realtime library on every page) lands after the card joined the
     // trial-reels channel, as on a slow first boot on CI (#2418): the card still hears a client's change.

@@ -482,6 +482,18 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   ok(again.body.ok === true && v("A").status === "winner" && tables.trial_reel_cards[0].winner_letter === "A" && again.body.winner_letter === "A",
     "the next read makes A the winner (" + v("A").status + ", winner " + tables.trial_reel_cards[0].winner_letter + ")");
 }
+// A card already stuck by the old order (a "winner" row, no card winner): the next read heals it.
+{
+  for (const r of tables.studio_trial_versions) {
+    Object.assign(r, r.letter === "A"
+      ? { status: "winner", posted_at: "2026-10-29T10:00:00.000Z", trial_ends_at: null, client_pass_at: null, frame_url: "https://f.io/fixture-one" }
+      : { status: "dropped", posted_at: null, trial_ends_at: null });
+  }
+  tables.trial_reel_cards[0].winner_letter = null;
+  const healed = await step({ action: "read" });
+  ok(healed.body.ok === true && tables.trial_reel_cards[0].winner_letter === "A" && healed.body.winner_letter === "A" && v("A").status === "winner",
+    "a card already stuck (winner row, no card winner) is healed by the next read (winner " + tables.trial_reel_cards[0].winner_letter + ")");
+}
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

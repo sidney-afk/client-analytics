@@ -35440,5 +35440,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix:** the card's winner is written first.
   - A refused write now leaves nothing done, and the next read tries again.
   - A version write refused after it still reads as the winner, because the card's letter decides.
-- **Proven:** `test/trial-reels-function-deno.ts` refuses the card's write once. Without the fix, A stays "winner" with no card winner on both reads. With it, the first read leaves A approved and the next one makes A the winner, card and row (88 checks). The Deno type ratchet holds.
+- **And the next read heals a card already stuck (the Supervisor's ask):** `autoTrialPatches` (logic.mjs) takes a Posted card whose one live version reads on trial with no 24 h end and makes it the winner (card and row). A real trial, with its 24 h end, is left alone.
+- **Proven (the heal):** `test/trial-reels-logic.js` (the stuck card and a real trial) and the function test, which seeds a winner row with no card winner and checks the next read writes card winner A. Both fail on main.
+- **Proven:** `test/trial-reels-function-deno.ts` refuses the card's write once. Without the fix, A stays "winner" with no card winner on both reads. With it, the first read leaves A approved and the next one makes A the winner, card and row (89 checks with the heal). The Deno type ratchet holds.
 - **Way back:** revert the PR; the merge lane redeploys trial-reels from main.

@@ -1887,6 +1887,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-strip-tabs-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Checks the client link's header and strip at 1440, 1024, 768, 430, 390 and 320 wide, light and dark: a picked post is wholly inside the strip, every tab's words and count sit inside its own button, the open step is inside the step bar, and no sideways page scroll.",
+      "reproduce": "node test/review-stage-client-strip-tabs-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-client-end-words-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2316,6 +2324,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the owner's third trial-reels round on the staff card: a client's change reaches the open card through the trial-reels broadcast (one fixed channel, a 12-hex hash of the card only) in under 2 s reading only that card, every version row saying its state with who said it per stage in the hover, Client dropped, small-radius tags, no Start the 24 h link, a minimal + Add version that opens the paste field, and the row's pencil then Escape keeping exactly one versions list, at 1440 and 390, light and dark.",
       "reproduce": "node test/trial-reels-round3-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-nightreel-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks four findings of session Nightreel's live walk on the review page: the client's Not this one on the last version open to them while another waits for its new cut (the card goes to Tweaks Needed) still says Not this one, never that it waits for the editor; the SMM's Review tab lists a card in Tweaks Needed while a new cut waits for the SMM and the SMM's approve sends it on to Kasper with the other change still open; Kasper's Client dropped tile label is whole; and an undated card's header has no stray dot before First review, at 1440 and 390, light and dark.",
+      "reproduce": "node test/trial-reels-nightreel-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

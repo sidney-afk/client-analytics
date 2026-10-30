@@ -259,7 +259,19 @@ async function kasperJourney(t, label) {
     for (const profile of profiles.filter(p => !process.env.PHONE_ONLY || p === process.env.PHONE_ONLY)) {
       const engine = profile.startsWith('iPhone') ? 'webkit' : 'chromium';
       if (process.env.PHONE_ENGINE && engine !== process.env.PHONE_ENGINE) continue;
-      const browser = browsers[engine] ||= await ({ webkit, chromium })[engine].launch();
+      if (!browsers[engine]) {
+        browsers[engine] = await ({ webkit, chromium })[engine].launch();
+        /* One untimed load per engine before the measured cases: a cold engine compiles the whole page on its first
+           load, which cost the first case 9.5 to 11.4 s of its 10 s waits on CI (and timed out once on WebKit at 320 px,
+           PR 2463) while every later case took about 4.5 s. The waits and checks of every case stay as they are. */
+        const w = await open(browsers[engine], origin, { phone: true, flags: 'on', stage: 'client', context: { ...devices[profile], colorScheme: 'light' } });
+        try {
+          await w.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' }), { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await w.page.waitForFunction(() => !!document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.app'), null, { timeout: 60000 });
+        } catch (e) { console.log('WARMUP ' + engine + ': ' + String(e && e.message || e).slice(0, 160)); }
+        finally { await w.ctx.close(); }
+      }
+      const browser = browsers[engine];
       for (const role of ['client', 'kasper'].filter(r => !process.env.PHONE_ROLE || r === process.env.PHONE_ROLE)) for (const theme of ['light', 'dark'].filter(c => !process.env.PHONE_THEME || c === process.env.PHONE_THEME)) {
         const label = `${engine}/${profile}/${role}/${theme}`;
         console.log('RUN ' + label);

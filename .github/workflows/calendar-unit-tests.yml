@@ -495,6 +495,7 @@ jobs:
           Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
           Trial reels round 3 on the card: a client's change shows at once (the broadcast), every row says its state, Client dropped, small tags, + Add version, one list after the pencil and Escape|node test/trial-reels-round3-card-browser.js
           Trial reels on the editor's Today: a version asked to change while the card keeps its review stage is listed with the tweaks, and leaves once the new cut is in|node test/trial-reels-today-browser.js
+          Trial reels, Nightreel's live walk: Not this one stays said in Tweaks Needed, the SMM gets a new cut in Tweaks Needed, Kasper's Client dropped tile and undated header|node test/trial-reels-nightreel-browser.js
           LANES
 
 
@@ -546,6 +547,7 @@ jobs:
           Review page owner feedback round 7 (Kasper list button and one-row heading, Notify client by the menu, play buttons autoplay, Analytics hidden behind analytics_hidden)|node test/review-stage-curtain-seven-browser.js
           The client review page, finishing touches (Finish waits while saving, plain not-saved words, speed button, opens on Review, thumbnails open the viewer, words kept across a reload)|node test/review-stage-finish-polish-browser.js
           Client link as one page under the new review header (one header on every tab, no Analytics, no frame, Frame.io player on the video step)|node test/review-stage-client-layout-browser.js
+          Client link header and strip on every width (a picked post wholly in the strip, phone tabs keep their count inside, the open step in view at 320)|node test/review-stage-client-strip-tabs-browser.js
           Client link end state, a held answer and a quoted caption (no lone divider, offline names the connection, caption edit keeps its lines)|node test/review-stage-client-end-words-browser.js
           Review page first switch, chat and update bar (old list never paints on the first Sheet to Review, phone-style conversation, bar clear of the stage buttons)|node test/review-stage-chat-switch-browser.js
           Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)|node test/review-stage-staff-layout-browser.js

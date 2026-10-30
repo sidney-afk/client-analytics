@@ -195,13 +195,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialReviewChangeHtml(m, mode, partSt) {
         if (!m || !m.trial || m.trial.winner) return '';
         const cur = _trvCurOf(m, mode), stage = _trvStage(mode), a = _trvAnswer(cur, stage), L = _calEsc(cur.letter);
-        /* The card's video part is Approved (the other versions carried it): a version the client said "Not this one"
-           to keeps saying so on its own screen, never the card's "Approved" (Trialeyes E10, 2026-10-29). */
-        if (partSt === 'ok') {
-            if (a === 'pass') return '<span class="dst">Not this one: the team will take Video ' + L + ' out</span>';
-            if (a === 'cpass') return '<span class="dst">Client dropped Video ' + L + ': take it off the card</span>';
-            return '';
+        /* A version the client said "Not this one" to keeps saying so on its own screen, never the card's "Approved"
+           (Trialeyes E10, 2026-10-29) and never "waits: the card is with the editor" when the card went to Tweaks Needed
+           for another version's new cut (Nightreel, 2026-10-30). */
+        if (a === 'pass') return '<span class="dst">Not this one: the team will take Video ' + L + ' out</span>';
+        if (a === 'cpass') return '<span class="dst">Client dropped Video ' + L + ': take it off the card</span>';
+        /* The part reads as answered (the client's: nothing waits for them while a version is still with the team; the
+           team's: the card is further on), but this version waits for its new cut: its own "Change asked", never
+           "Approved · Change my mind" over a change just sent (Nightreel, 2026-10-30). */
+        if (partSt === 'ok' && cur.status === 'change asked') {
+            const re = new RegExp('^Video ' + cur.letter + ':\\s*');
+            const last = (m.thread || []).filter(t => t.part === 'video' && t.change && re.test(t.text)).slice(-1)[0];
+            const q = String(cur.change_note || '') || (last ? last.text.replace(re, '') : '');
+            return '<span class="dst chg"><span class="ck chg">' + TRV_BACK + '</span>Change asked on Video ' + L + '</span>' + (q ? '<span class="dq" title="' + _calEscAttr(q) + '">' + _calEsc(q) + '</span>' : '');
         }
+        if (partSt === 'ok') return '';
         if (cur.status === 'change asked') return '';
         const asked = m.trial.versions.filter(v => v.status === 'change asked').map(v => 'Video ' + _calEsc(v.letter));
         const who = asked.length ? asked.join(' and ') + (asked.length > 1 ? "'s changes are" : "'s change is") + ' with the editor' : 'the card is with the editor';
@@ -235,6 +243,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return false;
         const a = _trvAnswer(_trvCurOf(m, mode), _trvStage(mode));
         return a === 'pass' || a === 'cpass';
+    }
+    /* Every live version already has this reviewer's answer, yet the card is still at their status: the version answer
+       landed and today's stage approve after it did not (the tab closed or reloaded in between, or the second save was
+       lost). The plan's risk 1: the stage offers that save again, or the card would sit there with nothing to press
+       (Nightreel, 2026-10-30: a reload 150 ms after the SMM's last approve). The caller checks the card's status. */
+    function svTrialReviewBehind(m, mode) {
+        // Never while this page's own answer is on its way: the stage approve follows it by itself.
+        if (!m || !m.trial || m.trial.winner || _trvBusy.has(m.id) || _trvChain[m.id]) return false;
+        const stage = _trvStage(mode);
+        const all = (m.trial.shape && Array.isArray(m.trial.shape.versions)) ? m.trial.shape.versions : m.trial.versions;
+        const live = (all || []).filter(v => _trvLive(v) && !v.client_pass_at);
+        if (!live.length || live.some(v => _trvAnswer(v, stage) === 'wait')) return false;
+        if (stage === 'client') return live.every(v => _trvAnswer(v, 'client') === 'ok');
+        // As the function's stageDone: nothing waits here, and one version not out for a change has this reviewer's OK.
+        return live.some(v => v.status !== 'change asked' && _trvAnswer(v, stage) === 'ok');
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
@@ -627,7 +650,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .ql-r .trv-vn{color:var(--pd-video);font-weight:600;white-space:nowrap}
 .trk-all svg{width:13px;height:13px}
 .trk-all[disabled]{opacity:.6;cursor:default}
-.trk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+/* 136 px holds "Client dropped" beside its Drop button on one line (Nightreel, 2026-10-30: it read "Client dropp…"). */
+.trk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:8px}
 .trk-v{display:flex;flex-direction:column;gap:5px;border:1px solid var(--border);border-radius:10px;padding:5px;background:var(--surface-raised)}
 .trk-v.cur{border-color:var(--text-primary);box-shadow:0 0 0 1px var(--text-primary)}
 .trk-go{display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}
@@ -650,7 +674,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trk-nm .trv-cok{font-size:.6rem;padding:1px 4px}
 .trk-go:has(.trv-cok){gap:5px}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
-.trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.trk-lab[data-l="passed"]{background:var(--fill);color:var(--text-secondary);white-space:nowrap;font-size:.66rem;padding:2px 6px}
 .trk-acts:has(>.trk-lab[data-l="passed"]){justify-content:space-between}
 .trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
 .trv-under{flex-direction:column;gap:6px;padding:10px 0 2px;min-height:0}
@@ -684,5 +708,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
+  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
 };

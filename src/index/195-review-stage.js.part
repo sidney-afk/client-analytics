@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -629,6 +629,12 @@ svg{display:block;flex-shrink:0}
 .bigthumb .tframe a svg{width:16px;height:16px;flex:none}
 .help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;text-decoration:none;transition:background .14s,color .14s}
 .help-btn:hover{background:var(--fill-hover);color:var(--text-primary)}
+/* A phone's tabs share the row by what they hold: with equal shares the "Review" tab's count spilled out of its pill
+   (390 wide) and into "Sheet" (320 wide). Narrower than 360 the four tabs and the two round buttons cannot share one
+   row, so "?" and the sun/moon button join the name's row as their own columns, after the slotted calendar tools
+   (the phone's More button on Sheet, Month and Week), and the tabs get the whole second row; a long name ends in
+   "..." (OPEN_REPAIRS 612; the narrow rules sit after the phone header grid below). */
+@media (max-width:860px){.cal-view-btn{flex:1 1 auto}}
 .split{position:relative;display:inline-flex;flex-shrink:0}
 .split>.b-ok{padding-right:54px}
 .split>.sarr{position:absolute;right:0;top:0;bottom:0;width:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:0 11px 11px 0;color:var(--okb-fg);box-shadow:inset 1px 0 0 var(--okb-line);transition:background .14s}
@@ -735,6 +741,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
 }
+/* Narrower than 360: the round buttons join the name's row (see the tabs note above, OPEN_REPAIRS 612). */
+@media (max-width:360px){
+.rs.client .hdr{grid-template-columns:minmax(0,1fr) auto auto auto}
+.rs.client .hdr-r{display:contents}
+.rs.client .hdr-r .tabs{grid-column:1/-1;grid-row:2}
+.rs.client .hdr-r .help-btn{grid-column:3;grid-row:1}
+.rs.client .hdr-r .theme-btn{grid-column:4;grid-row:1}
+.rs.client .hdr-who{flex-wrap:wrap;row-gap:0}
+}
 /* Kasper (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip opens with a small list button (the
    count as a badge) whose panel lists his sections; the post's heading is one row; the round sits beside the date. */
 .strip{position:relative}
@@ -769,6 +784,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .sd-t h2 .tag{vertical-align:3px;margin-left:8px}
 .sdate .sdn{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .sdate .sdn::before{content:'·';opacity:.7}
+/* No date: the round (or the ping) leads, with no dot before it (Nightreel, 2026-10-30). */
+.sdate .sdn:first-child::before{content:none}
 .sdate .sdn.flag{color:var(--urgent)}
 .sdate .sdn.flag svg{width:12px;height:12px;opacity:1}
 .rs.in-kasper .sdate{max-width:34%;overflow:hidden}
@@ -1041,7 +1058,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
-.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-8px;right:-6px;width:20px;height:20px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;box-shadow:none;color:var(--text-secondary);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:11px;height:11px}
@@ -1349,7 +1366,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
            the card is with the client); the client's part waits only for versions that have come through the team. */
         if (comp === 'video' && !(item && item._sxr)) {
             const w = svTrialStageWaits(post, mode);
-            if (w === true && mode === 'smm' && (s === 'Kasper Approval' || s === 'Client Approval')) return { st: 'wait' };
+            /* Tweaks Needed too: a version's new cut while another version's change is still open leaves the card there,
+               and the SMM is the next to look at that cut (Nightreel, 2026-10-30: the toast said "goes back to the SMM",
+               and the SMM's Review tab never listed it). */
+            if (w === true && mode === 'smm' && (s === 'Kasper Approval' || s === 'Client Approval' || s === 'Tweaks Needed')) return { st: 'wait' };
             if (w === true && mode === 'kasper' && s === 'Client Approval' && !(item && item._rsSec === 'tweaks')) return { st: 'wait' };
             if (w === false && mode === 'client' && s === 'Client Approval') return { st: 'ok', when: '' };
         }
@@ -1517,7 +1537,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             if (sec === 'tweaks') { m.note = p.kasper_finished_at ? 'With the editors since ' + _rsWhen(p.kasper_finished_at) : 'With the editors'; m.since = _rsSince(p.kasper_finished_at); }
             else {
-                const rounds = m.thread.filter(x => x.change && x.role === 'kasper').length;
+                /* A trial card stays with Kasper after his change on one version, so a change he asked since the card reached
+                   its status is this sitting's, not a round the card came back from: it never turns "First review" into
+                   "Back after tweaks, round 2" while he is still on it (Nightreel, 2026-10-30). */
+                const kch = m.thread.filter(x => x.change && x.role === 'kasper');
+                let rounds = kch.length;
+                if (m.trial && !m.trial.winner) {
+                    /* Each version's change is its own note, so changes on A and B in one sitting are one round, not two
+                       (Nightreel: "round 3" after his first round): video changes less than 30 minutes apart count once. */
+                    const since = Date.parse(p.video_status_at || '');
+                    const at = kch.filter(x => x.part === 'video').map(x => Date.parse(x.at)).filter(n => n > 0 && !(since > 0 && n >= since)).sort((a, b) => a - b);
+                    let sittings = 0, last = -Infinity;
+                    at.forEach(n => { if (n - last > 30 * 60000) sittings++; last = n; });
+                    rounds = kch.filter(x => x.part !== 'video').length + sittings;
+                }
                 m.note = rounds ? 'Back after tweaks, round ' + (rounds + 1) : (m.sample ? 'Sample' : 'First review');
             }
             out[sec].push(m);
@@ -2121,7 +2154,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const c = sl.querySelector('.cur');
         const curId = cur ? cur.id : null, moved = R.stripCur !== curId;
         R.stripCur = curId;
-        if (c && moved) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
+        // Measured from the strip itself: offsetLeft counts from the strip's parent, so the "N waiting for you" label's
+        // width was added and a picked post landed with its picture hidden off the left edge (OPEN_REPAIRS 612).
+        if (c && moved) {
+            const l = c.getBoundingClientRect().left - sl.getBoundingClientRect().left + sl.scrollLeft, r = l + c.offsetWidth;
+            if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40);
+        }
         _rsStripEdge();
     }
     function _rsStripEdge() {
@@ -2201,8 +2239,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return (i ? '<li class="ln' + (prev.st === 'ok' ? ' ok' : '') + '" aria-hidden="true"></li>' : '')
                 + '<li><button class="stp' + (on ? ' on' : '') + _rsStCls(x) + '" type="button" data-step="' + x.key + '" style="' + _rsPv(x.key) + '" aria-current="' + (on ? 'step' : 'false') + '" title="' + RS_PART[x.key] + ', ' + label + '"><span class="sd">' + mark + '</span>' + RS_PART[x.key] + sv + '</button></li>';
         }).join('');
-        if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) return;
+        if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) { _rsStepInView(m); return; }
         _rsQ('stepper').querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => _rsSetStep(b.dataset.step)));
+        _rsStepInView(m);
+    }
+    // The open step comes into view where the step bar scrolls sideways (a phone): at 320 wide "Caption" opened cut
+    // off at the right edge (session Nightclient, OPEN_REPAIRS 612). Only when the open step changes, so a later
+    // redraw never undoes the client's own swipe along the bar.
+    function _rsStepInView(m) {
+        const st = _rsQ('stepper'), on = st && st.querySelector('.stp.on');
+        const at = on ? (m && m.id || '') + '|' + on.dataset.step : '';
+        if (!on || at === R.stepInView) return;
+        R.stepInView = at;
+        if (st.scrollWidth <= st.clientWidth) return;
+        const sb = st.getBoundingClientRect(), b = on.getBoundingClientRect();
+        if (b.left < sb.left) st.scrollLeft -= sb.left - b.left + 8;
+        else if (b.right > sb.right) st.scrollLeft += b.right - sb.right + 8;
     }
     // One soft glow on the next part to answer, the first time the page shows, and never again in this visit.
     function _rsHint(m) {
@@ -2476,6 +2528,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
         // at once; a refused save puts the part back and says so (speed pass, session Swift).
         const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : (trialWord || 'Approve the ' + n);
+        /* A trial card's SMM approve always goes to Kasper (plan, per-version routing), so the SMM's "Approve to client" is
+           not offered on its video: it read "client" and did what "Approve to Kasper" does (Nightreel, 2026-10-30). The
+           status menu still sends a whole card to the client. */
+        const cur0 = _rsCur();
+        if (R.mode === 'smm' && k === 'video' && cur0 && cur0.trial && !cur0.trial.winner) {
+            return '<button class="b-ok' + (busy === 'ok' ? ' busy' : '') + '" type="button" data-ok="' + k + '"' + _rsBusyAttr(busy, busy === 'ok') + '>' + (busy === 'ok' ? RS_SPIN : RI.check) + label + '</button>';
+        }
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';
@@ -2491,7 +2550,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const n = _rsLname(x.key);
         if (R.cp && (busy === 'ok' || busy === 'client')) return _rsCpMorph(x, 0);
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
-        const trialWord = x.key === 'video' ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
+        /* Every version is answered but the card did not move on (svTrialReviewBehind): on a version this reviewer approved,
+           today's approve on the video part, with a line saying why it is there. A version passed on or out for a change
+           keeps saying so. */
+        const behind = x.key === 'video' && x.st === 'wait' && svTrialReviewAnswered(_rsCur(), R.mode) && svTrialReviewBehind(_rsCur(), R.mode);
+        const trialWord = x.key === 'video' && !behind ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
+        if (behind && !busy) return '<span class="dst ok trv-behind"><span class="ck">' + RI.check + '</span>' + (R.mode === 'client' ? 'You approved every version' : 'Every version is approved') + '</span>'
+            + (R.mode === 'client' ? '<button class="b-ok" type="button" data-ok="' + x.key + '">' + RI.check + 'Approve the ' + n + '</button>' : _rsSplit(x, busy, ''));
         // A version the SMM has not looked at yet: nothing to answer here (Probe rule-miss 13).
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
@@ -2571,7 +2636,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const settled = !saving || (R.cp && S.cpOk[ck] && x.st === 'ok');
         // That version's own state colours the row: approved green, waiting plain, never the other version's change.
         const trv = (x.st === 'chg' || x.st === 'ok') && x.key === 'video' && !S.editing && !saving && svTrialReviewChangeHtml(m, R.mode, x.st);
-        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : '', saving };
+        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : /dst chg/.test(trv) ? ' is-chg' : '', saving };
         const dc = cpOk ? ' cp-checking' : x.st === 'ok' && d && !S.editing && settled ? ' is-ok' + (R.cp && S.cpOk[ck] ? ' cp-settle' : '') : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         return { d, dc, saving };
     }
@@ -3191,7 +3256,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsApprove(m, comp, how, trialDone) {
         // Trial reels (194): the version on screen is answered first; today's approve runs once the stage is done.
-        if (comp === 'video' && m.trial && !m.trial.winner && !trialDone) {
+        if (comp === 'video' && m.trial && !m.trial.winner && !trialDone && !svTrialReviewBehind(m, R.mode)) {
             // This page answered it: when the part stops waiting, it never reads "Approved in another window" (Trialtest,
             // live on PR 2452: Kasper's own Approve on a tile, with the card already with the client).
             R.S.acted.add(m.id + '|' + comp);
@@ -3202,7 +3267,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
         // (Try again after a refused save still goes: the part reads as approved there, with its error.)
         const fresh = _rsModelById(m.id), fx = fresh && fresh.parts.find(p => p.key === comp);
-        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp))) { _rsRender({ force: true }); return; }
+        /* The SMM's last version on a trial card in Tweaks Needed (another version's change still open): its answer just
+           finished the SMM's stage, so the part no longer waits, yet the card goes on to Kasper (Nightreel, 2026-10-30). */
+        const trialOn = trialDone && comp === 'video' && R.mode === 'smm' && fx && fx.st === 'chg' && fresh.post && fresh.post.video_status === 'Tweaks Needed';
+        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp) && !trialOn)) { _rsRender({ force: true }); return; }
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];   // an earlier refused caption edit must not stand in for this save's own result
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
@@ -3570,8 +3638,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         if (k && R.mode === 'client' && x && x.st === 'ok') {
-            // Change my mind on an approved part (client link): a note to the team on that part.
-            _rsSendNoteTo(m, k, t, vis);
+            // Change my mind on an approved part (client link): a note to the team on that part. On a trial card it names
+            // the version it was written on, as every trial note does (Nightreel, 2026-10-30: "w15 changed my mind" went
+            // to the team with no version).
+            const named = trialLetter && m.trial && !m.trial.winner && !/^Video [A-G]:/.test(t) ? 'Video ' + trialLetter + ': ' + t : t;
+            _rsSendNoteTo(m, k, named, vis);
             _rsFlash('Sent to your team', k);
             _rsRender({ force: true });
             return;

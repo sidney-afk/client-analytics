@@ -769,6 +769,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .sd-t h2 .tag{vertical-align:3px;margin-left:8px}
 .sdate .sdn{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .sdate .sdn::before{content:'·';opacity:.7}
+/* No date: the round (or the ping) leads, with no dot before it (Nightreel, 2026-10-30). */
+.sdate .sdn:first-child::before{content:none}
 .sdate .sdn.flag{color:var(--urgent)}
 .sdate .sdn.flag svg{width:12px;height:12px;opacity:1}
 .rs.in-kasper .sdate{max-width:34%;overflow:hidden}
@@ -1041,7 +1043,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
-.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.trv-sent{margin:0 0 6px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-8px;right:-6px;width:20px;height:20px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;box-shadow:none;color:var(--text-secondary);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:11px;height:11px}
@@ -1347,7 +1349,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
            the card is with the client); the client's part waits only for versions that have come through the team. */
         if (comp === 'video' && !(item && item._sxr)) {
             const w = svTrialStageWaits(post, mode);
-            if (w === true && mode === 'smm' && (s === 'Kasper Approval' || s === 'Client Approval')) return { st: 'wait' };
+            /* Tweaks Needed too: a version's new cut while another version's change is still open leaves the card there,
+               and the SMM is the next to look at that cut (Nightreel, 2026-10-30: the toast said "goes back to the SMM",
+               and the SMM's Review tab never listed it). */
+            if (w === true && mode === 'smm' && (s === 'Kasper Approval' || s === 'Client Approval' || s === 'Tweaks Needed')) return { st: 'wait' };
             if (w === true && mode === 'kasper' && s === 'Client Approval' && !(item && item._rsSec === 'tweaks')) return { st: 'wait' };
             if (w === false && mode === 'client' && s === 'Client Approval') return { st: 'ok', when: '' };
         }
@@ -1515,7 +1520,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             if (sec === 'tweaks') { m.note = p.kasper_finished_at ? 'With the editors since ' + _rsWhen(p.kasper_finished_at) : 'With the editors'; m.since = _rsSince(p.kasper_finished_at); }
             else {
-                const rounds = m.thread.filter(x => x.change && x.role === 'kasper').length;
+                /* A trial card stays with Kasper after his change on one version, so a change he asked since the card reached
+                   its status is this sitting's, not a round the card came back from: it never turns "First review" into
+                   "Back after tweaks, round 2" while he is still on it (Nightreel, 2026-10-30). */
+                const since = m.trial && !m.trial.winner ? Date.parse(p.video_status_at || '') : NaN;
+                const rounds = m.thread.filter(x => x.change && x.role === 'kasper' && !(since > 0 && x.part === 'video' && Date.parse(x.at) >= since)).length;
                 m.note = rounds ? 'Back after tweaks, round ' + (rounds + 1) : (m.sample ? 'Sample' : 'First review');
             }
             out[sec].push(m);
@@ -3196,7 +3205,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
         // (Try again after a refused save still goes: the part reads as approved there, with its error.)
         const fresh = _rsModelById(m.id), fx = fresh && fresh.parts.find(p => p.key === comp);
-        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp))) { _rsRender({ force: true }); return; }
+        /* The SMM's last version on a trial card in Tweaks Needed (another version's change still open): its answer just
+           finished the SMM's stage, so the part no longer waits, yet the card goes on to Kasper (Nightreel, 2026-10-30). */
+        const trialOn = trialDone && comp === 'video' && R.mode === 'smm' && fx && fx.st === 'chg' && fresh.post && fresh.post.video_status === 'Tweaks Needed';
+        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp) && !trialOn)) { _rsRender({ force: true }); return; }
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];   // an earlier refused caption edit must not stand in for this save's own result
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };

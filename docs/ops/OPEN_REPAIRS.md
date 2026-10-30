@@ -35553,3 +35553,32 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **CI:** `entry-links-boot` part 3 already took 14 min 35 s of its 15 on main 19d0665 and went over on this branch (cancelled at the limit twice with every suite passed). Its 5-minute `trial-reels-round2-review-browser.js` moves to part 1, which takes about 7 minutes (`test/ci-shards-wired.js` passes).
 - **Left alone on purpose:** the five rows in `syncview_runtime_flags` (the supervisor deletes them after the merge is live; the code does not read them).
 - **Way back:** revert the PR; the rows still say `{ "all": true }` until they are deleted, so a revert before then changes nothing anyone sees.
+
+## 613. [2026-10-30 UTC, BUILT, NOT MERGED] Trial reels: six findings from session Nightreel's live walk (a new cut the SMM never saw, "Not this one" said wrong, Kasper's header and tiles, the SMM's phone Review tab)
+
+- **What happened (session Nightreel, live on the test client, throwaway trial cards, 1440 and 390, light and dark):**
+  - **A new cut stuck behind Tweaks Needed.** Two versions, both asked for a change at the SMM stage, so the card went to Tweaks Needed. A's new cut came in while B's change was still open, so the card stayed in Tweaks Needed (as the plan says). The toast said "Video A goes back to the SMM, then Kasper", but the SMM's Review tab never listed the card, so A could go nowhere until B's cut came too. The plan says the Review tab lists a card while a version waits for the SMM, whatever the card's status.
+  - **"Not this one" said as "waits".** On the client link, the client approved A and said "Not this one" to C while B waited for its new cut. Nothing waited for the client, so the card went to Tweaks Needed (as planned). C's own screen then read "Video C waits: the card is with the editor" instead of "Not this one: the team will take Video C out".
+  - **Kasper's header changed under him.** On a trial card his change on one version keeps the card with him. The header then read "Back after tweaks, round 2" while he was still in his first review. It counted his own change of a minute ago as a round the card had come back from.
+  - **"Change sent for Video B" sat at the stage's left edge** in Kasper's standard layout and on the client link, while the version name, dots and buttons around it are centred.
+  - **Kasper's second layout cut a tile's label to "Client dropp…"** (118 px tiles, the label beside its Drop button).
+  - **A stray "·" before "First review"** in Kasper's header on a card with no date (both layouts).
+  - **The SMM's Review tab on a staff phone opened on an empty screen.** The review started one whole screen lower, so the SMM had to scroll to find it. Every card was affected, not only trial cards. A staff-phone rule gives the Calendar's box the screen's height for its thumbnail collection, and on Review only the box's bar shows.
+- **Fix:**
+  - **(195)** The SMM's video part waits on a trial card in Tweaks Needed while a version waits for the SMM. When the SMM's answer finishes the SMM's stage there, today's SMM approve sends the card on to Kasper. B's change request stays open (the keep-letters path, as at For SMM Approval). This is per-version routing: Kasper gets A while B is out for its change.
+  - **(194)** A version the client passed on says "Not this one" (the client) or "Client dropped" (the team) on its own screen in every card state.
+  - **(195)** On a trial card, Kasper's changes on the video since the card reached its status are not counted as rounds.
+  - **(195)** The "Change sent" line is centred.
+  - **(194)** Tiles are at least 136 px, and the "Client dropped" label is never cut.
+  - **(195)** The first `.sdn` in the header has no dot.
+  - **(188)** On the staff Review tab the Calendar's box takes its bar's height.
+- **Proven:** `test/trial-reels-nightreel-browser.js` (new, offline fixture, logic.mjs answers). Parts `passtweaks`, `smmtweaks`, `kround`, `tile`, `sdate` and `phonesmm` each fail on main as seen live: "Video C waits: the card is with the editor"; no card on the SMM's Review tab; "round 3" for "round 2"; the line's centre at 125 px against the stage's 530 px; a label 90 px wide in an 88 px box; `::before` "·"; the review top at 844 px on an 844 px screen. All 46 checks pass with the fix. Also passing: `trial-reels-review-browser.js` (75), `trial-reels-round2-review-browser.js` (230), `review-stage-browser.js`, `phone-collection-bottom-gap-browser.js`, `calendar-refresh-scroll-browser.js`, `staff-phone-css-scope.js` and `staff-phone-rules-source.js`. `review-stage-phone-browser.js` needs WebKit, which this container does not have, so CI runs it.
+- **Live timings on the test client (same walk; from the click to the database or the screen):**
+  - trial switch on 0.14 to 0.24 s;
+  - adding a version's link 0.8 to 1.3 s (the first one 4.5 to 5.3 s, as it also puts the link on the card through Production);
+  - a stage move 1.6 to 3.9 s (the SMM's last answer to Kasper Approval, Kasper's to Client Approval, the client's to Approved or Tweaks Needed);
+  - New cut ready to For SMM Approval 2.75 s;
+  - Posted to "On trial" on the card 6.7 s;
+  - the winner's Undo toast 4.4 s after the click (the winner shows at once, then the card's link is attached);
+  - Undo 3.4 s.
+- **Way back:** revert the PR.

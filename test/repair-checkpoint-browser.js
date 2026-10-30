@@ -18,7 +18,7 @@ const names = ['_writeUiRepairJournalRead', '_writeUiRepairEvictDisplayCaches', 
   '_writeUiMarkRepairCommitted', '_writeUiRepairCompanions', '_writeUiDiscardSourceRepairUnlocked',
   '_writeUiDiscardSourceRepair', '_writeUiCompleteSourceRepairRefsUnlocked', '_writeUiCompleteSourceRepairRefs',
   '_writeUiGatewayWithRepair', '_writeUiRepairRecordForIntent', '_writeUiRepairGroups'];
-for (const name of ['_writeUiWithRepairFlight', '_writeUiGatewayWithRepairOwned']) {
+for (const name of ['_writeUiWithRepairFlight', '_writeUiGatewayWithRepairOwned', '_writeUiFreeRebuildableStorage']) {
   if (source.includes('function ' + name + '(')) names.push(name);
 }
 const helpers = names.map(n => (source.includes('async function ' + n + '(') ? 'async ' : '') + extractFunction(source, n)).join('\n');
@@ -52,7 +52,7 @@ ${helpers}
         const ctx = await browser.newContext();
         const a = await ctx.newPage(), b = await ctx.newPage();
         for (const page of [a,b]) { await page.route('**/checkpoint-test', r=>r.fulfill({contentType:'text/html',body:'<!doctype html><title>Checkpoint fixture</title>'})); await page.goto(origin + '/checkpoint-test'); await page.evaluate(setup); }
-        for (const mode of ['background', 'cleared', 'companion', 'cleanup-during-flight', 'overlap', 'quota', 'read-blocked', 'reload', 'postcommit-quota', 'missing-unproven', 'recovery-storage-clear']) {
+        for (const mode of ['background', 'cleared', 'companion', 'cleanup-during-flight', 'overlap', 'quota', 'read-blocked', 'reload', 'postcommit-quota', 'missing-unproven', 'recovery-storage-clear', 'full-store']) {
           try {
             await a.evaluate(() => { localStorage.clear(); window.hits=0; window.sent=new Promise(r=>window.onSent=r); });
             if(mode==='recovery-storage-clear') {
@@ -70,6 +70,29 @@ ${helpers}
               });
               assert.equal(JSON.parse(restored)[0].body,'Keep every word');
               assert.equal(await a.evaluate(()=>hits),0,'restoring an authenticated checkpoint sends no mutation');
+            } else if(mode==='full-store') {
+              // Kasper, 2026-10-30: the real store was full of caches the server rebuilds, and every tweak was
+              // refused with repair_storage_unavailable. Fill the browser's own quota with them, keep one draft and one
+              // cache carrying an acknowledged repair, and the checkpoint must still be written.
+              const out=await a.evaluate(()=>{
+                localStorage.setItem('syncview_kasper_review_cache_v1','{"drafts":"Keep this draft"}');
+                localStorage.setItem('syncview_kasper_cal_held_v1','{"_writeUiKasperRepair":1}');
+                const chunk='x'.repeat(256*1024); let i=0;
+                const fill=(key)=>{try{localStorage.setItem(key,chunk);return true;}catch(e){return false;}};
+                for(const k of ['syncview_production_cache_v1','syncview_today_cache_v1','sv.tplCache.v1']) fill(k);
+                while(i<400 && fill('syncview_kasper_cal_c'+i+'_v1')) i++;
+                let small=8192; while(small>16){try{localStorage.setItem('syncview_kasper_cal_tail_'+small+'_v1','x'.repeat(small));}catch(e){small=small>>1;}}
+                let full=false; try{localStorage.setItem('probe','x'.repeat(4096));localStorage.removeItem('probe');}catch(e){full=true;}
+                let code='ok'; try{_writeUiRequireRepairStorage(record());}catch(e){code=e.code;}
+                return {full,code,rows:_writeUiRepairJournalRead().rows.length,draft:localStorage.getItem('syncview_kasper_review_cache_v1'),
+                  held:localStorage.getItem('syncview_kasper_cal_held_v1'),caches:Object.keys(localStorage).filter(k=>/^syncview_kasper_cal_c/.test(k)).length};
+              });
+              assert.equal(out.full,true,'the fixture must really fill the store');
+              assert.equal(out.code,'ok','a store full of rebuildable caches must not refuse the save');
+              assert.equal(out.rows,1);
+              assert.equal(out.draft,'{"drafts":"Keep this draft"}','drafts are never freed');
+              assert.equal(out.held,'{"_writeUiKasperRepair":1}','a cache carrying a repair is durable state');
+              assert.equal(out.caches,0,'rebuildable caches were freed');
             } else if(mode==='missing-unproven') {
               const code=await a.evaluate(async()=>{try{await _writeUiMarkRepairCommitted({key:'missing',token:'missing',primary_intent_key:'missing'},{native_committed:true});}catch(e){return e.code;}});
               assert.equal(code,'repair_checkpoint_missing','a partial reference must never invent checkpoint data');

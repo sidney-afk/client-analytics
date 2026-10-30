@@ -12,7 +12,7 @@ import {
   _calComponentsFor, _calReadFreshCardStamp, _calUnionCommentCell, _calUpsertFetch,
   _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
   _writeUiCompleteSourceRepairRefs, _writeUiGatewayError, _writeUiPrincipalKey,
-  _writeUiQueueDiagnostic, _writeUiRemoveCompletedRepairRefs, computeOverallStatus
+  _writeUiFreeRebuildableStorage, _writeUiQueueDiagnostic, _writeUiRemoveCompletedRepairRefs, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calLinearUrlFor, _calMigratePostShape, _calSetCommentsFor } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -121,7 +121,13 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
                 sxrRepairs: _kasperState.sxrRepairs || [],
             };
-            localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
+            const json = JSON.stringify(payload);
+            try { localStorage.setItem(KASPER_CACHE_KEY, json); }
+            catch (full) {
+                // A full store refused his tweaks (2026-10-30): free the caches the server rebuilds, then retry once.
+                _writeUiFreeRebuildableStorage();
+                localStorage.setItem(KASPER_CACHE_KEY, json);
+            }
             return true;
         } catch (e) { return false; }
     }

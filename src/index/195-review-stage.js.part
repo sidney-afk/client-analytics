@@ -2596,7 +2596,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const settled = !saving || (R.cp && S.cpOk[ck] && x.st === 'ok');
         // That version's own state colours the row: approved green, waiting plain, never the other version's change.
         const trv = (x.st === 'chg' || x.st === 'ok') && x.key === 'video' && !S.editing && !saving && svTrialReviewChangeHtml(m, R.mode, x.st);
-        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : '', saving };
+        if (trv) return { d, dc: /dst ok/.test(trv) ? ' is-ok' : /dst chg/.test(trv) ? ' is-chg' : '', saving };
         const dc = cpOk ? ' cp-checking' : x.st === 'ok' && d && !S.editing && settled ? ' is-ok' + (R.cp && S.cpOk[ck] ? ' cp-settle' : '') : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         return { d, dc, saving };
     }

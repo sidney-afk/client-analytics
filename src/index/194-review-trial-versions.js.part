@@ -200,6 +200,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
            for another version's new cut (Nightreel, 2026-10-30). */
         if (a === 'pass') return '<span class="dst">Not this one: the team will take Video ' + L + ' out</span>';
         if (a === 'cpass') return '<span class="dst">Client dropped Video ' + L + ': take it off the card</span>';
+        /* The part reads as answered (the client's: nothing waits for them while a version is still with the team; the
+           team's: the card is further on), but this version waits for its new cut: its own "Change asked", never
+           "Approved · Change my mind" over a change just sent (Nightreel, 2026-10-30). */
+        if (partSt === 'ok' && cur.status === 'change asked') {
+            const re = new RegExp('^Video ' + cur.letter + ':\\s*');
+            const last = (m.thread || []).filter(t => t.part === 'video' && t.change && re.test(t.text)).slice(-1)[0];
+            const q = String(cur.change_note || '') || (last ? last.text.replace(re, '') : '');
+            return '<span class="dst chg"><span class="ck chg">' + TRV_BACK + '</span>Change asked on Video ' + L + '</span>' + (q ? '<span class="dq" title="' + _calEscAttr(q) + '">' + _calEsc(q) + '</span>' : '');
+        }
         if (partSt === 'ok') return '';
         if (cur.status === 'change asked') return '';
         const asked = m.trial.versions.filter(v => v.status === 'change asked').map(v => 'Video ' + _calEsc(v.letter));

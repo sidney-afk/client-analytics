@@ -19,6 +19,9 @@
  *               a line and today's approve, which moves the card on; before, there was nothing to press.
  *   smmmenu     the SMM's Review tab offers no "Approve to client" on a trial card's video (a trial card's SMM approve always
  *               goes to Kasper, so it did what "Approve to Kasper" does); a card without trial reels keeps it.
+ *   okchange    the client link: a change on the last version open to the client while another is still with the team
+ *               keeps the card at Client Approval; that version then says "Change asked on Video B", never "Approved ·
+ *               Change my mind".
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -277,6 +280,34 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       for (let i = 0; i < 14; i++) { if (await R(t, `const l = r.querySelector('.trv-behind'); return !!(l && l.offsetParent);`)) seen = true; await sleep(100); }
       await waitFor(async () => routeMoved(t, 'Kasper Approval', 'kasper_approval'), 80);
       ok(!seen && routeMoved(t, 'Kasper Approval', 'kasper_approval'), `${label}: no "Every version is approved" while the answer is on its way, and the card goes on to Kasper by itself (seen: ${seen})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- okchange: the client's change while another version is still with the team ----------
+    for (const [w, h, label] of [[1440, 900, 'client 1440'], [390, 844, 'client 390']].filter(() => part('okchange'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 3).map(v => Object.assign(v, { kasper_ok_at: at }));
+      Object.assign(vs[0], { status: 'approved', client_ok_at: at });
+      Object.assign(vs[2], { kasper_ok_at: null });
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h, noSmm: ['C'], beforeOpen: keepGateway }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      await press(t, '[data-chg="video"]'); await sleep(300);
+      await inS(t.page, '#ta').fill('Fictional note: a calmer start on B.');
+      await inS(t.page, '#sendBtn').click();
+      await waitFor(async () => t.T.versions[1].status === 'change asked', 60);
+      await sleep(2000);
+      ok(!routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: C is still with the team, so the card stays at Client Approval`);
+      // The page went on to the Thumbnail step (this card waits for that too): back to the Video step, as a client would.
+      await press(t, '.stp[data-step="video"]'); await sleep(600);
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      for (const th of ['light', 'dark']) {
+        await theme(t, th);
+        const sd = await said(t);
+        ok(/Video B of 2/.test(await bar(t)) && /Change asked on Video B/.test(sd) && !/^Approved|\|Approved/.test(sd), `${label} ${th}: B says "Change asked on Video B", never "Approved" ("${sd}")`);
+      }
+      await press(t, '[data-trv-go="A"]'); await sleep(600);
+      ok(/Approved|approved/.test(await said(t)), `${label}: A still says approved ("${await said(t)}")`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

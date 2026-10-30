@@ -551,7 +551,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                 // Hide the old list only: the Calendar's dialogs (caption prompt, import, preview, lightbox, notes)
                 // also live in #calView and must still open on the Review tab.
                 + 'html.sv-rs-cal:not(.sv-rs-client) #calView>:not(.cal-toolbar):not(.cal-preview-overlay):not(.cal-import-overlay):not(.cal-lightbox):not(.cal-comments-overlay):not(.cal-prompt-overlay){display:none!important}'
-                + 'html.sv-rs-cal:not(.sv-rs-client) #calView{padding-bottom:0!important}'
+                // On a staff phone the Calendar's box is one screen tall (its thumbnail collection); on Review only its bar
+                // shows, so the box takes the bar's height and the review starts right under it, not a screen lower
+                // (Nightreel, 2026-10-30).
+                + 'html.sv-rs-cal:not(.sv-rs-client) #calView{padding-bottom:0!important;height:auto!important}'
                 // The card size does nothing on Review and was drawn invisible, holding the space between Notify client and
                 // the menu: it goes, so Notify client sits on the right beside the menu (owner feedback 2026-10-17 23:20).
                 + 'html.sv-rs-cal:not(.sv-rs-client) #calView>.cal-toolbar .cal-zoom{display:none!important}'

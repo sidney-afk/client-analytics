@@ -290,6 +290,8 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
   - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
+  - **On the SMM's Review tab:** a trial card is listed while any version waits for the SMM, whatever the card's status, Tweaks Needed included (a new cut that came in while another version's change is still open). The SMM's approve on a trial card always sends it to Kasper, so its video has no "Approve to client".
+  - **If a card did not move on** after every version was answered (the page closed between the two saves), the review page shows "Every version is approved" ("You approved every version" on the client link) with the usual approve button, which moves the card on.
   - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted.
   - The client sees only the winner once it is picked.
 - **Switch:** `trial_reels_pages`, **test client only**.
@@ -370,6 +372,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Approve** answers the version on screen; **Approve all** answers every open version.
   - **Ask for a change** goes on that version (it is sent as "Video C: …").
   - **Not this one** tells the team to drop that version.
+  - **Change my mind** on an approved version sends the words to the team as a note that names it ("Video A: …"); the version stays approved.
 - Once a winner is picked, the client sees only that one ("the one we are posting").
 - Samples never have trial reels.
 

@@ -2488,6 +2488,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
         // at once; a refused save puts the part back and says so (speed pass, session Swift).
         const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : (trialWord || 'Approve the ' + n);
+        /* A trial card's SMM approve always goes to Kasper (plan, per-version routing), so the SMM's "Approve to client" is
+           not offered on its video: it read "client" and did what "Approve to Kasper" does (Nightreel, 2026-10-30). The
+           status menu still sends a whole card to the client. */
+        const cur0 = _rsCur();
+        if (R.mode === 'smm' && k === 'video' && cur0 && cur0.trial && !cur0.trial.winner) {
+            return '<button class="b-ok' + (busy === 'ok' ? ' busy' : '') + '" type="button" data-ok="' + k + '"' + _rsBusyAttr(busy, busy === 'ok') + '>' + (busy === 'ok' ? RS_SPIN : RI.check) + label + '</button>';
+        }
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';

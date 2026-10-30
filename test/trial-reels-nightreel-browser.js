@@ -17,6 +17,8 @@
  *   behind      every version already has this reviewer's answer but the card is still at their status (the tab reloaded
  *               between the version's save and today's stage approve): the SMM, Kasper (both layouts) and the client get
  *               a line and today's approve, which moves the card on; before, there was nothing to press.
+ *   smmmenu     the SMM's Review tab offers no "Approve to client" on a trial card's video (a trial card's SMM approve always
+ *               goes to Kasper, so it did what "Approve to Kasper" does); a card without trial reels keeps it.
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -275,6 +277,20 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       for (let i = 0; i < 14; i++) { if (await R(t, `const l = r.querySelector('.trv-behind'); return !!(l && l.offsetParent);`)) seen = true; await sleep(100); }
       await waitFor(async () => routeMoved(t, 'Kasper Approval', 'kasper_approval'), 80);
       ok(!seen && routeMoved(t, 'Kasper Approval', 'kasper_approval'), `${label}: no "Every version is approved" while the answer is on its way, and the card goes on to Kasper by itself (seen: ${seen})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- smmmenu: no "Approve to client" on a trial card's video ----------
+    for (const label of ['smm menu'].filter(() => part('smmmenu'))) {
+      const t = await start('smm', true, fresh().slice(0, 2), { beforeOpen: keepGateway });
+      await waitFor(async () => /Video A of 2/.test(await bar(t)), 40);
+      const g = await R(t, `const ok = r.querySelector('[data-ok="video"]'); return { ok: ok ? ok.textContent.trim() : '', menu: !!r.querySelector('[data-menu="video"]') };`);
+      ok(/^Approve to Kasper$/.test(g.ok) && !g.menu, `${label}: the trial card's video has "Approve to Kasper" and no "Approve to client" menu (${JSON.stringify(g)})`);
+      // A card without trial reels: today's split button with its menu.
+      await t.page.evaluate(() => _rsGo('rs3'));
+      await waitFor(async () => !!(await R(t, `return !!r.querySelector('[data-menu]');`)), 40);
+      ok(await R(t, `return !!r.querySelector('[data-menu]');`), `${label}: a card without trial reels keeps "Approve to client" in its menu`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

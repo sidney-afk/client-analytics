@@ -1,7 +1,8 @@
 'use strict';
 /*
  * THE STAFF BADGE NEVER COUNTS WHAT NOTES HIDES (session Notesfix, 2026-10-27). Real browser, fully mocked
- * (docs/syncview-design/tests/lost-work-lib.js: one fictional card), staff on unread_badges_v2.
+ * (docs/syncview-design/tests/lost-work-lib.js: one fictional card), a staff member (the round-5 badges, no switch
+ * since 2026-10-29; the old unread_badges_v2 row is still served and changes nothing).
  *
  * Notes keeps a done thread behind its history button. A client's reply inside a done change request is therefore
  * not something the staff member can see without opening history, so it must not make the Notes button say "new";

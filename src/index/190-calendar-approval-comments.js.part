@@ -2171,7 +2171,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        Retry and Discard. */
     function _noteOutboxStatusHtml(c) {
         if (!c || !c._outbox || c._outbox === 'sent') return '';
-        // Round 7 (switch unread_badges_v2): a spinner, never the word "Sending…" (owner, 2026-10-24).
+        // Round 7 (staff): a spinner, never the word "Sending…" (owner, 2026-10-24).
         if (c._outbox === 'sending' && svBusyOn()) return `<div class="sv-note-outbox is-sending">${svSpinHtml('Sending')}</div>`;
         if (c._outbox === 'sending') return `<div class="sv-note-outbox is-sending" role="status"><span class="sv-note-outbox-dot" aria-hidden="true"></span>Sending…</div>`;
         if (c._outboxRequest) {
@@ -2201,7 +2201,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const gate = _prodCanonicalCommentGate(post, comp);
         return !!(gate && gate.linked);
     }
-    /* Round 9 (owner, switch unread_badges_v2, staff only): a note sent in the moment the card's notes are still
+    /* Round 9 (owner, staff only): a note sent in the moment the card's notes are still
        loading (the link check and the thread read that every opening runs) used to be refused with "Notes are still
        loading". It is now taken: it shows in the thread at once, as every note does, and is sent as soon as the
        loading ends (at most 10 s; after that the send runs and refuses as before). A read that failed still refuses. */
@@ -2610,7 +2610,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         return `<span class="cal-aat-badge" title="Kasper already approved this. Check the edit was made, then send it to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
-        // The round-5 badges (327), for the staff members switch unread_badges_v2 names; everyone else: below, unchanged.
+        // The round-5 badges (327), for every signed-in staff member on desktop; the client link and a phone: below, unchanged.
         if (typeof svuActive === 'function' && svuActive()) return svuNotesBtnHtml(post, pid);
         const open = _calOpenCommentCount(post);
         const unread = _calHasUnreadNotes(post);
@@ -2678,7 +2678,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         _calComposeIsTweak = false;         // default to a plain comment
         _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
-        if (typeof svuNotesOpening === 'function') svuNotesOpening(pid);            // 327 keeps what was new, for "Needs you" (switch unread_badges_v2 only)
+        if (typeof svuNotesOpening === 'function') svuNotesOpening(pid);            // 327 keeps what was new, for "Needs you" (staff, desktop)
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         _calNotesWarm(pid, true);           // the read the pointer already started, or a new one
         const ovl = _calEnsureCommentsOverlay();
@@ -2798,12 +2798,13 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     window.addEventListener('sv-frame-feed', (e) => {
         const pid = _calOpenCommentsPid;
         if (!pid || (e && e.detail && e.detail.pid && e.detail.pid !== pid)) return;
-        // A Frame.io comments read for a link (frame_comments_in_notes_staff): only the open card's own link redraws.
+        // A Frame.io comments read for a link (staff): only the open card's own link redraws.
         if (e && e.detail && e.detail.link && e.detail.link !== svFrameNotesLink(svTrialNotesPost(calState.posts.find(p => p.id === pid)))) return;
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });
     });
-    // The staff switches came in (188): a Notes view already open picks up frame_comments_in_notes_staff.
+    // The switches came in (188), which can be the first moment the server has said who is signed in: a Notes view
+    // already open picks up the Frame.io comments.
     window.addEventListener('sv-review-stage-switch', () => {
         if (!_calOpenCommentsPid || _isClientLink || !svFrameCommentsInNotesOn()) return;
         _calCaptureModalDrafts();
@@ -2933,7 +2934,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         });
         // The Frame.io comments on the card's video (staff, with the player open): one conversation with the notes,
         // in time order, each row marked "Frame.io". Read only: they are answered in Frame.io.
-        // Switch frame_comments_in_notes_staff: without the player, the same rows come from 187's kept read.
+        // Staff: without the player, the same rows come from 187's kept read.
         const fioNotesOn = svFrameCommentsInNotesOn();
         svFrameNotesUse(fioNotesOn);
         const fio = svFrameFeed(pid) || (fioNotesOn ? svFrameNotesFeed(svTrialNotesPost(post)) : null);
@@ -3052,7 +3053,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
         // While the Frame.io comments are on their way, rows shaped like the final ones stand in for them; no box.
         let fioTail = '';
-        // Without the player (frame_comments_in_notes_staff) nothing stands in while they load (Notes paints as it
+        // Without the player (staff) nothing stands in while they load (Notes paints as it
         // always did), and a failed read is one muted line.
         const fioQuiet = !!fio && fio.seekable === false;
         if (fio && fio.state === 'loading' && fioQuiet) fioTail = '';
@@ -3242,7 +3243,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
            and only sending waits: the send button stays disabled (its tooltip
            says why) and _calAppendComment refuses on the same gate. No line of
            text is added under the box: it came and went and moved the layout
-           (owner, 2026-10-16). Round 9 (switch unread_badges_v2, staff): Send no longer waits; the note is taken
+           (owner, 2026-10-16). Round 9 (staff): Send no longer waits; the note is taken
            at once and goes when the notes have loaded (_calNotesStillLoading). */
         const sendPending = _calCommentSendPending(post, canonicalGate) && !_calNotesStillLoading(post, canonicalGate);
         // Staff starting a new thread: the audience lives INSIDE the box as one
@@ -3606,7 +3607,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // can never leak a caption/title note onto the video issue. Create-only
         // (edits/resolves/deletes never sync); audience-independent;
         // _calPostLinearComment no-ops on an unlinked issue (empty url).
-        /* Round 9 (switch unread_badges_v2, staff): once the server holds the note (native_committed), the outbox
+        /* Round 9 (staff): once the server holds the note (native_committed), the outbox
            lets go of it; the card's own copy saves behind it (about 0.9 s on calendar-card-write) and still says so
            if it fails. Before, "sending" stayed up for that save too. */
         const cardSave = _calWatchNoteSave(pid, nativeCommentCommitted);

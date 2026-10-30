@@ -186,7 +186,9 @@ async function run(browser, origin, label, device, theme) {
   expect(ex2.panel === 0 && !ex2.words && ex2.btn === 0 && await captionOf(page, 'v1') === 'Caption written by the function', `${tag}: a refresh of the card list shows nothing extra`);
 
   // THE ICON: a small regenerate icon (circular arrows) in the top right corner of the caption box, with a tooltip
-  const redoBtn = '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open';
+  // The regenerate icon only: the caption history icon below it shares its look (class cal-cap-redo-open) and shows for
+  // every signed-in staff member once the caption has changed (no switch since 2026-10-29).
+  const redoBtn = '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open:not(.cal-cap-hist-open)';
   expect(await page.locator(redoBtn).count() === 1 && await page.locator('.cal-card[data-pid="v1"] .cal-cap-tabs .cal-cap-redo-open').count() === 0,
     `${tag}: the regenerate icon is inside the caption box, not on the + Alt caption row`);
   const ico = await page.evaluate(sel => {
@@ -237,7 +239,7 @@ async function run(browser, origin, label, device, theme) {
   await openPop();
   await page.locator('#calPromptModal .cal-prompt-close').click();
   await sleep(250);
-  expect(!(await popOpen()) && await page.evaluate(() => /cal-cap-redo-open/.test(document.activeElement.className)), `${tag}: the X closes it and focus goes back to the regenerate icon`);
+  expect(!(await popOpen()) && await page.evaluate(() => /cal-cap-redo-open/.test(document.activeElement.className) && !/cal-cap-hist-open/.test(document.activeElement.className)), `${tag}: the X closes it and focus goes back to the regenerate icon`);
 
   // REDO: replaces the box because the box still holds the caption the redo started from
   const before = state.saves.length;
@@ -272,7 +274,7 @@ async function run(browser, origin, label, device, theme) {
   await shot(page, `kept-${tag}`, 'v1');
 
   // A hand-written caption gets the Redo button too, and no titles
-  expect(await page.locator('.cal-card[data-pid="w1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open').count() === 1 && await page.locator(panel('w1')).count() === 0
+  expect(await page.locator('.cal-card[data-pid="w1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open:not(.cal-cap-hist-open)').count() === 1 && await page.locator(panel('w1')).count() === 0
     && await page.locator('.cal-card[data-pid="w1"] .cal-cap-tools button').count() === 1, `${tag}: a caption somebody wrote has the regenerate icon, and the panel an older version left on it is gone`);
   expect(await page.locator('.cal-card[data-pid="v2"] .cal-cap-tools').count() === 0 && await page.locator(panel('v2')).count() === 0, `${tag}: a card with no caption has no Redo button and no panel`);
   expect(t.pageErrors.length === 0, `${tag}: no page errors (${t.pageErrors.join(' | ')})`);

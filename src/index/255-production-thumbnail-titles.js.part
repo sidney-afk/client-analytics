@@ -10,8 +10,8 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
         /* THUMBNAIL TITLES FROM THE FILMING PLAN (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
            Plan, mock-ups and the owner's decisions: docs/syncview-design/mockups/thumbnail-titles/.
 
-           Two buttons, both behind the runtime switch thumbnail_title_buttons_staff { "staff": [...] }
-           (read in 188 with the other switches; missing means off for everyone):
+           Two buttons, for every signed-in staff member and never the client link (no switch since
+           2026-10-29, session Permafive; svThumbTitleButtonsOn in 188):
              - "Thumbnail titles" on the right of a post's "Sub-issues N" header: every thumbnail of the post.
              - "Write title" next to Edit on one thumbnail sub-issue's description.
            A press starts a RUN on the server (thumbnail-titles, actions run / status / decide / retry /
@@ -157,8 +157,10 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
             _prodTt.polls[key] = setTimeout(tick, PROD_TT_POLL_MS);
         }
         // Opening a post asks once whether a run exists (someone else's, or rows still waiting for a person).
+        // Only an admin or SMM asks: the server answers everyone else 403 smm_or_admin_only (about 60 a day before
+        // session Permafive, 2026-10-29) and never told them of a run, so the read only made noise.
         function _prodTtLazyStatus(key, client) {
-            if (!client || _prodTt.busy['status:' + key]) return;
+            if (!client || !_prodTtRoleOk() || _prodTt.busy['status:' + key]) return;
             const last = _prodTt.fetchedAt[key] || 0;
             if (Date.now() - last < 60000) return;
             _prodTt.busy['status:' + key] = true;

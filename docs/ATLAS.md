@@ -99,11 +99,11 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 #### Phone layout
 
 - On a phone-width screen (767 px and narrower) staff pages drop the wide header for one title row: the screen name, **Tabs** (every tab you normally see) and **More** (account, appearance and client controls). Nothing new is added; every row presses the normal control.
-- `phone_polish_staff` (on for all staff): smoother phone design, for example Notes sits right under the statuses on an opened post, a quieter Delete on notes, two-line message previews in Messages, and Production rows that do not wrap. Desktop never changes.
+- Phone polish (staff, permanent since 2026-10-29, no switch): smoother phone design, for example Notes sits right under the statuses on an opened post, a quieter Delete on notes, two-line message previews in Messages, and Production rows that do not wrap. Desktop never changes.
 
 #### Unread badges
 
-- `unread_badges_v2` (on for all staff, desktop only): a card's Notes button shows one round picture per person with something for you, coloured by kind (orange change request, blue client comment, grey team, violet Kasper). A small number on the picture's corner = new; a plain coloured number beside it = already read but still needs you (a change not done, a client comment to answer). At most three people, then "+N"; hover lists who and what.
+- Unread badges (staff, desktop only; permanent since 2026-10-29, no switch): a card's Notes button shows one round picture per person with something for you, coloured by kind (orange change request, blue client comment, grey team, violet Kasper). A small number on the picture's corner = new; a plain coloured number beside it = already read but still needs you (a change not done, a client comment to answer). At most three people, then "+N"; hover lists who and what.
 - Inside Notes: Slack-style notes with New and "Waiting for your answer" tags; hover a note for Reply (comments only), No reply needed, Mark done, Delete. "No reply needed" and "Mark unread" are remembered in your browser only.
 - Messages: New, To answer and All tabs; the header button counts new only.
 - Clients: with `review_client_polish` (on for all clients) the client link gets the same badges, counting only the team's notes. The team shows as one person, "Synchro team"; no staff names or pictures.
@@ -262,14 +262,14 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Caption history** (clock icon, once the caption has changed): every version, what changed (removed words red, added words green), and **Put this version back**. Restoring saves it as a new version, so nothing is overwritten.
   - **+ Alt caption** adds a second caption for another platform (for example LinkedIn) as a tab. It is approved together with the main caption.
   - The client's prompt and call-to-action choices are set in ⋮ More → **Caption prompt** (with **Reset to default**).
-  - **Switches:** `caption_generate_ef_clients` (all clients); `caption_history_staff` (all staff).
+  - **Switches:** `caption_generate_ef_clients` (all clients). Caption history has no switch: permanent for every signed-in staff member since 2026-10-29, no switch.
 - **Call to action** field.
 - **Notes** button (bottom left). It shows open tweaks and unread replies. It opens the card's Notes:
   - **About the…** picker: Video, Thumbnail, Caption, or Title when title review is in use.
   - The send arrow posts a comment. Staff choose who sees it with the lock/eye icon: **Team only** or **To client**.
   - The arrow beside Send offers **Request change** ("Moves this part to Tweaks Needed. Team only.").
   - Each note has Reply, Edit, **Mark done** / Reopen, and Delete. Resolved notes are kept under their own filter.
-  - Frame.io comments appear as rows marked "Frame.io". **Switch:** `frame_comments_in_notes_staff` (all staff; never the client).
+  - Frame.io comments appear as rows marked "Frame.io". No switch: permanent for every signed-in staff member since 2026-10-29, no switch; never the client.
 - **Frame.io viewer:** Notes, the thumbnail's play icon, the Review preview and Kasper's "Watch here" all open one view, with the video on the left and notes on the right. Opened from a play button (a card's play icon, the Review tab's preview, Kasper's "Watch here"), it starts playing at once, with sound if the browser allows, else muted with a button to turn the sound on (`_fvAutoStart`). Opened from the notes (the Notes button, a note's link, Messages), it waits for its play button. **Switch:** `frame_viewer_clients` (all clients). The client gets the player too, but never the Frame.io comments.
 - **Status row:**
   - One pill each for **Video**, **Thumbnail** and **Caption**, with the statuses N/A, In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, Scheduled and Posted.
@@ -306,7 +306,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 
 #### Thumbnail titles
 - ⋮ More → **Thumbnail title prompt** edits the client's prompt. A background job uses it to write a title into a new, empty thumbnail sub-issue's description from the client's filming plan. It never overwrites what a person wrote. **Switch:** `thumbnail_titles`, on for all clients (its list is `*`).
-- The **Thumbnail titles** / **Write title** buttons are on the Production page, not the card (admins and SMMs only). **Switch:** `thumbnail_title_buttons_staff` (all staff).
+- The **Thumbnail titles** / **Write title** buttons are on the Production page, not the card (admins and SMMs only). No switch for the buttons: permanent for every signed-in staff member since 2026-10-29, no switch.
 
 #### What the client sees when staff act
 - Statuses: in-progress parts are visible only with Collaborative mode on; finished parts always are.
@@ -392,7 +392,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - every part of the card on stage at once;
   - Finish and Close at the top right;
   - **Undo** for a few seconds after Approve.
-- Kasper's click-to-check polish follows `unread_badges_v2` (all staff).
+- Kasper's click-to-check polish is on for every signed-in staff member wherever his Review Session is on.
 - Samples appear in Kasper's list with a **Sample** tag and a **Watch the video** link instead of the player.
 
 #### Samples: what they are and how they differ from Calendar posts
@@ -555,7 +555,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   4. Undo and Use another tab are offered afterwards.
 - **Practical details:** only admins and SMMs can run it. A run continues if you close the tab, and there is one run per post.
 - **Switches:**
-  - `thumbnail_title_buttons_staff` (the buttons): on for all staff.
+  - The buttons: no switch, permanent for every signed-in staff member since 2026-10-29, no switch.
   - `thumbnail_titles` (a separate automatic background writer of titles): on for all clients (its list is `*`).
 
 #### How a Calendar card and its Production work item stay in sync
@@ -771,7 +771,7 @@ Switch values below are the live values read on 2026-10-28.
 - The client also picks "About the…".
 - The client sees the team as one name, "Synchro team", and never sees staff names or team-only notes.
 
-**Frame.io comments in Notes (`frame_comments_in_notes_staff`, on for all staff):**
+**Frame.io comments in Notes (every signed-in staff member, no switch since 2026-10-29):**
 - A card's Frame.io comments appear in its Notes, marked "A comment left in Frame.io. Reply to it there."
 - Only the first comments show; the rest are in Frame.io.
 - Comments on older versions of a version stack are not shown.
@@ -798,7 +798,7 @@ Switch values below are the live values read on 2026-10-28.
 - Kasper's inbox counts only staff messages.
 - The badge refreshes by itself.
 
-**Unread badges (`unread_badges_v2`, on for all staff, desktop only):**
+**Unread badges (every signed-in staff member, desktop only, no switch since 2026-10-29):**
 - A card's Notes button shows a small photo of each person with something for you, with a coloured number:
   - orange: change request
   - blue: client comment
@@ -907,7 +907,7 @@ Switch values below are the live values read on 2026-10-28.
 
 ### Every live switch, and who has it on
 
-Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every signed-in staff member and never the client link. "All clients" means every client link. A switch the page reads but that has no row live is at its default: `analytics_hidden` has no row, so Analytics is hidden.
+Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every signed-in staff member and never the client link. "All clients" means every client link. A switch the page reads but that has no row live is at its default: `analytics_hidden` has no row, so Analytics is hidden. Five former staff switches are no longer read and are on for every signed-in staff member, whatever their rows say (2026-10-29, session Permafive): caption history, Frame.io comments in Notes, the unread badges, the phone polish and the thumbnail title buttons (`caption_history_staff`, `frame_comments_in_notes_staff`, `unread_badges_v2`, `phone_polish_staff`, `thumbnail_title_buttons_staff`).
 
 | Switch | What a teammate notices | Who has it on |
 | --- | --- | --- |
@@ -916,12 +916,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `calendar_card_write_clients` | Card saves use the newer save path | All clients |
 | `write_ui_reroute_clients`, `calendar_upsert_ef_clients`, `sample_review_ef_clients`, `settings_ef_clients` | Create Post opens the dialog, and saves and settings go through the server (for other clients, Create Post adds a blank card) | A list of 38 clients, including the test client |
 | `caption_generate_ef_clients` | Generate caption | All clients |
-| `caption_history_staff` | Caption history (clock icon) | All staff |
 | `frame_viewer_clients` | The in-page Frame.io player | All clients (and staff) |
-| `frame_comments_in_notes_staff` | Frame.io comments inside Notes | All staff |
-| `unread_badges_v2` | Unread pictures on Notes, and New / To answer in Messages | All staff |
-| `phone_polish_staff` | Smoother phone layout | All staff |
-| `thumbnail_title_buttons_staff` | **Thumbnail titles** and **Write title** buttons in Production | All staff |
 | `thumbnail_titles` | Background job that writes titles into new thumbnail sub-issues | All clients (`*`) |
 | `thumbnail_revision_v2` | Compare old and new thumbnail on the card | On |
 | `workload_calm_staff` | Calm Workload design | All staff |
@@ -1012,12 +1007,12 @@ Visibility below comes from page source and role checks. Shared rules live in [s
 | SyncLinear descriptions and images | Staff. | [240-production-description.js.part](../src/index/240-production-description.js.part). Brief editing and image attachments. |
 | SyncLinear trial reel file rows | Staff, behind `trial_reels_pages`. | [245-production-trial-versions.js.part](../src/index/245-production-trial-versions.js.part). One Deliverable file row per version in the video sub-issue's Assets. |
 | SyncLinear dates, assignees and labels | Staff; role and team gates apply. | [250-production-controls-data.js.part](../src/index/250-production-controls-data.js.part). Native work controls and read projection. |
-| SyncLinear thumbnail titles | Staff named by `thumbnail_title_buttons_staff` (live: all). | [255-production-thumbnail-titles.js.part](../src/index/255-production-thumbnail-titles.js.part). "Thumbnail titles" and "Write title" start a server run from the filming plan; a person's text is never overwritten without Keep mine. |
+| SyncLinear thumbnail titles | Every signed-in staff member (no switch since 2026-10-29); only admins and SMMs can run it. | [255-production-thumbnail-titles.js.part](../src/index/255-production-thumbnail-titles.js.part). "Thumbnail titles" and "Write title" start a server run from the filming plan; a person's text is never overwritten without Keep mine. |
 | Submit | Admin and SMM; public intake has its own entry. | [200-intake-data-startup.js.part](../src/index/200-intake-data-startup.js.part). Native video and graphic submission. |
 | Post (TikTok side; header "Post", address /post, route key tiktok-upload) | Staff. | [300-tiktok-upload.js.part](../src/index/300-tiktok-upload.js.part). Video and carousel upload, scheduling, result and cancel. |
 | Post (Instagram side) | Staff; server allowlist limits posting. | [299-instagram-upload.js.part](../src/index/299-instagram-upload.js.part). Reels, carousels (2 to 10 items) and a Trial reel switch through Post For Me; the account id comes from the client profile. Real posting was not tested here. |
 | Messages inbox | Admin and SMM (header Messages, phone Tabs menu, Kasper Messages); the server scopes clients. | [326-core-messages-inbox.js.part](../src/index/326-core-messages-inbox.js.part). One inbox page (route messages); replies use the Notes save path. |
-| Unread badges | Staff named by `unread_badges_v2` (live: all), desktop only. | [327-core-unread-badges.js.part](../src/index/327-core-unread-badges.js.part). People bubbles and counts on Notes and Messages; display only. |
+| Unread badges | Every signed-in staff member (no switch since 2026-10-29), desktop only. | [327-core-unread-badges.js.part](../src/index/327-core-unread-badges.js.part). People bubbles and counts on Notes and Messages; display only. |
 | Leads (CRM) | Admin, plus one staff member granted by roster id; the crm-leads function decides access. | [328-crm-leads.js.part](../src/index/328-crm-leads.js.part). Page /leads, linked from Kasper > Pipeline & Admin: Today, Pipeline, sequences, search and report. |
 | Kasper Review Session and review history | Admin. | [330-kasper-review-history.js.part](../src/index/330-kasper-review-history.js.part). Calendar and Samples approvals, urgent review and past reviews; the new review page replaces it for named staff. |
 | Kasper Messages | Admin. | [323-kasper-dashboard-tail.js.part](../src/index/323-kasper-dashboard-tail.js.part). Opens the Messages inbox; the older Messages view remains as a fallback. |

@@ -1,10 +1,10 @@
 'use strict';
 /*
  * Caption history in a real browser, fully offline (every backend answer is local). Session Versions, 2026-10-23.
- *   THE SWITCH   caption_history_staff off (or naming someone else): no history icon anywhere, the caption box exactly
- *                as before. On for the signed-in staff member: the icon shows only on a card whose caption has
- *                changed (the index answer), just below the regenerate icon; never on a card that has not changed.
- *                Before the migration (available:false) no icon shows.
+ *   NO SWITCH    Since 2026-10-29 (session Permafive) every signed-in staff member has it: the old caption_history_staff
+ *                row missing, naming someone else or malformed changes nothing. The icon shows only on a card whose
+ *                caption has changed (the index answer), just below the regenerate icon; never on a card that has not
+ *                changed. Before the migration (available:false) no icon shows.
  *   THE POP-UP   The approved design (option C): one step per version, oldest on the left, newest marked Now and
  *                chosen; every icon centred on the line that joins them; the kind of change above the caption, with no
  *                arrows and no Changes / Clean text switch (owner, 2026-10-24); a redo shows its note as a quiet line
@@ -159,6 +159,16 @@ async function runOff(browser, origin, label, flag, available) {
   expect(await t.page.locator(redoBtn('h1')).count() === 1, `${label}: the regenerate icon is there as before`);
   if (flag && flag.staff && flag.staff.includes('m1') && available === false) expect(t.state.reads.filter(a => a === 'caption_history_index').length === 1, `${label}: asked once, then stops asking`);
   if (!flag || !flag.staff || !flag.staff.includes('m1')) expect(t.state.reads.length === 0 || t.state.reads.every(a => a !== 'caption_history_index'), `${label}: the history is never even asked about`);
+  expect(t.pageErrors.length === 0, `${label}: no page errors (${t.pageErrors.join(' | ')})`);
+  await t.ctx.close();
+}
+
+// The old switch row, whatever it says, changes nothing: the icon on the changed card only, and the index is asked.
+async function runAnyRow(browser, origin, label, flag) {
+  const t = await open(browser, origin, { device: { viewport: { width: 1440, height: 900 } }, theme: 'light', flag, available: true });
+  expect(await waitFor(async () => (await t.page.locator(histBtn('h1')).count()) === 1, 8000), `${label}: the changed card shows the history icon all the same`);
+  expect(await t.page.locator(histBtn('n1')).count() === 0, `${label}: a card whose caption never changed shows none`);
+  expect(t.state.reads.some(a => a === 'caption_history_index'), `${label}: the history index is asked`);
   expect(t.pageErrors.length === 0, `${label}: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }
@@ -328,10 +338,11 @@ async function run(browser, origin, label, device, theme) {
   const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' };
   try {
-    console.log('--- the switch ---');
-    await runOff(browser, origin, 'switch missing', null, true);
-    await runOff(browser, origin, 'switch names someone else', { staff: ['someone-else'] }, true);
-    await runOff(browser, origin, 'switch with the wrong shape', { all: 'true', staff: 'm1' }, true);   // { all: true } means every staff member since OPEN_REPAIRS 544
+    console.log('--- no switch: the old row changes nothing ---');
+    await runAnyRow(browser, origin, 'old row missing', null);
+    await runAnyRow(browser, origin, 'old row names someone else', { staff: ['someone-else'] });
+    await runAnyRow(browser, origin, 'old row with the wrong shape', { all: 'true', staff: 'm1' });
+    await runAnyRow(browser, origin, 'old row switched off', { all: false });
     await runOff(browser, origin, 'migration not applied', { staff: ['m1'] }, false);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'desktop', desktop, theme);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'phone', phone, theme);

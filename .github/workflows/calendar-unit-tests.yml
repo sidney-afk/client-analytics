@@ -390,13 +390,13 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)|node test/frameio-viewer-browser.js
-          Frame.io comments in a card's Notes without the player, kept five minutes (switch frame_comments_in_notes_staff; mocked)|node test/frame-comments-in-notes-browser.js
+          Frame.io comments in a card's Notes without the player, kept five minutes (every signed-in staff member, whatever the old row says; mocked)|node test/frame-comments-in-notes-browser.js
           Client review link works on phones (approve + request change)|node docs/syncview-design/tests/client-phone-review-browser.js
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
-          Notes reopen without a needless skeleton, and a reply sent while loading goes at once (switch unread_badges_v2; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
+          Notes reopen without a needless skeleton, and a reply sent while loading goes at once (staff; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js
@@ -417,6 +417,7 @@ jobs:
           Calendar card "No video linked" warning stays clear of the button pile|node docs/syncview-design/tests/calendar-warn-pile-overlap-browser.js
           Templates client page shows the client's social links|node docs/syncview-design/tests/templates-social-links-browser.js
           Desktop parity read snapshots retain the write refusal|node docs/syncview-design/tests/desktop-parity-relay.js
+          Trial reels round 2 on the review page: the client's Not this one, Kasper's tiles drawn with the card and a video mark for no picture, the player's shape|node test/trial-reels-round2-review-browser.js
           LANES
       - name: Entry link and client browser checks, three side by side (part 2 of 3)
         if: ${{ matrix.part == 2 }}
@@ -463,7 +464,7 @@ jobs:
           One shared client follows the client tabs; team tabs and client links ignore it|node docs/syncview-design/tests/shared-client-browser.js
           Urgent ping uses the stamp the database holds, and a refused ping can be refreshed|node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js
           Messages inbox (list, read and unread, reply through Notes, posted drops out, phone) (mocked)|node docs/syncview-design/tests/messages-inbox-browser.js
-          Round-5 unread badges only for the staff unread_badges_v2 names: people bubbles, Needs you, To answer (mocked)|node docs/syncview-design/tests/unread-badges-v2-browser.js
+          Round-5 unread badges for every signed-in staff member, whatever the old row says: people bubbles, Needs you, To answer (mocked)|node docs/syncview-design/tests/unread-badges-v2-browser.js
           Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)|node test/caption-generate-browser.js
           Kasper Clients tab is admin-only and read-only|node docs/syncview-design/tests/clients-admin-browser.js
           Expanded client Samples and Analytics phone states|node docs/syncview-design/tests/client-links-expanded-browser.js
@@ -492,7 +493,6 @@ jobs:
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
-          Trial reels round 2 on the review page: the client's Not this one, Kasper's tiles drawn with the card and a video mark for no picture, the player's shape|node test/trial-reels-round2-review-browser.js
           Trial reels round 3 on the card: a client's change shows at once (the broadcast), every row says its state, Client dropped, small tags, + Add version, one list after the pencil and Escape|node test/trial-reels-round3-card-browser.js
           Trial reels on the editor's Today: a version asked to change while the card keeps its review stage is listed with the tweaks, and leaves once the new cut is in|node test/trial-reels-today-browser.js
           LANES
@@ -562,7 +562,7 @@ jobs:
           Client link notes are read only once on screen (390 waits for the conversation, 1440 at once), a reply in a done thread never counts as new, and the Review page names only the team|node test/client-notes-fixes-browser.js
           Staff Notes button never counts a reply inside a done thread (history in Notes)|node test/staff-done-thread-badge-browser.js
           Staff Notes composer offers the client audience as soon as Caption is picked on a Production-linked card (Video stays team only)|node test/notes-caption-composer-browser.js
-          Kasper review polish for the staff on unread_badges_v2 (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, old page when off)|node test/review-kasper-polish-browser.js
+          Kasper review polish for every signed-in staff member (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, the same with no switch row)|node test/review-kasper-polish-browser.js
           Kasper's Tweaks are on Frame and a typed change on a SAMPLE save from his Review Session, polish on and off (OPEN_REPAIRS 539)|node test/review-stage-kasper-sample-frame-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js

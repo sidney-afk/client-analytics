@@ -2553,7 +2553,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
        note pop-up. No panel is ever drawn under the caption. Only the main caption has it (a redo rewrites that one). */
     function _calCapAiToolsHtml(p) {
         const redo = _calCapAiEligible(p) && !_calCapJobActive(_calCaptionJobs.get(p.id));
-        // The caption history icon sits just below it, once this card's caption has changed (caption_history_staff).
+        // The caption history icon sits just below it, once this card's caption has changed (every signed-in staff member).
         const hist = _calCapHistIconOn(p);
         if (!redo && !hist) return '';
         const ea = _calEscAttr(p.id);
@@ -2708,7 +2708,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
     }
     /* ============================================================
        CAPTION HISTORY (session Versions, 2026-10-23; design approved by the owner the same day,
-       docs/syncview-design/mockups/caption-history/, option C). Behind caption_history_staff (188).
+       docs/syncview-design/mockups/caption-history/, option C). Every signed-in staff member, never the client link (188, permanent since 2026-10-29).
 
        Once a card's caption has changed, a small history icon sits just under the regenerate icon. It opens a
        pop-up on the shared caption dialog layer: a step for every version, oldest on the left and newest on the

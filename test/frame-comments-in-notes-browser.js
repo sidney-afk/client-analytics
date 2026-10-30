@@ -1,10 +1,10 @@
 'use strict';
 /*
- * Frame.io comments in a Calendar card's Notes, without the player (switch frame_comments_in_notes_staff, staff only;
- * session Framenotes, 2026-10-26). A real page, fully offline: every backend answer is local and the frameio-view
+ * Frame.io comments in a Calendar card's Notes, without the player (staff only; session Framenotes, 2026-10-26; no
+ * switch since 2026-10-29, session Permafive). A real page, fully offline: every backend answer is local and the frameio-view
  * function is a stand-in. All names, links and comments below are made up.
  *
- *   A  the switch names the signed-in staff member and the card's client has no player (frame_viewer_clients does not
+ *   A  a signed-in staff member (the old frame_comments_in_notes_staff row naming them) and the card's client has no player (frame_viewer_clients does not
  *      list it): Notes opens as it always did (no frameio-view request while it opens, no stand-in rows), then the
  *      Frame.io comments arrive as rows marked "Frame.io", in time order with the notes, with their video time as a
  *      label (there is no player to move), read only.
@@ -12,7 +12,7 @@
  *   C  a card whose Frame.io comments cannot be read shows one muted line, nothing else (no Try again, no box).
  *   D  a card whose video is not a Frame.io link asks nothing.
  *   E  with the player on, the player's comments read is kept too: a second opening asks for the video only.
- *   F  with the switch off (no row), Notes is exactly as before: no Frame.io request and no Frame.io rows.
+ *   F  with the old row gone (or switched off), the comments arrive all the same: nothing turns this off any more.
  *
  * On the code before this change A, B, C and E fail.
  * Screenshots (desktop 1440x900, phone 390x844, light and dark) when FRAME_NOTES_SHOT_DIR is set.
@@ -258,21 +258,18 @@ async function runWithPlayer(browser, origin) {
   expect(pageErrors.length === 0, `with the player: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
-async function runOff(browser, origin, label, device) {
-  console.log(`--- ${label}: switch off ---`);
-  const state = makeState({ notesFlag: null });
+async function runNoRow(browser, origin, label, device, notesFlag) {
+  const tag = `${label}, old row ${notesFlag ? JSON.stringify(notesFlag) : 'gone'}`;
+  console.log(`--- ${tag} ---`);
+  const state = makeState({ notesFlag });
   const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
   await openNotes(page, state, 'v1');
   await stopWatch(page);
-  await sleep(1500);
-  expect(state.calls.length === 0, `${label}, switch off: no Frame.io request (${state.calls.length})`);
-  expect((await fioRows(page)).length === 0, `${label}, switch off: no Frame.io rows, Notes exactly as before`);
-  for (const mode of ['light', 'dark']) {
-    await page.evaluate(m => document.documentElement.setAttribute('data-theme', m), mode);
-    await shot(page, `before-${label}-${mode}`);
-  }
+  await page.waitForFunction(() => document.querySelectorAll('#calCommentsFeed .cal-cm-row.is-frameio').length === 3, null, { timeout: 8000 }).catch(() => {});
+  expect(state.calls.length >= 1, `${tag}: the Frame.io comments are asked for (${state.calls.length})`);
+  expect((await fioRows(page)).length === 3, `${tag}: the Frame.io rows are in Notes all the same`);
   await closeNotes(page);
-  expect(pageErrors.length === 0, `${label}, switch off: no page errors (${pageErrors.join(' | ')})`);
+  expect(pageErrors.length === 0, `${tag}: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
 
@@ -285,8 +282,10 @@ async function runOff(browser, origin, label, device) {
     await runOn(browser, origin, 'desktop', DESK);
     await runOn(browser, origin, 'phone', PHONE);
     await runWithPlayer(browser, origin);
-    await runOff(browser, origin, 'desktop', DESK);
-    await runOff(browser, origin, 'phone', PHONE);
+    await runNoRow(browser, origin, 'desktop', DESK, null);
+    await runNoRow(browser, origin, 'phone', PHONE, null);
+    await runNoRow(browser, origin, 'desktop', DESK, { all: false });
+    await runNoRow(browser, origin, 'desktop', DESK, { staff: ['someone-else'] });
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
   console.log('\nframe-comments-in-notes-browser: all checks passed');

@@ -26,6 +26,9 @@
  *      "You", a colleague's note is unread; a reply stores your member id
  *   H  before the inbox backend is deployed (the old function answers
  *      invalid_deliverable_id), the old Messages tab stays and the button hides
+ * Since 2026-10-29 (session Permafive) every signed-in staff member has the round-5 Messages on a desktop page (327;
+ * unread-badges-v2-browser.js covers it), so A to L run at phone width, where this page is what staff still see; F, M,
+ * N, O and P keep their desktop checks against the round-5 page (its New / To answer / All, its Close).
  * With SCREENSHOTS=<dir>, light and dark captures are written there.
  * Nothing reaches a live backend.
  */
@@ -44,6 +47,7 @@ async function markUnread(page){
  if(await direct.isVisible())await direct.click();
  else {await page.getByRole('button',{name:'More conversation actions'}).click();await page.locator('.thumb-msg-more').getByRole('button',{name:'Mark as unread',exact:true}).click();}
 }
+const MAIN = { width: 390, height: 844 };   // the phone, where this Messages page is what staff see (round-5 on desktop)
 (async () => {
   const S = await createEnv();
   // The real unread rules (production-comments/inbox.mjs) decide the counts.
@@ -118,6 +122,7 @@ async function markUnread(page){
     });
 
     const page = await S.newPage();
+    await page.setViewportSize(MAIN);
     await S.openCalendar(page);
     const shot = async (name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } };
     const theme = async (t) => page.evaluate(t => { document.documentElement.setAttribute('data-theme', t); }, t);
@@ -150,7 +155,7 @@ async function markUnread(page){
 
     // D: reply through the Notes save path
     await page.fill('#msgReplyBox', 'Fixture reply from the inbox');
-    await page.press('#msgReplyBox', 'Enter');
+    await page.click('#msgPage .cal-cm-send');   // on a phone Enter makes a new line; Send sends
     check(await until(() => parse(S.card('p_t1').caption_tweaks).some(m => m.body === 'Fixture reply from the inbox'), 20000), 'D: the reply is saved on the card');
     const r = parse(S.card('p_t1').caption_tweaks).find(m => m.body === 'Fixture reply from the inbox') || {};
     check(r.parent_id === 'c_root', 'D: the reply sits under the thread it answers');
@@ -207,11 +212,13 @@ async function markUnread(page){
     // The editor sign-in cleared the inbox; the first background load after
     // signing back in waits a minute, so load it now.
     await page.evaluate(() => _msgLoad(true));
-    await until(() => page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent === '2'));
+    // On a desktop page every signed-in staff member has the round-5 Messages (327; no switch since 2026-10-29): its
+    // button counts NEW conversations only and the page opens on New, so the conversations are counted under All.
+    await until(() => page.evaluate(() => _msgState.loaded));
     check(await page.isVisible('#navMessages'), 'F: the Messages button shows by the account icon');
-    check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'F: the button shows the unread count (the posted one is gone)');
     await page.click('#navMessages');
-    check(await until(() => page.evaluate(() => currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2)), 'F: the button opens the Messages page with the same conversations');
+    const allConvs = () => page.evaluate(() => { if (currentNav !== 'messages' || typeof _msgSetFilter !== 'function') return -1; if (_msgState.filter !== 'all') _msgSetFilter('all'); return document.querySelectorAll('#msgPage .msg-conv').length; });
+    check(await until(async () => (await allConvs()) === 2), 'F: the button opens the Messages page with the same conversations, the posted one gone (under All)');
     const f = await page.evaluate(() => {
       const h = document.querySelector('header.header').getBoundingClientRect();
       const p = document.getElementById('msgPage').getBoundingClientRect();
@@ -231,7 +238,7 @@ async function markUnread(page){
     // A fresh load of the Messages address (the test server cannot serve the
     // clean /messages path the live site redirects, so use its hash form).
     await page.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
-    check(await until(() => page.evaluate(() => typeof currentNav !== 'undefined' && currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2), 30000), 'F: a reload on the Messages page comes back to it');
+    check(await until(async () => (await page.evaluate(() => typeof currentNav !== 'undefined').catch(() => false)) && (await allConvs().catch(() => -1)) === 2, 30000), 'F: a reload on the Messages page comes back to it');
     // The same reload when the router reaches the Messages page BEFORE the Messages code has run (a slow or busy device:
     // the app is loaded as a row of script files). Forced here instead of waited for: the file that holds the Messages
     // code is answered late, so the router finds no mount function and leaves an empty shell. Once the code has run
@@ -244,7 +251,7 @@ async function markUnread(page){
       await route.fulfill({ response: res, body });
     });
     await page.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
-    check(await until(() => page.evaluate(() => typeof currentNav !== 'undefined' && currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2), 30000), 'F: a reload that reaches Messages before the Messages code has run still shows the conversations (late chunks held: ' + heldChunk + ')');
+    check(await until(async () => (await page.evaluate(() => typeof currentNav !== 'undefined').catch(() => false)) && (await allConvs().catch(() => -1)) === 2, 30000), 'F: a reload that reaches Messages before the Messages code has run still shows the conversations (late chunks held: ' + heldChunk + ')');
     await page.unroute('**/js/sv-*.js');
     check(heldChunk >= 1, 'F: setup: the file holding the Messages code was really answered late (' + heldChunk + ')');
     await page.click('#navCalendar');
@@ -273,7 +280,7 @@ async function markUnread(page){
     check(!page.errors.length, 'no page errors ' + JSON.stringify(page.errors));
 
     // I: who wrote it
-    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.setViewportSize(MAIN);
     withWriters = true;
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
@@ -317,7 +324,7 @@ async function markUnread(page){
     // J: cold start straight on the Kasper tab; the Calendar never opened
     {
       const cold = await S.newPage();
-      await cold.setViewportSize({ width: 1366, height: 900 });
+      await cold.setViewportSize(MAIN);
       await cold.goto(S.origin + '/index.html?v=kasper', { waitUntil: 'domcontentloaded' });
       await cold.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
       // This browser kept the earlier page's saved Calendar choice and cache;
@@ -337,7 +344,7 @@ async function markUnread(page){
       await until(() => cold.evaluate(() => !!document.getElementById('msgReplyBox')));
       const started = Date.now();
       await cold.fill('#msgReplyBox', 'Cold start reply');
-      await cold.press('#msgReplyBox', 'Enter');
+      await cold.click('#msgPage .cal-cm-send');   // on a phone Enter makes a new line; Send sends
       check(await until(() => parse(S.card('p_t1').caption_tweaks).some(m => m.body === 'Cold start reply'), 15000), 'J: the reply saves from a cold start (' + (Date.now() - started) + ' ms)');
       check(await cold.evaluate(() => !document.querySelector('.sv-toast-msg') || !/was not sent/.test(document.querySelector('.sv-toast-msg').textContent)), 'J: no "not sent" message');
       check(await cold.evaluate(() => calState.posts.some(p => p.id === 'p_t1')), 'J: the card list now holds the card');
@@ -352,7 +359,7 @@ async function markUnread(page){
     await page.evaluate(() => _kasperGotoTab('replies'));
     inboxHoldMs = 1500;   // long enough that the second ask surely lands while the first read is out
     const callsBefore = inboxCalls;
-    await page.evaluate(() => { _msgLoad(true); });
+    await page.evaluate(() => { _msgState.openId = ''; _msgLoad(true); });   // on a phone an open conversation hides the list
     await until(() => inboxCalls > callsBefore, 3000);
     withTwin = true;
     const midRead = await page.evaluate(() => { const busy = _msgState.loading; _msgLoad(true); return busy; });
@@ -392,7 +399,7 @@ async function markUnread(page){
       await shot('inbox-phone-list-' + t);
     }
     await theme('light');
-    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.setViewportSize(MAIN);
     check(!page.errors.length, 'J-L: no page errors ' + JSON.stringify(page.errors));
 
     // M, N, O: the loading placeholder, the short-lived list cache and the call on pointer arrival.
@@ -406,13 +413,20 @@ async function markUnread(page){
       const geo = (pg) => pg.evaluate(() => {
         const r = el => { if (!el) return null; const b = el.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(v => Math.round(v * 10) / 10); };
         const one = sel => r(document.querySelector('#msgPage ' + sel));
+        // A desktop page draws the round-5 rows (327, every signed-in staff member since 2026-10-29): svu-conv-* boxes.
         const rows = [...document.querySelectorAll('#msgPage .msg-conv')].slice(0, 3).map(row => ({
-          row: r(row), thumb: r(row.querySelector('.msg-thumb')), top: r(row.querySelector('.msg-conv-top')),
-          sub: r(row.querySelector('.msg-conv-sub')), last: r(row.querySelector('.msg-conv-last')),
+          row: r(row), thumb: r(row.querySelector('.msg-thumb, .svu-conv-av')), top: r(row.querySelector('.msg-conv-top, .svu-conv-top')),
+          sub: r(row.querySelector('.msg-conv-sub')), last: r(row.querySelector('.msg-conv-last, .svu-conv-last')),
         }));
+        // A phone's preview shows on one or two lines as its words need (the phone polish): from the first row whose
+        // preview wraps, that row and the rows below it take the message's own height, which no placeholder can know.
+        const wrapAt = [...document.querySelectorAll('#msgPage .msg-conv')].slice(0, 3).findIndex(row => {
+          const l = row.querySelector('.msg-conv-last'); if (!l || row.classList.contains('is-skeleton')) return false;
+          return l.getBoundingClientRect().height > parseFloat(getComputedStyle(l).lineHeight) * 1.5;
+        });
         return { inbox: one('.msg-inbox'), list: one('.msg-list'), filters: one('.msg-filters'),
           pills: [...document.querySelectorAll('#msgPage .msg-filters button')].map(r), convs: one('.msg-convs'), chat: one('.msg-chat'), empty: one('.msg-chat-empty'), rows,
-          scrollW: document.documentElement.scrollWidth };
+          scrollW: document.documentElement.scrollWidth, wrapAt };
       });
       const flat = (o, p = '') => Array.isArray(o) ? (o.length && typeof o[0] === 'number' ? [[p, o]] : o.flatMap((v, i) => flat(v, p + '[' + i + ']'))) : (o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => flat(v, p + '.' + k)) : []);
       const sizes = [['desktop', 1366, 900], ['phone', 390, 844]];
@@ -447,11 +461,18 @@ async function markUnread(page){
         // A line of text is as wide as its words and a bar as wide as it was told to be, so
         // for the text lines (and the row's text column) only left, top and height must match.
         const lineKey = k => /\.(sub|last|top)$/.test(k);
-        const same = (k, v, other) => other.has(k) && other.get(k).every((n, i) => (lineKey(k) && i === 2) || Math.abs(n - v[i]) <= 0.5);
-        const a = flat(skel.light), b = new Map(flat(real.light));
+        // A filter pill is as wide as its count, which is not known while loading: its top and height must match.
+        const pillKey = k => /^\.pills\[/.test(k);
+        const same = (k, v, other) => other.has(k) && other.get(k).every((n, i) => (lineKey(k) && i === 2) || (pillKey(k) && i !== 1 && i !== 3) || Math.abs(n - v[i]) <= 0.5);
+        // On a phone the rows are compared down to the first two-line preview (see wrapAt in geo): that row is taller, its
+        // picture centred lower, and every row below it sits lower by however long that message is.
+        const cut = real.light.wrapAt;
+        const keep = ([k]) => !(cut >= 0 && /^\.rows\[(\d+)\]/.test(k) && Number(k.match(/^\.rows\[(\d+)\]/)[1]) >= cut);
+        if (cut >= 0) console.log('     ' + name + ': row ' + cut + "'s preview wraps to two lines; it and the rows below it are not compared");
+        const a = flat(skel.light).filter(keep), b = new Map(flat(real.light));
         const off = a.filter(([k, v]) => !same(k, v, b));
-        check(a.length > 20 && !off.length, 'M: ' + name + ': every box of the placeholder sits where the loaded page puts it (' + a.length + ' boxes; off: ' + JSON.stringify(off.slice(0, 3)) + ')');
-        const ad = flat(skel.dark), bd = new Map(flat(real.dark));
+        check(a.length > (cut >= 0 ? 10 : 20) && !off.length, 'M: ' + name + ': every box of the placeholder sits where the loaded page puts it (' + a.length + ' boxes; off: ' + JSON.stringify(off.slice(0, 3)) + ')');
+        const ad = flat(skel.dark).filter(keep), bd = new Map(flat(real.dark));
         check(!ad.filter(([k, v]) => !same(k, v, bd)).length, 'M: ' + name + ': same in dark');
         check(skel.light.scrollW <= w + 1, 'M: ' + name + ': the placeholder does not scroll sideways');
         check(!pg.errors.length, 'M: no page errors ' + JSON.stringify(pg.errors));
@@ -461,7 +482,7 @@ async function markUnread(page){
       // N: the list cache belongs to one signed-in member, in this tab, for ten minutes.
       const withCache = async (cache) => {
         const pg = await S.newPage();
-        await pg.setViewportSize({ width: 1366, height: 900 });
+        await pg.setViewportSize({ width: 1366, height: 900 });   // the header button these checks press is a desktop one
         await pg.goto(S.origin + '/index.html', { waitUntil: 'domcontentloaded' });
         await pg.evaluate(c => { sessionStorage.clear(); if (c) sessionStorage.setItem('sv_msg_inbox_v1', JSON.stringify(c)); }, cache);
         inboxDelay = 2500;
@@ -587,7 +608,8 @@ async function markUnread(page){
           await pg.evaluate(t => document.documentElement.setAttribute('data-theme', t), t);
           const before = await arrange(pg, name);
           const tag = `P: ${name} ${t}`;
-          const opened = async () => { await openers[name](pg); return until(() => pg.evaluate(() => currentNav === 'messages' && !!document.querySelector('#msgPage .msg-conv')), 8000); };
+          // The list is drawn: its rows, or (the round-5 page opens on New) its "Nothing new".
+          const opened = async () => { await openers[name](pg); return until(() => pg.evaluate(() => currentNav === 'messages' && !!document.querySelector('#msgPage .msg-conv, #msgPage .msg-list-empty')), 8000); };
           const back = async (label) => {
             check(await until(() => pg.evaluate(() => !document.getElementById('msgPage') && currentNav === 'calendar'), 8000), `${tag}: ${label}: Messages closes`);
             await until(() => pg.evaluate(() => !!document.querySelector('.cal-card-focused') && Math.abs(scrollY - 100) <= 6 && Math.abs(((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0) - 300) <= 6), 6000);
@@ -656,7 +678,9 @@ async function markUnread(page){
         await pg.keyboard.press('Escape');
         await pg.waitForTimeout(300);
         check(await pg.evaluate(() => !!document.getElementById('msgPage') && document.getElementById('msgReplyBox').value === 'A reply I am still writing'), 'P: Escape in a box with typed text keeps Messages open and the text');
-        await pg.click('#msgPage .msg-close');
+        // The round-5 page (every signed-in staff member on a desktop page) puts its Close on the open conversation's
+        // header (the "×", the same _msgClose) and hides the page's own while one is open.
+        await pg.locator('#msgPage .svu-chat-close, #msgPage .msg-close').locator('visible=true').first().click();
         check(await until(() => pg.evaluate(() => !document.getElementById('msgPage')), 6000), 'P: the Close button closes it even with a typed reply');
         await pg.click('#navMessages');
         check(await until(() => pg.evaluate(() => { const b = document.getElementById('msgReplyBox'); return !!b && b.value === 'A reply I am still writing'; }), 8000), 'P: the typed reply is still there on the next visit');

@@ -9,6 +9,9 @@
  *   C  a manager's message to the reviewer raises the badge live (a realtime change on the cards), without a reload
  *   D  reading it in ANOTHER tab clears the badge here live, without a reload
  *   E  opening a conversation in the New view keeps it on screen while it is open
+ * Since 2026-10-29 (session Permafive) every signed-in staff member has the round-5 Messages on a desktop page (New,
+ * To answer, All; covered by unread-badges-v2-browser.js), so these checks run at phone width (390), where this
+ * New / All page is what staff still see.
  * With SCREENSHOTS=<dir>, light and dark captures at 1440 and 390 are written there. Fictional data only.
  */
 const fs = require('fs');
@@ -18,6 +21,7 @@ const failures = [];
 const check = (c, m) => { console.log((c ? '  ok  ' : 'FAIL  ') + m); if (!c) failures.push(m); };
 const until = async (fn, ms = 8000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn()) return true; await sleep(100); } return false; };
 const SHOTS = process.env.SCREENSHOTS || '';
+const MAIN = { width: 390, height: 844 };   // the phone, where this New / All page is what staff see
 const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:00:00.000Z`;
 
 (async () => {
@@ -73,7 +77,7 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
     }));
 
     const page = await S.newPage();
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize(MAIN);
     await openMessages(page);
     await page.evaluate(() => { window.__noReload = 1; });
     const shot = async (pg, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await pg.screenshot({ path: path.join(SHOTS, name + '.png') }); } };
@@ -87,7 +91,7 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
           await page.evaluate(() => _msgSetFilter('all')); await sleep(250); await shot(page, `${tag}-${label}-${t}-all`);
         }
       }
-      await theme(page, 'light'); await page.setViewportSize({ width: 1440, height: 900 }); await page.evaluate(() => _msgSetFilter('new'));
+      await theme(page, 'light'); await page.setViewportSize(MAIN); await page.evaluate(() => _msgSetFilter('new'));
     };
 
     // A + B
@@ -101,7 +105,7 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
     const phoneLook = await page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-filters button')].map(b => ({ t: b.textContent.trim(), tt: getComputedStyle(b).textTransform, fv: getComputedStyle(b).fontVariant })));
     
     check(phoneLook.every(b => b.tt === 'none' && /^(New|All)/.test(b.t)), 'B: on a phone the labels read New and All, not changed to lower case');
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize(MAIN);
     await sweep('empty');
     await page.evaluate(() => _msgSetFilter('all'));
     s = await state(page);
@@ -124,13 +128,15 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
 
     // D: read in another tab
     const other = await S.newPage();
+    await other.setViewportSize(MAIN);
     await openMessages(other);
     await other.evaluate(() => _msgSetFilter('all'));
     await other.click('#msgPage [data-msg-conv="p_mgr"]');
     check(await until(() => marks.includes('p_mgr:read')), 'D: the other tab reads the conversation');
     check(await until(async () => { const x = await state(page); return x.countHidden || x.count === '0'; }), 'D: the badge here clears live, with no reload');
+    await until(async () => { const x = await state(page); return x.tabs[0] === 'New' && x.empty === 'No new messages'; });
     s = await state(page);
-    check(s.tabs[0] === 'New' && s.empty === 'No new messages', 'D: the switch drops its count and the New view is calm again');
+    check(s.tabs[0] === 'New' && s.empty === 'No new messages', 'D: the switch drops its count and the New view is calm again ' + JSON.stringify(s));
     check(await page.evaluate(() => window.__noReload === 1), 'D: the page was not reloaded');
 
     // E: opening keeps the conversation on screen in the New view

@@ -146,23 +146,35 @@ async function staffOnSheet(browser, origin, o) {
         console.log('--- the conversation, ' + name + ' ---');
         const t = await openWho(browser, origin, who, dark);
         const C = await chatLook(t.page);
-        expect(C.bubbles >= 3, name + ': the notes are bubbles (' + C.bubbles + ')');
-        expect(C.widest <= 0.88, name + ': no bubble runs the full width of the panel (widest ' + Math.round(C.widest * 100) + '%)');
-        expect(C.mineRight && C.othersLeft, name + ': the viewer\'s own notes sit on the right, everyone else\'s on the left (' + C.sides + ')');
-        expect(C.bubbleBgDiffers, name + ': the bubbles stand apart from the panel (' + C.bg + ')');
-        expect(!C.sideBar, name + ': no coloured side bar on any bubble (' + C.shadows + ')');
-        expect(C.tagged, name + ': every bubble names its part');
-        expect(C.boxLast, name + ': the message box sits at the bottom of the panel');
-        expect(C.long && C.long.clamped && C.long.paras, name + ': the pasted caption keeps its paragraphs and folds after a few lines (' + JSON.stringify(C.long) + ')');
-        // Show all opens it, in place.
-        await t.page.locator('#svReviewStage').locator('[data-more]').first().click();
-        const L = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-more]'); const bt = b.previousElementSibling; return { clamped: bt.classList.contains('clamp'), full: bt.scrollHeight <= bt.clientHeight + 2, label: b.textContent }; });
-        expect(!L.clamped && L.full && L.label === 'Show less', name + ': Show all opens the whole note (' + JSON.stringify(L) + ')');
-        // Older notes fold; opened, a handled request shows Done.
-        const fold = t.page.locator('#svReviewStage').locator('#foldBtn');
-        if (await fold.count()) await fold.click();
-        const D = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { done: r.querySelectorAll('.bub.handled .donec').length, you: r.querySelectorAll('.bub.you').length }; });
-        expect(D.done >= 1, name + ': a handled change request shows Done (' + D.done + ')');
+        // Kasper's Review Session has the client page's polish for every signed-in staff member (no switch since
+        // 2026-10-29, session Permafive): his notes are the quiet notes (.cpm, as Slack draws them), not bubbles.
+        if (who === 'kasper') {
+          expect(C.notes >= 3 && C.bubbles === 0, name + ': the notes are the quiet notes, not bubbles (' + C.notes + ' notes, ' + C.bubbles + ' bubbles)');
+          expect(!C.noteSideBar, name + ': no coloured side bar on any note');
+          expect(C.boxLast, name + ': the message box sits at the bottom of the panel');
+          const fold = t.page.locator('#svReviewStage').locator('#foldBtn');
+          if (await fold.count()) await fold.click();
+          const D = await t.page.evaluate(() => document.getElementById('svReviewStage').shadowRoot.querySelectorAll('.cpm.handled .cpm-k.ok').length);
+          expect(D >= 1, name + ': a handled change request shows Done (' + D + ')');
+        } else {
+          expect(C.bubbles >= 3, name + ': the notes are bubbles (' + C.bubbles + ')');
+          expect(C.widest <= 0.88, name + ': no bubble runs the full width of the panel (widest ' + Math.round(C.widest * 100) + '%)');
+          expect(C.mineRight && C.othersLeft, name + ': the viewer\'s own notes sit on the right, everyone else\'s on the left (' + C.sides + ')');
+          expect(C.bubbleBgDiffers, name + ': the bubbles stand apart from the panel (' + C.bg + ')');
+          expect(!C.sideBar, name + ': no coloured side bar on any bubble (' + C.shadows + ')');
+          expect(C.tagged, name + ': every bubble names its part');
+          expect(C.boxLast, name + ': the message box sits at the bottom of the panel');
+          expect(C.long && C.long.clamped && C.long.paras, name + ': the pasted caption keeps its paragraphs and folds after a few lines (' + JSON.stringify(C.long) + ')');
+          // Show all opens it, in place.
+          await t.page.locator('#svReviewStage').locator('[data-more]').first().click();
+          const L = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-more]'); const bt = b.previousElementSibling; return { clamped: bt.classList.contains('clamp'), full: bt.scrollHeight <= bt.clientHeight + 2, label: b.textContent }; });
+          expect(!L.clamped && L.full && L.label === 'Show less', name + ': Show all opens the whole note (' + JSON.stringify(L) + ')');
+          // Older notes fold; opened, a handled request shows Done.
+          const fold = t.page.locator('#svReviewStage').locator('#foldBtn');
+          if (await fold.count()) await fold.click();
+          const D = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { done: r.querySelectorAll('.bub.handled .donec').length, you: r.querySelectorAll('.bub.you').length }; });
+          expect(D.done >= 1, name + ': a handled change request shows Done (' + D.done + ')');
+        }
         if (who === 'smm') {
           const V = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { foot: r.querySelectorAll('.bfoot .vis').length, head: r.querySelectorAll('.bh .vis').length }; });
           expect(V.foot >= 1 && V.head === 0, name + ': Team only / Client can see sits under the note, not in its header (' + JSON.stringify(V) + ')');
@@ -264,7 +276,10 @@ function chatLook(page) {
     const shadows = bubs.map(b => getComputedStyle(b.querySelector('.bb')).boxShadow);
     const lb = Array.from(sc.querySelectorAll('.bt')).find(e => /Please use this caption/.test(e.textContent));
     const foot = r.querySelector('.ch-foot');
+    const notes = Array.from(sc.querySelectorAll('.cpm')).filter(b => b.getClientRects().length);
     return {
+      notes: notes.length,
+      noteSideBar: notes.some(n => { const cs = getComputedStyle(n); return parseFloat(cs.borderLeftWidth) >= 2 && cs.borderLeftColor !== 'rgba(0, 0, 0, 0)'; }),
       bubbles: bubs.length,
       widest: Math.max(0, ...bubs.map(b => b.getBoundingClientRect().width / sr.width)),
       sides: sides.join(' '),

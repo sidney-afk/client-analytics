@@ -2413,7 +2413,7 @@ import {
             const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
             return '<div class="cal-cm-skeleton" role="status" aria-busy="true" aria-label="Loading notes">' + row(true) + row(false) + row(true) + '</div>';
         }
-        /* Round 9 (owner, switch unread_badges_v2, staff only): the skeleton is for a card nothing is known about yet.
+        /* Round 9 (owner, staff only): the skeleton is for a card nothing is known about yet.
            A board refresh replaces the card's row and its read state with it, so every reopen used to start on the
            skeleton, which then turned into the same "No notes yet" (or "All clear"). A card whose feed was last seen
            settled and empty, for the same links and within the last few minutes, now shows that at once while the

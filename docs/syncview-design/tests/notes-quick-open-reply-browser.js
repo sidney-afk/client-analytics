@@ -1,6 +1,6 @@
 'use strict';
-/* notes-quick-open-reply-browser.js -- round 9 of the unread badges, for Notes (owner, 2026-10-25; switch
- * unread_badges_v2, staff only). Fully mocked: nothing reaches a live backend.
+/* notes-quick-open-reply-browser.js -- round 9 of the unread badges, for Notes (owner, 2026-10-25; staff only,
+ * no switch since 2026-10-29, session Permafive). Fully mocked: nothing reaches a live backend.
  *
  *   A a first opening of a card with no notes shows the loading skeleton while its notes are looked up, then
  *     "No notes yet"
@@ -9,7 +9,7 @@
  *   C a reply sent while the notes are still loading is taken (Send is not held), shows in the thread at once, and
  *     is sent when the loading ends, once
  *   D the "sending" mark goes when the server has the note, without waiting for the card's own save behind it
- *   E with the switch off, B and C are as before (the skeleton on every opening; Send held while loading)
+ *   E with the old unread_badges_v2 row absent, A to D are the same: nothing turns this off any more
  *
  * On the code before this change B, C and D fail.
  */
@@ -75,7 +75,7 @@ const refreshBoard = page => page.evaluate(() => {
 
 (async () => {
   for (const on of [true, false]) {
-    const tag = s => (on ? 'switch on: ' : 'switch off: ') + s;
+    const tag = s => (on ? 'old row present: ' : 'old row absent: ') + s;
     const h = await run(on ? { staff: ['m1'] } : undefined);
     const { S, page, slow } = h;
     try {
@@ -97,8 +97,7 @@ const refreshBoard = page => page.evaluate(() => {
       ok(await settled(page), tag('B: the notes finish loading again'));
       const b = await watched(page);
       ok(inFlight, tag('B: the second opening looks the notes up again'));
-      if (on) ok(!b.skel && /^No notes yet/.test(b.first), tag('B: a second opening shows "No notes yet" at once, not one skeleton frame ' + JSON.stringify(b)));
-      else ok(b.skel, tag('E: the second opening still shows the skeleton first ' + JSON.stringify(b)));
+      ok(!b.skel && /^No notes yet/.test(b.first), tag('B: a second opening shows "No notes yet" at once, not one skeleton frame ' + JSON.stringify(b)));
 
       // C and D: a reply sent while the notes are still loading
       slow.crosswalk = 0;
@@ -128,9 +127,7 @@ const refreshBoard = page => page.evaluate(() => {
         return { loading: _prodCrosswalkInFlight(p), disabled: !!(btn && btn.disabled), pending: !!(btn && btn.hasAttribute('data-send-pending')) };
       });
       ok(held.loading, tag('C: the notes are still loading when the reply is written'));
-      if (!on) {
-        ok(held.disabled && held.pending, tag('E: Send waits for the notes, as before ' + JSON.stringify(held)));
-      } else {
+      {
         ok(!held.disabled && !held.pending, tag('C: Send is not held while the notes load ' + JSON.stringify(held)));
         const t0 = Date.now();
         await page.click('#calCommentsModal .cal-cm-send');

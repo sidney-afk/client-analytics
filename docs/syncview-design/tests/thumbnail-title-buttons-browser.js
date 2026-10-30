@@ -6,9 +6,12 @@
  * thumbnail-titles function is a small fake that walks a run through its stages. Fictional data only.
  *
  * What it proves:
- *   1. The switch: with thumbnail_title_buttons_staff naming the signed-in person, the post shows
+ *   1. No switch (since 2026-10-29, session Permafive): for a signed-in staff member the post shows
  *      "Thumbnail titles" on the right of its Sub-issues header, and a thumbnail sub-issue shows
- *      "Write title" beside Edit. With the switch not naming them, neither is drawn.
+ *      "Write title" beside Edit, with the old thumbnail_title_buttons_staff row present or absent (the whole
+ *      run below is walked both ways). A staff member who is not an admin or SMM sees the buttons greyed, and
+ *      opening the post never asks thumbnail-titles for the run's status (the server would answer 403
+ *      smm_or_admin_only).
  *   2. A teammate's run already going: the button says "Being written by <first name>", and pressing it
  *      follows that run (no second run is started).
  *   3. A whole batch: Waiting on every thumbnail row at once, then each row's own state (a title written,
@@ -45,7 +48,10 @@ async function launch() {
   catch (e) { return await chromium.launch({ headless: true, executablePath: '/opt/pw-browsers/chromium' }); }
 }
 
-async function runCase(listed) {
+async function runCase(mode) {
+  const listed = mode === 'listed';
+  // The page's role for this case, set on the stored identity once the page has loaded (what _prodTtRoleOk reads).
+  const role = mode === 'editor' ? 'editor' : 'admin';
   const now = '2026-10-20T12:00:00.000Z';
   const clients = [{ slug: 'demo-fixture', display_name: 'Demo Fixture', active: true, kind: 'video', linear_project_ids: [{ id: 'linear-project-demo' }] }];
   const members = [{ id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics', active: true }];
@@ -137,7 +143,7 @@ async function runCase(listed) {
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.message));
   await seedStaffGate(page);
-  await page.route('**/functions/v1/key-verify', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', member: members[0] }) }));
+  await page.route('**/functions/v1/key-verify', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', member: { ...members[0], role: 'admin' } }) }));
   await page.route('**/functions/v1/filming-plans**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, plans: [] }) }));
   await page.route('**/functions/v1/production-comments', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ comments: [], next_cursor: null, has_more: false, canonical_thread: true }) }));
   await page.route('**/functions/v1/thumbnail-titles', fakeTitles);
@@ -179,22 +185,26 @@ async function runCase(listed) {
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-prod-row="th-1"], [data-prod-row="post-parent"]', { timeout: 20000 });
-    await page.evaluate(() => {
-      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+    await page.evaluate(r => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: r, member: { id: 'admin', name: 'Browser Admin', role: r, team: 'graphics' } });
       _syncviewStaffIdentityVerified = true;
       _prodRender();
-    });
+    }, role);
     await page.waitForFunction(() => typeof svRsFlagsLoaded === 'function' && svRsFlagsLoaded(), null, { timeout: 15000 });
 
-    if (!listed) {
+    if (mode === 'editor') {
+      // A staff member who is not an admin or SMM: the buttons greyed with the reason, and no status read (the
+      // server answers it 403 smm_or_admin_only, about 60 a day before this was skipped).
       await page.evaluate(() => _prodOpenDeliverable('post-parent'));
-      await page.waitForSelector('[data-prod-section="subissues"]', { timeout: 15000 });
-      expect(await page.locator('[data-prod-tt-btn]').count() === 0, 'the batch button was drawn for someone the switch does not list');
+      await page.waitForSelector('[data-prod-tt-btn="post-parent"] button', { timeout: 15000 });
+      expect(await page.locator('[data-prod-tt-btn="post-parent"] button[aria-disabled="true"]').count() === 1, 'the batch button is not greyed for someone who is not an admin or SMM');
       await page.evaluate(() => _prodOpenDeliverable('th-1'));
-      await page.waitForSelector('[data-prod-description="th-1"]', { timeout: 15000 });
-      expect(await page.locator('[data-prod-tt-descbtn]').count() === 0, 'Write title was drawn for someone the switch does not list');
-      expect(!calls.length, 'the page called thumbnail-titles while switched off');
-      console.log('  off: no buttons, no calls');
+      await page.waitForSelector('[data-prod-description="th-1"] [data-prod-tt-descbtn="th-1"] button', { timeout: 15000 });
+      expect(await page.locator('[data-prod-tt-descbtn="th-1"] button[aria-disabled="true"]').count() === 1, 'Write title is not greyed for someone who is not an admin or SMM');
+      await sleep(1500);
+      expect(!calls.some(c => c.action === 'status'), 'the page asked thumbnail-titles for the run status for someone the server refuses: ' + JSON.stringify(calls.map(c => c.action)));
+      expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
+      console.log('  editor: buttons greyed, no status read');
       return;
     }
 
@@ -273,7 +283,8 @@ async function runCase(listed) {
     expect(order.join('|') === 'Write title|Edit', 'Write title is not beside Edit: ' + order.join('|'));
     if (shots) await page.screenshot({ path: path.join(shots, 'tt-subissue.png') });
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
-    console.log('  on: batch run, review, retry, undo, sub-issue button');
+    expect(calls.some(c => c.action === 'status'), 'an admin\'s opening of the post never asked for the run status');
+    console.log('  ' + mode + ': batch run, review, retry, undo, sub-issue button');
   } finally {
     await browser.close();
     server.close();
@@ -281,7 +292,8 @@ async function runCase(listed) {
 }
 
 (async () => {
-  await runCase(false);
-  await runCase(true);
+  await runCase('editor');
+  await runCase('admin-norow');
+  await runCase('listed');
   console.log('thumbnail-title-buttons-browser: passed');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

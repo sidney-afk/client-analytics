@@ -8379,7 +8379,7 @@ html .fv-player .fv-icon-btn:hover { background: var(--sv-bg-rgba-255-255-255-0_
 html .cal-comments-modal .cal-cm-tc { display: inline-flex; align-items: center; min-width: 0 !important; min-height: 0 !important; margin: 0 7px 0 0; padding: 1px 7px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 14%, transparent); color: var(--focus-ring); font-family: inherit; font-size: 0.76rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.4; vertical-align: 1px; cursor: pointer; }
 html .cal-comments-modal .cal-cm-tc:hover { background: color-mix(in srgb, var(--focus-ring) 24%, transparent); }
 .cal-cm-tc:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-/* Frame comments in Notes without the player (frame_comments_in_notes_staff): the time is a label, not a button. */
+/* Frame comments in Notes without the player (staff): the time is a label, not a button. */
 html .cal-comments-modal .cal-cm-tc.is-static, html .cal-comments-modal .cal-cm-tc.is-static:hover { background: color-mix(in srgb, var(--focus-ring) 10%, transparent); cursor: default; }
 .cal-cm-row.is-frameio.is-now { background: color-mix(in srgb, var(--focus-ring) 7%, transparent); }
 .cal-cm-fio-note { padding: 6px 22px; font-size: 0.78rem; color: var(--text-secondary); }
@@ -8938,7 +8938,7 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  }
  .workload-view.wl-calm .workload-calendar-heading:has(#wlWeekendNotice[hidden]) { display: none; }
 /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). Only on a page whose
-   html carries .sv-unread2, which 327 sets for the staff members the runtime switch unread_badges_v2 names, on desktop.
+   html carries .sv-unread2, which 327 sets for every signed-in staff member, on desktop.
    People bubbles with a number coloured by kind, and Notes and Messages laid out like Slack. Nobody else sees any of it. */
 html.sv-unread2 {
   --svu-change: #e8590c;
@@ -9176,8 +9176,8 @@ html.sv-unread2 #msgPage .msg-page-head .msg-close:hover { color: var(--text-pri
 html.sv-unread2 .sv-note-outbox.is-sending { margin-top: 2px; color: var(--text-muted); }
 html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px; }
 
-/* PHONE POLISH FOR STAFF (phone_polish_staff, session Grip, 2026-10-25; docs/syncview-design/phone-audit/). The same
-   phone design, smoother: only for the staff members the switch lists (188 puts html.sv-phone-polish on the page), and
+/* PHONE POLISH FOR STAFF (session Grip, 2026-10-25; permanent since 2026-10-29; docs/syncview-design/phone-audit/). The same
+   phone design, smoother: every signed-in staff member (188 puts html.sv-phone-polish on the page), and
    only at phone width, so a desktop page never changes. */
 @media (max-width:767px) {
  /* An opened post: Notes sits right under the statuses (it was the last line, about 1,100 px down), and the picture
@@ -9197,7 +9197,7 @@ html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px
  html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-assign-hot { order:1; }
  html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-title { flex-basis:calc(100% - 104px); }
 }
-/* Phone polish, round 2 (phone_polish_staff, session Grip, 2026-10-25). */
+/* Phone polish, round 2 (session Grip, 2026-10-25). */
 @media (max-width:767px) {
  /* Messages: on a 360 px phone the title ran under the word "Close". Close is a plain 44 px cross (its name is still
     "Close Messages"), and below 378 px the title is a little smaller, so "Messages" shows whole. */
@@ -9212,6 +9212,8 @@ html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px
  html.sv-phone-polish body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar,
  html.sv-phone-polish body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar { row-gap:0;margin-bottom:4px; }
  html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=grid],[data-thumb-mode=list]) .thumb-collection-bar { padding-block:4px; }
+/* Its loading skeleton's bar (133) keeps the same slimmer height, so nothing moves when the posts arrive. */
+html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; }
  /* A "Refreshing" or "Couldn't refresh" notice there still gets its room. */
  html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] > .cal-toolbar > .cal-toolbar-right:has(> :is(.cal-refreshing,.cal-stale-notice):not([hidden])) { margin-top:8px; }
 }

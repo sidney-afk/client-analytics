@@ -278,7 +278,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_msgState.again) return _msgLoad(true);
     }
     function _msgUnreadConversations() {
-        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, switch unread_badges_v2)
+        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, every signed-in staff member on desktop)
         return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
     }
     function _msgPaintCounts() {
@@ -311,7 +311,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.again = false; _msgState.owner = '';
+            _msgState.epoch++; _msgState.loading = false; _msgState.again = false; _msgState.owner = ''; _msgState.failStatus = 0;
             _msgCacheClear();
             _msgPaintCounts(); _msgLeavePage();
             return;
@@ -320,7 +320,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_msgState.owner && _msgState.owner !== _msgMyId()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.again = false;
+            _msgState.epoch++; _msgState.loading = false; _msgState.again = false; _msgState.failStatus = 0;   // a refusal the last one got is not theirs
             _msgCacheClear();
             _msgPaintCounts();
         }
@@ -357,6 +357,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (!_msgCanUse() || _msgState.unavailable || _isClientLink || _msgBootDone()) return;
             // Hidden, on Production, or another read already on its way: look again later, asking nothing.
             if (document.hidden || !_msgBootPageOk() || _msgState.loading) { _msgBootLoad(); return; }
+            // Another read (the round-5 badges' own, 327) was already refused for this person: asking again only earns
+            // another refusal (session Permafive, 2026-10-29).
+            if (_msgState.failStatus === 401 || _msgState.failStatus === 403) return;
             const asker = _msgMyId();
             await _msgLoad(false);
             if (_msgBootDone() || _msgState.unavailable || asker !== _msgMyId()) return;
@@ -498,6 +501,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        each line, so every box lands exactly where the real one will. */
     const _MSG_SKEL_ROWS = [[58, 74, 82], [44, 62, 70], [66, 80, 56], [50, 68, 76], [60, 56, 84], [46, 72, 64]];
     function _msgSkelRowsHtml() {
+        // The round-5 rows (327 svuMsgListHtml): the client's picture, the title and time, one line for the last message.
+        if (typeof svuActive === 'function' && svuActive()) return Array.from({ length: 12 }, (_, i) => {
+            const w = _MSG_SKEL_ROWS[i % _MSG_SKEL_ROWS.length];
+            return `<button type="button" class="msg-conv svu-conv is-skeleton" disabled tabindex="-1" aria-hidden="true">
+                <span class="svu-conv-av sv-skeleton"></span>
+                <span class="svu-conv-main">
+                    <span class="svu-conv-top"><span class="svu-conv-title msg-skel sv-skeleton" style="width:${w[1]}%">Post title</span><span class="svu-conv-time msg-skel sv-skeleton" style="width:22px">2h</span></span>
+                    <span class="svu-conv-last msg-skel sv-skeleton" style="width:${w[2]}%">Client · Name: the last message</span>
+                </span>
+            </button>`;
+        }).join('');
         return Array.from({ length: 12 }, (_, i) => {
             const w = _MSG_SKEL_ROWS[i % _MSG_SKEL_ROWS.length];
             return `<button type="button" class="msg-conv is-skeleton" disabled tabindex="-1" aria-hidden="true">
@@ -511,6 +525,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }).join('');
     }
     function _msgSkelFiltersHtml() {
+        // The round-5 Messages (327, every signed-in staff member on a desktop page) has three: New, To answer, All.
+        if (typeof svuActive === 'function' && svuActive()) return `<div class="msg-filters" aria-hidden="true">
+            <button type="button" class="is-active" disabled tabindex="-1">New</button>
+            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">To answer</button>
+            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">All</button>
+        </div>`;
         return `<div class="msg-filters" aria-hidden="true">
             <button type="button" class="is-active" disabled tabindex="-1">New</button>
             <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">All</button>

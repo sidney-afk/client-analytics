@@ -92,7 +92,7 @@ ${helpers}
               assert.equal(out.rows,1);
               assert.equal(out.draft,'{"drafts":"Keep this draft"}','drafts are never freed');
               assert.equal(out.held,'{"_writeUiKasperRepair":1}','a cache carrying a repair is durable state');
-              assert.equal(out.caches,0,'rebuildable caches were freed');
+              assert.equal(out.caches,0,'rebuildable caches were freed '+JSON.stringify(out));
             } else if(mode==='missing-unproven') {
               const code=await a.evaluate(async()=>{try{await _writeUiMarkRepairCommitted({key:'missing',token:'missing',primary_intent_key:'missing'},{native_committed:true});}catch(e){return e.code;}});
               assert.equal(code,'repair_checkpoint_missing','a partial reference must never invent checkpoint data');

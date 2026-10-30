@@ -2561,8 +2561,10 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             'sv.tplCache.v1', 'syncview_tabSummaryCache_v2', 'syncview_kasper_filming_v3',
             'syncview_tiktokQueueCache_v1', 'syncview_workload_v2'];
         try {
-            for (let index = localStorage.length - 1; index >= 0; index--) {
-                const key = localStorage.key(index) || '';
+            // Names first, then removal: removing while walking can reorder the store and skip a key.
+            const names = [];
+            for (let index = 0; index < localStorage.length; index++) names.push(localStorage.key(index) || '');
+            for (const key of names) {
                 if (keys.indexOf(key) < 0 && key.indexOf('syncview_kasper_cal_') !== 0) continue;
                 const value = String(localStorage.getItem(key) || '');
                 if (value.indexOf('_writeUiRetrySourceAt') >= 0 || value.indexOf('_writeUiKasperRepair') >= 0) continue;

@@ -11,8 +11,8 @@
  *               SMM's approve sends it on to Kasper.
  *   tile        Kasper's second layout: a "Client dropped" tile label is whole, never cut to "Client dropp…".
  *   sdate       Kasper's header on a card with no date: "First review" with no stray dot before it.
- *   kround      Kasper's standard layout: his change on one version (the card stays with him) never turns his header into
- *               "Back after tweaks, round N+1" mid-review, and the "Change sent for Video A" line is centred under the
+ *   kround      Kasper's standard layout: changes on several versions in one sitting are one round, and his change on one
+ *               version (the card stays with him) never turns his header into "Back after tweaks, round N+1" mid-review, and the "Change sent for Video A" line is centred under the
  *               version like everything else on the stage, not at the stage's left edge.
  *   behind      every version already has this reviewer's answer but the card is still at their status (the tab reloaded
  *               between the version's save and today's stage approve): the SMM, Kasper (both layouts) and the client get
@@ -207,14 +207,16 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       const t = await start('kasper', true, vs, { width: w, height: h, beforeOpen: async t2 => {
         await keepGateway(t2);
         t2.T_native.status = 'kasper_approval';
-        // One earlier round: Kasper asked a change a week ago, and the card came back to him on 27 Oct.
+        // Two earlier rounds: on 20 Oct Kasper asked changes on A and B two minutes apart (one sitting), on 25 Oct one on A;
+        // the card came back to him on 27 Oct.
         const card = t2.state.cards.find(c => c.id === 'rs1');
         card.video_status_at = '2026-10-27T08:00:00.000Z';
-        card.video_tweaks = JSON.stringify([{ id: 'k0', parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', body: 'Fictional earlier change', created_at: '2026-10-20T10:00:00.000Z', updated_at: '2026-10-20T10:00:00.000Z', done: true, done_at: '2026-10-21T10:00:00.000Z', done_by: 'Team Member' }]);
+        const kn = (id, body, at) => ({ id, parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', body, created_at: at, updated_at: at, done: true, done_at: '2026-10-26T10:00:00.000Z', done_by: 'Team Member' });
+        card.video_tweaks = JSON.stringify([kn('k0', 'Video A: fictional earlier change', '2026-10-20T10:00:00.000Z'), kn('k1', 'Video B: fictional earlier change', '2026-10-20T10:02:00.000Z'), kn('k2', 'Video A: fictional second change', '2026-10-25T09:00:00.000Z')]);
       } });
       const head = () => R(t, `const d = r.getElementById('sdate'); return d ? d.innerText.replace(/\\s+/g, ' ').trim() : '';`);
       await waitFor(async () => /Video A of 3/.test(await bar(t)), 40);
-      ok(/Back after tweaks, round 2/.test(await head(t)), `${label}: before his change the header reads round 2 ("${await head(t)}")`);
+      ok(/Back after tweaks, round 3/.test(await head(t)), `${label}: before his change the header reads round 3: two sittings, the first with changes on A and B ("${await head(t)}")`);
       await press(t, '[data-chg="video"]'); await sleep(300);
       await inS(t.page, '#ta').fill('Fictional note: a calmer start on A.');
       await inS(t.page, '#sendBtn').click();
@@ -222,7 +224,7 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       await waitFor(async () => !!(await R(t, `const n = r.querySelector('.trv-sent .cp-done'); return !!(n && n.offsetParent);`)), 60);
       await sleep(800);
       const hd = await head(t);
-      ok(/Back after tweaks, round 2/.test(hd) && !/round 3/.test(hd), `${label}: after his change on A, with B and C still his, the header still reads round 2 ("${hd}")`);
+      ok(/Back after tweaks, round 3/.test(hd) && !/round 4/.test(hd), `${label}: after his change on A, with B and C still his, the header still reads round 3 ("${hd}")`);
       for (const th of ['light', 'dark']) {
         await theme(t, th);
         const g = await R(t, `const n = r.querySelector('.trv-sent .cp-done'), u = r.querySelector('.trv-under .trv-n') || r.querySelector('.trv-under');

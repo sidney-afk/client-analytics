@@ -1523,8 +1523,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 /* A trial card stays with Kasper after his change on one version, so a change he asked since the card reached
                    its status is this sitting's, not a round the card came back from: it never turns "First review" into
                    "Back after tweaks, round 2" while he is still on it (Nightreel, 2026-10-30). */
-                const since = m.trial && !m.trial.winner ? Date.parse(p.video_status_at || '') : NaN;
-                const rounds = m.thread.filter(x => x.change && x.role === 'kasper' && !(since > 0 && x.part === 'video' && Date.parse(x.at) >= since)).length;
+                const kch = m.thread.filter(x => x.change && x.role === 'kasper');
+                let rounds = kch.length;
+                if (m.trial && !m.trial.winner) {
+                    /* Each version's change is its own note, so changes on A and B in one sitting are one round, not two
+                       (Nightreel: "round 3" after his first round): video changes less than 30 minutes apart count once. */
+                    const since = Date.parse(p.video_status_at || '');
+                    const at = kch.filter(x => x.part === 'video').map(x => Date.parse(x.at)).filter(n => n > 0 && !(since > 0 && n >= since)).sort((a, b) => a - b);
+                    let sittings = 0, last = -Infinity;
+                    at.forEach(n => { if (n - last > 30 * 60000) sittings++; last = n; });
+                    rounds = kch.filter(x => x.part !== 'video').length + sittings;
+                }
                 m.note = rounds ? 'Back after tweaks, round ' + (rounds + 1) : (m.sample ? 'Sample' : 'First review');
             }
             out[sec].push(m);

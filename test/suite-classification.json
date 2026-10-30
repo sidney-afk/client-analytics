@@ -1887,6 +1887,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-strip-tabs-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Checks the client link's header and strip at 1440, 1024, 768, 430, 390 and 320 wide, light and dark: a picked post is wholly inside the strip, every tab's words and count sit inside its own button, the open step is inside the step bar, and no sideways page scroll.",
+      "reproduce": "node test/review-stage-client-strip-tabs-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-with-editors-row-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

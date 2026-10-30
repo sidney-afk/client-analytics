@@ -1087,6 +1087,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cpm-x{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-primary)}
 .cpm.handled .cpm-x,.cpm.old .cpm-x{color:var(--text-secondary)}
 .cpm .diff{margin-top:2px}
+/* A caption keeps its line breaks when quoted in the conversation, as on the stage (OPEN_REPAIRS 613). */
+.cpm .diff .new,.cpm .diff .old{white-space:pre-wrap;overflow-wrap:anywhere}
 .cpm-acts{display:inline-flex;gap:10px;opacity:0;transition:opacity .12s}
 .cpm:hover .cpm-acts,.cpm:focus-within .cpm-acts,.cpm.cp-show .cpm-acts{opacity:1}
 .cpm-act{font:inherit;font-weight:700;color:var(--text-secondary);padding:0;background:none}
@@ -2087,10 +2089,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode !== 'kasper') {
             const q = _rsQueue();
             const open = q.filter(x => !_rsAnswered(x)).length;
+            const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
             const done = R.mode === 'client' ? 'You can still change your mind' : 'Approve sends to Kasper';
             _rsPut(sh, '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>');
-            const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
-            added = _rsPatch(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
+            // The divider stands between waiting and reviewed posts, never alone before the reviewed ones.
+            added = _rsPatch(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? (q.length ? '<span class="sk-sep" aria-hidden="true"></span>' : '') + fin.map(m => {
                 const ch = m.parts.some(x => x.st === 'chg');
                 return '<button class="chipp done" type="button" data-reopen="' + _re(m.id) + '" title="Open it again" aria-label="' + _re(m.title) + ', done. Open it again">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span><span class="dk' + (ch ? ' chg' : '') + '">' + (ch ? RI.back : RI.check) + '</span></button>';
             }).join('') : ''));
@@ -2420,7 +2423,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
         const who = k === onStage ? '' : RS_PART[k] + ': ';
         if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _rsClientWords(err) : err) + (R.cp && S.cpBack[key] ? ' Your next words are back in the box.' : '')) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
-        if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
+        // Offline, the wait is the client's own connection, as the toast below already says (OPEN_REPAIRS 613).
+        if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + (typeof navigator !== 'undefined' && navigator.onLine === false
+            ? 'Waiting for your connection to come back. Nothing is lost: it sends on its own.'
+            : 'Still waiting for the server. Nothing is lost: it finishes here on its own.') + '</div>';
         return '';
     }
     // A refusal in a client's words. With the polish on, a sentence written for the team (a code, "send this to the

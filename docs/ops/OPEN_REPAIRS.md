@@ -35553,3 +35553,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **CI:** `entry-links-boot` part 3 already took 14 min 35 s of its 15 on main 19d0665 and went over on this branch (cancelled at the limit twice with every suite passed). Its 5-minute `trial-reels-round2-review-browser.js` moves to part 1, which takes about 7 minutes (`test/ci-shards-wired.js` passes).
 - **Left alone on purpose:** the five rows in `syncview_runtime_flags` (the supervisor deletes them after the merge is live; the code does not read them).
 - **Way back:** revert the PR; the rows still say `{ "all": true }` until they are deleted, so a revert before then changes nothing anyone sees.
+
+## 613. [2026-10-30 UTC, BUILT, NOT MERGED] Client link end state, a held answer and a quoted caption: plain, true words (session Nightclient)
+
+- **Found by:** walking the client's journey to its end at 1440 and 390 wide, and an approval made with the connection down (offline fixture, the same page code; the cloud harness tunnels live requests outside the browser, so "offline" cannot be faked against the live site).
+- **A lone divider (195).** After the last post was reviewed, the strip began with the divider line that separates waiting posts from reviewed ones, with nothing before it. It now stands only between the two.
+- **A held approval blamed the server (195).** Offline, the line under the buttons read "Still waiting for the server" while the toast said "waiting for your connection to come back". Offline it now reads "Waiting for your connection to come back. Nothing is lost: it sends on its own."; online and slow, the old words stay.
+- **A caption edit lost its line breaks in the conversation (195).** With the polish switch (live for every client), the client's own caption edit was quoted on one line ("...caption With a second line") and so was the old caption under it, while the stage showed the lines. Both keep their line breaks now.
+- **Proof:** `test/review-stage-client-end-words-browser.js` (new, run with the polish switch on as live; 8 failures on main, passes here). Left alone: with nothing waiting and nothing reviewed, the heading still says "You can still change your mind"; removing that line moves the page 7 px against its loading skeleton (`client-link-dark-first-paint-browser.js`), so it waits for a decision. Nothing a client can press changed; `window._calReviewApprove` and the client approve path are untouched.
+- **Way back:** revert the PR.

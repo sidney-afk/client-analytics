@@ -261,6 +261,22 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       await t.ctx.close();
     }
 
+    // The SMM's last approve on a slow line: while its answer is on its way the page never offers that save again.
+    for (const label of ['smm slow last approve'].filter(() => part('behind'))) {
+      const vs = fresh().slice(0, 2);
+      vs[0].smm_ok_at = '2026-10-27T08:30:00.000Z';
+      const t = await start('smm', true, vs, { beforeOpen: async t2 => { await keepGateway(t2); t2.T_native.status = 'smm_approval'; } });
+      await waitFor(async () => /Video B of 2/.test(await bar(t)), 40);
+      t.T.delay = 1500;
+      await press(t, '[data-ok="video"]');
+      let seen = false;
+      for (let i = 0; i < 14; i++) { if (await R(t, `const l = r.querySelector('.trv-behind'); return !!(l && l.offsetParent);`)) seen = true; await sleep(100); }
+      await waitFor(async () => routeMoved(t, 'Kasper Approval', 'kasper_approval'), 80);
+      ok(!seen && routeMoved(t, 'Kasper Approval', 'kasper_approval'), `${label}: no "Every version is approved" while the answer is on its way, and the card goes on to Kasper by itself (seen: ${seen})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
     // ---------- phonesmm: the SMM's Review tab on a staff phone ----------
     for (const [w, h, label] of [[390, 844, 'smm phone 390'], [360, 780, 'smm phone 360']].filter(() => part('phonesmm'))) {
       const vs = fresh().slice(0, 3);

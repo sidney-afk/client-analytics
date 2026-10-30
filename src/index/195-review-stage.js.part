@@ -2494,9 +2494,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const n = _rsLname(x.key);
         if (R.cp && (busy === 'ok' || busy === 'client')) return _rsCpMorph(x, 0);
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
-        /* Every version is answered but the card did not move on (svTrialReviewBehind): today's approve on the video part,
-           with a line saying why it is there. */
-        const behind = x.key === 'video' && x.st === 'wait' && svTrialReviewBehind(_rsCur(), R.mode);
+        /* Every version is answered but the card did not move on (svTrialReviewBehind): on a version this reviewer approved,
+           today's approve on the video part, with a line saying why it is there. A version passed on or out for a change
+           keeps saying so. */
+        const behind = x.key === 'video' && x.st === 'wait' && svTrialReviewAnswered(_rsCur(), R.mode) && svTrialReviewBehind(_rsCur(), R.mode);
         const trialWord = x.key === 'video' && !behind ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
         if (behind && !busy) return '<span class="dst ok trv-behind"><span class="ck">' + RI.check + '</span>' + (R.mode === 'client' ? 'You approved every version' : 'Every version is approved') + '</span>'
             + (R.mode === 'client' ? '<button class="b-ok" type="button" data-ok="' + x.key + '">' + RI.check + 'Approve the ' + n + '</button>' : _rsSplit(x, busy, ''));

@@ -240,7 +240,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        lost). The plan's risk 1: the stage offers that save again, or the card would sit there with nothing to press
        (Nightreel, 2026-10-30: a reload 150 ms after the SMM's last approve). The caller checks the card's status. */
     function svTrialReviewBehind(m, mode) {
-        if (!m || !m.trial || m.trial.winner) return false;
+        // Never while this page's own answer is on its way: the stage approve follows it by itself.
+        if (!m || !m.trial || m.trial.winner || _trvBusy.has(m.id) || _trvChain[m.id]) return false;
         const stage = _trvStage(mode);
         const all = (m.trial.shape && Array.isArray(m.trial.shape.versions)) ? m.trial.shape.versions : m.trial.versions;
         const live = (all || []).filter(v => _trvLive(v) && !v.client_pass_at);

@@ -235,6 +235,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const a = _trvAnswer(_trvCurOf(m, mode), _trvStage(mode));
         return a === 'pass' || a === 'cpass';
     }
+    /* Every live version already has this reviewer's answer, yet the card is still at their status: the version answer
+       landed and today's stage approve after it did not (the tab closed or reloaded in between, or the second save was
+       lost). The plan's risk 1: the stage offers that save again, or the card would sit there with nothing to press
+       (Nightreel, 2026-10-30: a reload 150 ms after the SMM's last approve). The caller checks the card's status. */
+    function svTrialReviewBehind(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return false;
+        const stage = _trvStage(mode);
+        const all = (m.trial.shape && Array.isArray(m.trial.shape.versions)) ? m.trial.shape.versions : m.trial.versions;
+        const live = (all || []).filter(v => _trvLive(v) && !v.client_pass_at);
+        if (!live.length || live.some(v => _trvAnswer(v, stage) === 'wait')) return false;
+        if (stage === 'client') return live.every(v => _trvAnswer(v, 'client') === 'ok');
+        // As the function's stageDone: nothing waits here, and one version not out for a change has this reviewer's OK.
+        return live.some(v => v.status !== 'change asked' && _trvAnswer(v, stage) === 'ok');
+    }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
     }
@@ -684,5 +698,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
+  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
 };

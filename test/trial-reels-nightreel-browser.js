@@ -14,6 +14,9 @@
  *   kround      Kasper's standard layout: his change on one version (the card stays with him) never turns his header into
  *               "Back after tweaks, round N+1" mid-review, and the "Change sent for Video A" line is centred under the
  *               version like everything else on the stage, not at the stage's left edge.
+ *   behind      every version already has this reviewer's answer but the card is still at their status (the tab reloaded
+ *               between the version's save and today's stage approve): the SMM, Kasper (both layouts) and the client get
+ *               a line and today's approve, which moves the card on; before, there was nothing to press.
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -226,6 +229,34 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
           if (!n || !u) return null; const x = n.getBoundingClientRect(), y = u.getBoundingClientRect(); return { sent: Math.round(x.left + x.width / 2), under: Math.round(y.left + y.width / 2), text: n.textContent.trim() };`);
         ok(!!g && /Change sent for Video A/.test(g.text) && Math.abs(g.sent - g.under) <= 6, `${label} ${th}: "Change sent for Video A" is centred under the version (${JSON.stringify(g)})`);
       }
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- behind: every version answered, the card still at this reviewer's status ----------
+    for (const [mode, extra, label, word, code] of [
+      ['smm', {}, 'smm', 'Kasper Approval', 'kasper_approval'],
+      ['kasper', {}, 'kasper standard', 'Client Approval', 'client_approval'],
+      ['kasper', { layout2: true }, 'kasper layout 2', 'Client Approval', 'client_approval'],
+      ['client', {}, 'client', 'Approved', 'approved'],
+    ].filter(() => part('behind'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { smm_ok_at: at },
+        mode === 'smm' ? {} : { kasper_ok_at: at }, mode === 'client' ? { status: 'approved', client_ok_at: at } : {}));
+      const t = await start(mode, true, vs, Object.assign({ beforeOpen: async t2 => {
+        await keepGateway(t2);
+        t2.T_native.status = mode === 'smm' ? 'smm_approval' : mode === 'kasper' ? 'kasper_approval' : 'client_approval';
+      } }, extra));
+      if (extra.layout2) { await t.page.evaluate(() => _rsGo('rs1')); await sleep(800); }
+      const g = await R(t, `const b = [...r.querySelectorAll('[data-ok="video"]')].find(n => n.offsetParent); const l = r.querySelector('.trv-behind');
+        return { btn: b ? b.textContent.trim() : '', line: l && l.offsetParent ? l.textContent.trim() : '' };`);
+      if (process.env.NR_SHOTS) await t.page.screenshot({ path: path.join(process.env.NR_SHOTS, 'behind-' + label.replace(/\s+/g, '-') + '.png') });
+      ok(/approved every version|Every version is approved/.test(g.line) && /^Approve/.test(g.btn), `${label}: the card still at its status with every version answered offers today's approve ("${g.line}" | "${g.btn}")`);
+      await press(t, '[data-ok="video"]');
+      await waitFor(async () => routeMoved(t, word, code), 80);
+      await sleep(800);
+      ok(routeMoved(t, word, code), `${label}: the approve moves the card on to ${word}`);
+      ok(!t.T.calls.some(c => c.action === 'answer'), `${label}: no version is answered again (${t.T.calls.filter(c => c.action === 'answer').length} answers)`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

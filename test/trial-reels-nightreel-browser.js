@@ -21,7 +21,7 @@
  *               goes to Kasper, so it did what "Approve to Kasper" does); a card without trial reels keeps it.
  *   okchange    the client link: a change on the last version open to the client while another is still with the team
  *               keeps the card at Client Approval; that version then says "Change asked on Video B", never "Approved ·
- *               Change my mind".
+ *               Change my mind"; the client's "Change my mind" on an approved version names it ("Video A: …").
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -308,6 +308,14 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       }
       await press(t, '[data-trv-go="A"]'); await sleep(600);
       ok(/Approved|approved/.test(await said(t)), `${label}: A still says approved ("${await said(t)}")`);
+      // "Change my mind" on A, the part reading as answered: the words go to the team as a note, naming Video A.
+      await press(t, '[data-again="video"]'); await sleep(400);
+      await inS(t.page, '#ta').fill('Fictional second thought on the ending.');
+      await inS(t.page, '#sendBtn').click();
+      const named = () => JSON.stringify(t.state.upserts) + JSON.stringify(t.gw || []) + JSON.stringify(t.state.gateway || []);
+      await waitFor(async () => /Fictional second thought/.test(named()), 60);
+      const m = named().match(/(Video [A-G]: )?Fictional second thought/);
+      ok(!!m && m[1] === 'Video A: ', `${label}: Change my mind on A goes to the team as "Video A: …" (${m ? JSON.stringify(m[0]) : 'not sent'})`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

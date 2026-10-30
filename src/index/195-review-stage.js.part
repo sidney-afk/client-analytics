@@ -3598,8 +3598,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         if (k && R.mode === 'client' && x && x.st === 'ok') {
-            // Change my mind on an approved part (client link): a note to the team on that part.
-            _rsSendNoteTo(m, k, t, vis);
+            // Change my mind on an approved part (client link): a note to the team on that part. On a trial card it names
+            // the version it was written on, as every trial note does (Nightreel, 2026-10-30: "w15 changed my mind" went
+            // to the team with no version).
+            const named = trialLetter && m.trial && !m.trial.winner && !/^Video [A-G]:/.test(t) ? 'Video ' + trialLetter + ': ' + t : t;
+            _rsSendNoteTo(m, k, named, vis);
             _rsFlash('Sent to your team', k);
             _rsRender({ force: true });
             return;

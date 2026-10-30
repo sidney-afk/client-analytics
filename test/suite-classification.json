@@ -1895,6 +1895,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-end-words-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Checks the client link at 1440 and 390 wide with the polish switch on: no divider standing alone in the strip after the last post, a caption edit quoted in the conversation keeping its line breaks, and an approval held while offline naming the client's connection and still landing.",
+      "reproduce": "node test/review-stage-client-end-words-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-with-editors-row-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

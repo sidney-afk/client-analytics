@@ -8,7 +8,12 @@
  *     now the picked post is wholly inside the strip;
  *   - on a phone the "Review" tab's count spilled out of its white pill (390 wide) and ran into "Sheet" (320 wide);
  *     now every tab's words and count sit inside its own button, and no two buttons overlap;
- *   - at 320 wide the open step ("Caption") was cut off at the right of the step bar; now the open step is in view.
+ *   - at 320 wide the open step ("Caption") was cut off at the right of the step bar; now the open step is in view;
+ *   - on Sheet, Month and Week, no header button covers another: the round buttons, the tabs and the calendar tools
+ *     slotted into the header (the phone's More button) each keep their own place (Codex review on PR 2462);
+ *   - on Sheet at tablet widths (768, 820) the Organize menu, laid out from its button's left edge, ran 17 px past the
+ *     window: closed, it gave the page a sideways scroll; open, it was cut off. It now opens right-aligned under the
+ *     button, inside the window.
  * Light and dark; no sideways page scroll at any width.
  */
 const { chromium } = require('playwright');
@@ -54,7 +59,7 @@ function measure(page) {
     for (const [w, h] of [[1440, 900], [1024, 768], [768, 1024], [430, 932], [390, 844], [320, 640]]) {
       for (const dark of [false, true]) {
         const label = w + (dark ? ' dark' : ' light');
-        const t = await openClient(browser, origin, { flags: 'on', width: w, height: h, tab: 'review', extraCards: 6, help: 'https://help.fixture.test/review', context: { colorScheme: dark ? 'dark' : 'light' } });
+        const t = await openClient(browser, origin, { flags: 'on', width: w, height: h, tab: 'review', finished: true, extraCards: 6, help: 'https://help.fixture.test/review', context: { colorScheme: dark ? 'dark' : 'light' } });
         await waitNew(t);
         await sleep(900);
         let M = await measure(t.page);
@@ -75,6 +80,37 @@ function measure(page) {
           await sleep(700);
           M = await measure(t.page);
           expect(M.chipIn, label + ': the picked post ' + id + ' is wholly inside the strip (' + M.chip + ' in ' + M.list + ')');
+        }
+        // Sheet, Month and Week: nothing in the header covers anything else, the slotted tools included.
+        for (const v of ['organizer', 'month', 'week', 'review']) {
+          await t.page.evaluate(x => onCalViewChange(x), v);
+          await t.page.waitForFunction(x => typeof calState === 'object' && calState.view === x, v, { timeout: 15000 });
+          await sleep(900);
+          const H = await t.page.evaluate(() => {
+            const host = document.getElementById('svReviewStage'), r = host.shadowRoot;
+            const vis = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+            const items = [['help', r.getElementById('rsHelp')], ['theme', r.getElementById('rsTheme')], ['tabs', r.getElementById('rsTabs')], ['name', r.getElementById('rsName')]];
+            for (const el of host.querySelectorAll('[slot="tools"] button, [slot="tools"] [role="button"], [slot="tools"] a')) items.push(['tool:' + (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 20), el]);
+            const boxes = items.filter(([, el]) => vis(el)).map(([n, el]) => { const b = el.getBoundingClientRect(); return [n, b.left, b.top, b.right, b.bottom]; });
+            const hits = [];
+            for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+              const a = boxes[i], b = boxes[j];
+              if (a[1] < b[3] - 0.5 && b[1] < a[3] - 0.5 && a[2] < b[4] - 0.5 && b[2] < a[4] - 0.5) hits.push(a[0] + ' x ' + b[0]);
+            }
+            const se = document.scrollingElement;
+            return { hits, n: boxes.length, tools: boxes.filter(b => /^tool/.test(b[0])).length, sideways: se.scrollWidth > se.clientWidth };
+          });
+          expect(!H.hits.length, label + ' ' + v + ': no header button covers another, slotted tools included (' + H.n + ' boxes, ' + H.tools + ' tools; ' + H.hits.join(', ') + ')');
+          expect(!H.sideways, label + ' ' + v + ': no sideways page scroll');
+          // Sheet: the Organize menu, when it is in the header, opens inside the window.
+          if (v === 'organizer' && await t.page.evaluate(() => { const b = document.getElementById('calOrganizeBtn'); return !!b && b.getClientRects().length > 0 && !!b.closest('#svReviewStage'); })) {
+            await t.page.locator('#calOrganizeBtn').click();
+            await sleep(400);
+            const M = await t.page.evaluate(() => { const m = document.getElementById('calOrganizeMenu'); const b = m.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), vis: getComputedStyle(m).visibility, w: innerWidth }; });
+            expect(M.vis === 'visible' && M.l >= 0 && M.r <= M.w, label + ': the open Organize menu is inside the window (' + JSON.stringify(M) + ')');
+            await t.page.keyboard.press('Escape');
+            await sleep(300);
+          }
         }
         expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
         await t.ctx.close();

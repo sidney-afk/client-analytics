@@ -631,17 +631,10 @@ svg{display:block;flex-shrink:0}
 .help-btn:hover{background:var(--fill-hover);color:var(--text-primary)}
 /* A phone's tabs share the row by what they hold: with equal shares the "Review" tab's count spilled out of its pill
    (390 wide) and into "Sheet" (320 wide). Narrower than 360 the four tabs and the two round buttons cannot share one
-   row, so "?" and the sun/moon button sit at the top right beside the name and the tabs get the whole row; a long
-   name ends in "..." before them (OPEN_REPAIRS 612). */
+   row, so "?" and the sun/moon button join the name's row as their own columns, after the slotted calendar tools
+   (the phone's More button on Sheet, Month and Week), and the tabs get the whole second row; a long name ends in
+   "..." (OPEN_REPAIRS 612; the narrow rules sit after the phone header grid below). */
 @media (max-width:860px){.cal-view-btn{flex:1 1 auto}}
-@media (max-width:360px){
-.hdr{position:relative}
-.hdr-who{flex-wrap:wrap;row-gap:0;max-width:100%;padding-right:88px}
-.hdr-who h1{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.hdr-r .help-btn,.hdr-r .theme-btn{position:absolute;top:0}
-.hdr-r .theme-btn{right:2px}
-.hdr-r .help-btn{right:48px}
-}
 .split{position:relative;display:inline-flex;flex-shrink:0}
 .split>.b-ok{padding-right:54px}
 .split>.sarr{position:absolute;right:0;top:0;bottom:0;width:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:0 11px 11px 0;color:var(--okb-fg);box-shadow:inset 1px 0 0 var(--okb-line);transition:background .14s}
@@ -747,6 +740,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-tools{grid-column:2;grid-row:1;margin:0}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
+}
+/* Narrower than 360: the round buttons join the name's row (see the tabs note above, OPEN_REPAIRS 612). */
+@media (max-width:360px){
+.rs.client .hdr{grid-template-columns:minmax(0,1fr) auto auto auto}
+.rs.client .hdr-r{display:contents}
+.rs.client .hdr-r .tabs{grid-column:1/-1;grid-row:2}
+.rs.client .hdr-r .help-btn{grid-column:3;grid-row:1}
+.rs.client .hdr-r .theme-btn{grid-column:4;grid-row:1}
+.rs.client .hdr-who{flex-wrap:wrap;row-gap:0}
 }
 /* Kasper (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip opens with a small list button (the
    count as a badge) whose panel lists his sections; the post's heading is one row; the round sits beside the date. */

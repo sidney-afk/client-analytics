@@ -504,6 +504,10 @@
         .cal-organize .dropdown-trigger.is-filtered .cal-org-ico { opacity: 0.9; }
         .cal-organize .cal-org-trigger-txt { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-organize .dropdown-menu { min-width: 254px; max-height: min(440px, 70vh); overflow-y: auto; }
+        /* On the client link the Organize pill sits at the header's right edge (the review page's tools holder), so
+           its menu opens right-aligned under it: left-aligned, it ran 17 px past a 768-wide screen and the closed menu
+           alone gave the page a sideways scroll on Sheet (OPEN_REPAIRS 612). */
+        .sv-rs-tools .cal-organize .dropdown-menu { left: auto; right: 0; }
         .cal-org-sec { padding: 7px 12px 3px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em;
             text-transform: uppercase; color: var(--text-muted); }
         .cal-org-sep { height: 1px; margin: 5px 8px; background: var(--border); }

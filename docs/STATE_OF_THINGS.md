@@ -18,6 +18,24 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-30 overnight): trial reels and the client link tested end to end
+
+- **Trial reels (session Nightreel, #2463, OPEN_REPAIRS 613, live 05:05 UTC):** about 16 live walks on the test client
+  (2 to 4 versions; SMM, Kasper in both layouts and the client; 1440 and 390; reload, two tabs, offline, slow line).
+  Ten fixes, each re-checked live: a new cut in Tweaks Needed now reaches the SMM; a card left with nothing to press
+  after a reload now offers "Every version is approved" with approve; no "Approve to client" menu on trial videos;
+  the client no longer sees "Approved" over a version they just asked to change; Kasper's header and version tiles;
+  the SMM's phone Review tab opens at the stage. Ready for the owner's own test; five behaviour questions are with the
+  owner (supervisor history 2026-10-30). Slack change posts and the editor's Today row are covered offline only.
+- **Client review link (session Nightclient, #2462 and #2464, OPEN_REPAIRS 612 and 614):** 81 throwaway cards on the
+  test client at 1440, 1024, 820, 768, 430, 390 and 320, light and dark, every step type and action, reload,
+  Back/Forward, two tabs, offline, keyboard. No data bugs; layout and wording fixed: the picked post sits wholly in the
+  strip, phone tab counts stay in their pill, the step bar keeps the open step in view at 320, the Organize menu stays
+  on screen at 768 and 820, no lone divider, offline saves name the connection, quoted captions keep their line
+  breaks. The approve path is untouched. Seven wording and behaviour questions are with the owner.
+- **CI:** `review-stage-phone-browser.js` now does one untimed load per engine before the measured cases (the cold
+  first WebKit case was at its 10 s limit on main too); no wait or check changed.
+
 ## Latest (session Permafive, 2026-10-29): five staff features permanent, no switch
 
 - **Permanent for every signed-in staff member, never the client link (OPEN_REPAIRS 611, owner's go 2026-10-29):** the

@@ -81,7 +81,7 @@ ${helpers}
                 const fill=(key)=>{try{localStorage.setItem(key,chunk);return true;}catch(e){return false;}};
                 for(const k of ['syncview_production_cache_v1','syncview_today_cache_v1','sv.tplCache.v1']) fill(k);
                 while(i<400 && fill('syncview_kasper_cal_c'+i+'_v1')) i++;
-                let small=8192; while(small>16){try{localStorage.setItem('syncview_kasper_cal_tail_'+small+'_v1','x'.repeat(small));}catch(e){small=small>>1;}}
+                let small=8192, n=0; while(small>16 && n<2000){n++;try{localStorage.setItem('syncview_kasper_cal_tail_'+n+'_v1','x'.repeat(small));}catch(e){small=small>>1;}}
                 let full=false; try{localStorage.setItem('probe','x'.repeat(4096));localStorage.removeItem('probe');}catch(e){full=true;}
                 let code='ok'; try{_writeUiRequireRepairStorage(record());}catch(e){code=e.code;}
                 return {full,code,rows:_writeUiRepairJournalRead().rows.length,draft:localStorage.getItem('syncview_kasper_review_cache_v1'),

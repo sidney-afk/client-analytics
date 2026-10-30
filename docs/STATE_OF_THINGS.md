@@ -18,6 +18,19 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-30 afternoon): a full browser store no longer refuses saves
+
+- **Kasper's tweaks refused (#2466, OPEN_REPAIRS 615, live 14:30 UTC):** every tweak he sent was refused in his
+  browser with `repair_storage_unavailable` ("This browser could not keep a recovery copy of your save"); the server
+  had no errors. The recovery copy written before a save did not fit in a full browser store, and the page freed only
+  the two calendar caches. It now also frees the other caches the server rebuilds (Kasper's per-client review
+  calendars, Production, Today, Templates, Workload and others; never drafts, alerts, the journal or a cache carrying a
+  repair) and retries, in the repair journal and in Kasper's review cache. A refusal of this kind never reaches the
+  server-side refusal log, so only the person's next save proves it. Kasper had not saved again by 18:30 UTC.
+- **Sheet backup:** the 30 Oct mirror parity found one Social Media Managers row without the manager's Slack id (set in
+  the database on 29 Oct for that manager's new clients; only changed rows were copied). The row was queued in
+  `roster_sheet_outbox` and goes out on the next roster request.
+
 ## Latest (SyncView supervisor, 2026-10-30 overnight): trial reels and the client link tested end to end
 
 - **Trial reels (session Nightreel, #2463, OPEN_REPAIRS 613, live 05:05 UTC):** about 16 live walks on the test client

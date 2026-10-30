@@ -1,6 +1,6 @@
 'use strict';
 /*
- * THE CLIENT LINK'S END STATE AND A HELD ANSWER, IN PLAIN WORDS (session Nightclient, 2026-10-30, OPEN_REPAIRS 613).
+ * THE CLIENT LINK'S END STATE AND A HELD ANSWER, IN PLAIN WORDS (session Nightclient, 2026-10-30, OPEN_REPAIRS 614).
  * Real browser, fully offline, the same mocked backend as review-stage-browser.js (fictional client, cards and token).
  * Found walking the client's journey to its end at 1440 and 390 wide:
  *   - after the last post was reviewed, a divider line stood alone at the start of the strip, before the reviewed

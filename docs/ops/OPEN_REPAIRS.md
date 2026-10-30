@@ -35554,7 +35554,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Left alone on purpose:** the five rows in `syncview_runtime_flags` (the supervisor deletes them after the merge is live; the code does not read them).
 - **Way back:** revert the PR; the rows still say `{ "all": true }` until they are deleted, so a revert before then changes nothing anyone sees.
 
-## 613. [2026-10-30 UTC, BUILT, NOT MERGED] Client link end state, a held answer and a quoted caption: plain, true words (session Nightclient)
+## 614. [2026-10-30 UTC, BUILT, NOT MERGED] Client link end state, a held answer and a quoted caption: plain, true words (session Nightclient)
 
 - **Found by:** walking the client's journey to its end at 1440 and 390 wide, and an approval made with the connection down (offline fixture, the same page code; the cloud harness tunnels live requests outside the browser, so "offline" cannot be faked against the live site).
 - **A lone divider (195).** After the last post was reviewed, the strip began with the divider line that separates waiting posts from reviewed ones, with nothing before it. It now stands only between the two.

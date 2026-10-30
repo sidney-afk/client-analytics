@@ -1087,7 +1087,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cpm-x{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-primary)}
 .cpm.handled .cpm-x,.cpm.old .cpm-x{color:var(--text-secondary)}
 .cpm .diff{margin-top:2px}
-/* A caption keeps its line breaks when quoted in the conversation, as on the stage (OPEN_REPAIRS 613). */
+/* A caption keeps its line breaks when quoted in the conversation, as on the stage (OPEN_REPAIRS 614). */
 .cpm .diff .new,.cpm .diff .old{white-space:pre-wrap;overflow-wrap:anywhere}
 .cpm-acts{display:inline-flex;gap:10px;opacity:0;transition:opacity .12s}
 .cpm:hover .cpm-acts,.cpm:focus-within .cpm-acts,.cpm.cp-show .cpm-acts{opacity:1}
@@ -2423,7 +2423,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
         const who = k === onStage ? '' : RS_PART[k] + ': ';
         if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _rsClientWords(err) : err) + (R.cp && S.cpBack[key] ? ' Your next words are back in the box.' : '')) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
-        // Offline, the wait is the client's own connection, as the toast below already says (OPEN_REPAIRS 613).
+        // Offline, the wait is the client's own connection, as the toast below already says (OPEN_REPAIRS 614).
         if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + (typeof navigator !== 'undefined' && navigator.onLine === false
             ? 'Waiting for your connection to come back. Nothing is lost: it sends on its own.'
             : 'Still waiting for the server. Nothing is lost: it finishes here on its own.') + '</div>';

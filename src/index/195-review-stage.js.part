@@ -629,6 +629,12 @@ svg{display:block;flex-shrink:0}
 .bigthumb .tframe a svg{width:16px;height:16px;flex:none}
 .help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;text-decoration:none;transition:background .14s,color .14s}
 .help-btn:hover{background:var(--fill-hover);color:var(--text-primary)}
+/* A phone's tabs share the row by what they hold: with equal shares the "Review" tab's count spilled out of its pill
+   (390 wide) and into "Sheet" (320 wide). Narrower than 360 the four tabs and the two round buttons cannot share one
+   row, so "?" and the sun/moon button join the name's row as their own columns, after the slotted calendar tools
+   (the phone's More button on Sheet, Month and Week), and the tabs get the whole second row; a long name ends in
+   "..." (OPEN_REPAIRS 612; the narrow rules sit after the phone header grid below). */
+@media (max-width:860px){.cal-view-btn{flex:1 1 auto}}
 .split{position:relative;display:inline-flex;flex-shrink:0}
 .split>.b-ok{padding-right:54px}
 .split>.sarr{position:absolute;right:0;top:0;bottom:0;width:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:0 11px 11px 0;color:var(--okb-fg);box-shadow:inset 1px 0 0 var(--okb-line);transition:background .14s}
@@ -734,6 +740,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-tools{grid-column:2;grid-row:1;margin:0}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
+}
+/* Narrower than 360: the round buttons join the name's row (see the tabs note above, OPEN_REPAIRS 612). */
+@media (max-width:360px){
+.rs.client .hdr{grid-template-columns:minmax(0,1fr) auto auto auto}
+.rs.client .hdr-r{display:contents}
+.rs.client .hdr-r .tabs{grid-column:1/-1;grid-row:2}
+.rs.client .hdr-r .help-btn{grid-column:3;grid-row:1}
+.rs.client .hdr-r .theme-btn{grid-column:4;grid-row:1}
+.rs.client .hdr-who{flex-wrap:wrap;row-gap:0}
 }
 /* Kasper (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip opens with a small list button (the
    count as a badge) whose panel lists his sections; the post's heading is one row; the round sits beside the date. */
@@ -2136,7 +2151,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const c = sl.querySelector('.cur');
         const curId = cur ? cur.id : null, moved = R.stripCur !== curId;
         R.stripCur = curId;
-        if (c && moved) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
+        // Measured from the strip itself: offsetLeft counts from the strip's parent, so the "N waiting for you" label's
+        // width was added and a picked post landed with its picture hidden off the left edge (OPEN_REPAIRS 612).
+        if (c && moved) {
+            const l = c.getBoundingClientRect().left - sl.getBoundingClientRect().left + sl.scrollLeft, r = l + c.offsetWidth;
+            if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40);
+        }
         _rsStripEdge();
     }
     function _rsStripEdge() {
@@ -2216,8 +2236,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return (i ? '<li class="ln' + (prev.st === 'ok' ? ' ok' : '') + '" aria-hidden="true"></li>' : '')
                 + '<li><button class="stp' + (on ? ' on' : '') + _rsStCls(x) + '" type="button" data-step="' + x.key + '" style="' + _rsPv(x.key) + '" aria-current="' + (on ? 'step' : 'false') + '" title="' + RS_PART[x.key] + ', ' + label + '"><span class="sd">' + mark + '</span>' + RS_PART[x.key] + sv + '</button></li>';
         }).join('');
-        if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) return;
+        if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) { _rsStepInView(m); return; }
         _rsQ('stepper').querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => _rsSetStep(b.dataset.step)));
+        _rsStepInView(m);
+    }
+    // The open step comes into view where the step bar scrolls sideways (a phone): at 320 wide "Caption" opened cut
+    // off at the right edge (session Nightclient, OPEN_REPAIRS 612). Only when the open step changes, so a later
+    // redraw never undoes the client's own swipe along the bar.
+    function _rsStepInView(m) {
+        const st = _rsQ('stepper'), on = st && st.querySelector('.stp.on');
+        const at = on ? (m && m.id || '') + '|' + on.dataset.step : '';
+        if (!on || at === R.stepInView) return;
+        R.stepInView = at;
+        if (st.scrollWidth <= st.clientWidth) return;
+        const sb = st.getBoundingClientRect(), b = on.getBoundingClientRect();
+        if (b.left < sb.left) st.scrollLeft -= sb.left - b.left + 8;
+        else if (b.right > sb.right) st.scrollLeft += b.right - sb.right + 8;
     }
     // One soft glow on the next part to answer, the first time the page shows, and never again in this visit.
     function _rsHint(m) {

@@ -2551,6 +2551,27 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             }
         } catch (e) {}
     }
+    /* A full browser store refused every save with repair_storage_unavailable (Kasper, 2026-10-30): the
+       two calendar caches above were not the space. These are the other caches the server rebuilds on the
+       next read; dropping one costs a fetch, while keeping it costs the save. A value carrying an
+       acknowledged repair is durable state and stays, as above. Drafts, alerts and the journal are never
+       listed here. */
+    function _writeUiFreeRebuildableStorage() {
+        const keys = ['syncview_production_cache_v1', 'syncview_today_cache_v1', 'syncview_analyticsCache_v1',
+            'sv.tplCache.v1', 'syncview_tabSummaryCache_v2', 'syncview_kasper_filming_v3',
+            'syncview_tiktokQueueCache_v1', 'syncview_workload_v2'];
+        try {
+            // Names first, then removal: removing while walking can reorder the store and skip a key.
+            const names = [];
+            for (let index = 0; index < localStorage.length; index++) names.push(localStorage.key(index) || '');
+            for (const key of names) {
+                if (keys.indexOf(key) < 0 && key.indexOf('syncview_kasper_cal_') !== 0) continue;
+                const value = String(localStorage.getItem(key) || '');
+                if (value.indexOf('_writeUiRetrySourceAt') >= 0 || value.indexOf('_writeUiKasperRepair') >= 0) continue;
+                localStorage.removeItem(key);
+            }
+        } catch (e) {}
+    }
     function _writeUiRepairJournalWrite(rows) {
         const payload = JSON.stringify(rows);
         const write = () => {
@@ -2561,7 +2582,11 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
         catch (firstError) {
             _writeUiRepairEvictDisplayCaches();
             try { write(); return true; }
-            catch (secondError) { return false; }
+            catch (secondError) {
+                _writeUiFreeRebuildableStorage();
+                try { write(); return true; }
+                catch (thirdError) { return false; }
+            }
         }
     }
     function _writeUiRepairToken() {
@@ -3724,7 +3749,7 @@ export {
   _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
   _writeUiAuthoritySnapshot, _writeUiBindRepairAck, _writeUiBuildSourceRepair,
   _writeUiClassifyTargetless, _writeUiCompleteSourceRepairRefs, _writeUiComponentHasWorkItem,
-  _writeUiExpireV1Caches, _writeUiFailureSentence, _writeUiFailureText, _writeUiFilterCachedPosts,
+  _writeUiExpireV1Caches, _writeUiFailureSentence, _writeUiFreeRebuildableStorage, _writeUiFailureText, _writeUiFilterCachedPosts,
   _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiHasCredential,
   _writeUiHealRerouteFlag, _writeUiIdentifierAllowed, _writeUiIntentId,
   _writeUiLastRenderedAuthoritySig, _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner,

@@ -4076,8 +4076,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
   };
   vm.createContext(repairContext);
   for (const name of [
-    '_writeUiRepairJournalRead', '_writeUiRepairEvictDisplayCaches', '_writeUiRepairJournalWrite',
-    '_writeUiRequireRepairStorage', '_writeUiRepairWithLock', '_writeUiReserveSourceRepair',
+    '_writeUiRepairJournalRead', '_writeUiRepairEvictDisplayCaches', '_writeUiFreeRebuildableStorage',
+    '_writeUiRepairJournalWrite', '_writeUiRequireRepairStorage', '_writeUiRepairWithLock', '_writeUiReserveSourceRepair',
     '_writeUiPrepareRepairAttempt', '_writeUiMarkRepairCommitted',
     '_writeUiDiscardSourceRepairUnlocked', '_writeUiDiscardSourceRepair',
     '_writeUiCompleteSourceRepairRefsUnlocked', '_writeUiWithRepairFlight',

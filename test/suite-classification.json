@@ -333,6 +333,7 @@
     "index-modules-strip.js",
     "index-split.js",
     "instagram-upload-source.js",
+    "instagram-facebook-crosspost.js",
     "intake-created-status-server-guard.js",
     "intake-not-assigned.js",
     "intake-post-names.js",
@@ -1583,6 +1584,14 @@
       "ci": "representative"
     },
     {
+      "file": "instagram-facebook-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Instagram side's Also post to Facebook box: ticked by default with a Page on file, unticked and disabled with a plain reason for a trial reel, a carousel with a video or no Page, what each create sends, and that the queue shows Instagram's and Facebook's results apart.",
+      "reproduce": "node test/instagram-facebook-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "instagram-platform-switch-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1676,6 +1685,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_SLACK_MENTION_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "CLIENT_SLACK_MENTION_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-slack-mention-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "client-facebook-page-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-facebook-page-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

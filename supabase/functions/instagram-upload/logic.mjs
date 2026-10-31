@@ -101,7 +101,7 @@ export function expectedAccountId(profile) {
   return clean(extra[ACCOUNT_COLUMN]);
 }
 
-// The client's Facebook Page, as Post For Me knows it (added 2026-10-31, OPEN_REPAIRS 618). Set on the
+// The client's Facebook Page, as Post For Me knows it (added 2026-10-31, OPEN_REPAIRS 620). Set on the
 // client's profile from the Kasper Clients tab (client-profile-write); kept in client_profiles.extra.
 // Instagram's own "also share to Facebook" does not apply to a post published through the API, so a
 // cross-post is one Post For Me post sent to both accounts.

@@ -1,5 +1,5 @@
 'use strict';
-// "Also post to Facebook" on the Instagram side (OPEN_REPAIRS 618). Opens the real page offline and proves the box's
+// "Also post to Facebook" on the Instagram side (OPEN_REPAIRS 620). Opens the real page offline and proves the box's
 // states: ticked by default when the client's Facebook Page is on file; unticked and disabled, with the reason, for
 // a trial reel, for a carousel with a video, and for a client with no Page; what reaches the instagram-upload
 // function in each case; and that the queue shows Instagram's and Facebook's results apart (a Facebook failure

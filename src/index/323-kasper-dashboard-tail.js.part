@@ -292,7 +292,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
         { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['postforme_instagram_account_id', 'Instagram (Post for Me)'], ['postforme_facebook_account_id', 'Facebook Page (Post for Me)'], ['upload_post_profile', 'Upload-Post']] },
     ];
-    // The client's Post For Me accounts, kept in the profile's `extra`, not in a column (OPEN_REPAIRS 618).
+    // The client's Post For Me accounts, kept in the profile's `extra`, not in a column (OPEN_REPAIRS 620).
     // client-profile-write asks Post For Me that each is on the right network before it saves.
     const CA_EXTRA_FIELDS = ['postforme_instagram_account_id', 'postforme_facebook_account_id'];
     const CA_ACCOUNT_NETWORK = { postforme_instagram_account_id: 'Instagram', postforme_facebook_account_id: 'Facebook Page' };

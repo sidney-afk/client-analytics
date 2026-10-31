@@ -29,7 +29,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 1. In Post For Me, connect the client's Instagram account (the same place TikTok accounts are connected). The Instagram account must be a Business or Creator account.
 2. Copy the new account's **Connection ID** (it starts with `spc_`). It is a different id from the client's TikTok one.
-3. Give the id to Sidney. It goes on the client's SyncView profile, not in the Sheet: a `roster-write` call `{ "action": "set_client_fields", "client": "<client name>", "fields": { "postforme_instagram_account_id": "spc_..." } }` stores it in `client_profiles.extra` and refreshes the Clients Info copy in the same request. Since 2026-10-31 (OPEN_REPAIRS 618, once `migrations/2026-10-31-client-facebook-page.sql` is applied) it can also be pasted on Kasper > Clients, Publishing, **Instagram (Post for Me)**: the save checks with Post For Me that it is an Instagram account and queues the Sheet copy. Typing it into the Sheet does nothing: the Sheet is only a copy of the profile.
+3. Give the id to Sidney. It goes on the client's SyncView profile, not in the Sheet: a `roster-write` call `{ "action": "set_client_fields", "client": "<client name>", "fields": { "postforme_instagram_account_id": "spc_..." } }` stores it in `client_profiles.extra` and refreshes the Clients Info copy in the same request. Since 2026-10-31 (OPEN_REPAIRS 620, once `migrations/2026-10-31-client-facebook-page.sql` is applied) it can also be pasted on Kasper > Clients, Publishing, **Instagram (Post for Me)**: the save checks with Post For Me that it is an Instagram account and queues the Sheet copy. Typing it into the Sheet does nothing: the Sheet is only a copy of the profile.
 4. Reload SyncView. On the Instagram side, the client now shows "Posts to Post For Me account spc_...". Without an id it shows "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile." and the button stays off: there is no fallback, so a video can never land on another client's account.
 
 ## Safety switches: who can post, and to which account
@@ -65,7 +65,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 **Try one yourself:** Instagram side, **Carousel**, the test client, 2 or 3 images, caption "test, please ignore", schedule 15 minutes ahead, check the queue says **Carousel (n)** and **Scheduled**, press **Cancel**. Then post one for real.
 
-## Also post to Facebook (added 2026-10-31, session Fbpost, OPEN_REPAIRS 618)
+## Also post to Facebook (added 2026-10-31, session Fbpost, OPEN_REPAIRS 620)
 
 Instagram's own "also share to Facebook" setting does not apply to a post published through the API, so before this
 nothing posted from SyncView reached Facebook.

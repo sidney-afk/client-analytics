@@ -2,7 +2,7 @@
 -- ============================================================
 -- 2026-10-31 -- The client's Post For Me accounts, edited on the Kasper Clients tab:
 --   the Facebook Page (new, for cross-posting) and the Instagram account beside it.
--- Written by session Fbpost, 2026-10-31 (UTC). OPEN_REPAIRS 618.
+-- Written by session Fbpost, 2026-10-31 (UTC). OPEN_REPAIRS 620.
 --
 -- WHAT IT CHANGES (no new table or column):
 --   client_profile_admin_edit()  redefined from 2026-10-23-client-slack-mention.sql

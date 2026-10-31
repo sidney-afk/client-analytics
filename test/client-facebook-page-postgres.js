@@ -1,7 +1,7 @@
 'use strict';
 /*
  * client-facebook-page-postgres.js -- migrations/2026-10-31-client-facebook-page.sql
- * on a disposable PostgreSQL, on top of the migrations it builds on (OPEN_REPAIRS 618).
+ * on a disposable PostgreSQL, on top of the migrations it builds on (OPEN_REPAIRS 620).
  *
  * Synthetic names and ids only (the repository is public). Proves:
  *  - before it is applied, the Facebook Page is refused (field_not_editable) and nothing is written;

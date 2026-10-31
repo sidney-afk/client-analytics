@@ -379,7 +379,7 @@ import {
         .tk-q-more span { font-weight: 600; color: var(--text-muted); }
         .tk-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
         .tk-queue-error { font-size: 0.72rem; color: var(--sv-fg-991b1b); margin-top: 6px; padding: 6px 8px; background: var(--sv-bg-fee2e2); border-radius: 6px; white-space: normal; }
-        /* Instagram + Facebook in one post: each network's own status, one line each (OPEN_REPAIRS 618). */
+        /* Instagram + Facebook in one post: each network's own status, one line each (OPEN_REPAIRS 620). */
         .tk-q-nets { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
         .tk-q-net { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.72rem; color: var(--text-muted); }
         .tk-q-net-name { font-weight: 600; color: var(--text-secondary); min-width: 64px; }

@@ -19,7 +19,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
        (`postforme_account_id`). No id, no post: there is no fallback, so a video can
        never land on another client's account.
 
-       Also to Facebook (2026-10-31, OPEN_REPAIRS 618): Instagram's own "also share to Facebook" does
+       Also to Facebook (2026-10-31, OPEN_REPAIRS 620): Instagram's own "also share to Facebook" does
        not apply to a post published through the API, so a client whose Facebook Page is on its profile
        (`postforme_facebook_account_id`, set on the Kasper Clients tab) gets an "Also post to Facebook"
        box, ticked by default. When it is ticked the function sends ONE Post For Me post to both accounts

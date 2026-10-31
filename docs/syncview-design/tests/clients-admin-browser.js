@@ -100,7 +100,7 @@ async function open(browser, origin, role, viewport) {
       if (ctl.edit === 'version') return json({ ok: false, error: 'client_profile_version_conflict', row: ROWS[0] }, 409);
       if (ctl.edit === 'fbwrong') return json({ ok: false, error: 'postforme_wrong_platform', field: 'postforme_facebook_account_id' }, 400);
       const row = ROWS.find(x => x.slug === b.slug);
-      // The Facebook Page is kept in extra (OPEN_REPAIRS 618), as the server does.
+      // The Facebook Page is kept in extra (OPEN_REPAIRS 620), as the server does.
       const changes = Object.assign({}, b.changes || {});
       const fbPage = 'postforme_facebook_account_id' in changes ? changes.postforme_facebook_account_id : undefined;
       delete changes.postforme_facebook_account_id;
@@ -310,7 +310,7 @@ const measure = page => page.evaluate(() => {
       await p.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
       const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open, tag: !!document.querySelector('[data-ca-group="team"] [data-ca-field="slack_mention_user_id"]'), fb: !!document.querySelector('[data-ca-group="publish"] [data-ca-field="postforme_facebook_account_id"]'), igInput: !!document.querySelector('[data-ca-field="postforme_instagram_account_id"]') }));
       // 12 profile fields plus "Slack person to tag" (Notify client's at-mention, OPEN_REPAIRS 477) in Contact and team,
-      // plus the Post for Me Instagram account and Facebook Page in Publishing (OPEN_REPAIRS 618).
+      // plus the Post for Me Instagram account and Facebook Page in Publishing (OPEN_REPAIRS 620).
       if (em.n !== 15 || em.roam || !em.research || !em.tag || !em.fb || !em.igInput) failures.push(`${label}: expected 15 editable fields (with the Slack person to tag and both Post for Me accounts) and research open (${JSON.stringify(em)})`);
       if (shots) { await p.waitForTimeout(3500); await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`) }); }
       if (phone) {
@@ -354,7 +354,7 @@ const measure = page => page.evaluate(() => {
       p.once('dialog', d => d.accept());
       await p.click('.ca-editbar .cc-btn:not(.primary)');
 
-      // The Facebook Page (OPEN_REPAIRS 618): beside the Instagram account, saved through the same
+      // The Facebook Page (OPEN_REPAIRS 620): beside the Instagram account, saved through the same
       // call; an id Post For Me says is not a Facebook Page is refused with a plain reason and the field flagged.
       const igShown = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
       if (!/Instagram \(Post for Me\)[\s\S]*spc_fixtureInstagram01/.test(igShown) || !/Facebook Page \(Post for Me\)[\s\S]*Not set/.test(igShown)) failures.push(`${label}: Publishing does not show the Instagram id and an empty Facebook Page (${JSON.stringify(igShown)})`);

@@ -35688,7 +35688,7 @@ To close: the next db-timer run (2026-11-01 13:17 UTC) is green after merge.
 - **Q1 (Sidney, yes, as built):** a new cut that arrives while another version is still being edited keeps the card in Tweaks Needed until the SMM approves the new cut. Not changed.
 - **Way back:** revert the PR.
 
-## 618. [2026-10-31 UTC, BUILT, NOT MERGED] Instagram posts also go to the client's Facebook Page (session Fbpost)
+## 620. [2026-10-31 UTC, BUILT, NOT MERGED] Instagram posts also go to the client's Facebook Page (session Fbpost)
 
 - **Seen:** the owner, 31 Oct: Instagram posts scheduled or posted from SyncView reach Instagram only. Post For Me is sent only the client's Instagram account, and Instagram's in-app "also share to Facebook" does not apply to a post published through the API, so nothing reaches Facebook.
 - **Built:**

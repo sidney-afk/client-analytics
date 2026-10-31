@@ -30,7 +30,7 @@ export function normalizeSlackMemberId(v) {
 }
 export const MAX_FIELD_CHARS = 20000;
 
-// Fields kept in client_profiles.extra that an admin may set here (added 2026-10-31, OPEN_REPAIRS 618): the
+// Fields kept in client_profiles.extra that an admin may set here (added 2026-10-31, OPEN_REPAIRS 620): the
 // client's Post For Me accounts. The Facebook Page is where instagram-upload cross-posts when "Also post to
 // Facebook" is ticked; the Instagram account sits beside it (roster-write can still set it too). Saved only
 // when SyncView is the main copy, through client_profile_admin_edit; its Sheet copy queue carries the

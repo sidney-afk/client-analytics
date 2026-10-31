@@ -81,7 +81,13 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq([sched.status, sched.options.facebook.status], ['scheduled', 'scheduled'], 'scheduled on both');
   const now = L.buildCreate({ ...reel, alsoFacebook: true, facebookAccountId: FB }, NOW, 'smm').row;
   const processed = L.applyCreateResponse(now, { id: 'sp_2', status: 'processed' }, NOWISO);
-  eq([processed.status, processed.options.facebook.status], ['posted', 'processing'], 'a processed post waits for Facebook\'s own result');
+  eq([processed.status, processed.options.facebook.status], ['processing', 'processing'], 'a processed cross-post waits for each network\'s own result');
+  const afterIgFail = L.applyResults({ ...processed, account_id: IG }, [
+    { post_id: 'sp_2', social_account_id: IG, success: false, error: 'Media type not supported' },
+    { post_id: 'sp_2', social_account_id: FB, success: true, platform_data: { url: 'https://www.facebook.com/reel/2' } },
+  ], NOWISO);
+  eq([afterIgFail.status, afterIgFail.error, afterIgFail.options.facebook.status], ['failed', 'Media type not supported', 'posted'], 'so an Instagram failure next to a Facebook success still shows');
+  eq(L.applyCreateResponse(L.buildCreate(reel, NOW, 'smm').row, { id: 'sp_5', status: 'processed' }, NOWISO).status, 'posted', 'an Instagram-only row reads processed as Posted, as before');
   const refusedCreate = L.applyCreateResponse(now, { message: 'bad media' }, NOWISO);
   eq([refusedCreate.status, refusedCreate.options.facebook.status, refusedCreate.options.facebook.error], ['failed', 'failed', 'bad media'], 'a refused create fails both, with the reason');
 

@@ -340,10 +340,12 @@ export function applyCreateResponse(row, resp, nowIso) {
   const pf = clean(r.status);
   let status = 'processing';
   if (row.status === 'scheduled' || pf === 'scheduled') status = 'scheduled';
-  else if (pf === 'processed') status = 'posted';
+  // "processed" means Post For Me handled the post, not that each network took it. On a cross-post both
+  // networks wait for their own result (a failure on either must show); an Instagram-only row keeps its
+  // old behaviour.
+  else if (pf === 'processed' && !facebookPart(row)) status = 'posted';
   const next = { ...row, status, post_id: postId, error: '', posted_at: status === 'posted' ? nowIso : row.posted_at, updated_at: nowIso };
-  // "processed" means the post was handled, not that each network took it: Facebook waits for its own result.
-  return withFacebook(next, { status: status === 'posted' ? 'processing' : status, error: '' });
+  return withFacebook(next, { status, error: '' });
 }
 
 function resultError(bad, fallback) {

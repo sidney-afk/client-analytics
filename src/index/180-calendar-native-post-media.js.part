@@ -3950,9 +3950,9 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
         _calCapHistFetch, _calCapHistPick, _calCapHistRestore, _calCapHistStepKey, _calCaptionGenerateClick,
-        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calOpenCaptionHistory,
-        _calOpenCaptionPromptModal, _calOpenRedoPopup, _calOpenThumbTitlePromptModal, _calRedoInput,
-        _calRedoKey, _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault,
+        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calNotYetToggle,
+        _calOpenCaptionHistory, _calOpenCaptionPromptModal, _calOpenRedoPopup, _calOpenThumbTitlePromptModal,
+        _calRedoInput, _calRedoKey, _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault,
         _calSaveCaptionPrompt, _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost,
         _calSubmitRedo, _calToggleSelectMode, addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday,
         calWeekShift, calWeekToday

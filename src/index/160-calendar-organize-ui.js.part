@@ -1038,11 +1038,13 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
 
     /* THE SHEET FITS THE WINDOW (session Sheetzoom, 2026-10-31; switch sheet_fit_v1 in 188, which marks the page
        html.sv-sheet-fit; the rules are in 020 under that class). Desktop only (768 px and up), the Sheet only.
-       At the smallest card size the thumbnail gives up height so the tallest card fits the window under the toolbar:
-       never taller than the size's own thumbnail, never under 48 px. Measured from the page itself (header, toolbar,
-       the strip's own scrollbar when the system draws one), so the staff page and the client link both fit. Not while
-       a caption is open: an opened caption may make the card taller, and the page then scrolls as it always did. */
-    const CAL_FIT_THUMB_MAX = 132, CAL_FIT_THUMB_MIN = 48;
+       The thumbnail gives up height so the tallest card fits the window under the toolbar: never taller than the
+       size's own thumbnail, never shorter than the next smaller size's (48 px at the smallest), so the sizes keep
+       their order (owner, 2026-10-31: the default size must show every card in full in a 1920 x 1000 window).
+       Measured from the page itself (header, toolbar, the strip's own scrollbar when the system draws one), so the
+       staff page and the client link both fit. Not while a caption is open: an opened caption may make the card
+       taller, and the page then scrolls as it always did. */
+    const CAL_FIT_THUMB = { xs: [132, 48], s: [178, 132], m: [240, 178], l: [340, 240] };
     function _calSheetFitApplies() {
         if (!_calSheetFitOn() || calState.view !== 'organizer' || calState.embedded && !_isClientLink) return false;
         if (window.innerWidth < 768 || _calStaffPhoneActive()) return false;
@@ -1052,26 +1054,27 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
     function _calSheetFitLayout() {
         const view = document.getElementById('calView');
         if (!view) return;
-        if (!_calSheetFitApplies() || _calZoomShown() !== 'xs') {
+        const zoom = _calZoomShown();
+        const range = CAL_FIT_THUMB[zoom];
+        if (!_calSheetFitApplies() || !range || view.dataset.fitZoom !== zoom) {
             if (view.style.getPropertyValue('--cal-fit-thumb-h')) view.style.removeProperty('--cal-fit-thumb-h');
-            return;
+            if (_calSheetFitApplies() && range) view.dataset.fitZoom = zoom; else delete view.dataset.fitZoom;
+            if (!_calSheetFitApplies() || !range) return;
         }
         const strip = view.querySelector('.cal-organizer-strip');
         const main = document.getElementById('mainWrap');
         if (!strip || !main) return;
         if (strip.querySelector('.cal-cap-wrap textarea:focus, .cal-cap-toggle.is-expanded')) return;
-        const cards = [...strip.querySelectorAll('.cal-card, .cal-sk-card')].filter(c => c.offsetHeight > 0);
-        if (!cards.length) return;
-        const tallest = cards.reduce((a, c) => (c.offsetHeight > a.offsetHeight ? c : a));
-        const thumb = tallest.querySelector('.cal-card-thumb, .cal-skeleton-thumb');
-        if (!thumb) return;
+        if (![...strip.querySelectorAll('.cal-card, .cal-sk-card')].some(c => c.offsetHeight > 0)) return;
         // How far the page runs past the window, from the top of the page to the end of the Sheet.
         const pageEnd = main.getBoundingClientRect().bottom + window.scrollY;
         const over = pageEnd - window.innerHeight;
-        const cur = thumb.offsetHeight - 16;
-        const next = Math.round(Math.max(CAL_FIT_THUMB_MIN, Math.min(CAL_FIT_THUMB_MAX, cur - over - 1)));
-        const had = parseFloat(view.style.getPropertyValue('--cal-fit-thumb-h')) || CAL_FIT_THUMB_MAX;
-        if (Math.abs(next - had) >= 1) view.style.setProperty('--cal-fit-thumb-h', next + 'px');
+        const cur = parseFloat(getComputedStyle(view).getPropertyValue('--cal-thumb-h')) || range[0];
+        const next = Math.round(Math.max(range[1], Math.min(range[0], cur - over - 1)));
+        if (Math.abs(next - cur) >= 1) {
+            if (next >= range[0]) view.style.removeProperty('--cal-fit-thumb-h');
+            else view.style.setProperty('--cal-fit-thumb-h', next + 'px');
+        }
     }
     /* Watch the Calendar body (cards loading, a resize, a size change) and the window, and wire the wheel once. */
     let _calFitObserver = null, _calFitRaf = 0, _calFitWired = false;
@@ -1094,31 +1097,63 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         window.addEventListener('sv-review-stage-switch', () => { if (document.getElementById('calView')) { try { _calApplyZoom(); } catch (e) {} } });
         document.addEventListener('wheel', _calSheetFitWheel, { passive: false });
     }
-    /* The wheel (owner, 2026-10-31): when the Sheet has nothing to scroll up or down, a plain vertical wheel slides the
-       cards sideways, wherever the pointer is on the Calendar. A gesture that carries any sideways movement (a
-       trackpad or Magic Mouse swipe), Shift, Ctrl/Cmd (zoom) or Alt is left to the browser. When the page does scroll
-       up and down, the wheel scrolls it as normal. Never inside a field, a menu, a dialog, a popover or anything that
-       scrolls on its own (an open caption). The cards move at once with the wheel, with no animation, so reduced
-       motion is respected as it is. */
+    /* The wheel follows the gesture, wherever the pointer is on the page (owner, 2026-10-31, round 2): a vertical
+       wheel or trackpad move scrolls the page up and down, over a card, between cards, over the empty space or the
+       toolbar; a sideways move (a trackpad or Magic Mouse swipe, a tilt wheel, Shift+wheel) slides the cards left and
+       right, also wherever the pointer is. A box inside that can still scroll that way (an open caption) takes the
+       wheel first, until it reaches its end. Kept from round 2: when nothing on the page scrolls up or down, a
+       vertical wheel slides the cards instead of doing nothing. Ctrl/Cmd (zoom), fields, menus, dialogs and popovers
+       are left to the browser. The cards move at once with the wheel, with no animation, so reduced motion is
+       respected as it is; small trackpad steps add up instead of being rounded away. */
+    let _calFitCarry = 0;
+    function _calFitMoveStrip(strip, d) {
+        const max = strip.scrollWidth - strip.clientWidth;
+        if (max <= 1) return false;
+        const want = strip.scrollLeft + d + _calFitCarry;
+        const to = Math.max(0, Math.min(max, want));
+        strip.scrollLeft = to;
+        _calFitCarry = to === want ? want - strip.scrollLeft : 0;
+        if (Math.abs(_calFitCarry) >= 1) _calFitCarry = 0;
+        return true;
+    }
+    // Can something between the pointer and the page still scroll this way? (The strip itself is the one we move.)
+    function _calFitInnerRoom(node, stop, strip, d, sideways) {
+        for (let n = node; n && n !== stop && n.nodeType === 1; n = n.parentElement) {
+            if (n === strip) continue;
+            const cs = getComputedStyle(n);
+            if (sideways) {
+                if (n.scrollWidth <= n.clientWidth + 1 || !/(auto|scroll)/.test(cs.overflowX)) continue;
+                if (d < 0 ? n.scrollLeft > 0 : n.scrollLeft + n.clientWidth < n.scrollWidth - 1) return true;
+            } else {
+                if (n.scrollHeight <= n.clientHeight + 1 || !/(auto|scroll)/.test(cs.overflowY)) continue;
+                if (d < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1) return true;
+            }
+        }
+        return false;
+    }
     function _calSheetFitWheel(e) {
-        if (e.defaultPrevented || !e.deltaY || e.deltaX || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.defaultPrevented || e.ctrlKey || e.metaKey) return;
         if (!_calSheetFitApplies()) return;
         const view = document.getElementById('calView');
+        const main = document.getElementById('mainWrap');
         const t = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement);
-        if (!view || !t || !view.contains(t)) return;
-        if (t.closest('textarea, input, select, [contenteditable=""], [contenteditable="true"], dialog, [role="dialog"], [role="menu"], [role="listbox"], [aria-modal="true"], .dropdown-menu, [class*="popover"], [class*="-menu"], [class*="-pop"], [class*="-picker"]:not(.cal-toolbar), .cal-preview-overlay, .cal-prompt-overlay')) return;
-        if (_calVerticalScroller(t, view)) return;
-        const de = document.scrollingElement || document.documentElement;
-        if (de.scrollHeight > de.clientHeight + 1) return;
+        if (!view || !main || !t || !main.contains(t)) return;
+        if (t.closest('input, select, [contenteditable=""], [contenteditable="true"], dialog, [role="dialog"], [role="menu"], [role="listbox"], [aria-modal="true"], .dropdown-menu, [class*="popover"], [class*="-menu"], [class*="-pop"], [class*="-picker"]:not(.cal-toolbar), .cal-preview-overlay, .cal-prompt-overlay')) return;
         const strip = view.querySelector('#calStrip');
         if (!strip) return;
-        const max = strip.scrollWidth - strip.clientWidth;
-        if (max <= 1) return;
-        let d = e.deltaY;
-        if (e.deltaMode === 1) d *= 16;
-        else if (e.deltaMode === 2) d *= strip.clientWidth;
-        e.preventDefault();
-        strip.scrollLeft = Math.max(0, Math.min(max, strip.scrollLeft + d));
+        const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? strip.clientWidth : 1;
+        let dx = e.deltaX * unit, dy = e.deltaY * unit;
+        if (e.shiftKey && !dx) { dx = dy; dy = 0; }   // Shift+wheel where the browser reports it as up and down
+        if (!dx && !dy) return;
+        const sideways = Math.abs(dx) > Math.abs(dy);
+        if (_calFitInnerRoom(t, main, strip, sideways ? dx : dy, sideways)) return;
+        if (sideways) {
+            if (_calFitMoveStrip(strip, dx)) e.preventDefault();
+            return;
+        }
+        const de = document.scrollingElement || document.documentElement;
+        if (de.scrollHeight > de.clientHeight + 1) return;   // the page scrolls up and down: the browser does it
+        if (_calFitMoveStrip(strip, dy)) e.preventDefault();
     }
     function calZoom(delta) {
         const levels = _calZoomLevels();

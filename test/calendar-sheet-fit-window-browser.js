@@ -41,8 +41,9 @@ function expect(value, message) { if (!value) { failures.push(message); console.
 
 // Inner window sizes: the screen minus the menu bar, the Dock-free Chrome bars (Mac, 111 px) or the taskbar and
 // Chrome bars (Windows, 133 px).
-const MAC = [['Mac 1440x900', 1440, 789], ['Mac 1512x982', 1512, 871], ['Mac 1728x1117', 1728, 1006], ['Mac 1280x800', 1280, 689]];
-const WIN = [['Windows 1920x1080 100%', 1920, 947], ['Windows 1536x864 125%', 1536, 731], ['Windows 1280x720 150%', 1280, 587],
+const MAC = [['Mac 1440x900', 1440, 789], ['Mac 1512x982', 1512, 871], ['Mac 1728x1117', 1728, 1006], ['Mac 1280x800', 1280, 689],
+  ['MacBook Air Chrome 1470x830', 1470, 830], ['Mac 1440x800', 1440, 800]];
+const WIN = [['Windows Opera 1920x1000', 1920, 1000], ['Windows 1920x1080 100%', 1920, 947], ['Windows 1536x864 125%', 1536, 731], ['Windows 1280x720 150%', 1280, 587],
   ['Windows 1366x768', 1366, 635], ['1920x1200 (Windows bars)', 1920, 1067], ['1920x1200 (whole screen)', 1920, 1200]];
 
 const note = (id, author, body) => ({ id, author, role: 'smm', body, created_at: '2026-10-20T10:00:00Z' });
@@ -172,62 +173,154 @@ function wheelAt([sel, init]) {
   return { prevented: ev.defaultPrevented, moved: strip.scrollLeft - before.left, y: scrollY - before.y };
 }
 
+// The default card size shows every card in full at the owner's 1920 x 1000 (Opera on Windows), and so does every
+// smaller size; on a MacBook Air (1470 x 830) and 1440 x 800 the smallest size fits and the default is reported.
+async function defaultSizeCases(engineName, browser, origin) {
+  for (const [label, w, h, sizes] of [['Windows Opera 1920x1000', 1920, 1000, ['m', 's', 'xs']], ['MacBook Air Chrome 1470x830', 1470, 830, ['xs']], ['Mac 1440x800', 1440, 800, ['xs']]]) {
+    const { ctx, page } = await staffPage(browser, origin, { flag: { staff: [ME] }, zoom: 'm', viewport: { width: w, height: h } });
+    for (const z of ['m', 's', 'xs']) {
+      await page.evaluate(z => { calState.zoom = z; _calApplyZoom(); }, z);
+      await settle(page);
+      const r = await page.evaluate(fitReport);
+      const L = `${engineName} ${label}, size ${z}`;
+      if (sizes.includes(z)) {
+        expect(r.pageH <= r.inner && r.cardBottom <= r.inner, `${L}: every card shows in full down to its last status pill (lowest edge ${r.cardBottom} of ${r.inner}, page ${r.pageH})`);
+        expect(r.pills === 3 && r.title, `${L}: title and three status pills show`);
+      } else {
+        console.log(`  ${L}: lowest card edge ${r.cardBottom} of ${r.inner}, thumbnail ${r.thumbH}px, page ${r.pageH} (reported, not required)`);
+      }
+      await shot(page, `${engineName}-${label}-${z}`);
+    }
+    await ctx.close();
+  }
+}
+
+// A WheelEvent the way the page receives one, so the handler's own decision can be read.
+async function stripLeft(page) { return page.evaluate(() => document.getElementById('calStrip').scrollLeft); }
+async function pointAt(page, where) {
+  return page.evaluate(where => {
+    const strip = document.getElementById('calStrip');
+    const all = [...strip.querySelectorAll('.cal-card')];
+    const box = e => e.getBoundingClientRect();
+    // The card nearest the middle of the window, so the pointer is on screen wherever the strip is scrolled.
+    const mid = innerWidth / 2;
+    const i = all.reduce((best, c, k) => Math.abs(box(c).left + box(c).width / 2 - mid) < Math.abs(box(all[best]).left + box(all[best]).width / 2 - mid) ? k : best, 0);
+    const card = all[i], next = all[Math.min(i + 1, all.length - 1)];
+    if (where === 'card') { const r = box(card.querySelector('.cal-card-body')); return { x: r.left + r.width / 2, y: r.top + 60 }; }
+    if (where === 'between') { const a = box(card), b = box(next); return { x: (a.right + b.left) / 2, y: a.top + 120 }; }
+    if (where === 'caption') { const r = box(card.querySelector('textarea.cal-fld-cap')); return { x: r.left + 20, y: r.top + 12 }; }
+    if (where === 'toolbar') { const r = box(document.querySelector('#calView .cal-toolbar')); return { x: r.left + r.width * 0.45, y: r.top + 4 }; }
+    if (where === 'empty') { const r = box(strip); return { x: r.right - 8, y: r.top + 80 }; }
+    return null;
+  }, where);
+}
+async function realWheel(page, where, dx, dy, shift) {
+  const pt = await pointAt(page, where);
+  await page.mouse.move(pt.x, pt.y);
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.wheel(dx, dy);
+  if (shift) await page.keyboard.up('Shift');
+  await page.waitForTimeout(160);
+}
+
 async function wheelCases(engineName, browser, origin) {
-  // On: the cards fit, so a plain vertical wheel slides them, on a card, on the toolbar and under the cards.
-  {
-    const L = `${engineName} wheel, switch on, cards fit`;
-    const { ctx, page } = await staffPage(browser, origin, { flag: { staff: [ME] }, zoom: 'xs', viewport: { width: 1440, height: 789 }, reduced: true });
+  // The wheel follows the gesture wherever the pointer is (owner, 2026-10-31, round 2).
+  for (const [label, w, h] of [['Windows Opera 1920x1000', 1920, 1000], ['MacBook Air Chrome 1470x830', 1470, 830]]) {
+    // Every card fits: sideways moves slide the cards from anywhere; a vertical wheel has nothing to scroll up or
+    // down, so it slides them too (the round-2 fallback, kept on purpose).
+    const L = `${engineName} wheel ${label}, cards fit`;
+    const { ctx, page } = await staffPage(browser, origin, { flag: { staff: [ME] }, zoom: 'xs', viewport: { width: w, height: h }, reduced: true });
     const r = await page.evaluate(fitReport);
     expect(r.pageH <= r.inner, `${L}: nothing scrolls up or down`);
-    const card = await page.locator('#calStrip .cal-card').nth(1).locator('.cal-card-thumb').boundingBox();
-    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
-    await page.mouse.wheel(0, 240);
-    await page.waitForTimeout(150);
-    let left = await page.evaluate(() => document.getElementById('calStrip').scrollLeft);
-    expect(left >= 200, `${L}: a real wheel over a card slides the cards sideways (${left}px)`);
-    const tb = await page.locator('#calView .cal-toolbar').boundingBox();
-    await page.mouse.move(tb.x + tb.width / 2, tb.y + 4);
-    await page.mouse.wheel(0, 200);
-    await page.waitForTimeout(150);
-    const left2 = await page.evaluate(() => document.getElementById('calStrip').scrollLeft);
-    expect(left2 - left >= 150, `${L}: the wheel over the toolbar slides the cards too (${left2 - left}px)`);
-    expect(await page.evaluate(() => scrollY) === 0, `${L}: the page did not move up or down`);
-    // At once, with no animation (reduced motion is on in this context).
-    const sync = await page.evaluate(wheelAt, ['#calStrip .cal-card .cal-card-thumb', { deltaY: 100 }]);
-    expect(sync.prevented && sync.moved === 100, `${L}: the cards move at once by the wheel's distance (${sync.moved}px)`);
-    // Left alone: any sideways movement, Shift, Ctrl, a caption, an open menu.
-    const swipe = await page.evaluate(wheelAt, ['#calStrip .cal-card .cal-card-thumb', { deltaX: 30, deltaY: 12 }]);
-    expect(!swipe.prevented && swipe.moved === 0, `${L}: a trackpad or Magic Mouse swipe (deltaX) is left to the browser`);
-    const shift = await page.evaluate(wheelAt, ['#calStrip .cal-card .cal-card-thumb', { deltaY: 100, shiftKey: true }]);
-    expect(!shift.prevented && shift.moved === 0, `${L}: Shift+wheel is left to the browser`);
+    for (const where of ['card', 'between', 'caption', 'empty', 'toolbar']) {
+      await page.evaluate(() => { document.getElementById('calStrip').scrollLeft = 300; });
+      const before = await stripLeft(page);
+      await realWheel(page, where, 120, 0);
+      const after = await stripLeft(page);
+      expect(after - before >= 100, `${L}: a sideways wheel over the ${where} slides the cards right (${after - before}px)`);
+      await realWheel(page, where, -120, 0);
+      expect(after - (await stripLeft(page)) >= 100, `${L}: and back left over the ${where}`);
+      const b2 = await stripLeft(page);
+      await realWheel(page, where, 0, 120, true);
+      expect((await stripLeft(page)) - b2 >= 100, `${L}: Shift+wheel over the ${where} slides the cards`);
+      const b3 = await stripLeft(page);
+      await realWheel(page, where, 0, 120);
+      expect((await stripLeft(page)) - b3 >= 100, `${L}: a plain vertical wheel over the ${where} slides the cards (nothing scrolls up or down)`);
+      expect(await page.evaluate(() => scrollY) === 0, `${L}: the page did not move up or down (${where})`);
+    }
+    // Mac trackpad: many small, fractional steps add up; nothing is rounded away.
+    const t0 = await stripLeft(page);
+    const sum = await page.evaluate(() => {
+      const el = document.querySelector('#calStrip .cal-card .cal-card-body');
+      let prevented = 0;
+      for (let i = 0; i < 40; i++) { const ev = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 0.6, deltaY: 0.1 }); el.dispatchEvent(ev); if (ev.defaultPrevented) prevented++; }
+      return prevented;
+    });
+    const t1 = await stripLeft(page);
+    expect(sum === 40 && t1 - t0 >= 22 && t1 - t0 <= 25, `${L}: forty 0.6px trackpad steps move the cards about 24px (${t1 - t0}px, ${sum} handled)`);
+    const shiftTrack = await page.evaluate(() => { const el = document.querySelector('#calView .cal-toolbar'); const s = document.getElementById('calStrip'); const b = s.scrollLeft; for (let i = 0; i < 10; i++) el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 2.5, shiftKey: true })); return s.scrollLeft - b; });
+    expect(shiftTrack >= 24 && shiftTrack <= 26, `${L}: Shift with small trackpad steps over the toolbar slides the cards (${shiftTrack}px)`);
+    // Left to the browser: Ctrl (zoom) and an open menu.
     const zoomGesture = await page.evaluate(wheelAt, ['#calStrip .cal-card .cal-card-thumb', { deltaY: 100, ctrlKey: true }]);
     expect(!zoomGesture.prevented && zoomGesture.moved === 0, `${L}: a pinch or Ctrl+wheel zoom is left to the browser`);
-    const cap = await page.evaluate(wheelAt, ['#calStrip .cal-card textarea.cal-fld-cap', { deltaY: 100 }]);
-    expect(!cap.prevented && cap.moved === 0, `${L}: never inside a caption`);
     await page.locator('#calView .cal-organize .dropdown-trigger').first().click();
     await page.waitForSelector('#calView .cal-organize .dropdown-menu.open', { timeout: 5000 }).catch(() => {});
     const menu = await page.evaluate(wheelAt, ['#calView .cal-organize .dropdown-menu.open .dropdown-item, #calView .cal-organize .dropdown-menu.open', { deltaY: 100 }]);
     expect(!menu.prevented && menu.moved === 0, `${L}: never inside an open menu`);
-    await shot(page, `${engineName}-wheel-on`);
+    await page.keyboard.press('Escape');
+    // A caption that can scroll takes the wheel until its end, then the Sheet moves.
+    await page.evaluate(() => {
+      // The caption of the card nearest the middle of the window, where the pointer goes.
+      const all = [...document.querySelectorAll('#calStrip .cal-card')];
+      const d = c => Math.abs(c.getBoundingClientRect().left + c.getBoundingClientRect().width / 2 - innerWidth / 2);
+      const card = all.reduce((a, c) => (d(c) < d(a) ? c : a));
+      const ta = card.querySelector('textarea.cal-fld-cap');
+      ta.id = 'fitCaptionUnderTest';
+      ta.value = Array.from({ length: 60 }, (_, i) => 'Line ' + (i + 1) + ' of a very long caption').join('\n');
+      // Opened the way a person opens it: focused, it grows to a screen-high box that scrolls inside.
+      ta.focus();
+      ta.scrollTop = 0;
+    });
+    await settle(page);
+    expect(await page.evaluate(() => { const ta = document.getElementById('fitCaptionUnderTest'); return getComputedStyle(ta).overflowY === 'auto' && ta.scrollHeight > ta.clientHeight + 10; }), `${L}: the opened long caption scrolls inside`);
+    const s0 = await stripLeft(page);
+    await realWheel(page, 'caption', 0, 100);
+    const cap1 = await page.evaluate(() => ({ top: document.getElementById('fitCaptionUnderTest').scrollTop, left: document.getElementById('calStrip').scrollLeft }));
+    expect(cap1.top > 0 && cap1.left === s0, `${L}: a caption with room takes the wheel (caption ${cap1.top}px, cards ${cap1.left - s0}px)`);
+    await page.evaluate(() => { const ta = document.getElementById('fitCaptionUnderTest'); ta.scrollTop = ta.scrollHeight; });
+    await realWheel(page, 'caption', 0, 100);
+    const cap2 = await page.evaluate(() => { const de = document.scrollingElement || document.documentElement; return { left: document.getElementById('calStrip').scrollLeft, y: scrollY, room: de.scrollHeight > de.clientHeight + 1 }; });
+    // The opened caption can make its card taller than the window; then the Sheet scrolls down, else sideways.
+    expect(cap2.room ? cap2.y > 0 : cap2.left - s0 >= 80, `${L}: at the caption's end the Sheet moves (${cap2.room ? 'down ' + cap2.y : 'sideways ' + (cap2.left - s0)}px)`);
+    await shot(page, `${engineName}-wheel-${label}`);
     await ctx.close();
   }
-  // On, but a big size on a short window: the page scrolls up and down, and so does the wheel.
+  // The cards are taller than the window: a vertical wheel scrolls the page up and down wherever the pointer is,
+  // and a sideways one still slides the cards.
   {
-    const L = `${engineName} wheel, switch on, cards taller than the window`;
-    const { ctx, page } = await staffPage(browser, origin, { flag: { staff: [ME] }, zoom: 'l', viewport: { width: 1366, height: 635 } });
+    const L = `${engineName} wheel, cards taller than the window`;
+    const { ctx, page } = await staffPage(browser, origin, { flag: { staff: [ME] }, zoom: 'l', viewport: { width: 1366, height: 600 } });
     const r = await page.evaluate(fitReport);
-    expect(r.pageH > r.inner, `${L}: the page scrolls as it always did (page ${r.pageH}, window ${r.inner})`);
-    const card = await page.locator('#calStrip .cal-card').nth(1).locator('.cal-card-thumb').boundingBox();
-    await page.mouse.move(card.x + card.width / 2, card.y + 20);
-    const w = await page.evaluate(wheelAt, ['#calStrip .cal-card .cal-card-thumb', { deltaY: 100 }]);
-    expect(!w.prevented && w.moved === 0, `${L}: the wheel is left to scroll the page up and down`);
-    await page.mouse.wheel(0, 200);
-    await page.waitForTimeout(200);
-    const after = await page.evaluate(() => ({ y: scrollY, left: document.getElementById('calStrip').scrollLeft }));
-    expect(after.y > 0 && after.left === 0, `${L}: a real wheel scrolls the page down (${after.y}px) and leaves the cards (${after.left}px)`);
+    expect(r.pageH > r.inner, `${L}: the page scrolls up and down (page ${r.pageH}, window ${r.inner})`);
+    for (const where of ['card', 'between', 'empty', 'toolbar']) {
+      await page.evaluate(() => { window.scrollTo(0, 0); document.getElementById('calStrip').scrollLeft = 200; });
+      await page.waitForTimeout(80);
+      await realWheel(page, where, 0, 120);
+      const v = await page.evaluate(() => ({ y: scrollY, left: document.getElementById('calStrip').scrollLeft }));
+      expect(v.y > 0 && v.left === 200, `${L}: a vertical wheel over the ${where} scrolls the page down (${v.y}px) and leaves the cards (${v.left - 200}px)`);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(80);
+      await realWheel(page, where, 120, 0);
+      const s = await page.evaluate(() => ({ y: scrollY, left: document.getElementById('calStrip').scrollLeft }));
+      expect(s.left - 200 >= 100 && s.y === 0, `${L}: a sideways wheel over the ${where} slides the cards (${s.left - 200}px) and not the page (${s.y}px)`);
+    }
+    // Mac trackpad: small vertical steps scroll the page, never the cards.
+    const tv = await page.evaluate(() => { const el = document.querySelector('#calStrip .cal-card .cal-card-body'); let prevented = 0; for (let i = 0; i < 10; i++) { const ev = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1.5, deltaX: 0.2 }); el.dispatchEvent(ev); if (ev.defaultPrevented) prevented++; } return prevented; });
+    expect(tv === 0, `${L}: small vertical trackpad steps are left to the page (${tv} taken)`);
     await ctx.close();
   }
-  // Off: today's wheel. Over the strip it slides the cards (the old strip handler); over the toolbar it does nothing.
+  // Off: today's wheel. Over the strip a vertical wheel slides the cards (the old strip handler); over the toolbar it
+  // does nothing.
   {
     const L = `${engineName} wheel, switch off`;
     const { ctx, page } = await staffPage(browser, origin, { flag: undefined, zoom: 'xs', viewport: { width: 1440, height: 789 } });
@@ -235,6 +328,8 @@ async function wheelCases(engineName, browser, origin) {
     expect(strip.prevented && strip.moved === 100, `${L}: over the cards the wheel slides them as it did before (${strip.moved}px)`);
     const tb = await page.evaluate(wheelAt, ['#calView .cal-toolbar', { deltaY: 100 }]);
     expect(!tb.prevented && tb.moved === 0, `${L}: over the toolbar the wheel does nothing new`);
+    const tbx = await page.evaluate(wheelAt, ['#calView .cal-toolbar', { deltaX: 100 }]);
+    expect(!tbx.prevented && tbx.moved === 0, `${L}: a sideways wheel over the toolbar does nothing new`);
     await ctx.close();
   }
 }
@@ -350,6 +445,8 @@ async function launchOptional(type, opts) {
     await viewportCases('Chromium', overlay, origin, MAC, 'overlay');
     await viewportCases('Chromium', classic, origin, WIN, 'classic');
     if (wk) await viewportCases('WebKit', wk, origin, MAC.concat(WIN.slice(-1)), 'WebKit');
+    await defaultSizeCases('Chromium', classic, origin);
+    if (wk) await defaultSizeCases('WebKit', wk, origin);
     await wheelCases('Chromium', classic, origin);
     if (wk) await wheelCases('WebKit', wk, origin);
     await offCases(classic, origin);

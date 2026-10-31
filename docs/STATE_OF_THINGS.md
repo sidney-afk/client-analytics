@@ -595,7 +595,9 @@ theme button on the client page opens a tutorial video in an overlay.
   A title edit never approves. A caption edit, once sent, IS the client's answer for the caption step: it is approved
   once and the stage moves on, as Approve does (session Onward, 2026-10-18; a failed save approves nothing).
 - A client's "Change my mind" on an approved part sends a note to the team on that part (a client link cannot reopen
-  an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do.
+  an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do. Exception since
+  2026-10-31 (OPEN_REPAIRS 617): on a trial card's version the client approved, while the video is at Client Approval
+  or Tweaks Needed, it reopens that version as a change for the editor, the same as "Ask for a change" on it.
 - A client's "Take it back" on a sent change request is not offered (nothing on the old page undoes one).
 - A plain note goes on the part on stage (every note belongs to a part of a card). The SMM's "Client can see" note uses
   the same outbox and card save as the Review panel's note, with the audience the Notes dialog gives it.

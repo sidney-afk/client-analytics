@@ -21,7 +21,13 @@
  *               goes to Kasper, so it did what "Approve to Kasper" does); a card without trial reels keeps it.
  *   okchange    the client link: a change on the last version open to the client while another is still with the team
  *               keeps the card at Client Approval; that version then says "Change asked on Video B", never "Approved ·
- *               Change my mind"; the client's "Change my mind" on an approved version names it ("Video A: …").
+ *               Change my mind"; the client's "Change my mind" on an approved version reopens it as a change named
+ *               "Video A: …" (Sidney, 2026-10-31), never a plain note.
+ *   mind        the client link (session Trialchange, 2026-10-31): the client approves Video B, presses "Change my mind"
+ *               on it with words, and Video B becomes a change for the editor with those words (the version reads
+ *               "change asked", today's change request names it), while Video A is unchanged. With every other version
+ *               out for its new cut the card goes to Tweaks Needed. On a card already Approved the words stay a note
+ *               naming the version (a client link cannot take a card back from Approved), as on a card without trials.
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -130,6 +136,14 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
   const waitFor = async (f, n) => { for (let i = 0; i < (n || 60) && !(await f()); i++) await sleep(100); return f(); };
   const theme = async (t, th) => { await t.page.evaluate(x => { document.documentElement.setAttribute('data-theme', x); try { localStorage.setItem('syncview_theme', x); } catch (e) {} }, th); await sleep(200); };
   const SETTLE_MS = Number((require('fs').readFileSync(path.join(__dirname, '..', 'src', 'index', '194-review-trial-versions.js.part'), 'utf8').match(/const TRV_SETTLE_MS = (\d+);/) || [])[1]);
+  // A change request (not a plain note) carrying these words reached the card: a comment with is_tweak in an upsert's
+  // tweaks, or the gateway's tweak comment.
+  const tweakSent = (t, words) => {
+    const hit = c => c && c.is_tweak === true && String(c.body || '').indexOf(words) >= 0;
+    const fromUpsert = (t.state.upserts || []).some(u => ['video_tweaks', 'tweaks'].some(f => { try { const l = JSON.parse(u[f] || '[]'); return Array.isArray(l) && l.some(hit); } catch (e) { return false; } }));
+    const fromGw = (t.state.gateway || []).concat((t.gw || []).map(g => JSON.stringify(g))).some(raw => { try { const b = typeof raw === 'string' ? JSON.parse(raw) : raw; const s2 = JSON.stringify(b); return s2.indexOf(words) >= 0 && /"(is_tweak|isTweak)":true|"kind":"tweak"/.test(s2); } catch (e) { return false; } });
+    return fromUpsert || fromGw;
+  };
   const routeMoved = (t, word, code) => t.state.upserts.some(u => u.video_status === word) || (t.gw || []).some(g => g.op === 'status' && g.status === code);
   const keepGateway = async t2 => {
     const native = { status: 'client_approval', at: '2026-10-27T09:00:00.000Z' };
@@ -308,14 +322,96 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       }
       await press(t, '[data-trv-go="A"]'); await sleep(600);
       ok(/Approved|approved/.test(await said(t)), `${label}: A still says approved ("${await said(t)}")`);
-      // "Change my mind" on A, the part reading as answered: the words go to the team as a note, naming Video A.
+      // "Change my mind" on A, the part reading as answered: A reopens as a change named "Video A: …" (Sidney, 2026-10-31).
       await press(t, '[data-again="video"]'); await sleep(400);
       await inS(t.page, '#ta').fill('Fictional second thought on the ending.');
       await inS(t.page, '#sendBtn').click();
       const named = () => JSON.stringify(t.state.upserts) + JSON.stringify(t.gw || []) + JSON.stringify(t.state.gateway || []);
-      await waitFor(async () => /Fictional second thought/.test(named()), 60);
+      await waitFor(async () => /Fictional second thought/.test(named()) && t.T.versions[0].status === 'change asked', 60);
       const m = named().match(/(Video [A-G]: )?Fictional second thought/);
       ok(!!m && m[1] === 'Video A: ', `${label}: Change my mind on A goes to the team as "Video A: …" (${m ? JSON.stringify(m[0]) : 'not sent'})`);
+      ok(t.T.versions[0].status === 'change asked' && /Fictional second thought/.test(t.T.versions[0].change_note || '') && tweakSent(t, 'Video A: Fictional second thought'),
+        `${label}: Change my mind on A reopens A as a change for the editor (${JSON.stringify({ st: t.T.versions[0].status, note: t.T.versions[0].change_note, tweak: tweakSent(t, 'Video A: Fictional second thought') })})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- mind: the client's "Change my mind" on a version they approved reopens it as a change ----------
+    for (const [w, h, label] of [[1440, 900, 'mind 1440'], [390, 844, 'mind 390']].filter(() => part('mind'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { kasper_ok_at: at }));
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h, beforeOpen: keepGateway }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      // The client approves Video B (A still waits for them).
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      await press(t, '[data-ok="video"]');
+      await waitFor(async () => t.T.versions[1].status === 'approved', 60);
+      await sleep(1200);
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      for (const th of ['light', 'dark']) {
+        await theme(t, th);
+        const g = await R(t, `const b = r.querySelector('[data-again="video"]'); return { said: [...r.querySelectorAll('.dst')].filter(n => n.offsetParent).map(n => n.textContent.trim()).join('|'), mind: !!(b && b.offsetParent) };`);
+        ok(/Video B approved/.test(g.said) && g.mind, `${label} ${th}: B says "Video B approved" with "Change my mind" (${JSON.stringify(g)})`);
+      }
+      await press(t, '[data-again="video"]'); await sleep(400);
+      const words = 'Fictional: a better first line on B.';
+      await inS(t.page, '#ta').fill(words);
+      await inS(t.page, '#sendBtn').click();
+      await waitFor(async () => t.T.versions[1].status === 'change asked' && tweakSent(t, 'Video B: ' + words), 80);
+      const b = t.T.versions[1], a = t.T.versions[0];
+      ok(b.status === 'change asked' && b.change_by === 'client' && b.change_note === words, `${label}: Video B is a change for the editor with the client's words (${JSON.stringify({ st: b.status, by: b.change_by, note: b.change_note })})`);
+      ok(tweakSent(t, 'Video B: ' + words), `${label}: today's change request on the video names it ("Video B: …"), not a plain note`);
+      ok(a.status === 'waiting' && !a.client_ok_at && !a.change_note, `${label}: Video A is unchanged (${JSON.stringify({ st: a.status, ok: a.client_ok_at, note: a.change_note })})`);
+      ok(!routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: A still waits for the client, so the card stays at Client Approval (per-version routing)`);
+      await sleep(600);
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      const sd = await said(t);
+      ok(!/Video B approved/.test(sd) && !(await R(t, `const b = r.querySelector('[data-again="video"]'); return !!(b && b.offsetParent);`)), `${label}: B no longer reads approved ("${sd}")`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+    // Every other version waits for its new cut: Change my mind on B sends the card to Tweaks Needed.
+    for (const label of ['mind tweaks'].filter(() => part('mind'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { kasper_ok_at: at }));
+      Object.assign(vs[0], { status: 'change asked', change_by: 'client', change_note: 'Fictional earlier change on A.', change_at: at });
+      Object.assign(vs[1], { status: 'approved', client_ok_at: at });
+      const t = await start('client', true, vs, { beforeOpen: keepGateway });
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      // A waits for its new cut, B is approved: B reads approved with "Change my mind".
+      ok(await R(t, `const b = r.querySelector('[data-again="video"]'); return !!(b && b.offsetParent);`), `${label}: B offers "Change my mind" ("${await said(t)}")`);
+      await press(t, '[data-again="video"]'); await sleep(400);
+      const words = 'Fictional: B needs a calmer ending after all.';
+      await inS(t.page, '#ta').fill(words);
+      await inS(t.page, '#sendBtn').click();
+      await waitFor(async () => t.T.versions[1].status === 'change asked' && tweakSent(t, 'Video B: ' + words), 80);
+      await waitFor(async () => routeMoved(t, 'Tweaks Needed', 'tweak'), 60);
+      ok(t.T.versions[1].status === 'change asked' && t.T.versions[1].change_note === words && tweakSent(t, 'Video B: ' + words), `${label}: Video B is a change for the editor with the client's words`);
+      ok(routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: nothing else waits for the client, so the card goes to Tweaks Needed`);
+      ok(t.T.versions[0].change_note === 'Fictional earlier change on A.' && t.T.versions[0].status === 'change asked', `${label}: Video A keeps its own change`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // A card already Approved (every version approved): a client link cannot take it back, so the words stay a note naming
+    // the version, as on a card without trial reels, and every version keeps its approval.
+    for (const label of ['mind approved'].filter(() => part('mind'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { kasper_ok_at: at, status: 'approved', client_ok_at: at }));
+      const t = await start('client', true, vs, { beforeOpen: async t2 => { await keepGateway(t2); Object.assign(t2.state.cards.find(c => c.id === 'rs1'), { video_status: 'Approved', client_video_approved_at: at }); } });
+      await t.page.evaluate(() => _rsGo('rs1')); await sleep(800);
+      await press(t, '.stp[data-step="video"]'); await sleep(600);
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      const has = await R(t, `const b = r.querySelector('[data-again="video"]'); return !!(b && b.offsetParent);`);
+      if (has) {
+        await press(t, '[data-again="video"]'); await sleep(400);
+        await inS(t.page, '#ta').fill('Fictional: on second thought, B.');
+        await inS(t.page, '#sendBtn').click();
+        const named = () => JSON.stringify(t.state.upserts) + JSON.stringify(t.state.gateway || []);
+        await waitFor(async () => /on second thought, B/.test(named()), 60);
+        await sleep(800);
+        ok(/Video B: Fictional: on second thought, B/.test(named()) && !tweakSent(t, 'on second thought, B'), `${label}: the words go to the team as a note naming Video B`);
+      } else ok(true, `${label}: no "Change my mind" on this card (nothing to reopen) ("${await said(t)}")`);
+      ok(t.T.versions.every(v => v.status === 'approved') && !routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: every version keeps its approval and the card stays Approved`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

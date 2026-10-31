@@ -205,7 +205,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - **Toolbar (Sheet view):**
   - **Organize** menu: **Order**: "Auto-organize by date" (oldest first, unscheduled last) or "Off — your drag order". Your manual order is kept and comes back when you turn auto-organize off. While sorting by date, cards can't be dragged. **Month**: All months, This month, Previous/Next, or Custom. **Content**: All, scheduled only, or unscheduled only (the reserve pile). When a month filter hides cards, a small chip says so.
   - **Status filter** (funnel): "Show only" or "Hide" cards by their overall status. Clear it with the x.
-  - **Card size** zoom (- / +).
+  - **Card size** zoom (- / +): four sizes for staff, the smallest (added 2026-10-31) about six cards across a laptop screen; the client link has three. On a desktop the card strip runs the full width of the window.
   - **Globe** ("Open profiles"): opens the client's Instagram, TikTok, YouTube and other profiles.
   - **Bell** (admins and SMMs only): sends the client one Slack alert that new content is ready for review.
   - **Select** (checkbox icon): pick several cards, then give them a colour tag or **Archive** them. **Write captions** (the second icon): pick several cards, then **Generate captions** for all of them.

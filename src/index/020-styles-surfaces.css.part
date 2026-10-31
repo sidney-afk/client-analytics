@@ -361,6 +361,7 @@
         /* ── Content Calendar module ──────────────────────────────────────── */
         .cal-view { position: relative; padding: 8px 16px 32px;
             --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; }
+        .cal-view[data-zoom="xs"] { --cal-card-w: 212px; --cal-thumb-h: 132px; --cal-month-w: 116px; --cal-week-h: 172px; }
         .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; }
         .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; }
         .cal-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 99px; padding: 3px 6px; }
@@ -1027,6 +1028,21 @@
                space stays sensible on tiny and wide screens. */
             scroll-padding-right: clamp(120px, 40vw, 800px); }
         .cal-organizer-strip::after { content: ''; flex: 0 0 clamp(120px, 40vw, 800px); align-self: stretch; }
+        /* Staff desktop Sheet (owner, 2026-10-31): the strip runs the full width
+           of the window, so a card scrolling sideways slides off the screen
+           edge instead of being cut by the page's 32px + 16px gutter. At rest
+           the first card still lines up with the toolbar's left edge. The
+           client link, the staff phone layout and every embedded calendar keep
+           their own strip. The boot copy in 010 does the same.
+           test/calendar-sheet-full-width-browser.js. */
+        @media (min-width: 768px) {
+            html:not(.boot-client):not(.sv-staff-phone) body.cal-page #calView:not([data-pocket-staff-phone]):not(.cal-embedded) .cal-organizer-strip {
+                --cal-strip-bleed: 48px;
+                margin-inline: calc(-1 * var(--cal-strip-bleed)); padding-left: var(--cal-strip-bleed); scroll-padding-left: var(--cal-strip-bleed); }
+            /* Smallest card size: tighter side padding and gaps, same rows. */
+            html:not(.boot-client):not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-organizer-strip { gap: 10px; }
+            html:not(.boot-client):not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) :is(.cal-card-body, .cal-sk-body) { padding-left: 11px; padding-right: 11px; }
+        }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_07); }
         .cal-card.is-blank { background: var(--sv-bg-fcfcfb); border-style: dashed; border-color: var(--sv-border-d4d4d2); }

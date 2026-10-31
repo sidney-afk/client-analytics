@@ -2361,6 +2361,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-timing-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks, with the saves held slow, that the trial winner toast with Undo shows on the click (a refused pick takes it back and says so; Undo during the save puts the trial back), and that a card set to Posted shows On trial in about a second, reads the card again until the trial-reels function confirms the start, and leaves no On trial behind when the Posted save is refused, at 1440.",
+      "reproduce": "node test/trial-reels-timing-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-today-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -213,7 +213,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (cur.status === 'change asked') return '';
         const asked = m.trial.versions.filter(v => v.status === 'change asked').map(v => 'Video ' + _calEsc(v.letter));
         const who = asked.length ? asked.join(' and ') + (asked.length > 1 ? "'s changes are" : "'s change is") + ' with the editor' : 'the card is with the editor';
-        if (_trvAnswer(cur, stage) === 'ok') return '<span class="dst ok"><span class="ck">' + TRV_CHECK + '</span>Video ' + _calEsc(cur.letter) + ' approved</span>';
+        if (_trvAnswer(cur, stage) === 'ok') return '<span class="dst ok"><span class="ck">' + TRV_CHECK + '</span>Video ' + _calEsc(cur.letter) + ' approved</span>' + svTrialReviewMindHtml(m, mode);
         return '<span class="dst">Video ' + _calEsc(cur.letter) + ' waits: ' + who + '</span>';
     }
     /* The version on screen has a change open while the card stays where it is (the owner's choice (a), OPEN_REPAIRS
@@ -222,6 +222,25 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || m.trial.winner) return null;
         const cur = _trvCurOf(m, mode);
         return cur && cur.status === 'change asked' ? { letter: cur.letter, note: String(cur.change_note || '') } : null;
+    }
+    /* THE CLIENT'S "CHANGE MY MIND" ON A VERSION THEY APPROVED (Sidney, 2026-10-31: "if a client says change my mind, that
+       means they actually want to put a comment, like a better comment, like a tweak needed"). On a trial card it reopens
+       that version as a change, the same as "Ask for a change" on it: the version reads "change asked" with the client's
+       words, today's change request names it ("Video B: ...") and goes to the editor, and the card follows per-version
+       routing (Tweaks Needed once nothing else waits for the client). The other versions keep their own state.
+       Only while the card's video is at Client Approval or Tweaks Needed: those are the statuses a client link may ask a
+       change from (the client gate in 190 and production-write's client policy); on a card already further on the words
+       still go to the team as a note naming the version, as on a card without trial reels. */
+    const TRV_REOPEN_FROM = ['client approval', 'tweaks needed'];
+    function svTrialReviewCanReopen(m, mode, letter) {
+        if (mode !== 'client' || !m || !m.trial || m.trial.winner || !m.post) return false;
+        if (!TRV_REOPEN_FROM.includes(String(m.post.video_status || '').trim().toLowerCase())) return false;
+        const v = letter ? m.trial.versions.find(x => x.letter === letter) : _trvCurOf(m, mode);
+        return !!v && _trvLive(v) && !v.client_pass_at && v.status === 'approved';
+    }
+    // The "Change my mind" link beside "Video B approved" on the client link ('' elsewhere).
+    function svTrialReviewMindHtml(m, mode) {
+        return svTrialReviewCanReopen(m, mode, '') ? '<button class="qlink o" type="button" data-again="video">Change my mind</button>' : '';
     }
     // The version on screen already has this reviewer's OK: the page shows that, not Approve again (Probe rule-miss 14).
     function svTrialReviewAnswered(m, mode) {
@@ -708,5 +727,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges
+  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml
 };

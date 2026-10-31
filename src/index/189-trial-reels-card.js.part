@@ -1,4 +1,4 @@
-import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { hideToast, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -345,10 +345,52 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // The last answer with the changes in flight laid over it (each change is written to be applied twice safely).
     function _trlView(base, pid) {
         const ops = _trlPending[pid];
-        if (!ops || !ops.length) return base;
+        if (!ops || !ops.length) return _trlPostedView(base, pid);
         let s = base ? JSON.parse(JSON.stringify(base)) : null;
         for (const op of ops) s = op.apply(s) || s;
-        return s;
+        return _trlPostedView(s, pid);
+    }
+    /* POSTED STARTS THE TRIAL, SHOWN AT ONCE (Sidney, 2026-10-31, Nightreel's Q4: "On trial" took about 7 s). The function
+       starts the trial when it reads the card as Posted (logic.mjs autoTrialPatches), so the first read, made as the row is
+       drawn, usually comes before the Posted save has landed and finds nothing to start. From the click, the row shows the
+       start the function will make (every approved version on trial, 24 h), and the card is read again until the function
+       says the trial started (or the card is no longer Posted). Not stored: it is only how the row reads meanwhile, and it
+       goes away by itself if the Posted save is refused (the card's status goes back) or the reads stop. One version left
+       in play is left to the function (it may make that one the winner at once). */
+    const TRL_POSTED_READS_MS = [600, 1200, 2000, 3000, 4500, 6500, 9000, 13000, 18000];
+    const _trlPostedShow = {};   // pid -> until (ms)
+    const _trlStarted = s => ((s && s.versions) || []).some(v => ['on trial', 'winner', 'lost'].includes(v.status));
+    function _trlPostedView(s, pid) {
+        const until = _trlPostedShow[pid];
+        if (!s || !until) return s;
+        const post = _trlPost(pid);
+        if (Date.now() > until || !post || post.video_status !== 'Posted' || _trlStarted(s)) return s;
+        const vs = s.versions || [];
+        const inPlay = vs.filter(v => v.status !== 'dropped' && !v.client_pass_at);
+        const ready = inPlay.filter(v => v.status === 'approved');
+        if (!ready.length || inPlay.length < 2) return s;
+        const ends = new Date(Date.now() + 24 * 3600000).toISOString();
+        const out = JSON.parse(JSON.stringify(s));
+        for (const x of out.versions) if (x.status === 'approved' && !x.client_pass_at) Object.assign(x, { status: 'on trial', trial_ends_at: ends });
+        out.trial_ends_at = out.trial_ends_at || ends;
+        return out;
+    }
+    function _trlPostedFollow(post) {
+        const pid = post.id;
+        _trlPostedShow[pid] = Date.now() + TRL_POSTED_READS_MS[TRL_POSTED_READS_MS.length - 1] + 4000;
+        let i = 0;
+        const done = () => { delete _trlPostedShow[pid]; _trlRepaintField(pid); };
+        const next = () => {
+            if (i >= TRL_POSTED_READS_MS.length) { done(); return; }
+            const wait = TRL_POSTED_READS_MS[i] - (i ? TRL_POSTED_READS_MS[i - 1] : 0);
+            i++;
+            setTimeout(() => {
+                const cur = _trlPost(pid);
+                if (!cur || cur.video_status !== 'Posted') { done(); return; }
+                _trlFresh(cur).then(j => { if (j && _trlStarted(j)) done(); else next(); }).catch(next);
+            }, wait);
+        };
+        _trlFresh(post).then(j => { if (j && _trlStarted(j)) done(); else { _trlRepaintField(pid); next(); } }).catch(next);
     }
     /* Show `apply` now, run `task` after the card's earlier writes, and drop the change when it settles: kept by the
        answer the task stored, or gone with the refusal (the task says it in words). Answers the task's result. */
@@ -489,7 +531,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
            now, so "On trial" (or the one version's win) shows at once, not on the next 30 s list (Trialeyes E15). */
         if (post.video_status === 'Posted' && vs.some(x => x.status === 'approved') && !vs.some(x => ['on trial', 'winner', 'lost'].includes(x.status))) {
             const k = pid + '|' + String(post.video_status_at || post.updated_at || '');
-            if (!_trlPostedAsked.has(k)) { _trlPostedAsked.add(k); setTimeout(() => { _trlFresh(post).then(j => { if (j) _trlRepaintField(pid); }).catch(() => {}); }, 0); }
+            if (!_trlPostedAsked.has(k)) { _trlPostedAsked.add(k); setTimeout(() => _trlPostedFollow(post), 0); }
         }
         // With no version yet, the list stands open: its only row is where the first link is pasted.
         const open = _trlOpen.has(pid) || !vs.length;
@@ -889,8 +931,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* Two staff can pick at once (Probe, bug 9). The pick reads the versions now and stops if a winner is already
        picked or this version is no longer on trial; and if the function still refuses the winner after the attach,
        the put-back is a compare-and-swap on the sub-issue (below), so a stale page never overwrites another pick. */
+    /* The toast and its Undo show on the click too (Sidney, 2026-10-31, Nightreel's Q3: it came about 4 s later, when the
+       save returned). A refused pick takes the toast back, and the refusal says why in words. Undo pressed while the pick
+       is still saving runs after it (the card's writes go one at a time); after a refused pick there is nothing to undo. */
+    const _trlPickOut = {};   // pid -> { letter, refused }
+    const TRL_WIN_WORDS = l => 'Video ' + l + ' is the winner';
     function svTrialPick(pid, letter) {
         if (!_trlPost(pid)) return;
+        const pick = _trlPickOut[pid] = { letter, refused: false };
+        showToast(TRL_WIN_WORDS(letter), { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid) });
         // The winner shows at once; the race guard, the attach and the function follow (a refusal puts it back).
         return _trlOptimistic(pid, s => {
             for (const x of (s && s.versions) || []) {
@@ -899,7 +948,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
             if (s) s.winner_letter = letter;
             return s;
-        }, () => _trlPickNow(pid, letter));
+        }, async () => {
+            let json = null;
+            try { json = await _trlPickNow(pid, letter); }
+            catch (e) { showNotify('The winner was not picked', 'It did not save. Nothing changed. Try again.'); }
+            if (!json) {
+                pick.refused = true;
+                const t = document.querySelector('.sv-toast .sv-toast-msg');
+                if (t && t.textContent === TRL_WIN_WORDS(letter)) hideToast();
+            }
+            return json;
+        });
     }
     async function _trlPickNow(pid, letter) {
         const post = _trlPost(pid);
@@ -916,7 +975,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
         // so the card and the versions never disagree (the refusal is already on screen).
         if (!json) { await _trlPutBack(post, mine, v.frame_url); return null; }
-        showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid) });
         return json;
     }
     function _trlStale(pid) {
@@ -954,6 +1012,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const post = _trlPost(pid);
         if (!post) return null;
         const fresh = await _trlFresh(post);
+        // Undo pressed while the pick was still saving, and the pick was refused: nothing was picked, and the refusal
+        // already said so.
+        const pk = _trlPickOut[pid];
+        if (pk && pk.refused) { delete _trlPickOut[pid]; _trlRepaintField(pid); return; }
         if (!fresh) { showNotify('Undo did not happen', 'The versions could not be read. Try again.'); return; }
         if (!fresh.winner_letter) { _trlStale(pid); return; }
         // Back on trial the card carries the first live version again (Video A unless it was dropped).

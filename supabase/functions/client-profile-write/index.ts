@@ -246,10 +246,10 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
     return json({ ok: false, error: "write_failed" }, 500);
   }
   const result = saved as JsonMap;
-  const row = result.row as JsonMap;
+  const savedRow = result.row as JsonMap;
   const extraOf = (r: JsonMap) => (r.extra && typeof r.extra === "object" ? r.extra : {}) as JsonMap;
-  const fields = Object.keys(split.columns).filter(f => row[f] !== (current as JsonMap)[f])
-    .concat(Object.keys(split.extra).filter(f => clean(extraOf(row)[f]) !== clean(extraOf(current as JsonMap)[f])));
+  const fields = Object.keys(split.columns).filter(f => savedRow[f] !== (current as JsonMap)[f])
+    .concat(Object.keys(split.extra).filter(f => clean(extraOf(savedRow)[f]) !== clean(extraOf(current as JsonMap)[f])));
   // Best effort: never turns a saved edit into a failure.
   const sheetCopy = await copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch });
   return json({ ok: true, native: true, fields, request_id: requestId, row: result.row, sheet_copy: sheetCopy });
@@ -410,7 +410,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const norm = normalizeChanges(body.changes);
     if (!norm.ok) return json({ ok: false, error: norm.error, field: norm.field || null }, 400);
     // A field kept in extra is not a Sheet column: it can only be saved once SyncView is the main copy.
-    const extraKeys = Object.keys((splitChanges(norm.changes) as { extra: JsonMap }).extra);
+    const extraKeys = Object.keys(splitChanges(norm.changes).extra);
     if (extraKeys.length) return json({ ok: false, error: "authority_not_syncview", field: extraKeys[0] }, 409);
     const changes = norm.changes as Record<string, string>;
 

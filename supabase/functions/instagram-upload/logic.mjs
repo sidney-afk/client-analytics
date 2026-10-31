@@ -208,7 +208,7 @@ export function buildCreate(input, nowMs, actor) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
   const fb = facebookFromInput(body, { kind: 'reel', trial, accountId });
-  if (!fb.ok) return fb;
+  if (!fb.ok) return { ok: false, error: fb.error };
 
   const media = { url: mediaUrl };
   let cover = null;
@@ -280,7 +280,7 @@ function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
   const fb = facebookFromInput(body, { kind: 'carousel', trial: null, accountId, items: urls.length });
-  if (!fb.ok) return fb;
+  if (!fb.ok) return { ok: false, error: fb.error };
 
   const placement = CAROUSEL_PLACEMENT;
   const postBody = {

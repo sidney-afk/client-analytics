@@ -200,7 +200,7 @@ async function run(browser, origin, action, mode) {
         hasText: action === 'approve' ? 'Approval saved; card still syncing' : 'was not saved'
       }).waitFor();
       if (action === 'approve') assert.equal(await page.locator('#confirmOverlay.active #confirmMsg').textContent(),
-        'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.',
+        'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your team.',
         label + ': partial-commit notice body');
       assert.equal(stored[statusField], initial[statusField], label + ': refused save changed stored row');
       assert.equal(saves.length, 1, label + ': refused save should not be silently retried');

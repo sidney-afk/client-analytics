@@ -18,6 +18,27 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-31 evening): Sheet fit for everyone, client link polish, Facebook cross-post
+
+- **Trial reels (#2470, OPEN_REPAIRS 619):** the client's Change my mind on an approved trial version reopens it as a
+  change for the editor; the winner toast shows on the click; On trial shows about 1 s after Posted. Open owner
+  question: a fully approved card cannot be reopened from the client link (production-write's client policy).
+- **Calendar Sheet (#2471, 617; #2475, 621; #2477, 622):** a fourth, smaller card size and an edge-to-edge strip; then,
+  behind `sheet_fit_v1`, the Sheet fits the window (no empty page scroll, tighter spacing, the thumbnail gives up height
+  so the default size fits 1920x1000) and the wheel follows the gesture wherever the pointer is (a vertical wheel slides
+  the cards only when nothing scrolls up or down; the owner was asked whether to keep that). `sheet_fit_v1` =
+  `{"all": true, ...}` since 2026-10-31 ~22:45 UTC (owner's go), desktop only; rollback: drop `"all"`. #2477 fixed a
+  main-red WebKit "ResizeObserver loop" in repair-checkpoint: the #calBody observer now exists only while the fit
+  applies.
+- **Client link polish (#2472, 618):** Enter is a new line on client touch screens (Send sends); "ready for your
+  review" is violet, not red, on the client link; "You can still change your mind" only when something was reviewed;
+  undated posts fold behind one "Not scheduled yet" row on phones; "tell your team"; new /start help poster. Live
+  checked on the test client 21:55 UTC.
+- **Facebook cross-post (#2473, 620):** Instagram uploads can also go to the client's Facebook Page through Post for Me
+  (Kasper > Clients: Instagram and Facebook Page connection ids; "Also post to Facebook", off for trials, video
+  carousels and clients with no Page). Migration `2026-10-31-client-facebook-page.sql` applied. Not yet proven live:
+  no client has a Page connected.
+
 ## Latest (SyncView supervisor, 2026-10-31): n8n quota watchdog survives the clock change
 
 - **#2468 (OPEN_REPAIRS 616, session Quota):** the n8n execution quota watchdog went red at 13:17 UTC with "Hourly data is
@@ -101,6 +122,7 @@ line is older than a week, re-check it before relying on it.
 - **Speed (#2391, OPEN_REPAIRS 554):** trial-reels reads about 170 ms, list about 230 ms, writes about 225 to 350 ms of server work.
 - **Off-card read (#2399, OPEN_REPAIRS 557):** trial-reels answers a read of a card whose switch is off with 200 `{enabled:false}` instead of a 409; the Production review packet counts trial-reels reads as reads. The "Production polish gate (push)" lane was red after every merge from 12e8c87 (27 Oct 22:09 UTC) to this fix (28 Oct 06:3x UTC); green since.
 - **Staff switches take `{"all": true}` (#2374, OPEN_REPAIRS 544): merged. (Since 2026-10-29 the five below have no switch at all; see the Permafive section above.)** The five staff features (unread_badges_v2, phone_polish_staff, caption_history_staff, thumbnail_title_buttons_staff, frame_comments_in_notes_staff) read `{"all": true, "staff": [14 ids]}` since 2026-10-28 04:0x UTC; the 3-hourly watcher checks them until 2026-10-29 15:30 UTC, then the supervisor proposes making them permanent.
+- **Sheet fit for everyone:** `sheet_fit_v1` = `{"all": true, "staff": [the owner's two ids], "clients": [test client]}` since 2026-10-31 ~22:45 UTC (owner's go after trying it), desktop only (#2475, #2477). Rollback: remove `"all"` (or delete the row).
 - **Client link polish for all clients:** `review_client_polish` = `{"all": true, "clients": [test client]}` since 2026-10-28 06:26:22 UTC, after live checks at 1440 and 390 and the Notes fixes (#2381, OPEN_REPAIRS 545). Watched 3 days (until 2026-10-31 06:30 UTC). Rollback: `{"clients": [test client]}`.
 - **Client captions in Collaborative mode (#2370, OPEN_REPAIRS 540):** a client may type the caption on the Sheet again while Collaborative mode is on; read only when it is off. Live-checked.
 - **Fewer "new version" prompts (#2389, OPEN_REPAIRS 552; #2402, 558):** a tab someone is working in is asked once, an hour after a newer version appears, never mid-draft; Dismiss holds; a signed-out tab follows the same rules unless a role key is typed. Live-checked.

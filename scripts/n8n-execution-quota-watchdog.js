@@ -7,6 +7,8 @@ const DEFAULT_TIME_ZONE = 'America/Guatemala';
 const DEFAULT_THRESHOLDS = Object.freeze([80, 90]);
 const DEFAULT_ALERT_WORKFLOW_ID = 'Tfhc3vebZyG6obOg';
 const DEFAULT_MAX_HISTORY_DAYS = 14;
+// Two local days minus a two-hour daylight-saving allowance in either zone.
+const MIN_QUERY_SPAN_MS = 46 * 3600 * 1000;
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
@@ -129,11 +131,20 @@ async function readMonthlyExecutionCount({
   if (!Number.isInteger(historyDays)) throw new Error('licensed Insights history days must be an integer');
   const today = zonedParts(now, timeZone);
   const todayStart = zonedLocalToUtc({ year: today.year, month: today.month, day: today.day }, timeZone);
-  const tomorrow = zonedParts(new Date(todayStart.getTime() + 36 * 3600 * 1000), timeZone);
-  const tomorrowStart = zonedLocalToUtc({ year: tomorrow.year, month: tomorrow.month, day: tomorrow.day }, timeZone);
+  const localDayStart = offset => zonedLocalToUtc({ year: today.year, month: today.month, day: today.day + offset }, timeZone);
+  const twoDaysAgoStart = localDayStart(-2);
+  const openEnd = localDayStart(2);
   const safeStart = zonedLocalToUtc({ year: today.year, month: today.month, day: today.day - historyDays }, timeZone);
 
   async function count(start, end) {
+    // n8n picks hourly mode when its own server clock (default America/New_York,
+    // not the timeZone parameter) sees the range as shorter than one day, and the
+    // license refuses hourly data. A 24-hour range that ends on a US fall-back
+    // night (2026-10-31 to 2026-11-01) is only 23 wall-clock hours there, so every
+    // range sent must span at least two local days (OPEN_REPAIRS 616).
+    if (end.getTime() - start.getTime() < MIN_QUERY_SPAN_MS) {
+      throw new Error(`n8n Insights range ${start.toISOString()} to ${end.toISOString()} is shorter than two days and could fall into hourly mode`);
+    }
     if (start < safeStart) throw new Error(`n8n quota coverage unavailable: ${start.toISOString()} is older than the configured ${historyDays}-day Insights history; a complete monthly checkpoint is required`);
     const url = new URL(`${root}/api/v1/insights/summary`);
     url.searchParams.set('startDate', start.toISOString());
@@ -171,15 +182,21 @@ async function readMonthlyExecutionCount({
     start = new Date(checkpoint.through);
     completeDays = { total: checkpoint.execution_count, failed: checkpoint.failed_count };
   }
-  if (start < todayStart) {
+  // Closed days are read on their own only when there are at least two of them.
+  // A single closed day (the usual daily case) stays open: it is read again,
+  // together with today, and enters the checkpoint on the next run.
+  if (start <= twoDaysAgoStart) {
     const next = await count(start, todayStart);
     completeDays = { total: completeDays.total + next.total, failed: next.failed === null ? null : completeDays.failed === null ? null : completeDays.failed + next.failed };
     start = todayStart;
   }
-  if (start.getTime() !== todayStart.getTime()) throw new Error('n8n quota checkpoint did not reach the current local day');
-  // Tomorrow's bound keeps a one-day query out of n8n's hourly-only mode.
-  // No future executions exist; this includes all current production events.
-  const current = await count(todayStart, tomorrowStart);
+  if (start.getTime() !== todayStart.getTime() && start.getTime() !== localDayStart(-1).getTime()) {
+    throw new Error('n8n quota checkpoint did not reach the current local day');
+  }
+  // The open range runs from the first uncounted day to two local days past
+  // today, so it never falls into hourly mode. No future executions exist, so
+  // this is exactly the uncounted closed day (if any) plus today.
+  const current = await count(start, openEnd);
   const total = completeDays.total + current.total;
   const failed = completeDays.failed === null || current.failed === null ? null : completeDays.failed + current.failed;
 
@@ -192,7 +209,7 @@ async function readMonthlyExecutionCount({
     failed_count: Number.isFinite(failed) && failed >= 0 ? failed : null,
     source: 'n8n_insights_summary',
     complete: true,
-    checkpoint: { month: window.key, time_zone: timeZone, through: todayStart.toISOString(), execution_count: completeDays.total, failed_count: completeDays.failed },
+    checkpoint: { month: window.key, time_zone: timeZone, through: start.toISOString(), execution_count: completeDays.total, failed_count: completeDays.failed },
   };
 }
 

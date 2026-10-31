@@ -286,13 +286,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - **On the card:**
   - A faint **Trial reels** switch sits in the Video row.
   - When it's on, the row shows "Video · N", a short state ("2/4 approved", "On trial · 17 h left") and an arrow to open the versions.
-  - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**, with Undo).
+  - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**). Its "Video C is the winner · Undo" toast shows on the click; if the pick is refused, the toast goes and the page says why.
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
   - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - **On the SMM's Review tab:** a trial card is listed while any version waits for the SMM, whatever the card's status, Tweaks Needed included (a new cut that came in while another version's change is still open). The SMM's approve on a trial card always sends it to Kasper, so its video has no "Approve to client".
   - **If a card did not move on** after every version was answered (the page closed between the two saves), the review page shows "Every version is approved" ("You approved every version" on the client link) with the usual approve button, which moves the card on.
-  - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted.
+  - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted; "On trial" shows on the row at once and is confirmed by the trial-reels function a moment later.
   - The client sees only the winner once it is picked.
 - **Switch:** `trial_reels_pages`, **test client only**.
 
@@ -373,7 +373,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Approve** answers the version on screen; **Approve all** answers every open version.
   - **Ask for a change** goes on that version (it is sent as "Video C: …").
   - **Not this one** tells the team to drop that version.
-  - **Change my mind** on an approved version sends the words to the team as a note that names it ("Video A: …"); the version stays approved.
+  - **Change my mind** on an approved version reopens it as a change, the same as **Ask for a change** on it: the version reads "Change asked", the client's words go to the editor as "Video A: …", and the card goes to Tweaks Needed once nothing else waits for the client. It is also beside "Video A approved" while another version still waits. This works only while the card's video is at Client Approval or Tweaks Needed; on a card already Approved it still sends a note naming the version.
 - Once a winner is picked, the client sees only that one ("the one we are posting").
 - Samples never have trial reels.
 

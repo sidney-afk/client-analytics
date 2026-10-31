@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -33,7 +33,9 @@ import { svTrialReviewWanted } from './189-trial-reels-card.js';
                  Edit the caption   sent as a change request on the caption carrying the new text, so it goes to
                                     the SMM and is never approved by itself (there is no client caption save)
                  Change my mind     on an approved part, a note to the team on that part (a client link cannot
-                                    reopen an approved part; the team does)
+                                    reopen an approved part; the team does). On a trial card's version the client
+                                    approved, while the video is at Client Approval or Tweaks Needed, it is "Ask for a
+                                    change" on that version (194, svTrialReviewCanReopen; Sidney, 2026-10-31)
                  Finish reviewing   no save: every part already has its answer saved; it opens the next post
          SMM     Approve to Kasper / to client  _calReviewApprove(pid, comp, 'kasper' | 'client')
                  Ask for a change   _calReviewRequestTweak; a note: _calReviewComment (team only) or the same
@@ -2562,7 +2564,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // A version the SMM has not looked at yet: nothing to answer here (Probe rule-miss 13).
         if (x.key === 'video' && svTrialReviewWithTeam(_rsCur(), R.mode)) return '<span class="dst">With the team: the SMM looks at Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' first</span>';
         // A version this reviewer already approved: its approved state, as today's page shows an answered part.
-        if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>';
+        if (x.key === 'video' && svTrialReviewAnswered(_rsCur(), R.mode)) return '<span class="dst ok"><span class="ck">' + RI.check + '</span>Video ' + _re(svTrialReviewLetter(_rsCur(), R.mode)) + ' approved</span>' + svTrialReviewMindHtml(_rsCur(), R.mode);
         // A version with its change open while the card stays (OPEN_REPAIRS 587): its own "Change asked" and note.
         const asked = x.key === 'video' ? svTrialReviewAsked(_rsCur(), R.mode) : null;
         if (asked) {
@@ -2757,7 +2759,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const paused = !!S.editing && !chg;
         const x = chg ? m.parts.find(p => p.key === k) : null;
         // An approved part on a client link cannot be reopened from the page: "Change my mind" is a note to the team.
-        const reopenNote = R.mode === 'client' && x && x.st === 'ok';
+        // A trial card's version the client approved is the exception: it reopens as a change (194).
+        const reopenNote = R.mode === 'client' && x && x.st === 'ok' && !(k === 'video' && svTrialReviewCanReopen(m, R.mode, nt.trialLetter));
         const ph = paused ? 'Finish the edit first'
             : cpst && S.cpSent[m.id + '|' + k] ? 'Another change to the ' + n + '?'
             : chg ? (nt.aat ? 'What should the editor fix? It goes on to the client after.' : reopenNote ? 'What would you like changed on the ' + n + '?' : 'What should change on the ' + n + '?')
@@ -2789,7 +2792,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        comment otherwise. */
     function _rsClientComposer(m, opts, ph, paused, typed, cpst) {
         const nt = R.S.note, k = nt.part, x = k ? m.parts.find(p => p.key === k) : null;
-        const reopenNote = x && x.st === 'ok';
+        const reopenNote = x && x.st === 'ok' && !(k === 'video' && svTrialReviewCanReopen(m, R.mode, nt.trialLetter));
         const keys = opts.map(q => q.key);
         if (k && keys.indexOf(k) < 0) keys.push(k);
         const chips = keys.length ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
@@ -3648,7 +3651,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsRender({ force: true });
             return;
         }
-        if (k && R.mode === 'client' && x && x.st === 'ok') {
+        // Change my mind on a trial card's version the client approved: that version reopens as a change, the same as
+        // "Ask for a change" on it (Sidney, 2026-10-31; 194 svTrialReviewCanReopen). It goes on below as a change.
+        const reopen = k === 'video' && R.mode === 'client' && svTrialReviewCanReopen(m, R.mode, trialLetter);
+        if (k && R.mode === 'client' && x && x.st === 'ok' && !reopen) {
             // Change my mind on an approved part (client link): a note to the team on that part. On a trial card it names
             // the version it was written on, as every trial note does (Nightreel, 2026-10-30: "w15 changed my mind" went
             // to the team with no version).

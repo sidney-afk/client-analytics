@@ -16,7 +16,9 @@
  * cards are measured at the same size. Checked: desktop light and dark (card
  * boxes, thumbnail, every row of the first card), phone (the posts bar, its
  * switch and the tile grid), and the first paint on desktop (toolbar items and
- * cards) against the loaded page. Tolerance 1px.
+ * cards) against the loaded page, and again at the smallest saved card size
+ * (desktop in the app and at first paint, plus the phone grid, which must not
+ * change with it). Tolerance 1px.
  *
  * Fully offline, fictional test client. Set SKELETON_SHAPE_SHOT_DIR to save
  * skeleton and loaded screenshots.
@@ -128,10 +130,15 @@ async function shot(page, name) {
 }
 
 // In the app: open the Sheet with the cards' read held, measure, release, measure.
-async function inApp(browser, origin, label, viewport, theme) {
+// A saved card size (zoom) is seeded the way the page saves it.
+async function seedZoom(ctx, zoom) {
+  if (zoom) await ctx.addInitScript(z => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ zoom: z })); } catch (e) {} }, zoom);
+}
+async function inApp(browser, origin, label, viewport, theme, zoom) {
   const phone = viewport.width < 500;
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: theme, isMobile: phone, hasTouch: phone });
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
+  await seedZoom(ctx, zoom);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
@@ -168,9 +175,10 @@ async function inApp(browser, origin, label, viewport, theme) {
 }
 
 // First paint, before the app's files run: the boot copy in the page shell.
-async function bootPaint(browser, origin, label, viewport, theme, real) {
+async function bootPaint(browser, origin, label, viewport, theme, real, zoom) {
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: theme });
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
+  await seedZoom(ctx, zoom);
   const page = await ctx.newPage();
   await seedStaffGate(page);
   await routeBackend(page, origin, { noApp: true });
@@ -197,6 +205,12 @@ async function bootPaint(browser, origin, label, viewport, theme, real) {
     await inApp(browser, origin, 'phone-dark', { width: 390, height: 844 }, 'dark');
     await bootPaint(browser, origin, 'first-paint-desktop-light', desk, 'light', realLight);
     await bootPaint(browser, origin, 'first-paint-desktop-dark', desk, 'dark', realLight);
+    // The smallest card size (2026-10-31): the skeleton and the first paint
+    // draw cards at that size, and the phone grid does not change with it.
+    const realSmallest = await inApp(browser, origin, 'desktop-light-smallest', desk, 'light', 'xs');
+    expect(realSmallest.cards[0] && realSmallest.cards[0].w === 212, `desktop-light-smallest: loaded cards are 212px wide (got ${realSmallest.cards[0] && realSmallest.cards[0].w})`);
+    await bootPaint(browser, origin, 'first-paint-desktop-light-smallest', desk, 'light', realSmallest, 'xs');
+    await inApp(browser, origin, 'phone-light-smallest', { width: 390, height: 844 }, 'light', 'xs');
   } finally {
     await browser.close();
     server.close();

@@ -339,7 +339,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         });
         expect(r.has && r.left >= 0 && r.right <= r.vw && r.sw <= r.vw, v + ' ' + width + ': the list fits the screen (' + JSON.stringify(r) + ')');
         expect(r.drag === 0, v + ' ' + width + ': nothing in it drags');
-        // On a phone the list folds behind one "Not scheduled yet" row (session Linkpolish, OPEN_REPAIRS 617); it stays
+        // On a phone the list folds behind one "Not scheduled yet" row (session Linkpolish, OPEN_REPAIRS 618); it stays
         // open for the visit once opened, so Week finds it open after Month.
         expect(await t.page.locator('.cal-notyet-tog').isVisible(), v + ' ' + width + ': the list sits behind one "Not scheduled yet" row');
         if (!(await t.page.locator('.cal-notyet.is-open').count())) await t.page.locator('.cal-notyet-tog').click();

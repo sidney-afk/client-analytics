@@ -278,6 +278,12 @@
             // Analytics is hidden unless this browser last saw it shown (mirror of svAnalyticsSeenShown in 188):
             // staff are then never sent to Analytics, so no route may paint its skeleton first.
             var anHidden = true; try { anHidden = localStorage.getItem('sv-analytics-shown') !== '1'; } catch (e) {}
+            // Saved Sheet card size, so the desktop first paint draws cards at the size that loads
+            // (same map as _calNormZoom in 160; 'm' is the default and needs no tag).
+            try {
+                var calZoom = ({ small: 'm', 'default': 'l', large: 'l', xs: 'xs', s: 's', m: 'm', l: 'l' })[(JSON.parse(localStorage.getItem('syncview_calendar_prefs') || '{}') || {}).zoom];
+                if (calZoom && calZoom !== 'm') de.setAttribute('data-boot-cal-zoom', calZoom);
+            } catch (e) {}
             if (st && st.client) {
                 if (anHidden && st.clientTab !== 'calendar' && st.clientTab !== 'brief') {
                     de.setAttribute('data-boot-nav', 'calendar');

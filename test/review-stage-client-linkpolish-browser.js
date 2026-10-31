@@ -1,6 +1,6 @@
 'use strict';
 /*
- * SIX CLIENT LINK CHANGES THE OWNER SAID YES TO ON 2026-10-31 (session Linkpolish, OPEN_REPAIRS 617; found by session
+ * SIX CLIENT LINK CHANGES THE OWNER SAID YES TO ON 2026-10-31 (session Linkpolish, OPEN_REPAIRS 618; found by session
  * Nightclient on 30 Oct as Q6 to Q11). Real browser, fully offline, the review page's own fixture (fictional client,
  * cards and token), with review_client_polish on as it is live for every client. Each part fails on main:
  *   enter    (Q6)  on a touch screen the message box's Enter key makes a new line and does not send, and no "Enter

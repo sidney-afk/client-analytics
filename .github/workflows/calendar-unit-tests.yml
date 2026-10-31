@@ -407,6 +407,7 @@ jobs:
           Notify client button and confirm box (Calendar and Samples, desktop and phone)|node docs/syncview-design/tests/notify-client-browser.js
           Client approve and request-changes always save through the function|node test/calendar-client-approve-function-browser.js
           Sheet loading skeleton has the loaded Sheet's shape (desktop light and dark, phone, first paint)|node test/calendar-sheet-skeleton-shape-browser.js
+          Sheet strip runs the full window width and the smallest card size keeps every control (1280, 1440, 1920, phone)|node test/calendar-sheet-full-width-browser.js
           Samples Sheet and Review loading skeletons have the loaded shape (desktop light and dark)|node test/samples-sheet-skeleton-shape-browser.js
           A click on a pop-up's backdrop never falls through to the page underneath|node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
           Messages chat day dividers follow the reader's day and read as dates|node docs/syncview-design/tests/messages-day-divider-browser.js

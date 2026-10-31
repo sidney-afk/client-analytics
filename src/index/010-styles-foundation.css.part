@@ -1936,6 +1936,17 @@
            toolbar margin 0 0 8px); the boot copy takes the same spacing. */
         html[data-boot-nav="calendar"] .main { padding-top: 12px; }
         html[data-boot-nav="calendar"] .boot-skeleton-calendar .cal-sk-toolbar { margin: 0 0 8px; }
+        /* Desktop first paint follows the loaded Sheet: the saved card size
+           (005 sets data-boot-cal-zoom from the calendar prefs) and the
+           edge-to-edge strip (020, .cal-organizer-strip full width). */
+        @media (min-width: 768px) {
+            html[data-boot-cal-zoom="xs"]:not(.boot-client) .boot-skeleton-calendar .boot-page-skeleton.cal-sheet-skeleton { --cal-card-w: 212px; --cal-thumb-h: 132px; }
+            html[data-boot-cal-zoom="s"]:not(.boot-client) .boot-skeleton-calendar .boot-page-skeleton.cal-sheet-skeleton { --cal-card-w: 268px; --cal-thumb-h: 178px; }
+            html[data-boot-cal-zoom="l"]:not(.boot-client) .boot-skeleton-calendar .boot-page-skeleton.cal-sheet-skeleton { --cal-card-w: 420px; --cal-thumb-h: 340px; }
+            html[data-boot-cal-zoom="xs"]:not(.boot-client) .boot-skeleton-calendar .cal-sheet-skeleton .cal-organizer-strip { gap: 10px; }
+            html[data-boot-cal-zoom="xs"]:not(.boot-client) .boot-skeleton-calendar .cal-sheet-skeleton .cal-sk-body { padding-left: 11px; padding-right: 11px; }
+            html[data-boot-nav="calendar"]:not(.boot-client) .boot-skeleton-calendar .cal-sheet-skeleton .cal-organizer-strip { margin-inline: -48px; padding-left: 48px; }
+        }
         .cal-skeleton-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
         .cal-skeleton-toolbar-left, .cal-skeleton-toolbar-mid, .cal-skeleton-toolbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .cal-skeleton-toolbar-left { flex: 1 1 380px; }

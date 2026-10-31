@@ -2125,7 +2125,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const q = _rsQueue();
             const open = q.filter(x => !_rsAnswered(x)).length;
             const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
-            const done = R.mode === 'client' ? 'You can still change your mind' : 'Approve sends to Kasper';
+            // "You can still change your mind" speaks of posts already reviewed: with none in the strip (nothing waiting and
+            // nothing reviewed) the client link says only "Nothing else waiting" (owner's yes, 2026-10-31, session Linkpolish).
+            const done = R.mode === 'client' ? (fin.length ? 'You can still change your mind' : '') : 'Approve sends to Kasper';
             _rsPut(sh, '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>');
             // The divider stands between waiting and reviewed posts, never alone before the reviewed ones.
             added = _rsPatch(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? (q.length ? '<span class="sk-sep" aria-hidden="true"></span>' : '') + fin.map(m => {
@@ -2742,6 +2744,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const n = (S.cpSent[key] || 0) + (_rsSaving(m, k) ? 1 : 0) + (S.chgQ[key] || []).length;
         return n ? '<span class="cp-st cp-done" role="status">' + RI.check + (n > 1 ? n + ' changes sent' : 'Sent') + '</span><span class="why">Add another change, or finish reviewing.</span>' : '';
     }
+    /* The client's message box on a touch screen (session Linkpolish, the owner's yes on 2026-10-31): a phone keyboard's
+       Enter key is the client's only way to start a new line, so there it makes one, and only the Send button sends; the
+       "Enter sends" hint is not drawn. A screen with a mouse or a trackpad keeps Enter = send. Client link only: staff
+       and Kasper keep Enter = send everywhere. */
+    function _rsTouchNewline() {
+        if (R.mode !== 'client') return false;
+        try { return !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches); } catch (e) { return false; }
+    }
     function _rsComposer(m) {
         const S = R.S, nt = S.note, k = nt.part, chg = !!k, n = chg ? _rsLname(k) : '', typed = !!nt.text.trim();
         const cpst = _rsCpChgState(m, k);
@@ -2765,7 +2775,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const sendLabel = nt.aat ? 'Approve after tweaks' : reopenNote ? 'Send to your team' : 'Ask for change';
         const opts = active ? m.parts.filter(q => q.st !== 'chg' && q.st !== 'tweak' && !(R.mode === 'client' && q.st === 'ok')) : [];
         const foot = chg
-            ? '<div class="cmp-foot">' + (seg || '<span class="esc">Enter sends</span>') + '<div class="btns"><button class="btn-quiet" type="button" id="cmpCancel">Cancel</button><button class="b-send-chg" type="button" id="sendBtn"' + (typed ? '' : ' disabled') + '>' + (nt.aat ? RI.aat : RI.back) + sendLabel + '</button></div></div>'
+            ? '<div class="cmp-foot">' + (seg || (_rsTouchNewline() ? '' : '<span class="esc">Enter sends</span>')) + '<div class="btns"><button class="btn-quiet" type="button" id="cmpCancel">Cancel</button><button class="b-send-chg" type="button" id="sendBtn"' + (typed ? '' : ' disabled') + '>' + (nt.aat ? RI.aat : RI.back) + sendLabel + '</button></div></div>'
             : (opts.length ? '<div class="sugg"><div class="sgl"><span>Is this a change?</span><button class="justnote" type="button" id="noteBtn">Just a note ' + RI.send + '</button></div><div class="sgp">' + opts.map(q => '<button class="sg" type="button" data-sg="' + q.key + '">' + _rsDot(q.key) + RS_PART[q.key] + (q.st === 'ok' ? '<span class="sga">, approved</span>' : '') + '</button>').join('') + '</div></div>' : '')
               + (R.mode === 'smm' ? '<div class="nfoot">' + seg + '<button class="send" type="button" id="sendBtn" aria-label="Send the note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button></div>' : '');
         const send = chg || R.mode === 'smm' ? '' : '<button class="send" type="button" id="sendBtn" aria-label="Send as a note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button>';
@@ -3144,7 +3154,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             grow();
         });
         ta.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _rsSendNote(!S.note.part); }
+            // On a client's touch screen Enter is a new line and only the Send button sends (_rsTouchNewline).
+            if (e.key === 'Enter' && !e.shiftKey && !_rsTouchNewline()) { e.preventDefault(); _rsSendNote(!S.note.part); }
             else if (e.key === 'Escape' && S.note.part) { e.preventDefault(); e.stopPropagation(); _rsClearChange(S.note.where === 'chat', S.note.where === 'stage'); }
         });
         if (S.note.text) grow();

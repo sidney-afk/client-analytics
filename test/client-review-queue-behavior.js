@@ -207,7 +207,7 @@ const approveData = { edits: { caption_status: 'Approved', status: 'Approved', c
             _saveError: 'HTTP 403'
         });
         t(s.api._calCrqFailed('p1', 'caption', 'HTTP 403') === false, 'committed approval: refused source save is final for the send queue');
-        t(s.log.notes[0] === 'Approval saved; card still syncing | Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.',
+        t(s.log.notes[0] === 'Approval saved; card still syncing | Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your team.',
             'committed approval: the notice describes the saved approval and pending card sync');
         t(s.api._crqMine().length === 0 && s.post._writeUiRetrySourceAt && s.post.caption_status === 'Approved',
             'committed approval: the queue is dropped while the card repair stays armed');

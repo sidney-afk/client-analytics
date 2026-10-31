@@ -551,6 +551,7 @@ jobs:
           Client link as one page under the new review header (one header on every tab, no Analytics, no frame, Frame.io player on the video step)|node test/review-stage-client-layout-browser.js
           Client link header and strip on every width (a picked post wholly in the strip, phone tabs keep their count inside, the open step in view at 320)|node test/review-stage-client-strip-tabs-browser.js
           Client link end state, a held answer and a quoted caption (no lone divider, offline names the connection, caption edit keeps its lines)|node test/review-stage-client-end-words-browser.js
+          Client link, six owner-approved changes (Enter is a new line on touch screens, calm violet for Ready for your review, no change-your-mind line when empty, phones fold undated posts, your team, clean help poster)|node test/review-stage-client-linkpolish-browser.js
           Review page first switch, chat and update bar (old list never paints on the first Sheet to Review, phone-style conversation, bar clear of the stage buttons)|node test/review-stage-chat-switch-browser.js
           Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)|node test/review-stage-staff-layout-browser.js
           Staff pages first paint, frame by frame (header never moves, no bare Loading line, phone title bar first)|node test/staff-first-paint-browser.js

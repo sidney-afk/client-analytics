@@ -327,7 +327,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       await t.ctx.close();
     }
 
-    // ---------- phone widths: the list shows, scrolls sideways or wraps inside the page, and opens a post ----------
+    // ---------- phone widths: the list folds behind one row, opens, wraps inside the page, and opens a post ----------
     for (const width of [390, 430]) {
       console.log('--- client Month and Week at ' + width + ' ---');
       const t = await openClient(browser, origin, { flags: 'off', collab: true, unscheduled: true, finished: true, width, height: 844 });
@@ -339,6 +339,10 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         });
         expect(r.has && r.left >= 0 && r.right <= r.vw && r.sw <= r.vw, v + ' ' + width + ': the list fits the screen (' + JSON.stringify(r) + ')');
         expect(r.drag === 0, v + ' ' + width + ': nothing in it drags');
+        // On a phone the list folds behind one "Not scheduled yet" row (session Linkpolish, OPEN_REPAIRS 618); it stays
+        // open for the visit once opened, so Week finds it open after Month.
+        expect(await t.page.locator('.cal-notyet-tog').isVisible(), v + ' ' + width + ': the list sits behind one "Not scheduled yet" row');
+        if (!(await t.page.locator('.cal-notyet.is-open').count())) await t.page.locator('.cal-notyet-tog').click();
         await t.page.locator('.cal-notyet .cal-month-pill').first().click();
         await sleep(800);
         expect(await t.page.evaluate(() => /An undated idea/.test(document.body.innerText)), v + ' ' + width + ': tapping the post opens it');

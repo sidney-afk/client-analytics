@@ -354,7 +354,7 @@ export async function videoCards(deps, args) {
   });
 
   const how = [
-    "How to get the files: download.edit_video is a direct download of the latest edit from Frame.io (it expires; call video_cards again for a fresh one).",
+    "How to get the files: download.edit_video is a direct download of the latest edit from Frame.io (it expires; ask for the card again for a fresh one).",
     "raw_footage is a Google Drive (or Dropbox) folder: open it in the browser and download the clips, or use the Google Drive connector to list and download them.",
     "For one shared file (not a folder), import_file turns its Drive or Dropbox link into a direct link.",
     "The script is usually in the brief; if not, read it from the filming plan with client_filming_plan.",

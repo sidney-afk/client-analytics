@@ -206,7 +206,7 @@ const EMPTY = { type: "object", properties: {}, additionalProperties: false };
 const MAX_QUOTED_USD = 40;
 const QUOTED_ARG = { type: "number", description: `Only when price_check said Higgsfield's price description cannot be read: your own price in dollars worked out from that description, rounded up (at most ${MAX_QUOTED_USD}). Pass the same number to price_check and create.` };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
-const WHO_ARG = { type: "string", description: "Optional. The person's first name, only when start_here asked you to pass it; otherwise leave it out." };
+const WHO_ARG = { type: "string", description: "Optional. The person's first name, only when SyncMate asks for it (start_here or a refusal says so); otherwise leave it out." };
 const SUMMARY_ARG = { type: "string", description: "Optional. One line, in the person's own words, saying what they asked for (at most 200 characters)." };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 

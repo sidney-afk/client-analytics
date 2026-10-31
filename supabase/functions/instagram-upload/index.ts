@@ -9,6 +9,11 @@
 //          idempotencyKey? }                          { ok, id, status, scheduled_for, error?, row }
 //   POST { action: "create", kind: "carousel", mediaUrls: [2..10], ...same fields, no mediaUrl or cover }
 //                                                    the same answer; one feed post (placement "timeline")
+//   ...either create with alsoFacebook: true, facebookAccountId (and, for a carousel, itemTypes: ["image", ...])
+//                                                    the same ONE Post For Me post also goes to the client's Facebook
+//                                                    Page (a Reel as a Facebook Reel, an all-image carousel as a
+//                                                    multi-photo post); never a trial. Each network's result is kept
+//                                                    apart (row.facebook in the answer).
 //   POST { action: "list", client? }                 { ok, rows: [...] }    newest first, refreshed from Post For Me
 //   POST { action: "status", id }                    { ok, row }
 //   POST { action: "cancel", id }                    { ok, row }            only a still-scheduled post
@@ -23,8 +28,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import {
-  applyCreateResponse, applyResults, buildCreate, cancelInPostForMe, clientAllowed, expectedAccountId, findClientProfile, needsRefresh,
-  platformMismatch, publicRow, refreshCandidates,
+  applyCreateResponse, applyResults, buildCreate, cancelInPostForMe, clientAllowed, expectedAccountId, expectedFacebookAccountId,
+  facebookPart, findClientProfile, markCancelled, needsRefresh, platformMismatch, publicRow, refreshCandidates,
 } from "./logic.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
@@ -85,10 +90,12 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     if (!r.ok) return row;
     const next = applyResults(row, r.data, nowIso);
-    const { error } = await db.from("instagram_uploads").update({
+    const patch: Record<string, unknown> = {
       status: next.status, instagram_url: next.instagram_url, error: next.error, posted_at: next.posted_at,
       updated_at: next === row ? row.updated_at : next.updated_at, last_checked_at: nowIso,
-    }).eq("id", row.id);
+    };
+    if (facebookPart(row)) patch.options = next.options;
+    const { error } = await db.from("instagram_uploads").update(patch).eq("id", row.id);
     return error || next === row ? row : next;
   };
 
@@ -128,16 +135,31 @@ Deno.serve(async (req) => {
       const mismatch = platformMismatch(acct.data);
       if (mismatch) return json({ ok: false, error: mismatch }, 400);
 
+      // Also to Facebook: the Page must be the one on this client's profile, and Post For Me must say it is a
+      // Facebook account. Checked before anything is written, so a bad Page never leaves a half-made post.
+      const fb = facebookPart(row);
+      if (fb) {
+        const expectedFb = expectedFacebookAccountId(findClientProfile(profiles || [], row.client));
+        if (!expectedFb) return json({ ok: false, error: "No Facebook Page on file for this client. Untick Also post to Facebook, or ask Sidney to add its Post For Me Facebook connection (spc_...) to the client's profile." }, 409);
+        if (expectedFb !== fb.account_id) return json({ ok: false, error: "That Facebook Page is not the one on file for this client." }, 403);
+        const fbAcct = await pfm(pfmKey, "GET", "/social-accounts/" + encodeURIComponent(fb.account_id));
+        if (!fbAcct.ok) {
+          return json({ ok: false, error: fbAcct.status === 404 ? "Post For Me does not know that Facebook account id." : "Could not check the Facebook Page with Post For Me. Try again." }, fbAcct.status === 404 ? 400 : 502);
+        }
+        const fbMismatch = platformMismatch(fbAcct.data, "facebook");
+        if (fbMismatch) return json({ ok: false, error: fbMismatch }, 400);
+      }
+
       if (existing) {
         // An earlier attempt with this key never got a post id back. If Post For Me did accept it, adopt it: never a second post.
         const found = await pfm(pfmKey, "GET", "/social-posts?external_id=" + encodeURIComponent(row.id));
         const hit = Array.isArray(found.data?.data) ? found.data.data.find((x: any) => x && x.id && (!x.external_id || String(x.external_id) === row.id)) : null;
         if (hit) {
           const adopted = applyCreateResponse({ ...existing }, hit, new Date().toISOString());
-          await db.from("instagram_uploads").update({ status: adopted.status, post_id: adopted.post_id, error: "", updated_at: adopted.updated_at }).eq("id", row.id);
+          await db.from("instagram_uploads").update({ status: adopted.status, post_id: adopted.post_id, error: "", options: adopted.options, updated_at: adopted.updated_at }).eq("id", row.id);
           return json({ ok: true, id: adopted.id, status: adopted.status, scheduled_for: adopted.scheduled_for, row: publicRow(adopted) });
         }
-        const { error: rErr } = await db.from("instagram_uploads").update({ status: row.status, error: "", updated_at: row.updated_at }).eq("id", row.id);
+        const { error: rErr } = await db.from("instagram_uploads").update({ status: row.status, error: "", options: row.options, updated_at: row.updated_at }).eq("id", row.id);
         if (rErr) throw rErr;
       } else {
         const { error: insErr } = await db.from("instagram_uploads").insert(row);
@@ -146,7 +168,7 @@ Deno.serve(async (req) => {
       const created = await pfm(pfmKey, "POST", "/social-posts", postBody);
       const next = applyCreateResponse(row, created.ok ? created.data : { message: created.data?.message || created.data?.error || ("Post For Me answered " + created.status) }, new Date().toISOString());
       const { error: upErr } = await db.from("instagram_uploads").update({
-        status: next.status, post_id: next.post_id, error: next.error, posted_at: next.posted_at, updated_at: next.updated_at,
+        status: next.status, post_id: next.post_id, error: next.error, posted_at: next.posted_at, options: next.options, updated_at: next.updated_at,
       }).eq("id", row.id);
       if (upErr) throw upErr;
       return json({ ok: next.status !== "failed", id: next.id, status: next.status, scheduled_for: next.scheduled_for, error: next.error || undefined, row: publicRow(next) });
@@ -179,10 +201,10 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Already posted, could not cancel." }, 409);
       }
       if (outcome !== "cancelled") return json({ ok: false, error: "Post For Me did not cancel the post. Try again." }, 502);
-      const nowIso = new Date().toISOString();
-      const { error: upErr } = await db.from("instagram_uploads").update({ status: "cancelled", updated_at: nowIso }).eq("id", id);
+      const cancelled = markCancelled(row, new Date().toISOString());
+      const { error: upErr } = await db.from("instagram_uploads").update({ status: "cancelled", options: cancelled.options, updated_at: cancelled.updated_at }).eq("id", id);
       if (upErr) throw upErr;
-      return json({ ok: true, row: publicRow({ ...row, status: "cancelled", updated_at: nowIso }) });
+      return json({ ok: true, row: publicRow(cancelled) });
     }
 
     return json({ ok: false, error: "unknown action" }, 400);

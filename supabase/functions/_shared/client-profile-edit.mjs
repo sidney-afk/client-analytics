@@ -30,6 +30,31 @@ export function normalizeSlackMemberId(v) {
 }
 export const MAX_FIELD_CHARS = 20000;
 
+// Fields kept in client_profiles.extra that an admin may set here (added 2026-10-31, OPEN_REPAIRS 620): the
+// client's Post For Me accounts. The Facebook Page is where instagram-upload cross-posts when "Also post to
+// Facebook" is ticked; the Instagram account sits beside it (roster-write can still set it too). Saved only
+// when SyncView is the main copy, through client_profile_admin_edit; its Sheet copy queue carries the
+// Instagram id to its Clients Info column; the Facebook Page is not a Sheet column.
+export const EXTRA_EDITABLE_FIELDS = Object.freeze(['postforme_instagram_account_id', 'postforme_facebook_account_id']);
+// The network Post For Me must report for each extra account field.
+export const EXTRA_ACCOUNT_PLATFORM = Object.freeze({ postforme_instagram_account_id: 'instagram', postforme_facebook_account_id: 'facebook' });
+export const POSTFORME_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
+
+// Splits normalized changes into real columns and extra fields.
+export function splitChanges(changes) {
+  const columns = {};
+  const extra = {};
+  for (const [k, v] of Object.entries(changes || {})) (EXTRA_EDITABLE_FIELDS.includes(k) ? extra : columns)[k] = v;
+  return { columns, extra };
+}
+
+// Post For Me's answer for an account (GET /v1/social-accounts/{id}) must name the expected network.
+export function accountPlatformProblem(account, want) {
+  const platform = text(account && account.platform).toLowerCase();
+  if (!platform) return 'postforme_platform_unknown';
+  return platform === want ? '' : 'postforme_wrong_platform';
+}
+
 function text(v) {
   return String(v == null ? '' : v).replace(/\r\n?/g, '\n').trim();
 }
@@ -46,7 +71,7 @@ export function normalizeChanges(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'bad_changes' };
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (!EDITABLE_FIELDS.includes(k)) return { ok: false, error: 'field_not_editable', field: k };
+    if (!EDITABLE_FIELDS.includes(k) && !EXTRA_EDITABLE_FIELDS.includes(k)) return { ok: false, error: 'field_not_editable', field: k };
     if (v != null && typeof v !== 'string') return { ok: false, error: 'bad_value', field: k };
     let t = text(v);
     if (t.length > MAX_FIELD_CHARS) return { ok: false, error: 'value_too_long', field: k };
@@ -55,6 +80,7 @@ export function normalizeChanges(raw) {
       if (!id.ok) return { ok: false, error: 'bad_value', field: k };
       t = id.value;
     }
+    if (EXTRA_EDITABLE_FIELDS.includes(k) && t && !POSTFORME_ACCOUNT_RE.test(t)) return { ok: false, error: 'bad_value', field: k };
     out[k] = t;
   }
   if (!Object.keys(out).length) return { ok: false, error: 'no_changes' };

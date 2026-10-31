@@ -137,22 +137,22 @@ export function platformMismatch(account, want = 'instagram') {
   return '';
 }
 
-// Reads "also post to Facebook" from the browser's create request. Returns { ok:false, error } or
-// { ok:true, facebook: null | { account_id } }. A trial reel is an Instagram feature, so it never goes to
-// Facebook; a carousel goes only when every item is an image (itemTypes, one per item, from the page).
+// Reads "also post to Facebook" from the browser's create request. Returns { error, facebook }: error is ''
+// when it is fine, and facebook is null (Instagram only) or { account_id }. A trial reel is an Instagram feature,
+// so it never goes to Facebook; a carousel goes only when every item is an image (itemTypes, one per item).
 function facebookFromInput(body, { kind, trial, accountId, items }) {
   const want = body.alsoFacebook === true || clean(body.alsoFacebook).toLowerCase() === 'true';
-  if (!want) return { ok: true, facebook: null };
+  if (!want) return { error: '', facebook: null };
   const fbId = clean(body.facebookAccountId);
-  if (!ACCOUNT_ID_RE.test(fbId)) return { ok: false, error: 'facebookAccountId must be a Post For Me connection id (spc_...)' };
-  if (fbId === accountId) return { ok: false, error: 'the Facebook account cannot be the Instagram account' };
-  if (trial) return { ok: false, error: 'a trial reel is for Instagram only, not Facebook' };
+  if (!ACCOUNT_ID_RE.test(fbId)) return { error: 'facebookAccountId must be a Post For Me connection id (spc_...)', facebook: null };
+  if (fbId === accountId) return { error: 'the Facebook account cannot be the Instagram account', facebook: null };
+  if (trial) return { error: 'a trial reel is for Instagram only, not Facebook', facebook: null };
   if (kind === 'carousel') {
     const types = Array.isArray(body.itemTypes) ? body.itemTypes.map((t) => clean(t).toLowerCase()) : [];
-    if (types.length !== items) return { ok: false, error: 'a Facebook carousel needs itemTypes, one per item' };
-    if (!types.every((t) => t === 'image')) return { ok: false, error: 'Facebook takes a carousel of images only; this one has a video' };
+    if (types.length !== items) return { error: 'a Facebook carousel needs itemTypes, one per item', facebook: null };
+    if (!types.every((t) => t === 'image')) return { error: 'Facebook takes a carousel of images only; this one has a video', facebook: null };
   }
-  return { ok: true, facebook: { account_id: fbId } };
+  return { error: '', facebook: { account_id: fbId } };
 }
 
 // The Facebook part of a queue row (options.facebook): its own status, link and error, apart from
@@ -208,7 +208,7 @@ export function buildCreate(input, nowMs, actor) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
   const fb = facebookFromInput(body, { kind: 'reel', trial, accountId });
-  if (!fb.ok) return { ok: false, error: fb.error };
+  if (fb.error) return { ok: false, error: fb.error };
 
   const media = { url: mediaUrl };
   let cover = null;
@@ -280,7 +280,7 @@ function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
   const fb = facebookFromInput(body, { kind: 'carousel', trial: null, accountId, items: urls.length });
-  if (!fb.ok) return { ok: false, error: fb.error };
+  if (fb.error) return { ok: false, error: fb.error };
 
   const placement = CAROUSEL_PLACEMENT;
   const postBody = {

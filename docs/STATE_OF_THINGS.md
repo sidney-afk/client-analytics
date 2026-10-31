@@ -18,6 +18,16 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-10-31): n8n quota watchdog survives the clock change
+
+- **#2468 (OPEN_REPAIRS 616, session Quota):** the n8n execution quota watchdog went red at 13:17 UTC with "Hourly data is
+  not available with your current license". n8n decides hourly mode on its own server clock (America/New_York), not the
+  timeZone sent; the current-day read was exactly 24 h ending at the US fall-back moment (2026-11-01T06:00Z), so n8n saw
+  23 h. Every Insights read now spans at least two local days, with no double count; a live dry run on the branch counted
+  October against real n8n. The 1 Nov 13:17 UTC run is the closing check.
+- **Client review link polish:** its three-day watch ended clean on 31 Oct 06:32 UTC (no client refusals, no client-link
+  5xx, about 90 client actions); `review_client_polish` stays on for all clients.
+
 ## Latest (SyncView supervisor, 2026-10-30 afternoon): a full browser store no longer refuses saves
 
 - **Kasper's tweaks refused (#2466, OPEN_REPAIRS 615, live 14:30 UTC):** every tweak he sent was refused in his

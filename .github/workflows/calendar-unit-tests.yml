@@ -699,6 +699,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/repair-checkpoint-browser.js
+      - name: The Calendar Sheet fits the window behind sheet_fit_v1 (Mac and Windows sizes, Chromium and WebKit, wheel, switch off unchanged)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          SHEET_FIT_REQUIRE_WEBKIT: '1'
+        run: node test/calendar-sheet-fit-window-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

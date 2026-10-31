@@ -47,7 +47,7 @@ import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { svFrameSyncPlayIcon, svFrameTileAttrs } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
-import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-switch.js';
+import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop, svSheetFitSync } from './188-review-stage-switch.js';
 import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './189-trial-reels-card.js';
     // Staff Calendar phone chrome delegates every action to its native control.
     // Nothing is mounted at desktop widths or on another staff surface.
@@ -997,18 +997,26 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
        compact Sheet card: 212px wide with a shorter thumbnail, and every row
        and control kept (see .cal-view[data-zoom="xs"] in 020). */
     const CAL_ZOOM_LEVELS = ['xs', 's', 'm', 'l'];
-    // The client link keeps its three sizes (staff only, owner 2026-10-31).
-    function _calZoomLevels() { return _isClientLink ? CAL_ZOOM_LEVELS.slice(1) : CAL_ZOOM_LEVELS; }
+    // The client link keeps its three sizes (staff only, owner 2026-10-31), unless the Sheet-fit switch names it.
+    function _calZoomLevels() { return _isClientLink && !_calSheetFitOn() ? CAL_ZOOM_LEVELS.slice(1) : CAL_ZOOM_LEVELS; }
+    function _calSheetFitOn() { return document.documentElement.classList.contains('sv-sheet-fit'); }
     function _calNormZoom(z) {
         const map = { small: 'm', default: 'l', large: 'l', xs: 'xs', s: 's', m: 'm', l: 'l' };
-        const zoom = map[z] || 'm';
-        return _calZoomLevels().includes(zoom) ? zoom : 's';
+        return map[z] || 'm';
+    }
+    // The size drawn: the saved one, or 's' where the saved one is not on offer (an 'xs' saved on a client link the
+    // Sheet-fit switch does not name). The saved size is kept, so it comes back when the switch read names the link.
+    function _calZoomShown() {
+        const z = calState.zoom || 'm';
+        return _calZoomLevels().includes(z) ? z : 's';
     }
     function _calApplyZoom() {
+        // The Sheet-fit switch (188, sheet_fit_v1) first: it decides the sizes on offer and the fit layout below.
+        try { svSheetFitSync(); } catch (e) {}
         const view = document.getElementById('calView');
-        if (view) view.dataset.zoom = calState.zoom || 'm';
+        if (view) view.dataset.zoom = _calZoomShown();
         const levels = _calZoomLevels();
-        const i = levels.indexOf(calState.zoom || 'm');
+        const i = levels.indexOf(_calZoomShown());
         const out = document.getElementById('calZoomOut'), inb = document.getElementById('calZoomIn');
         if (out) out.disabled = i <= 0;
         if (inb) inb.disabled = i >= levels.length - 1;
@@ -1022,11 +1030,134 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             ctl.style.display = '';
             ctl.style.visibility = calState.view === 'organizer' ? 'visible' : 'hidden';
         }
+        _calSheetFitWire();
+        // The collapsed caption height follows the size (020 --cal-cap-rows), so size the captions again.
+        if (view && _calSheetFitOn()) view.querySelectorAll('#calStrip textarea.cal-fld-cap').forEach(t => { try { _calRefreshCaption(t, document.activeElement === t); } catch (e) {} });
+        _calSheetFitLayout();
+    }
+
+    /* THE SHEET FITS THE WINDOW (session Sheetzoom, 2026-10-31; switch sheet_fit_v1 in 188, which marks the page
+       html.sv-sheet-fit; the rules are in 020 under that class). Desktop only (768 px and up), the Sheet only.
+       The thumbnail gives up height so the tallest card fits the window under the toolbar: never taller than the
+       size's own thumbnail, never shorter than the next smaller size's (48 px at the smallest), so the sizes keep
+       their order (owner, 2026-10-31: the default size must show every card in full in a 1920 x 1000 window).
+       Measured from the page itself (header, toolbar, the strip's own scrollbar when the system draws one), so the
+       staff page and the client link both fit. Not while a caption is open: an opened caption may make the card
+       taller, and the page then scrolls as it always did. */
+    const CAL_FIT_THUMB = { xs: [132, 48], s: [178, 132], m: [240, 178], l: [340, 240] };
+    function _calSheetFitApplies() {
+        if (!_calSheetFitOn() || calState.view !== 'organizer' || calState.embedded && !_isClientLink) return false;
+        if (window.innerWidth < 768 || _calStaffPhoneActive()) return false;
+        const view = document.getElementById('calView');
+        return !!view && !view.hasAttribute('data-pocket-staff-phone');
+    }
+    function _calSheetFitLayout() {
+        const view = document.getElementById('calView');
+        if (!view) return;
+        const zoom = _calZoomShown();
+        const range = CAL_FIT_THUMB[zoom];
+        if (!_calSheetFitApplies() || !range || view.dataset.fitZoom !== zoom) {
+            if (view.style.getPropertyValue('--cal-fit-thumb-h')) view.style.removeProperty('--cal-fit-thumb-h');
+            if (_calSheetFitApplies() && range) view.dataset.fitZoom = zoom; else delete view.dataset.fitZoom;
+            if (!_calSheetFitApplies() || !range) return;
+        }
+        const strip = view.querySelector('.cal-organizer-strip');
+        const main = document.getElementById('mainWrap');
+        if (!strip || !main) return;
+        if (strip.querySelector('.cal-cap-wrap textarea:focus, .cal-cap-toggle.is-expanded')) return;
+        if (![...strip.querySelectorAll('.cal-card, .cal-sk-card')].some(c => c.offsetHeight > 0)) return;
+        // How far the page runs past the window, from the top of the page to the end of the Sheet.
+        const pageEnd = main.getBoundingClientRect().bottom + window.scrollY;
+        const over = pageEnd - window.innerHeight;
+        const cur = parseFloat(getComputedStyle(view).getPropertyValue('--cal-thumb-h')) || range[0];
+        const next = Math.round(Math.max(range[1], Math.min(range[0], cur - over - 1)));
+        if (Math.abs(next - cur) >= 1) {
+            if (next >= range[0]) view.style.removeProperty('--cal-fit-thumb-h');
+            else view.style.setProperty('--cal-fit-thumb-h', next + 'px');
+        }
+    }
+    /* Watch the Calendar body (cards loading, a resize, a size change) and the window, and wire the wheel once. */
+    let _calFitObserver = null, _calFitRaf = 0, _calFitWired = false;
+    function _calSheetFitSchedule() {
+        if (_calFitRaf) return;
+        _calFitRaf = requestAnimationFrame(() => { _calFitRaf = 0; try { _calSheetFitLayout(); } catch (e) {} });
+    }
+    function _calSheetFitWire() {
+        const body = document.getElementById('calBody');
+        if (typeof ResizeObserver === 'function' && body && (!_calFitObserver || _calFitObserver._el !== body)) {
+            if (_calFitObserver) _calFitObserver.disconnect();
+            _calFitObserver = new ResizeObserver(_calSheetFitSchedule);
+            _calFitObserver._el = body;
+            _calFitObserver.observe(body);
+        }
+        if (_calFitWired) return;
+        _calFitWired = true;
+        window.addEventListener('resize', _calSheetFitSchedule);
+        // The switch read lands after the Calendar drew: draw the sizes and the fit again with its answer.
+        window.addEventListener('sv-review-stage-switch', () => { if (document.getElementById('calView')) { try { _calApplyZoom(); } catch (e) {} } });
+        document.addEventListener('wheel', _calSheetFitWheel, { passive: false });
+    }
+    /* The wheel follows the gesture, wherever the pointer is on the page (owner, 2026-10-31, round 2): a vertical
+       wheel or trackpad move scrolls the page up and down, over a card, between cards, over the empty space or the
+       toolbar; a sideways move (a trackpad or Magic Mouse swipe, a tilt wheel, Shift+wheel) slides the cards left and
+       right, also wherever the pointer is. A box inside that can still scroll that way (an open caption) takes the
+       wheel first, until it reaches its end. Kept from round 2: when nothing on the page scrolls up or down, a
+       vertical wheel slides the cards instead of doing nothing. Ctrl/Cmd (zoom), fields, menus, dialogs and popovers
+       are left to the browser. The cards move at once with the wheel, with no animation, so reduced motion is
+       respected as it is; small trackpad steps add up instead of being rounded away. */
+    let _calFitCarry = 0;
+    function _calFitMoveStrip(strip, d) {
+        const max = strip.scrollWidth - strip.clientWidth;
+        if (max <= 1) return false;
+        const want = strip.scrollLeft + d + _calFitCarry;
+        const to = Math.max(0, Math.min(max, want));
+        strip.scrollLeft = to;
+        _calFitCarry = to === want ? want - strip.scrollLeft : 0;
+        if (Math.abs(_calFitCarry) >= 1) _calFitCarry = 0;
+        return true;
+    }
+    // Can something between the pointer and the page still scroll this way? (The strip itself is the one we move.)
+    function _calFitInnerRoom(node, stop, strip, d, sideways) {
+        for (let n = node; n && n !== stop && n.nodeType === 1; n = n.parentElement) {
+            if (n === strip) continue;
+            const cs = getComputedStyle(n);
+            if (sideways) {
+                if (n.scrollWidth <= n.clientWidth + 1 || !/(auto|scroll)/.test(cs.overflowX)) continue;
+                if (d < 0 ? n.scrollLeft > 0 : n.scrollLeft + n.clientWidth < n.scrollWidth - 1) return true;
+            } else {
+                if (n.scrollHeight <= n.clientHeight + 1 || !/(auto|scroll)/.test(cs.overflowY)) continue;
+                if (d < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1) return true;
+            }
+        }
+        return false;
+    }
+    function _calSheetFitWheel(e) {
+        if (e.defaultPrevented || e.ctrlKey || e.metaKey) return;
+        if (!_calSheetFitApplies()) return;
+        const view = document.getElementById('calView');
+        const main = document.getElementById('mainWrap');
+        const t = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement);
+        if (!view || !main || !t || !main.contains(t)) return;
+        if (t.closest('input, select, [contenteditable=""], [contenteditable="true"], dialog, [role="dialog"], [role="menu"], [role="listbox"], [aria-modal="true"], .dropdown-menu, [class*="popover"], [class*="-menu"], [class*="-pop"], [class*="-picker"]:not(.cal-toolbar), .cal-preview-overlay, .cal-prompt-overlay')) return;
+        const strip = view.querySelector('#calStrip');
+        if (!strip) return;
+        const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? strip.clientWidth : 1;
+        let dx = e.deltaX * unit, dy = e.deltaY * unit;
+        if (e.shiftKey && !dx) { dx = dy; dy = 0; }   // Shift+wheel where the browser reports it as up and down
+        if (!dx && !dy) return;
+        const sideways = Math.abs(dx) > Math.abs(dy);
+        if (_calFitInnerRoom(t, main, strip, sideways ? dx : dy, sideways)) return;
+        if (sideways) {
+            if (_calFitMoveStrip(strip, dx)) e.preventDefault();
+            return;
+        }
+        const de = document.scrollingElement || document.documentElement;
+        if (de.scrollHeight > de.clientHeight + 1) return;   // the page scrolls up and down: the browser does it
+        if (_calFitMoveStrip(strip, dy)) e.preventDefault();
     }
     function calZoom(delta) {
         const levels = _calZoomLevels();
-        let i = levels.indexOf(calState.zoom || 'm');
-        if (i < 0) i = levels.indexOf('m');
+        let i = levels.indexOf(_calZoomShown());
         i = Math.max(0, Math.min(levels.length - 1, i + delta));
         calState.zoom = levels[i];
         _calSavePrefs();

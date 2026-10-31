@@ -1801,6 +1801,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-sheet-fit-window-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (SHEET_FIT_REQUIRE_WEBKIT=1 in CI); every backend call answered locally, fictional test clients and cards, no hosted credentials. Behind the runtime switch sheet_fit_v1: at the smallest card size every card fits real Mac and Windows inner window sizes with no page scroll and the sideways scrollbar under the cards; the vertical wheel slides the cards only when nothing scrolls up or down and never touches a deltaX, Shift or Ctrl gesture, a caption or an open menu; the client link fits; switch off in every form and the phone layout are unchanged.",
+      "reproduce": "node test/calendar-sheet-fit-window-browser.js (after repository Playwright setup; add WebKit for the Mac engine cases)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-sheet-full-width-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

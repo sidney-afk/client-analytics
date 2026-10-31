@@ -3168,6 +3168,8 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
         el.addEventListener('wheel', (e) => {
+            // The Sheet-fit switch (sheet_fit_v1, 160 _calSheetFitWheel) owns the wheel on the Calendar Sheet.
+            if (document.documentElement.classList.contains('sv-sheet-fit') && el.closest('#calView') && window.innerWidth >= 768) return;
             // If the gesture already has horizontal intent (trackpad swipe,
             // horizontal mouse wheel, Shift-wheel on Chrome) let the browser
             // handle it natively so we don't double-apply the delta.

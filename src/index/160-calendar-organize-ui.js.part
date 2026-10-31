@@ -39,7 +39,7 @@ import {
   _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
 } from './170-calendar-links-status.js';
 import {
-  COMP_LABELS, _calCapGenBtnRefresh, _calVerticalScroller, _calWireDragOnCard, calMonthShift, calWeekShiftDays, renderCalMonth,
+  COMP_LABELS, _calCapGenBtnRefresh, _calWireDragOnCard, calMonthShift, calWeekShiftDays, renderCalMonth,
   renderCalWeek, wireCalOrganizerDrag
 } from './180-calendar-native-post-media.js';
 import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, renderCalReview } from './190-calendar-approval-comments.js';

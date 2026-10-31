@@ -35714,7 +35714,7 @@ To close: the next db-timer run (2026-11-01 13:17 UTC) is green after merge.
 - **Not yet proven live:** that Post For Me's results carry `social_account_id` per network (its reference marks it required), the Facebook link it returns, a scheduled cross-post and a Facebook carousel. The live test runs on the owner's own test account only.
 - **Way back:** revert the PR. Values already saved stay in `extra` and are harmless; the migration's header gives its rollback.
 
-## 621. [2026-10-31 UTC, BUILT, NOT MERGED] Calendar Sheet fits the window, behind the switch sheet_fit_v1 (session Sheetzoom, round 2)
+## 621. [2026-10-31 UTC, LIVE (merged #2475 as 7219a30 at 21:05 UTC; switch sheet_fit_v1 on for the owner's staff accounts and the test client; checked live 21:16 UTC)] Calendar Sheet fits the window, behind the switch sheet_fit_v1 (session Sheetzoom, round 2)
 
 - **Seen:** the owner, 31 Oct, staff Sheet at the smallest card size on 1920x1200: the page scrolled down to a big blank area and the sideways scrollbar sat at the very bottom. He approved a plan: the Sheet fits the window, tighter spacing, every card fits at the smallest size on real Mac and Windows laptops, and a plain vertical wheel slides the cards sideways when nothing scrolls up or down. First for his own staff account and the test client's link only.
 - **Cause:** the Sheet sat inside the page's 80px and the Calendar's 32px bottom padding, so a Sheet whose cards nearly fit still scrolled into blank space; at the smallest size a card was about 645 to 666px tall, more than a 1440x900 Mac window (about 789px inside Chrome) or a Windows laptop at 125% or 150% leaves under the header and toolbar.

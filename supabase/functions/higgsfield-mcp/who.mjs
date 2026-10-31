@@ -13,7 +13,8 @@ export const TEAM_NAME = "Team";
 // agency's public site). Claude would otherwise show the host's icon.
 export const SERVER_NAME = "synchro";
 export const SERVER_ICON = { src: "https://synchrosocial.com/images/logo.png", mimeType: "image/png", sizes: ["500x500"] };
-export const SERVER_INFO = { name: SERVER_NAME, version: "2.0.0", icons: [SERVER_ICON] };
+// "title" is the display name a client may show (the connector is called SyncMate); "name" stays the stable id.
+export const SERVER_INFO = { name: SERVER_NAME, title: "SyncMate", version: "2.0.0", icons: [SERVER_ICON] };
 
 export function isTeamLink(member) {
   return member === TEAM_NAME;

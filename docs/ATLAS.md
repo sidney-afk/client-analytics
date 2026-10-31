@@ -150,7 +150,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 #### Client profiles, Create client and the onboarding checklist (Admin)
 
 - Where: **Kasper › More › Pipeline & Admin › Clients**. Admin only. Search a client or open **All clients**; one profile at a time.
-- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Upload-Post), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
+- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Instagram (Post for Me), Facebook Page (Post for Me), Upload-Post; the two account ids are checked with Post For Me when saved), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
 - **HubSpot** band: deal stage, contract and payment state (only for clients the `client_hubspot_sync` switch lists: three today).
 - **Onboarding** section (folded): its header reads "19 of 24 required steps done" or "Onboarded".
   - **Resources**: found / missing / unknown for each thing the client should have (profile fields, review link, filming plan link, Templates page, Canva link, logins saved, form answers, Calendar cards, Samples, Analytics numbers, Drive folders, HubSpot contact, brain folder, and more). Logins and links show as present or missing only.
@@ -629,7 +629,8 @@ Switch values below are the live values read on 2026-10-28.
 - **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
 - **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account.
   - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
-  - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`) and set only through roster-write, so ask an admin. The Clients Info sheet only holds a copy of it.
+  - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`). An admin adds it under **Kasper > More > Clients > Publishing > "Instagram (Post for Me)"** (or through roster-write). The Clients Info sheet only holds a copy of it.
+  - The client's Facebook Page (for "Also post to Facebook") is added the same way, under **"Facebook Page (Post for Me)"**. It is not in the sheet.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
 
@@ -666,6 +667,7 @@ Switch values below are the live values read on 2026-10-28.
   - Not every account can post trial reels. If this one cannot, the post shows as Failed with Instagram's reason.
   - The switch has no runtime switch of its own and is there for everyone who uses the tab.
   - A carousel can never be a trial.
+- **Also post to Facebook:** shown once a client is picked. Ticked by default when the client's Facebook Page is on file; the same post then also goes to the Page (a Reel as a Facebook Reel; a carousel of photos as one Facebook post). Untick it for Instagram only. It is off, with the reason, for a trial reel, a carousel with a video, or a client with no Page. No runtime switch: the server allow-list above still decides who can post.
 - **Scheduling:** works the same way as TikTok (date, hour, minutes in 5-minute steps, AM/PM, timezone).
 - **Button:** "Post to Instagram" or "Schedule on Instagram".
   - If SyncView could not confirm the post went through, press the button again. It will not post twice.
@@ -673,6 +675,7 @@ Switch values below are the live values read on 2026-10-28.
 **The queue (right side, one per platform)**
 - Three tabs: **Upcoming**, **Failed** (turns red when something failed) and **Done**. "Show more" loads 5 more rows at a time.
 - Each row shows the client, the caption, the status (Uploading, Posting, Scheduled, Posted, Failed, Cancelled) and the type: Reel, Trial reel, Carousel (n) or TikTok.
+  - A post that also went to Facebook shows Instagram and Facebook on their own lines, each with its status (and reason if it failed), and an **Instagram** and a **Facebook** link once live. It sits under Failed if either failed. Cancel cancels both.
 - **Cancel** (scheduled posts only) removes the post from Post For Me so it never goes out. The file stays on your computer.
   - On TikTok, a post that has already published cannot be cancelled.
 - **Open** opens the published post.

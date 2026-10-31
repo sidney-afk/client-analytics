@@ -19,12 +19,21 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
        (`postforme_account_id`). No id, no post: there is no fallback, so a video can
        never land on another client's account.
 
+       Also to Facebook (2026-10-31, OPEN_REPAIRS 620): Instagram's own "also share to Facebook" does
+       not apply to a post published through the API, so a client whose Facebook Page is on its profile
+       (`postforme_facebook_account_id`, set on the Kasper Clients tab) gets an "Also post to Facebook"
+       box, ticked by default. When it is ticked the function sends ONE Post For Me post to both accounts
+       (a Reel as a Facebook Reel; a carousel of photos as a Facebook multi-photo post). A trial reel and
+       a carousel with a video stay Instagram only, and the box says why. Each network's result is shown
+       on its own in the queue.
+
        The TikTok module (300) owns the tab, the platform switch and the shared helpers;
        it hands them in through `deps` so the two files never import each other.
        ============================================================ */
     const IG_FUNCTION_URL = CAL_SUPABASE_URL + '/functions/v1/instagram-upload';
     const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
     const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
+    const IG_FACEBOOK_COLUMN = 'postforme_facebook_account_id';
     const IG_MAX_CAPTION = 2200;
     // Client info lives on the SyncView client profile; the Clients Info sheet is only a copy of it.
     const IG_NO_ACCOUNT_MSG = "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile.";
@@ -52,6 +61,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
+        facebookOff: false,          // the person unticked "Also post to Facebook" for this client (ticked again on a client change)
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
@@ -74,13 +84,42 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 
     // The client's Instagram connection id. Staff pages read the sheet columns directly, or (once the analytics
     // database is on) receive any column the copy does not know by name inside `extra`; both are accepted.
-    function _igResolveAccount(client) {
+    function _igProfileValue(client, column) {
         const row = (client && clientMap[client]) || null;
         if (!row) return '';
-        const direct = String(row[IG_ACCOUNT_COLUMN] || '').trim();
+        const direct = String(row[column] || '').trim();
         if (direct) return direct;
         const extra = row.extra && typeof row.extra === 'object' ? row.extra : null;
-        return extra ? String(extra[IG_ACCOUNT_COLUMN] || '').trim() : '';
+        return extra ? String(extra[column] || '').trim() : '';
+    }
+    function _igResolveAccount(client) { return _igProfileValue(client, IG_ACCOUNT_COLUMN); }
+    function _igResolveFacebook(client) { return _igProfileValue(client, IG_FACEBOOK_COLUMN); }
+
+    // "Also post to Facebook": { enabled, checked, reason }. Ticked by default when the client's Facebook Page
+    // is on file; off, with the reason in plain words, when it cannot go to Facebook.
+    function _igFacebookState() {
+        if (!igState.client) return { enabled: false, checked: false, reason: '' };
+        const fb = _igResolveFacebook(igState.client);
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, reason: 'No Facebook Page connected for this client. Ask Sidney to add its Post for Me Facebook connection (spc_...) on the client\'s profile.' };
+        if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
+        if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
+        return { enabled: true, checked: !igState.facebookOff, reason: '' };
+    }
+    function _igFacebookCardHtml() {
+        if (!igState.client) return '';
+        const st = _igFacebookState();
+        const dis = !st.enabled || igState.submitting;
+        const what = igState.kind === 'carousel' ? 'The photos also go to the client\'s Facebook Page as one post.' : 'The Reel also goes to the client\'s Facebook Page as a Facebook Reel.';
+        return `<div class="tk-card" id="igFacebookCard">
+                <div class="tk-sched-head"><h3>Facebook</h3>
+                    <label class="tk-toggle${st.enabled ? '' : ' is-off'}">
+                        <input type="checkbox" id="igFacebook" ${st.checked ? 'checked' : ''} ${dis ? 'disabled' : ''} aria-describedby="igFacebookNote">
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Also post to Facebook
+                    </label>
+                </div>
+                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}</div>
+            </div>`;
     }
 
     function _igRecordFailure(operation, status, network) {
@@ -288,6 +327,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
        filled in, if nobody edited it. Typed text stays. */
     function _igLeaveClient() {
         igState.error = null; igState.notice = null;
+        igState.facebookOff = false;
         if (igState.cover.source === 'calendar') _igCoverClear(true);
         igState.cover.cardId = ''; igState.cover.note = '';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
@@ -639,6 +679,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 </div>
                 ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
             </div>`}
+            ${_igFacebookCardHtml()}
             <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
@@ -684,6 +725,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         });
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
         $('igTrial')?.addEventListener('change', (e) => { igState.trial = e.target.checked; _igRenderForm(); });
+        $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
         $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
         $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
         $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
@@ -774,7 +816,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const cv = igState.cover;
         const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
         const trial = igState.trial ? 'manual' : '';
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey, trial].join('|');
+        const fbState = _igFacebookState();
+        const facebookAccountId = fbState.enabled && fbState.checked ? _igResolveFacebook(igState.client) : '';
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey, trial, facebookAccountId ? 'fb' : ''].join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -826,6 +870,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
                 mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
+                ...(facebookAccountId ? { alsoFacebook: true, facebookAccountId } : {}),
             }, 'instagram_create');
             if (!created.ok) {
                 // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
@@ -848,7 +893,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
-            igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
+            igState.notice = facebookAccountId
+                ? (utc ? 'Scheduled for Instagram and Facebook. It will appear in the queue.' : 'Sent to Instagram and Facebook. Each shows as Posted here once it confirms.')
+                : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.');
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
         } catch (e) {
@@ -877,7 +924,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const utc = wall ? (_igDeps.wallClockToUTC(wall, tz) || '') : '';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
         const items = igState.items.slice();
-        const fp = ['carousel', client, items.map(it => [it.file.name, it.file.size, it.file.lastModified].join(':')).join(','), title, utc].join('|');
+        const fbState = _igFacebookState();
+        const facebookAccountId = fbState.enabled && fbState.checked ? _igResolveFacebook(client) : '';
+        const fp = ['carousel', client, items.map(it => [it.file.name, it.file.size, it.file.lastModified].join(':')).join(','), title, utc, facebookAccountId ? 'fb' : ''].join('|');
         if (!igState.carouselAttempt || igState.carouselAttempt.fp !== fp) {
             igState.carouselAttempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -913,6 +962,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             const created = await _igCall({
                 action: 'create', kind: 'carousel', clientName: client, socialAccountId: account, title,
                 mediaUrls, options: {}, scheduledAtUTC: utc, timezone: tz, idempotencyKey,
+                ...(facebookAccountId ? { alsoFacebook: true, facebookAccountId, itemTypes: items.map(it => (it.isVideo ? 'video' : 'image')) } : {}),
             }, 'instagram_create');
             if (!created.ok) {
                 const final = _igCreateAnswerIsFinal(created);
@@ -931,7 +981,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             _igClearCarousel();
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null;
-            igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
+            igState.notice = facebookAccountId
+                ? (utc ? 'Scheduled for Instagram and Facebook. It will appear in the queue.' : 'Sent to Instagram and Facebook. Each shows as Posted here once it confirms.')
+                : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.');
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
         } catch (e) {
@@ -946,7 +998,16 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         }
     }
 
-    function _igEffective(r) { return r.status; }
+    // The queue group for a row: failed if either network failed, upcoming while either is still going,
+    // otherwise done. Instagram's own result is r.status; Facebook's is r.facebook (null = Instagram only).
+    function _igEffective(r) {
+        const all = [r.status].concat(r.facebook ? [r.facebook.status] : []);
+        if (all.includes('failed')) return 'failed';
+        return all.find(s => IG_UPCOMING.includes(s)) || r.status;
+    }
+    function _igNetworkHtml(name, status, error) {
+        return `<div class="tk-q-net"><span class="tk-q-net-name">${name}</span><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span>${error ? `<span class="tk-queue-error">${_igEsc(error)}</span>` : ''}</div>`;
+    }
     function _igWhen(r) {
         const iso = r.scheduled_for || r.posted_at || r.created_at || '';
         if (!iso) return { day: '—', time: '' };
@@ -980,16 +1041,22 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             const when = _igWhen(r);
             const id = _igEsc(r.id);
             const actions = [];
-            if (status === 'scheduled') actions.push(`<button type="button" class="tk-q-btn tk-q-danger" data-ig-cancel="${id}">Cancel</button>`);
-            if (r.instagram_url) actions.push(`<a class="tk-q-btn" href="${_igEsc(r.instagram_url)}" target="_blank" rel="noopener">Open</a>`);
+            if (r.status === 'scheduled') actions.push(`<button type="button" class="tk-q-btn tk-q-danger" data-ig-cancel="${id}">Cancel</button>`);
+            const fb = r.facebook || null;
+            if (r.instagram_url) actions.push(`<a class="tk-q-btn" href="${_igEsc(r.instagram_url)}" target="_blank" rel="noopener"${fb ? ' aria-label="Open on Instagram"' : ''}>${fb ? 'Instagram' : 'Open'}</a>`);
+            if (fb && fb.url) actions.push(`<a class="tk-q-btn" href="${_igEsc(fb.url)}" target="_blank" rel="noopener" aria-label="Open on Facebook">Facebook</a>`);
+            const kindLabel = r.kind === 'carousel' ? 'Carousel (' + _igEsc(r.items || '') + ')' : r.trial ? 'Trial reel' : 'Reel';
             return `
                 <div class="tk-queue-item">
                     <div class="tk-q-when"><div class="tk-q-day">${_igEsc(when.day)}</div><div class="tk-q-time">${_igEsc(when.time)}</div></div>
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.kind === 'carousel' ? 'Carousel (' + _igEsc(r.items || '') + ')' : r.trial ? 'Trial reel' : 'Reel'}</span></div>
-                        ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
+                        ${fb
+                            ? `<div class="tk-q-meta"><span>${kindLabel} · Instagram and Facebook</span></div>
+                               <div class="tk-q-nets">${_igNetworkHtml('Instagram', r.status, r.error)}${_igNetworkHtml('Facebook', fb.status, fb.error)}</div>`
+                            : `<div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${kindLabel}</span></div>
+                        ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}`}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
                 </div>`;
@@ -1037,8 +1104,10 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     // Poll gently: often while something is being posted, rarely while only future posts wait, never when idle.
     function _igPollDelay() {
         if (igState.queueReadState === 'error') return 60000;
-        if (igState.uploads.some(r => r.status === 'uploading' || r.status === 'processing')) return 15000;
-        if (igState.uploads.some(r => r.status === 'scheduled')) return 300000;
+        // Both networks' results count: a Reel already on Instagram may still be going out on Facebook.
+        const statuses = (r) => [r.status].concat(r.facebook ? [r.facebook.status] : []);
+        if (igState.uploads.some(r => statuses(r).some(s => s === 'uploading' || s === 'processing'))) return 15000;
+        if (igState.uploads.some(r => statuses(r).includes('scheduled'))) return 300000;
         return 0;
     }
     function _igStopPolling() { if (_igPollTimer) { clearTimeout(_igPollTimer); _igPollTimer = null; } }

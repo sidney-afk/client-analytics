@@ -2569,6 +2569,8 @@
         .cal-unscheduled.cal-unscheduled-top, .cal-notyet.cal-unscheduled-top { margin-top: 0; margin-bottom: 14px; }
         .cal-unscheduled-h, .cal-notyet-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-notyet-h { margin-top: 0; }
+        /* The phone's fold-away row for the client's "Not scheduled yet" list (CLIENT-PHONE below); no other screen draws it. */
+        .cal-notyet-tog { display: none; }
         .cal-unscheduled-list, .cal-notyet-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
         /* Week */
@@ -5067,8 +5069,22 @@
             html.boot-client .cal-tab-view .cal-week-grid { gap: 12px; }
             html.boot-client .cal-tab-view .cal-month-cell.pocket-run-head,
             html.boot-client .cal-tab-view .cal-week-col.pocket-run-head { min-height: 28px !important; }
+            /* "Not scheduled yet": one row that opens the list (session Linkpolish, 2026-10-31). The heading gives way to the
+               row; the list shows only once it is open. Its hover lights the row alone. */
+            html.boot-client .cal-tab-view .cal-notyet { padding: 0; background: var(--white); border-color: var(--border-light); overflow: hidden; }
+            html.boot-client .cal-tab-view .cal-notyet-h { display: none; }
+            html.boot-client .cal-tab-view .cal-notyet-tog { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; margin: 0; padding: 0 16px; border: 0; border-radius: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 700; line-height: 1.3; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .cal-notyet-tog:focus-visible { outline: 2px solid var(--focus-ring, var(--text-primary)); outline-offset: -2px; border-radius: 14px; }
+            html.boot-client .cal-tab-view .cal-notyet-n { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; margin-left: 6px; padding: 0 7px; box-sizing: border-box; border-radius: 99px; background: var(--bg); color: var(--text-secondary); font-size: 12px; font-weight: 700; vertical-align: 1px; }
+            html.boot-client .cal-tab-view .cal-notyet-chev { flex: none; color: var(--text-secondary); transition: transform 0.2s cubic-bezier(.2,.7,.2,1); }
+            html.boot-client .cal-tab-view .cal-notyet.is-open .cal-notyet-chev { transform: rotate(180deg); }
+            html.boot-client .cal-tab-view .cal-notyet:not(.is-open) .cal-notyet-list { display: none; }
+            html.boot-client .cal-tab-view .cal-notyet.is-open .cal-notyet-list { padding: 0 14px 14px; }
         }
         /* CLIENT-PHONE:END */
+        /* The fold-away row exists only on a client phone (display: none everywhere else), so these reach nothing else. */
+        @media (hover: hover) { html.boot-client .cal-tab-view .cal-notyet-tog:hover { background: var(--surface-hover); } }
+        @media (prefers-reduced-motion: reduce) { html.boot-client .cal-tab-view .cal-notyet-chev { transition: none; } }
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
            Same contract as the client-phone blocks: every rule between the
            KASPER-PHONE markers sits inside @media (max-width: 767px), and

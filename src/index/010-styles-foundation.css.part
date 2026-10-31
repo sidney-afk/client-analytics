@@ -98,6 +98,13 @@
         html[data-theme="dark"][data-status-palette="classic"] {
             --cal-status-in-progress-bg: #3f320b; --cal-status-in-progress-fg: #fde68a; --cal-status-for-smm-approval-bg: #4b1730; --cal-status-for-smm-approval-fg: #f9a8d4; --cal-status-kasper-approval-bg: #4a2413; --cal-status-kasper-approval-fg: #fdba74; --cal-status-client-approval-bg: #4b1717; --cal-status-client-approval-fg: #fca5a5; --cal-status-approved-bg: #12361f; --cal-status-approved-fg: #86efac; --cal-status-tweaks-needed-bg: #5a2f0f; --cal-status-tweaks-needed-fg: #fdba74; --cal-status-scheduled-bg: #2e245d; --cal-status-scheduled-fg: #c4b5fd; --cal-status-posted-bg: #0f3f2a; --cal-status-posted-fg: #6ee7b7; --cal-status-archived-bg: #242730; --cal-status-archived-fg: #8e96a3; --cal-status-n-a-bg: #242730; --cal-status-n-a-fg: #8e96a3;
         }
+        /* "Ready for your review" on a client link (the Sheet's pills, Month and Week, the YouTube title's pill): the client's
+           call to act, so violet, the page's own action colour, not red, which reads as an error (owner's yes 2026-10-31,
+           session Linkpolish). Text contrast: 6.9:1 (bold, light and dark), 8.1:1 (classic light), 7.7:1 (classic dark).
+           Client link only (html.boot-client): staff keep their colours. */
+        html.boot-client:not([data-status-palette="classic"]) { --cal-status-client-approval-bg: #a78bfa; --cal-status-client-approval-fg: #101114; }
+        html.boot-client[data-status-palette="classic"] { --cal-status-client-approval-bg: #e0e7ff; --cal-status-client-approval-fg: #3730a3; }
+        html.boot-client[data-theme="dark"][data-status-palette="classic"] { --cal-status-client-approval-bg: #312e81; --cal-status-client-approval-fg: #c7d2fe; }
         /* Generated legacy color tokens. Prefer semantic tokens for new UI. */
         :root {
             --sv-bg-000: #000;
@@ -1858,7 +1865,10 @@
         .sv-rs-boot-ep { height: 22px; width: 100%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; }
         .sv-rs-boot-ep > :last-child { display: none; }
         html.sv-rs-paint-empty .sv-rs-boot-stage, html.sv-rs-paint-empty .sv-rs-boot-chips { display: none; }
-        html.sv-rs-paint-empty .sv-rs-boot-strip { height: 38px; }
+        /* With nothing waiting and nothing reviewed the page's line is one line, "Nothing else waiting" (the "You can still
+           change your mind" line under it went on 2026-10-31, session Linkpolish), so the bar is one line high too. */
+        html.sv-rs-paint-empty .sv-rs-boot-strip { height: 31px; align-items: flex-start; }
+        html.sv-rs-paint-empty .sv-rs-boot-count { margin-top: 3px; }
         html.sv-rs-paint-empty .sv-rs-boot-empty { display: flex; flex: 1 1 auto; min-height: 0; align-items: center; justify-content: center; }
         @media (min-width: 861px) { html.sv-rs-paint-empty .sv-rs-boot-tabs { width: 288px; } }
         @media (max-width: 620px) { .sv-rs-boot-ep { height: 45px; } .sv-rs-boot-ep > :last-child { display: block; } }

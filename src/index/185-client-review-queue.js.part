@@ -130,7 +130,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _crqTellSavedSyncing() {
         _crqTell('Approval saved; card still syncing',
-            'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.');
+            'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your team.');
     }
     function _crqTellExpired(entry) {
         if (_crqApprovalSourcePending(entry)) { _crqTellSavedSyncing(); return; }
@@ -236,7 +236,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const words = _calCrqClientWords(errorText);
             _crqTell('Your ' + _crqWhat(entry) + ' was not saved', words.whole ? words.text
                 : 'SyncView refused it, so nothing was saved: ' + words.text
-                + ' Please try again, or tell your account manager if it keeps happening.');
+                + ' Please try again, or tell your team if it keeps happening.');
         }
         return false;
     }
@@ -249,7 +249,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calCrqClientWords(errorText) {
         const raw = String(errorText || '');
         if (/native_link_required|linked to a Linear|no SyncView work item/i.test(raw)) {
-            return { text: 'This post is not ready for approval yet. Please let your account manager know.', whole: true };
+            return { text: 'This post is not ready for approval yet. Please let your team know.', whole: true };
         }
         const clean = raw.replace(/\s*\(code: [A-Za-z0-9_]+\)/g, '').replace(/\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g, '').replace(/\s{2,}/g, ' ').trim();
         return { text: clean || 'Something went wrong on our side.', whole: false };

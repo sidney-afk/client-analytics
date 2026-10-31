@@ -3336,8 +3336,14 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     // The split Send menu closes on Escape or a click anywhere else: it is a
     // layer (see _calToggleSendMenu), so the shared handler does both.
     let _calEnterWhenReady = '';
+    /* On a client link's touch screen Enter starts a new line in the Notes box and only Send sends (session Linkpolish,
+       the owner's yes on 2026-10-31; the review page's box does the same, 195 _rsTouchNewline). Staff keep Enter = send. */
+    function _calClientTouchNewline() {
+        if (!_isClientLink) return false;
+        try { return !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches); } catch (e) { return false; }
+    }
     function _calOnComposerKey(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !_calClientTouchNewline()) {
             e.preventDefault();
             // Enter follows the send button: nothing is sent while it waits.
             const sendBtn = e.target && e.target.closest && e.target.closest('.cal-cm-composer')

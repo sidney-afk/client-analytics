@@ -1903,6 +1903,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-linkpolish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data; the start page with the help video's address blocked. Checks the client link with the polish switch on: Enter makes a new line on a touch screen and still sends with a mouse, Ready for your review is violet with readable text in light and dark (staff keep red), the empty heading has no change-your-mind line, phones fold the undated posts behind one row at 390 and 320 (1440 unchanged), no account manager wording, and the help video's poster has nothing cut off and nothing under the play button.",
+      "reproduce": "node test/review-stage-client-linkpolish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-with-editors-row-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

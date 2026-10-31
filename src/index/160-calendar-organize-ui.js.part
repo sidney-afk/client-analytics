@@ -1076,20 +1076,31 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             else view.style.setProperty('--cal-fit-thumb-h', next + 'px');
         }
     }
-    /* Watch the Calendar body (cards loading, a resize, a size change) and the window, and wire the wheel once. */
+    /* Watch the Calendar body (cards loading, a resize, a size change) and the window, and wire the wheel once.
+       The body is watched only while the fit applies (the switch names this page, the Sheet, 768 px and up): with
+       the switch off nothing observes #calBody, exactly as before the switch existed. A watcher there on every
+       Calendar page made WebKit report "ResizeObserver loop completed with undelivered notifications" when the
+       review stage's own observer resized the body in the same frame (main red on 31 Oct, repair-checkpoint). */
     let _calFitObserver = null, _calFitRaf = 0, _calFitWired = false;
     function _calSheetFitSchedule() {
         if (_calFitRaf) return;
-        _calFitRaf = requestAnimationFrame(() => { _calFitRaf = 0; try { _calSheetFitLayout(); } catch (e) {} });
+        _calFitRaf = requestAnimationFrame(() => { _calFitRaf = 0; _calSheetFitObserve(); try { _calSheetFitLayout(); } catch (e) {} });
+    }
+    function _calSheetFitObserve() {
+        const body = document.getElementById('calBody');
+        const want = typeof ResizeObserver === 'function' && !!body && _calSheetFitApplies();
+        if (!want) {
+            if (_calFitObserver) { _calFitObserver.disconnect(); _calFitObserver = null; }
+            return;
+        }
+        if (_calFitObserver && _calFitObserver._el === body) return;
+        if (_calFitObserver) _calFitObserver.disconnect();
+        _calFitObserver = new ResizeObserver(_calSheetFitSchedule);
+        _calFitObserver._el = body;
+        _calFitObserver.observe(body);
     }
     function _calSheetFitWire() {
-        const body = document.getElementById('calBody');
-        if (typeof ResizeObserver === 'function' && body && (!_calFitObserver || _calFitObserver._el !== body)) {
-            if (_calFitObserver) _calFitObserver.disconnect();
-            _calFitObserver = new ResizeObserver(_calSheetFitSchedule);
-            _calFitObserver._el = body;
-            _calFitObserver.observe(body);
-        }
+        _calSheetFitObserve();
         if (_calFitWired) return;
         _calFitWired = true;
         window.addEventListener('resize', _calSheetFitSchedule);

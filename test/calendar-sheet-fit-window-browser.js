@@ -98,6 +98,19 @@ async function shot(page, name) {
 async function staffPage(browser, origin, { flag, zoom, viewport, mobile, reduced }) {
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, isMobile: !!mobile, hasTouch: !!mobile, reducedMotion: reduced ? 'reduce' : 'no-preference' });
   if (zoom) await ctx.addInitScript(z => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ zoom: z, view: 'organizer' })); } catch (e) {} }, zoom);
+  // Count what every ResizeObserver is watching right now (observe adds, unobserve and disconnect take away), so a
+  // case can say whether anything watches #calBody.
+  await ctx.addInitScript(() => {
+    const Real = window.ResizeObserver;
+    if (!Real) return;
+    const live = new Map();
+    window.__roWatching = () => [...live.values()].flatMap(set => [...set]).map(el => el.id || el.className || el.tagName);
+    window.ResizeObserver = class extends Real {
+      observe(el, o) { if (!live.has(this)) live.set(this, new Set()); live.get(this).add(el); return super.observe(el, o); }
+      unobserve(el) { if (live.has(this)) live.get(this).delete(el); return super.unobserve(el); }
+      disconnect() { live.delete(this); return super.disconnect(); }
+    };
+  });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
@@ -151,6 +164,7 @@ async function viewportCases(engineName, browser, origin, list, scrollbars) {
     const r = await page.evaluate(fitReport);
     const L = `${engineName} ${label} (${width}x${height}, ${scrollbars} scrollbars)`;
     expect(r.fit && r.zoom === 'xs', `${L}: the switch is on at the smallest size (fit ${r.fit}, size ${r.zoom})`);
+    if (label === list[0][0]) expect(await page.evaluate(() => window.__roWatching && window.__roWatching().includes('calBody')), `${L}: with the switch on, the fit watches #calBody`);
     expect(r.pageH <= r.inner, `${L}: the page does not scroll up or down (page ${r.pageH} for a ${r.inner} window)`);
     expect(r.cardBottom <= r.inner, `${L}: every card fits the window (lowest card edge ${r.cardBottom} of ${r.inner})`);
     expect(r.stripBottom <= r.inner && r.barGap <= 6 + r.scrollbarH, `${L}: the sideways scrollbar sits right under the cards (${r.barGap}px under them)`);
@@ -357,6 +371,10 @@ async function offCases(browser, origin) {
       const b = await page.evaluate(boxes);
       const L = `switch off (${label}), size ${zoom}`;
       expect(!b.fit && !b.thumbVar, `${L}: the page is not marked`);
+      // Nothing watches the Calendar body with the switch off (a watcher there on every Calendar page made WebKit
+      // report a ResizeObserver loop error next to the review stage's own watcher, 31 Oct).
+      const watching = await page.evaluate(() => (window.__roWatching ? window.__roWatching() : null));
+      expect(Array.isArray(watching) && !watching.includes('calBody'), `${L}: no ResizeObserver watches #calBody (${JSON.stringify(watching)})`);
       if (!ref) {
         ref = b;
         expect(/ 80px /.test(' ' + b.main.split(' ').slice(4).join(' ') + ' ') || b.main.includes('80px'), `${L}: today's page padding (${b.main})`);

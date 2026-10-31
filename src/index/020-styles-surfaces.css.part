@@ -1043,6 +1043,42 @@
             html:not(.boot-client):not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-organizer-strip { gap: 10px; }
             html:not(.boot-client):not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) :is(.cal-card-body, .cal-sk-body) { padding-left: 11px; padding-right: 11px; }
         }
+        /* THE SHEET FITS THE WINDOW (session Sheetzoom round 2, 2026-10-31): only where the runtime switch sheet_fit_v1
+           names this staff member or this client link (188 marks the page html.sv-sheet-fit), desktop only. The Sheet
+           ends where the cards end, so a Sheet whose cards fit never scrolls up or down and its sideways scrollbar sits
+           right under the cards; spacing is tighter at every size; the smallest size is compact and its thumbnail gives
+           up height to fit the window (160 _calSheetFitLayout sets --cal-fit-thumb-h). Nothing is hidden. The loading
+           skeleton takes the same spacing. test/calendar-sheet-fit-window-browser.js. */
+        @media (min-width: 768px) {
+            html.sv-sheet-fit:not(.boot-client):not(.sv-staff-phone) body.cal-page .main:has(#calView:not([data-pocket-staff-phone]) .cal-organizer-strip) { padding-top: 6px; padding-bottom: 0; }
+            html.sv-sheet-fit.boot-client .main:has(#calView .cal-organizer-strip) { padding-top: 16px; padding-bottom: 0; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]):has(.cal-organizer-strip) { padding-bottom: 8px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]):has(.cal-organizer-strip) > .cal-toolbar { margin-top: 0; margin-bottom: 4px; padding-top: 8px; padding-bottom: 8px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) .cal-organizer-wrap { padding-top: 0; padding-bottom: 0; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) .cal-organizer-strip { padding-top: 6px; padding-bottom: 4px; min-height: 0; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) :is(.cal-card-body, .cal-sk-body) { gap: 7px; padding-top: 11px; padding-bottom: 10px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) :is(.cal-card-status-row, .cal-sk-status-row) { margin-top: 4px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) .cal-card-substatus-row { margin-top: 3px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView:not([data-pocket-staff-phone]) .cal-sk-status-row { padding-top: 3px; }
+            /* The smallest size, compact: shorter rows, three collapsed caption lines (170 reads --cal-cap-rows),
+               slimmer status pills. */
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) { --cal-thumb-h: var(--cal-fit-thumb-h, 132px); --cal-cap-rows: 3; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) :is(.cal-card-body, .cal-sk-body) { gap: 5px; padding-top: 9px; padding-bottom: 8px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-fld-name { font-size: 0.92rem; padding-top: 2px; padding-bottom: 2px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) :is(.cal-date-chip, .cal-link-pill-open, .cal-fld-cta, .cal-link-input) { height: 24px; padding-top: 0; padding-bottom: 0; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-link-edit { height: 24px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-fld-cap { padding-top: 6px; padding-bottom: 6px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-fld-setall { padding-top: 4px; padding-bottom: 4px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-fld-substatus-trigger { padding-top: 3px; padding-bottom: 3px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) :is(.cal-card-substatus-row, .cal-sk-status-row) { gap: 3px; }
+            /* Its skeleton, row for row (title 20, fields 24, caption 89 with three lines, Set all 23, pills 17). */
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-title { height: 20px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-title .sv-skeleton-line { height: 14px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-field { height: 24px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-copy { height: 67px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-setall { height: 23px; }
+            html.sv-sheet-fit:not(.sv-staff-phone) #calView[data-zoom="xs"]:not([data-pocket-staff-phone]) .cal-sk-status { height: 17px; }
+        }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_07); }
         .cal-card.is-blank { background: var(--sv-bg-fcfcfb); border-style: dashed; border-color: var(--sv-border-d4d4d2); }

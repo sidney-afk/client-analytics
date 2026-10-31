@@ -3168,6 +3168,8 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
         el.addEventListener('wheel', (e) => {
+            // The Sheet-fit switch (sheet_fit_v1, 160 _calSheetFitWheel) owns the wheel on the Calendar Sheet.
+            if (document.documentElement.classList.contains('sv-sheet-fit') && el.closest('#calView') && window.innerWidth >= 768) return;
             // If the gesture already has horizontal intent (trackpad swipe,
             // horizontal mouse wheel, Shift-wheel on Chrome) let the browser
             // handle it natively so we don't double-apply the delta.
@@ -3944,6 +3946,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         _calSubmitRedo, _calToggleSelectMode, addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday,
         calWeekShift, calWeekToday
     });
+export { _calVerticalScroller };
 export {
   CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,
   _CAL_REVIEW_CFG, _calCapAiRefresh, _calCapAiToolsHtml, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,

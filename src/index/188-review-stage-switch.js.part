@@ -65,19 +65,27 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     versions, on the staff Calendar and on that client's review link. The trial-reels
                                     function reads the same row and refuses every other client. Missing, unreadable or
                                     the wrong shape: every card exactly as it was.
+         sheet_fit_v1               { "staff": [...], "clients": [...] } and/or { "all": true }: the Calendar Sheet fits
+                                    the window (session Sheetzoom, 2026-10-31; 160 and 020 under html.sv-sheet-fit): the
+                                    Sheet fills the window under the toolbar with no empty page scroll, tighter spacing,
+                                    and a plain vertical wheel slides the cards sideways when nothing scrolls up or down.
+                                    "staff" lists signed-in staff members (id or full name, same rule as above) for the
+                                    staff Sheet; "clients" lists client slugs for that client's link. { "all": true } is
+                                    every signed-in staff member and every client link. Desktop only (768 px and up).
+                                    Missing, unreadable or the wrong shape: the Sheet exactly as it was.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
     // Nothing read yet, or the read failed: every switch off.
     function _rsFlagsOff() {
         const n = _rsStaffNone;
-        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
     }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
@@ -98,6 +106,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const trv = by.trial_reels_pages;
         const trMembers = okObj(trv) ? (_calRuntimeFlagRawMembers(trv) || []) : [];
+        const fitv = by.sheet_fit_v1;
+        const fitMembers = okObj(fitv) && Array.isArray(fitv.clients) ? fitv.clients.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*') : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -113,6 +123,9 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             trAll: okObj(trv) && trv.all === true,
             tr: new Set(trMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            fitAll: okObj(fitv) && fitv.all === true,
+            fitStaff: _rsStaffSwitch(fitv),
+            fit: new Set(fitMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -139,12 +152,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             _rsFlagFailed = false;
             _rsAnalyticsSync();
             svPhonePolishSync();
+            svSheetFitSync();
             try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {}
         } catch (e) {
             _rsFlags = _rsFlagsOff();
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             svPhonePolishSync();
+            svSheetFitSync();
             _rsFlagPromise = null;
             console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
         } finally {
@@ -265,6 +280,34 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         let slug = '';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.tr.has(slug);
+    }
+    /* The Calendar Sheet fits the window (sheet_fit_v1): a listed client's link, or a listed signed-in staff member on
+       the staff Sheet; { "all": true } is both, for everyone. Off until the read is in, and off for an unreadable or
+       wrongly shaped answer. */
+    function svSheetFitOn(client) {
+        _rsPrime();
+        if (!_rsFlags.loaded) return false;
+        if (_isClientLink) {
+            if (_rsFlags.fitAll) return true;
+            let slug = '';
+            try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+            return !!slug && _rsFlags.fit.has(slug);
+        }
+        return _rsStaffOn(_rsFlags.fitStaff);
+    }
+    /* Mark the page (html.sv-sheet-fit) for the Calendar's client. Every rule it switches on is in 020 under that class
+       and a 768 px and up block; the wheel in 160 asks the same class. Called after the switch read, when the Calendar
+       draws, and each second for up to 30 s while the server has not yet said who is signed in. */
+    let _fitRetry = 0;
+    function svSheetFitSync() {
+        let on = false;
+        try { on = svSheetFitOn(typeof calState === 'object' && calState ? calState.client : ''); } catch (e) { on = false; }
+        document.documentElement.classList.toggle('sv-sheet-fit', on);
+        if (!on && !_isClientLink && _rsFlags.loaded && _rsStaffAny(_rsFlags.fitStaff) && _fitRetry < 30) {
+            _fitRetry++;
+            setTimeout(svSheetFitSync, 1000);
+        }
+        return on;
     }
     function svRsClientNoAnalytics(client) {
         return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
@@ -751,4 +794,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };
+export { svSheetFitOn, svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };

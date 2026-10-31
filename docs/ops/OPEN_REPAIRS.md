@@ -35617,3 +35617,53 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Fix (120, 305):** `_writeUiFreeRebuildableStorage` frees those rebuildable caches as a third step before the journal write gives up, and `_kasperPersistCache` frees them and retries once before it reports a failure. Drafts, alerts, the journal itself and any cache carrying an acknowledged repair (`_writeUiRetrySourceAt`, `_writeUiKasperRepair`) are never freed. A freed cache costs one fetch on the next open.
 - **Proof:** `test/repair-checkpoint-browser.js` part `full-store` (new): fills the browser's real quota with rebuildable caches plus a draft and a repair-carrying cache, then writes a checkpoint. Fails on main (`repair_storage_unavailable`), passes here in Chromium, Firefox and WebKit; the draft and the repair-carrying cache survive.
 - **Way back:** revert the PR.
+
+## 616. [2026-10-31 UTC, BUILT, NOT MERGED] n8n quota watchdog red on 31 Oct: a one-day read fell into hourly mode on the US clock change (session Quota)
+
+**Symptom.** The db-timer run of the n8n execution quota watchdog on
+2026-10-31 13:17 UTC (run 41204858570) failed with `HTTP 403: Hourly data is
+not available with your current license` on the current-day read. Every daily
+run in October before it was green.
+
+**Cause (measured against n8n's own source, not guessed).** n8n decides hourly
+mode in `getDateFiltersGranularity`: luxon `endDate.diff(startDate, 'days')`
+below 1 means hourly, and the license refuses hourly. That diff runs on the n8n
+SERVER's clock (luxon default zone, n8n's `GENERIC_TIMEZONE`, default
+America/New_York), not on the `timeZone` parameter we send. The watchdog read
+today as exactly 24 hours, Guatemala midnight to Guatemala midnight
+(2026-10-31T06:00Z to 2026-11-01T06:00Z). US clocks fall back at
+2026-11-01T06:00Z, so in New York that range is 23 wall-clock hours (0.96 day):
+hourly, refused. Measured with luxon: the same range is exactly 1 day in UTC,
+Chicago and Berlin, and the 24-25 Oct range (Europe's change) is 1 day in New
+York, which is why the 25 Oct run stayed green. The month boundary was the
+working hypothesis and is rejected: the 30-to-31 Oct read is 1.0 day in every
+zone; the month end and the US fall-back simply landed on the same night this
+year. No license change: the 30 Oct run passed with the same key and window
+rules. It would have failed again on 6 Nov 2027 (mid-month), and the closed-day
+read could hit the same edge.
+
+**Fix.** Every Insights read now spans at least two local days, and the script
+refuses to send a shorter one (46-hour floor, which allows a daylight-saving
+hour in either zone). The current read runs from the first uncounted day to two
+days past today (n8n has nothing in the future, so the count is unchanged).
+Closed days are read on their own only when there are two or more; a single
+closed day (the usual daily case) is read together with today and enters the
+checkpoint on the next run, so the checkpoint never double-counts and still
+trails today by at most one day. A checkpoint saved by the old script resumes
+unchanged.
+
+**Proof.** `test/n8n-execution-quota-watchdog.js` gains a stand-in for n8n's
+Insights rules (server-clock hourly check, end-date day semantics, Guatemala
+day buckets). It replays the exact 31 Oct request (refused) and the 31 Oct run
+resuming the 30 Oct checkpoint (passes, exact October total), plus daily runs
+through Oct-Nov 2026, the evening fallback slot, every-other-day runs, Oct-Nov
+2027 and March 2027 (spring forward), each total checked against the true
+month count. 8 of these checks fail on main with the production error and all
+44 pass with the fix. Three earlier assertions that pinned the one-day query
+shape were updated to the new ranges with the same exact values.
+
+**October's total.** The 31 Oct scheduled run counted nothing. A live run on
+main before 2026-11-01T06:00Z (Guatemala midnight) still counts October; after
+that the November cache key starts fresh and November is unaffected. A dry-run
+dispatch on the fix branch reads the real 30 Oct checkpoint and saves nothing.
+To close: the next db-timer run (2026-11-01 13:17 UTC) is green after merge.

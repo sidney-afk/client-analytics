@@ -108,7 +108,8 @@ async function routeBackend(page, origin, opts) {
     if (p === '/rest/v1/syncview_runtime_flags') {
       const raw = sp.get('key') || '';
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
-      return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : { enabled: false } })));
+      return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' }
+        : k === 'sheet_fit_v1' && opts.fit ? { staff: ['m1'] } : { enabled: false } })));
     }
     if (p === '/rest/v1/calendar_posts') {
       if (state.hold) await held;
@@ -134,7 +135,7 @@ async function shot(page, name) {
 async function seedZoom(ctx, zoom) {
   if (zoom) await ctx.addInitScript(z => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ zoom: z })); } catch (e) {} }, zoom);
 }
-async function inApp(browser, origin, label, viewport, theme, zoom) {
+async function inApp(browser, origin, label, viewport, theme, zoom, fit) {
   const phone = viewport.width < 500;
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: theme, isMobile: phone, hasTouch: phone });
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
@@ -143,9 +144,10 @@ async function inApp(browser, origin, label, viewport, theme, zoom) {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
   await seedStaffGate(page);
-  const backend = await routeBackend(page, origin, {});
+  const backend = await routeBackend(page, origin, { fit: !!fit });
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+  if (fit) await page.waitForFunction(() => document.documentElement.classList.contains('sv-sheet-fit'), null, { timeout: 15000 }).catch(() => {});
   backend.hold = true;
   await page.evaluate(n => { _syncviewStaffIdentityVerified = true; _calSavePins([n]); calState.client = n; navTo('calendar'); }, NAME);
   await page.waitForFunction(() => document.querySelector('#calView [role="status"]'), null, { timeout: 15000 }).catch(() => {});
@@ -211,6 +213,12 @@ async function bootPaint(browser, origin, label, viewport, theme, real, zoom) {
     expect(realSmallest.cards[0] && realSmallest.cards[0].w === 212, `desktop-light-smallest: loaded cards are 212px wide (got ${realSmallest.cards[0] && realSmallest.cards[0].w})`);
     await bootPaint(browser, origin, 'first-paint-desktop-light-smallest', desk, 'light', realSmallest, 'xs');
     await inApp(browser, origin, 'phone-light-smallest', { width: 390, height: 844 }, 'light', 'xs');
+    // The Sheet-fit switch (sheet_fit_v1, 2026-10-31): its tighter spacing and its compact smallest size, whose
+    // thumbnail gives up height in a short window, still match the loaded cards.
+    await inApp(browser, origin, 'desktop-light-fit', desk, 'light', null, true);
+    await inApp(browser, origin, 'desktop-light-fit-smallest', desk, 'light', 'xs', true);
+    await inApp(browser, origin, 'desktop-light-fit-smallest-short', { width: 1366, height: 635 }, 'light', 'xs', true);
+    await inApp(browser, origin, 'phone-light-fit', { width: 390, height: 844 }, 'light', 'xs', true);
   } finally {
     await browser.close();
     server.close();

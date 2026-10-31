@@ -792,7 +792,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.5);
         const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
                   + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-        return Math.round(lh * (ta.rows || 3) + pad);
+        // The Sheet-fit switch's smallest card shows fewer collapsed lines (020 sets --cal-cap-rows); the caption
+        // still opens in full on focus or Show more.
+        const rows = parseInt(cs.getPropertyValue('--cal-cap-rows'), 10) || ta.rows || 3;
+        return Math.round(lh * rows + pad);
     }
     function _calCapOpenMaxH(ta) {
         if (!ta || !ta.closest('.cal-organizer-strip')) return 0;

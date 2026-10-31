@@ -206,6 +206,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Organize** menu: **Order**: "Auto-organize by date" (oldest first, unscheduled last) or "Off — your drag order". Your manual order is kept and comes back when you turn auto-organize off. While sorting by date, cards can't be dragged. **Month**: All months, This month, Previous/Next, or Custom. **Content**: All, scheduled only, or unscheduled only (the reserve pile). When a month filter hides cards, a small chip says so.
   - **Status filter** (funnel): "Show only" or "Hide" cards by their overall status. Clear it with the x.
   - **Card size** zoom (- / +): four sizes for staff, the smallest (added 2026-10-31) about six cards across a laptop screen; the client link has three. On a desktop the card strip runs the full width of the window.
+  - **Sheet fits the window** (switch `sheet_fit_v1`, not live until its row is added; built for the owner's own staff account and the test client's link first). On a desktop, for the staff members and client links it names: the Sheet ends where the cards end, so when the cards fit the page does not scroll up or down and the sideways scrollbar sits right under the cards; spacing is tighter at every size, and the thumbnail gives up a little height so the cards fit the window (the default size shows every card in full on a 1920 x 1000 screen; the smallest fits a MacBook Air); the wheel follows the gesture wherever the pointer is: up and down scrolls the page, a sideways swipe, tilt wheel or Shift+wheel slides the cards, an opened caption scrolls first, and when nothing scrolls up or down a normal wheel slides the cards. A client link it names also gets the smallest card size. Phones are unchanged. Nobody else sees any change.
   - **Globe** ("Open profiles"): opens the client's Instagram, TikTok, YouTube and other profiles.
   - **Bell** (admins and SMMs only): sends the client one Slack alert that new content is ready for review.
   - **Select** (checkbox icon): pick several cards, then give them a colour tag or **Archive** them. **Write captions** (the second icon): pick several cards, then **Generate captions** for all of them.
@@ -937,6 +938,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Test client only |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
+| `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, wheel slides the cards (desktop; staff by id or name, clients by slug, or `all`) | No row yet: off for everyone (first: the owner and the test client) |
 | `editor_suggest_last` | Puts some editors last in Create Post's editor suggestions | 1 staff member listed |
 | `prod_authority` | SyncLinear can edit Video and Graphics work | Both on SyncView |
 | `public_intake_enabled` | The client upload link can submit | On |

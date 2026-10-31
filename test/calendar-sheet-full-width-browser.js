@@ -240,7 +240,9 @@ function clientRulesStaffOnly() {
   expect(rules.length >= 6, `client link: the new rules are found (${rules.length})`);
   for (const r of rules) {
     const sel = r.slice(0, r.indexOf('{')).trim();
-    expect(sel === '.cal-view[data-zoom="xs"]' || /:not\(\.boot-client\)/.test(sel), `client link: a new rule is staff-only: ${sel.slice(0, 120)}`);
+    // Staff-only, or behind the Sheet-fit switch (html.sv-sheet-fit, 2026-10-31), which reaches a client link only
+    // when sheet_fit_v1 names it (test/calendar-sheet-fit-window-browser.js holds the switch-off client link).
+    expect(sel === '.cal-view[data-zoom="xs"]' || /:not\(\.boot-client\)/.test(sel) || /^html\.sv-sheet-fit[.:\s]/.test(sel), `client link: a new rule is staff-only or switch-gated: ${sel.slice(0, 120)}`);
   }
 }
 

@@ -992,19 +992,26 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         _notifyClientRender();
     }
 
-    /* Zoom — three discrete card sizes (Organizer only), saved to localStorage. */
-    const CAL_ZOOM_LEVELS = ['s', 'm', 'l'];
+    /* Zoom — four discrete card sizes (Organizer only), saved to localStorage.
+       'xs' (owner, 2026-10-31: "one more level, even more zoomed out") is the
+       compact Sheet card: 212px wide with a shorter thumbnail, and every row
+       and control kept (see .cal-view[data-zoom="xs"] in 020). */
+    const CAL_ZOOM_LEVELS = ['xs', 's', 'm', 'l'];
+    // The client link keeps its three sizes (staff only, owner 2026-10-31).
+    function _calZoomLevels() { return _isClientLink ? CAL_ZOOM_LEVELS.slice(1) : CAL_ZOOM_LEVELS; }
     function _calNormZoom(z) {
-        const map = { small: 'm', default: 'l', large: 'l', s: 's', m: 'm', l: 'l' };
-        return map[z] || 'm';
+        const map = { small: 'm', default: 'l', large: 'l', xs: 'xs', s: 's', m: 'm', l: 'l' };
+        const zoom = map[z] || 'm';
+        return _calZoomLevels().includes(zoom) ? zoom : 's';
     }
     function _calApplyZoom() {
         const view = document.getElementById('calView');
         if (view) view.dataset.zoom = calState.zoom || 'm';
-        const i = CAL_ZOOM_LEVELS.indexOf(calState.zoom || 'm');
+        const levels = _calZoomLevels();
+        const i = levels.indexOf(calState.zoom || 'm');
         const out = document.getElementById('calZoomOut'), inb = document.getElementById('calZoomIn');
         if (out) out.disabled = i <= 0;
-        if (inb) inb.disabled = i >= CAL_ZOOM_LEVELS.length - 1;
+        if (inb) inb.disabled = i >= levels.length - 1;
         // Keep the zoom control always visible across views — hiding it on
         // non-organizer tabs caused the toolbar to reflow every time the
         // user switched tabs. Zoom only affects the organizer card sizing,
@@ -1017,10 +1024,11 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         }
     }
     function calZoom(delta) {
-        let i = CAL_ZOOM_LEVELS.indexOf(calState.zoom || 'm');
-        if (i < 0) i = 1;
-        i = Math.max(0, Math.min(CAL_ZOOM_LEVELS.length - 1, i + delta));
-        calState.zoom = CAL_ZOOM_LEVELS[i];
+        const levels = _calZoomLevels();
+        let i = levels.indexOf(calState.zoom || 'm');
+        if (i < 0) i = levels.indexOf('m');
+        i = Math.max(0, Math.min(levels.length - 1, i + delta));
+        calState.zoom = levels[i];
         _calSavePrefs();
         _calApplyZoom();
     }

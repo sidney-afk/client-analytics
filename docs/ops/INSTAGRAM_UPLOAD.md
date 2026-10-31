@@ -29,7 +29,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 1. In Post For Me, connect the client's Instagram account (the same place TikTok accounts are connected). The Instagram account must be a Business or Creator account.
 2. Copy the new account's **Connection ID** (it starts with `spc_`). It is a different id from the client's TikTok one.
-3. Give the id to Sidney. It goes on the client's SyncView profile, not in the Sheet: a `roster-write` call `{ "action": "set_client_fields", "client": "<client name>", "fields": { "postforme_instagram_account_id": "spc_..." } }` stores it in `client_profiles.extra` and refreshes the Clients Info copy in the same request. The Kasper Clients tab (`client-profile-write`) does not edit this field. Typing it into the Sheet does nothing: the Sheet is only a copy of the profile.
+3. Give the id to Sidney. It goes on the client's SyncView profile, not in the Sheet: a `roster-write` call `{ "action": "set_client_fields", "client": "<client name>", "fields": { "postforme_instagram_account_id": "spc_..." } }` stores it in `client_profiles.extra` and refreshes the Clients Info copy in the same request. Since 2026-10-31 (OPEN_REPAIRS 618, once `migrations/2026-10-31-client-facebook-page.sql` is applied) it can also be pasted on Kasper > Clients, Publishing, **Instagram (Post for Me)**: the save checks with Post For Me that it is an Instagram account and queues the Sheet copy. Typing it into the Sheet does nothing: the Sheet is only a copy of the profile.
 4. Reload SyncView. On the Instagram side, the client now shows "Posts to Post For Me account spc_...". Without an id it shows "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile." and the button stays off: there is no fallback, so a video can never land on another client's account.
 
 ## Safety switches: who can post, and to which account
@@ -64,6 +64,46 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 **Still unproven until Sidney's first real carousel:** that Post For Me turns several media on an Instagram `timeline` post into one carousel (its reference does not use the word "carousel" for Instagram; it does for Facebook and LinkedIn); what Post For Me does past Instagram's 10-item limit (the function never sends more); whether it converts a non-JPEG image itself (the page sends JPEGs, so it should not matter); how a mixed image-and-video carousel and a scheduled carousel come back in the result lookup; and which link the **Open** button gets for a carousel. All of it lives in `supabase/functions/instagram-upload/`, so a mismatch is a small fix.
 
 **Try one yourself:** Instagram side, **Carousel**, the test client, 2 or 3 images, caption "test, please ignore", schedule 15 minutes ahead, check the queue says **Carousel (n)** and **Scheduled**, press **Cancel**. Then post one for real.
+
+## Also post to Facebook (added 2026-10-31, session Fbpost, OPEN_REPAIRS 618)
+
+Instagram's own "also share to Facebook" setting does not apply to a post published through the API, so before this
+nothing posted from SyncView reached Facebook.
+
+- **Connect the Page (once per client, admin):** in Post For Me, connect the client's Facebook Page and copy its
+  **Connection ID** (`spc_...`; a different id from the Instagram one). In SyncView: Kasper > Clients, open the
+  client, **Edit**, paste it into **Facebook Page (Post for Me)** in the Publishing card, **Save**. The save asks Post
+  For Me that the id is a Facebook account; an Instagram id, an unknown id or anything not `spc_...` is refused with a
+  plain reason. It is kept in `client_profiles.extra.postforme_facebook_account_id` (not a Clients Info column) and
+  each change gets a history row. The **Instagram (Post for Me)** field beside it now saves the same way (checked as
+  an Instagram account; its Clients Info copy is queued as with `roster-write`, which still works too). Saving either
+  needs `migrations/2026-10-31-client-facebook-page.sql` applied; until then the page says the database update is not
+  applied yet and saves nothing (every other field still saves).
+- **Composer:** with a Page on file, an **Also post to Facebook** box sits above Scheduling, ticked by default. Untick
+  it for an Instagram-only post (it stays unticked for that client until the client changes). It is unticked and
+  disabled, with the reason, for a **trial reel** (an Instagram feature), for a **carousel with a video** (Facebook
+  takes a carousel of photos only here) and for a client with **no Page** connected.
+- **What is sent:** ONE Post For Me post with both accounts in `social_accounts` and an `account_configurations` entry
+  each. Instagram's is unchanged. Facebook: a Reel goes as a Facebook Reel (`placement: "reels"`); an all-photo
+  carousel goes as one feed post of the photos (`placement: "timeline"`, `set_caption_for_each_image: false`, so the
+  caption is on the post and not repeated under every photo). Same caption, media, cover and schedule; one retry-safe
+  key, so a second press cannot post twice on either network. Source: Post For Me's API reference
+  (`FacebookConfigurationDto`, `SocialPostResultDto`, read 2026-10-31 from https://api.postforme.dev/docs).
+- **Safety:** `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` still decides who can post at all. The function also checks that the
+  Page is the one on the client's profile and that Post For Me says it is a Facebook account, before anything is
+  written. A caller cannot add a trial or a video carousel to Facebook (refused, never dropped).
+- **Status, per network:** each post's results come back from Post For Me per account (`social_account_id`), so
+  Instagram's stays in the row's `status` / `instagram_url` / `error` and Facebook's is kept in
+  `options.facebook` (`status`, `url`, `error`, `posted_at`). No migration: `options` is already JSON. The queue shows
+  both lines (Instagram: Posted, Facebook: Failed with the reason, for example), with an **Instagram** and a
+  **Facebook** link once each is live. A row goes under **Failed** if either network failed, under **Upcoming** while
+  either is still going. The status poll keeps asking until both are final. **Cancel** cancels both (it is one post).
+- **Clients with no Page:** nothing changes: the same body, the same queue row, the same messages.
+
+**Not yet proven live (until Sidney's first cross-post on his own test account):** that Post For Me returns one result
+per account with `social_account_id` filled in (its reference marks the field required); the exact Facebook link it
+returns; how a scheduled cross-post and a Facebook carousel come back. All of it is in
+`supabase/functions/instagram-upload/logic.mjs`, so a mismatch is a small fix.
 
 ## Trial reels
 

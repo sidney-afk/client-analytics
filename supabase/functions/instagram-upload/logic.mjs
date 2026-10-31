@@ -101,6 +101,24 @@ export function expectedAccountId(profile) {
   return clean(extra[ACCOUNT_COLUMN]);
 }
 
+// The client's Facebook Page, as Post For Me knows it (added 2026-10-31, OPEN_REPAIRS 618). Set on the
+// client's profile from the Kasper Clients tab (client-profile-write); kept in client_profiles.extra.
+// Instagram's own "also share to Facebook" does not apply to a post published through the API, so a
+// cross-post is one Post For Me post sent to both accounts.
+export const FACEBOOK_ACCOUNT_COLUMN = 'postforme_facebook_account_id';
+export function expectedFacebookAccountId(profile) {
+  const extra = profile && typeof profile.extra === 'object' && profile.extra ? profile.extra : {};
+  return clean(extra[FACEBOOK_ACCOUNT_COLUMN]);
+}
+// From Post For Me's API reference (FacebookConfigurationDto, read 2026-10-31): placement is one of
+// reels / stories / timeline; a Reel goes to Facebook as a Facebook Reel ("reels"); several images on
+// "timeline" are a Facebook carousel, and set_caption_for_each_image:false keeps the caption on the post
+// only, not repeated under every photo. Facebook takes a carousel of images only here: a carousel with a
+// video goes to Instagram only (the page says so and the server refuses it).
+export const FACEBOOK_REEL_PLACEMENT = 'reels';
+export const FACEBOOK_CAROUSEL_PLACEMENT = 'timeline';
+export const NETWORK_TERMINAL = TERMINAL;
+
 // Which unfinished rows are worth asking Post For Me about, most overdue first: anything in flight, and a
 // scheduled post only once its time has come. Rows never asked about go first, then the longest unasked,
 // so a pile of future posts can never starve an old one.
@@ -111,11 +129,36 @@ export function refreshCandidates(rows, nowMs, limit) {
 }
 
 // An Instagram account id never doubles as a TikTok one: Post For Me tells us which network an account is on.
-export function platformMismatch(account) {
+export function platformMismatch(account, want = 'instagram') {
   const platform = clean(account && account.platform).toLowerCase();
+  const name = want === 'facebook' ? 'Facebook' : 'Instagram';
   if (!platform) return 'Post For Me did not say which network that account is on.';
-  if (platform !== 'instagram') return 'That Post For Me account is on ' + platform + ', not Instagram.';
+  if (platform !== want) return 'That Post For Me account is on ' + platform + ', not ' + name + '.';
   return '';
+}
+
+// Reads "also post to Facebook" from the browser's create request. Returns { ok:false, error } or
+// { ok:true, facebook: null | { account_id } }. A trial reel is an Instagram feature, so it never goes to
+// Facebook; a carousel goes only when every item is an image (itemTypes, one per item, from the page).
+function facebookFromInput(body, { kind, trial, accountId, items }) {
+  const want = body.alsoFacebook === true || clean(body.alsoFacebook).toLowerCase() === 'true';
+  if (!want) return { ok: true, facebook: null };
+  const fbId = clean(body.facebookAccountId);
+  if (!ACCOUNT_ID_RE.test(fbId)) return { ok: false, error: 'facebookAccountId must be a Post For Me connection id (spc_...)' };
+  if (fbId === accountId) return { ok: false, error: 'the Facebook account cannot be the Instagram account' };
+  if (trial) return { ok: false, error: 'a trial reel is for Instagram only, not Facebook' };
+  if (kind === 'carousel') {
+    const types = Array.isArray(body.itemTypes) ? body.itemTypes.map((t) => clean(t).toLowerCase()) : [];
+    if (types.length !== items) return { ok: false, error: 'a Facebook carousel needs itemTypes, one per item' };
+    if (!types.every((t) => t === 'image')) return { ok: false, error: 'Facebook takes a carousel of images only; this one has a video' };
+  }
+  return { ok: true, facebook: { account_id: fbId } };
+}
+
+// The Facebook part of a queue row (options.facebook): its own status, link and error, apart from
+// Instagram's, so one network's failure never hides the other's success.
+function facebookRowPart(accountId, placement, status) {
+  return { account_id: accountId, placement, status, url: '', error: '', posted_at: null };
 }
 
 function toUtcIso(raw) {
@@ -164,6 +207,9 @@ export function buildCreate(input, nowMs, actor) {
   const id = clean(body.idempotencyKey) || ('ig_' + nowMs.toString(36) + '_' + Math.random().toString(36).slice(2, 8));
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
+  const fb = facebookFromInput(body, { kind: 'reel', trial, accountId });
+  if (!fb.ok) return fb;
+
   const media = { url: mediaUrl };
   let cover = null;
   if (coverUrl) { media.thumbnail_url = coverUrl; cover = 'image'; }
@@ -177,12 +223,19 @@ export function buildCreate(input, nowMs, actor) {
     account_configurations: [{ social_account_id: accountId, configuration }],
     external_id: id,
   };
+  if (fb.facebook) {
+    postBody.social_accounts.push(fb.facebook.account_id);
+    postBody.account_configurations.push({ social_account_id: fb.facebook.account_id, configuration: { placement: FACEBOOK_REEL_PLACEMENT } });
+  }
   if (scheduledUtc) postBody.scheduled_at = scheduledUtc;
 
   const nowIso = new Date(nowMs).toISOString();
+  const status0 = scheduledUtc ? 'scheduled' : 'uploading';
+  const rowOptions = { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null, trial_reel_type: trial };
+  if (fb.facebook) rowOptions.facebook = facebookRowPart(fb.facebook.account_id, FACEBOOK_REEL_PLACEMENT, status0);
   const row = {
     id, client, account_id: accountId, title,
-    options: { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null, trial_reel_type: trial },
+    options: rowOptions,
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
     status: scheduledUtc ? 'scheduled' : 'uploading',
@@ -226,6 +279,9 @@ function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
   const id = clean(body.idempotencyKey) || ('ig_' + nowMs.toString(36) + '_' + Math.random().toString(36).slice(2, 8));
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
+  const fb = facebookFromInput(body, { kind: 'carousel', trial: null, accountId, items: urls.length });
+  if (!fb.ok) return fb;
+
   const placement = CAROUSEL_PLACEMENT;
   const postBody = {
     caption: title,
@@ -234,12 +290,22 @@ function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
     account_configurations: [{ social_account_id: accountId, configuration: { placement } }],
     external_id: id,
   };
+  if (fb.facebook) {
+    postBody.social_accounts.push(fb.facebook.account_id);
+    postBody.account_configurations.push({
+      social_account_id: fb.facebook.account_id,
+      configuration: { placement: FACEBOOK_CAROUSEL_PLACEMENT, set_caption_for_each_image: false },
+    });
+  }
   if (scheduledUtc) postBody.scheduled_at = scheduledUtc;
 
   const nowIso = new Date(nowMs).toISOString();
+  const status0 = scheduledUtc ? 'scheduled' : 'uploading';
+  const rowOptions = { kind: 'carousel', placement, items: urls.length, cover: null, cover_timestamp_ms: null, trial_reel_type: null };
+  if (fb.facebook) rowOptions.facebook = facebookRowPart(fb.facebook.account_id, FACEBOOK_CAROUSEL_PLACEMENT, status0);
   const row = {
     id, client, account_id: accountId, title,
-    options: { kind: 'carousel', placement, items: urls.length, cover: null, cover_timestamp_ms: null, trial_reel_type: null },
+    options: rowOptions,
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
     status: scheduledUtc ? 'scheduled' : 'uploading',
@@ -249,50 +315,113 @@ function buildCarousel(body, nowMs, actor, { client, accountId, title }) {
   return { ok: true, row, postBody };
 }
 
-// Post For Me's answer to "create post" becomes the row's next state.
+// The Facebook part of a row, or null when the post went to Instagram only.
+export function facebookPart(row) {
+  const fb = row && row.options && typeof row.options === 'object' ? row.options.facebook : null;
+  return fb && typeof fb === 'object' && fb.account_id ? fb : null;
+}
+function withFacebook(row, patch) {
+  const fb = facebookPart(row);
+  if (!fb) return row;
+  return { ...row, options: { ...row.options, facebook: { ...fb, ...patch } } };
+}
+
+// Post For Me's answer to "create post" becomes the row's next state. One post carries both networks, so
+// a create that fails fails both, and an accepted one moves both to the same state.
 export function applyCreateResponse(row, resp, nowIso) {
   const r = resp && typeof resp === 'object' ? resp : {};
   const postId = r.id ? String(r.id) : '';
   if (!postId) {
     let raw = r.message || r.error || (r.errors && JSON.stringify(r.errors));
     if (raw && typeof raw === 'object') raw = JSON.stringify(raw);
-    return { ...row, status: 'failed', error: String(raw || 'Post For Me did not return a post id').slice(0, 280), updated_at: nowIso };
+    const error = String(raw || 'Post For Me did not return a post id').slice(0, 280);
+    return withFacebook({ ...row, status: 'failed', error, updated_at: nowIso }, { status: 'failed', error });
   }
   const pf = clean(r.status);
   let status = 'processing';
   if (row.status === 'scheduled' || pf === 'scheduled') status = 'scheduled';
   else if (pf === 'processed') status = 'posted';
-  return { ...row, status, post_id: postId, error: '', posted_at: status === 'posted' ? nowIso : row.posted_at, updated_at: nowIso };
+  const next = { ...row, status, post_id: postId, error: '', posted_at: status === 'posted' ? nowIso : row.posted_at, updated_at: nowIso };
+  // "processed" means the post was handled, not that each network took it: Facebook waits for its own result.
+  return withFacebook(next, { status: status === 'posted' ? 'processing' : status, error: '' });
 }
 
-// Reads Post For Me's per-network results for one post (GET /v1/social-post-results?post_id=...).
-// No result yet means "still going": the row keeps its status.
+function resultError(bad, fallback) {
+  let base = bad.error;
+  if (base && typeof base === 'object') base = base.message || JSON.stringify(base);
+  base = clean(base || (bad.details ? JSON.stringify(bad.details) : fallback));
+  let detail = '';
+  if (bad.details && typeof bad.details === 'object' && bad.details.error) {
+    detail = typeof bad.details.error === 'object' ? (bad.details.error.message || JSON.stringify(bad.details.error)) : clean(bad.details.error);
+  }
+  return (detail && !base.includes(detail) ? base + ': ' + detail : base).slice(0, 280);
+}
+// One network's results -> { status, url, error } or null when there is no answer for it yet.
+function readNetwork(list, fallback) {
+  if (!list.length) return null;
+  const hit = list.find((x) => x.success === true);
+  if (hit) {
+    const pd = hit.platform_data && typeof hit.platform_data === 'object' ? hit.platform_data : {};
+    return { status: 'posted', url: clean(pd.url), error: '' };
+  }
+  const bad = list.find((x) => x.success === false);
+  if (!bad) return null;
+  return { status: 'failed', url: '', error: resultError(bad, fallback) };
+}
+
+// Reads Post For Me's per-network results for one post (GET /v1/social-post-results?post_id=...). Each
+// result names its social_account_id, so Instagram's and Facebook's are read apart: a Facebook failure
+// never hides an Instagram success, or the other way round. No result yet means "still going": that
+// network keeps its status. A result without an account id counts for Instagram only on a post that has
+// no Facebook part (rows written before cross-posting).
 export function applyResults(row, resultsResp, nowIso) {
   const list = Array.isArray(resultsResp) ? resultsResp
     : Array.isArray(resultsResp && resultsResp.data) ? resultsResp.data : [];
   const mine = list.filter((x) => x && typeof x === 'object' && (!x.post_id || String(x.post_id) === row.post_id));
   if (!mine.length) return row;
-  const hit = mine.find((x) => x.success === true);
-  if (hit) {
-    const pd = hit.platform_data && typeof hit.platform_data === 'object' ? hit.platform_data : {};
-    return { ...row, status: 'posted', instagram_url: clean(pd.url), error: '', posted_at: row.posted_at || nowIso, updated_at: nowIso };
+  const fb = facebookPart(row);
+  const acct = (x) => clean(x.social_account_id);
+  const igList = mine.filter((x) => acct(x) === row.account_id || (!acct(x) && !fb));
+  const fbList = fb ? mine.filter((x) => acct(x) === fb.account_id) : [];
+  let next = row;
+  if (!TERMINAL.includes(row.status)) {
+    const ig = readNetwork(igList, 'Instagram rejected the post');
+    if (ig && ig.status === 'posted') next = { ...next, status: 'posted', instagram_url: ig.url, error: '', posted_at: row.posted_at || nowIso, updated_at: nowIso };
+    else if (ig) next = { ...next, status: 'failed', error: ig.error, updated_at: nowIso };
   }
-  const bad = mine.find((x) => x.success === false);
-  if (!bad) return row;
-  let base = bad.error;
-  if (base && typeof base === 'object') base = base.message || JSON.stringify(base);
-  base = clean(base || (bad.details ? JSON.stringify(bad.details) : 'Instagram rejected the post'));
-  let detail = '';
-  if (bad.details && typeof bad.details === 'object' && bad.details.error) {
-    detail = typeof bad.details.error === 'object' ? (bad.details.error.message || JSON.stringify(bad.details.error)) : clean(bad.details.error);
+  if (fb && !TERMINAL.includes(fb.status)) {
+    const f = readNetwork(fbList, 'Facebook rejected the post');
+    if (f) {
+      next = withFacebook(next, { status: f.status, url: f.url, error: f.error, posted_at: f.status === 'posted' ? (fb.posted_at || nowIso) : fb.posted_at || null });
+      next = { ...next, updated_at: nowIso };
+    }
   }
-  const msg = (detail && !base.includes(detail) ? base + ': ' + detail : base).slice(0, 280);
-  return { ...row, status: 'failed', error: msg, updated_at: nowIso };
+  return next;
 }
 
-// Only rows that can still change are worth asking Post For Me about.
+// Only rows that can still change are worth asking Post For Me about: Instagram not finished, or the
+// Facebook part not finished.
 export function needsRefresh(row) {
-  return !!row && !!row.post_id && !TERMINAL.includes(row.status);
+  if (!row || !row.post_id) return false;
+  if (!TERMINAL.includes(row.status)) return true;
+  const fb = facebookPart(row);
+  return !!fb && !TERMINAL.includes(fb.status) && row.status !== 'cancelled';
+}
+
+// A cancelled post is cancelled on both networks: it is one Post For Me post.
+export function markCancelled(row, nowIso) {
+  return withFacebook({ ...row, status: 'cancelled', updated_at: nowIso }, { status: 'cancelled' });
+}
+
+// The queue's overall group for a row: failed if any network failed, upcoming while any is still going,
+// otherwise done. The page shows each network's own status inside the row.
+export function overallStatus(row) {
+  const fb = facebookPart(row);
+  const all = [row.status].concat(fb ? [fb.status] : []);
+  if (all.includes('failed')) return 'failed';
+  const going = all.find((s) => !TERMINAL.includes(s));
+  if (going) return going;
+  return row.status;
 }
 
 // What the browser sees. Account ids stay on the server side of the queue.
@@ -309,5 +438,11 @@ export function publicRow(row) {
     // A row written before carousels existed has no kind: it is a Reel.
     kind: (r.options && r.options.kind === 'carousel') ? 'carousel' : 'reel',
     items: (r.options && Number(r.options.items)) || 1,
+    // Instagram's own result is status / instagram_url / error above; Facebook's sits here, without its
+    // account id. null = Instagram only.
+    facebook: facebookPart(r) ? {
+      status: facebookPart(r).status || '', url: facebookPart(r).url || '', error: facebookPart(r).error || '',
+      posted_at: facebookPart(r).posted_at || '', placement: facebookPart(r).placement || '',
+    } : null,
   };
 }

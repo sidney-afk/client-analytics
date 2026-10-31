@@ -628,6 +628,7 @@ jobs:
           Production list scrolls inside its frame|node docs/syncview-design/tests/prod-list-scroll-containment.js
           Instagram cover image|node test/instagram-cover-browser.js
           Instagram carousel picker (2 to 10 items, reorder, remove, one create in order)|node test/instagram-carousel-browser.js
+          Instagram also to Facebook (box on by default, off for a trial, a video carousel or no Page; results apart)|node test/instagram-facebook-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js

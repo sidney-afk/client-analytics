@@ -290,8 +290,20 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     const CA_GROUPS = [
         { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['slack_mention_user_id', 'Slack person to tag']] },
         { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
-        { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['upload_post_profile', 'Upload-Post']] },
+        { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['postforme_instagram_account_id', 'Instagram (Post for Me)'], ['postforme_facebook_account_id', 'Facebook Page (Post for Me)'], ['upload_post_profile', 'Upload-Post']] },
     ];
+    // The client's Post For Me accounts, kept in the profile's `extra`, not in a column (OPEN_REPAIRS 618).
+    // client-profile-write asks Post For Me that each is on the right network before it saves.
+    const CA_EXTRA_FIELDS = ['postforme_instagram_account_id', 'postforme_facebook_account_id'];
+    const CA_ACCOUNT_NETWORK = { postforme_instagram_account_id: 'Instagram', postforme_facebook_account_id: 'Facebook Page' };
+    function _caFieldValue(r, k) {
+        if (!r) return '';
+        if (CA_EXTRA_FIELDS.includes(k)) {
+            const ex = r.extra && typeof r.extra === 'object' ? r.extra : {};
+            return ex[k] == null ? '' : String(ex[k]);
+        }
+        return r[k] == null ? '' : String(r[k]);
+    }
     // Rarely used (owner, 2026-10-07): folded, low emphasis.
     const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
     // Long free text gets a textarea; everything else is one line.
@@ -760,7 +772,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const mgr = s => { if (!s) return 'nobody'; const m = (_caState.managers || []).find(x => x.slug === s); return m ? m.name : s; };
         const val = v => (String(v == null ? '' : v).trim() ? `“${_calEsc(String(v).trim().slice(0, 80))}”` : '<i>empty</i>');
         const items = [
-            ...h.edits.map(e => ({ at: e.edited_at, text: `${_calEsc(e.edited_by)} changed ${_calEsc(CA_FIELD_LABELS[e.field] || e.field)} from ${val(e.old_value)} to ${val(e.new_value)}` })),
+            ...h.edits.map(e => ({ at: e.edited_at, text: `${_calEsc(e.edited_by)} changed ${_calEsc(CA_FIELD_LABELS[e.field] || CA_FIELD_LABELS[String(e.field).replace(/^extra\./, '')] || e.field)} from ${val(e.old_value)} to ${val(e.new_value)}` })),
             ...h.moves.map(e => ({ at: e.edited_at, text: `${_calEsc(e.edited_by)} moved the client from ${_calEsc(mgr(e.old_manager_slug))} to ${_calEsc(mgr(e.new_manager_slug))}` })),
         ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
         return `<div class="ca-hist">${items.length ? items.map(i => `<div class="ca-hist-row"><span class="ca-hist-when">${_calEsc(_caWhen(i.at, true))}</span><span>${i.text}</span></div>`).join('') : '<div class="ca-hist-row">No edits recorded yet.</div>'}</div>`;
@@ -776,7 +788,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         if (!ed || !r) return {};
         const out = {};
         for (const [k, v] of Object.entries(ed.draft)) {
-            if (String(v).trim() !== String(r[k] == null ? '' : r[k]).trim()) out[k] = String(v);
+            if (String(v).trim() !== _caFieldValue(r, k).trim()) out[k] = String(v);
         }
         return out;
     }
@@ -872,8 +884,25 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             // "Notify client" at-mentions this person, so only a real Slack member id is kept.
             ed.conflictFields = ['slack_mention_user_id'];
             _caEditSay('"Slack person to tag" needs a Slack member ID, which starts with U (for example U0123ABCD). In Slack, open the client\'s profile, click the three dots and choose "Copy member ID". Nothing was saved.', 'error');
+        } else if (err === 'bad_value' && CA_ACCOUNT_NETWORK[json.field]) {
+            ed.conflictFields = [json.field];
+            _caEditSay(`"${_calEsc(CA_FIELD_LABELS[json.field])}" needs the Post for Me connection ID, which starts with spc_. Copy it from the ${CA_ACCOUNT_NETWORK[json.field]}'s row in Post for Me. Nothing was saved.`, 'error');
+        } else if (/^postforme_/.test(err) && CA_ACCOUNT_NETWORK[json.field]) {
+            ed.conflictFields = [json.field];
+            const net = CA_ACCOUNT_NETWORK[json.field];
+            const why = {
+                postforme_account_unknown: 'Post for Me does not know that connection ID. Check it was copied whole.',
+                postforme_wrong_platform: `That Post for Me connection is not ${net === 'Instagram' ? 'an Instagram account' : 'a Facebook Page'}. Copy the ID from the ${net} row.`,
+                postforme_platform_unknown: 'Post for Me did not say which network that connection is on.',
+                postforme_unreachable: 'Post for Me could not be reached to check it. Try again in a minute.',
+                postforme_not_configured: 'The Post for Me key is not set on the server, so the Page cannot be checked.',
+            }[err] || 'Post for Me could not confirm which network that connection is on.';
+            _caEditSay(_calEsc(why) + ' Nothing was saved.', 'error');
+        } else if (err === 'authority_not_syncview') {
+            _caEditSay('The Post for Me accounts can be saved here once SyncView is the main copy of client details. Nothing was saved.', 'error');
         } else if (err === 'field_not_editable') {
-            _caEditSay('"Slack person to tag" cannot be saved until its database update is applied. Nothing was saved.', 'error');
+            const what = CA_ACCOUNT_NETWORK[json.field] ? `"${_calEsc(CA_FIELD_LABELS[json.field])}"` : json.field === 'slack_mention_user_id' || !json.field ? '"Slack person to tag"' : 'That field';
+            _caEditSay(what + ' cannot be saved until its database update is applied. Nothing was saved.', 'error');
         } else if (err === 'saved_to_sheet_only') {
             _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; open the tab again later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {
@@ -910,7 +939,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     function _caDetailHtml(r) {
         const ed = _caState.edit && _caState.edit.slug === r.slug ? _caState.edit : null;
         const input = (k, label) => {
-            const v = k in ed.draft ? ed.draft[k] : (r[k] == null ? '' : String(r[k]));
+            const v = k in ed.draft ? ed.draft[k] : _caFieldValue(r, k);
             const flag = ed.conflictFields && ed.conflictFields.includes(k) ? ' is-conflict' : '';
             const attrs = `id="caIn_${k}" data-ca-field="${k}" oninput="_caEditInput(this)" ${ed.saving ? 'disabled' : ''} aria-label="${_calEscAttr(label)}"`;
             return CA_LONG_FIELDS.includes(k)
@@ -919,7 +948,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         };
         const field = ([k, label]) => ed
             ? `<div class="ca-field${CA_LONG_FIELDS.includes(k) ? ' is-wide' : ''}"><dt><label for="caIn_${k}">${_calEsc(label)}</label></dt><dd>${input(k, label)}</dd></div>`
-            : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValueHtml(k, r[k])}</dd></div>`;
+            : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValueHtml(k, _caFieldValue(r, k))}</dd></div>`;
         const cards = CA_GROUPS.map(g => `<section class="ca-card ca-group is-${g.tone}" data-ca-group="${g.key}"><h4>${_calEsc(g.title)}</h4><dl>${g.fields.map(field).join('')}</dl></section>`).join('');
         // One row of the most-used jumps, under the name.
         const reach = [['email', 'Email', CA_ICONS.mail], ['slack_channel_id', 'Slack', CA_ICONS.slack], ['creative_channel_id', 'Creative', CA_ICONS.brush],
@@ -935,7 +964,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 ${m ? _caAvatar(m.name, 'is-sm') : ''}<span class="ca-mgr-lbl">Managed by</span><span class="ca-mgr-cur">${_caState.pickerBusy ? svBusyHtml('Saving…') : mgrLabel}</span>${_caState.managers && canEdit && !ed ? CA_ICONS.chev : ''}
             </button>${_caMgrPickerHtml(r)}</div>`;
         const research = `<details class="ca-fold ca-group" data-ca-fold="research"${ed || _caState.folds.research ? ' open' : ''} ontoggle="_caFold('research', this.open)"><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4><span class="ca-fold-tag">Rarely needed</span></summary><dl>${CA_RESEARCH.fields.map(field).join('')}</dl></details>`;
-        const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
+        const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([k, v]) => !CA_EXTRA_FIELDS.includes(k) && String(v == null ? '' : v).trim()) : [];
         const extraHtml = extra.length && !ed ? `<details class="ca-fold ca-group" data-ca-fold="extra"${_caState.folds.extra ? ' open' : ''} ontoggle="_caFold('extra', this.open)"><summary><h4>Other sheet columns</h4></summary><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_calEsc(String(v))}</dd></div>`).join('')}</dl></details>` : '';
         const onboarding = `<details class="ca-fold ca-group ca-onb" data-ca-fold="onboarding"${_caState.folds.onboarding ? ' open' : ''} ontoggle="_caFold('onboarding', this.open)"><summary><h4>Onboarding</h4><span class="ca-admin-pill">Admin</span><span class="ca-fold-tag" id="caOnbSummary"></span></summary><div class="cb-mount" id="caOnboarding"></div></details>`;
         return `<header class="ca-hero ca-detail-head" style="--ca-h:${_svClientHue(_caName(r))}">

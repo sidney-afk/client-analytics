@@ -63,7 +63,7 @@ const mk = (i, name, extra) => Object.assign({
   archived_at: null, created_at: '2026-09-25T06:00:00Z', updated_at: '2026-09-25T06:00:00Z', updated_by: 'sheet-copy',
 }, extra || {});
 const rows = () => [
-  mk(1, 'Avery Fixture', { tiktok_handle: '@avery.tt', youtube_channel_id: 'UCfixtureAvery01', slack_channel_id: 'C0FIXTURE01', creative_channel_id: 'C0FIXTURE02', postforme_account_id: 'spc_fixture01', upload_post_profile: 'averyfixture' }),
+  mk(1, 'Avery Fixture', { tiktok_handle: '@avery.tt', youtube_channel_id: 'UCfixtureAvery01', slack_channel_id: 'C0FIXTURE01', creative_channel_id: 'C0FIXTURE02', postforme_account_id: 'spc_fixture01', upload_post_profile: 'averyfixture', extra: { postforme_instagram_account_id: 'spc_fixtureInstagram01' } }),
   mk(2, 'Blake Sample', { email: 'hello@blakestudio.example.invalid', instagram_handle: '@blake.makes' }),
   mk(3, 'Casey Example', { archived_at: '2026-09-20T00:00:00Z' }),
 ];
@@ -98,8 +98,14 @@ async function open(browser, origin, role, viewport) {
       if (b.action === 'refresh_from_sheet') return json({ ok: true, row: Object.assign({}, ROWS[0], { instagram_handle: '@from-sheet', updated_at: '2026-09-25T09:00:00Z' }) });
       if (ctl.edit === 'conflict') return json({ ok: false, error: 'sheet_changed', fields: ['instagram_handle'] }, 409);
       if (ctl.edit === 'version') return json({ ok: false, error: 'client_profile_version_conflict', row: ROWS[0] }, 409);
+      if (ctl.edit === 'fbwrong') return json({ ok: false, error: 'postforme_wrong_platform', field: 'postforme_facebook_account_id' }, 400);
       const row = ROWS.find(x => x.slug === b.slug);
-      return json({ ok: true, native: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, b.changes, { source: 'syncview', updated_by: 'QA admin', updated_at: '2026-09-25T10:00:00Z' }) });
+      // The Facebook Page is kept in extra (OPEN_REPAIRS 618), as the server does.
+      const changes = Object.assign({}, b.changes || {});
+      const fbPage = 'postforme_facebook_account_id' in changes ? changes.postforme_facebook_account_id : undefined;
+      delete changes.postforme_facebook_account_id;
+      const extra = Object.assign({}, row.extra || {}, fbPage === undefined ? {} : { postforme_facebook_account_id: fbPage });
+      return json({ ok: true, native: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, changes, { extra, source: 'syncview', updated_by: 'QA admin', updated_at: '2026-09-25T10:00:00Z' }) });
     }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
     if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|client-profile-write|analytics-read|client-onboarding|client-hubspot-sync)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
@@ -302,9 +308,10 @@ const measure = page => page.evaluate(() => {
       const before = s.edits.length;
       await p.click('.ca-edit-btn');
       await p.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
-      const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open, tag: !!document.querySelector('[data-ca-group="team"] [data-ca-field="slack_mention_user_id"]') }));
-      // 12 profile fields plus "Slack person to tag" (Notify client's at-mention, OPEN_REPAIRS 477) in Contact and team.
-      if (em.n !== 13 || em.roam || !em.research || !em.tag) failures.push(`${label}: expected 13 editable fields (with the Slack person to tag) and research open (${JSON.stringify(em)})`);
+      const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open, tag: !!document.querySelector('[data-ca-group="team"] [data-ca-field="slack_mention_user_id"]'), fb: !!document.querySelector('[data-ca-group="publish"] [data-ca-field="postforme_facebook_account_id"]'), igInput: !!document.querySelector('[data-ca-field="postforme_instagram_account_id"]') }));
+      // 12 profile fields plus "Slack person to tag" (Notify client's at-mention, OPEN_REPAIRS 477) in Contact and team,
+      // plus the Post for Me Instagram account and Facebook Page in Publishing (OPEN_REPAIRS 618).
+      if (em.n !== 15 || em.roam || !em.research || !em.tag || !em.fb || !em.igInput) failures.push(`${label}: expected 15 editable fields (with the Slack person to tag and both Post for Me accounts) and research open (${JSON.stringify(em)})`);
       if (shots) { await p.waitForTimeout(3500); await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`) }); }
       if (phone) {
         const m = await measure(p);
@@ -346,6 +353,27 @@ const measure = page => page.evaluate(() => {
       s.ctl.edit = 'ok';
       p.once('dialog', d => d.accept());
       await p.click('.ca-editbar .cc-btn:not(.primary)');
+
+      // The Facebook Page (OPEN_REPAIRS 618): beside the Instagram account, saved through the same
+      // call; an id Post For Me says is not a Facebook Page is refused with a plain reason and the field flagged.
+      const igShown = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
+      if (!/Instagram \(Post for Me\)[\s\S]*spc_fixtureInstagram01/.test(igShown) || !/Facebook Page \(Post for Me\)[\s\S]*Not set/.test(igShown)) failures.push(`${label}: Publishing does not show the Instagram id and an empty Facebook Page (${JSON.stringify(igShown)})`);
+      const fbBefore = s.edits.length;
+      s.ctl.edit = 'fbwrong';
+      await p.click('.ca-edit-btn');
+      await p.waitForSelector('#caIn_postforme_facebook_account_id', { timeout: 3000 }).catch(() => failures.push(`${label}: no Facebook Page field in the edit form`));
+      if ((await p.inputValue('#caIn_postforme_instagram_account_id').catch(() => '')) !== 'spc_fixtureInstagram01') failures.push(`${label}: the Instagram account field does not hold the saved id`);
+      await p.fill('#caIn_postforme_facebook_account_id', 'spc_fixtureFacebook01');
+      await p.click('.ca-save');
+      await p.waitForFunction(() => /not a Facebook Page/.test((document.querySelector('.ca-msg') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: a wrong-network id was not explained`));
+      if (!(await p.$('#caIn_postforme_facebook_account_id.is-conflict'))) failures.push(`${label}: the Facebook Page field is not flagged`);
+      const fbSent = s.edits[fbBefore] && s.edits[fbBefore].body;
+      if (!fbSent || JSON.stringify(fbSent.changes) !== JSON.stringify({ postforme_facebook_account_id: 'spc_fixtureFacebook01' })) failures.push(`${label}: the Facebook Page save sent ${JSON.stringify(fbSent)}`);
+      s.ctl.edit = 'ok';
+      await p.click('.ca-save');
+      await p.waitForFunction(() => !document.querySelector('#caIn_postforme_facebook_account_id'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the Facebook Page save did not close the form`));
+      const fbShown = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
+      if (!/Facebook Page \(Post for Me\)[\s\S]*spc_fixtureFacebook01/.test(fbShown)) failures.push(`${label}: the saved Facebook Page is not shown (${JSON.stringify(fbShown)})`);
 
       // History: read on demand.
       await p.click('#caHistBtn');

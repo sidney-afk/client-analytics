@@ -31,6 +31,12 @@
 // that cannot be made stays queued; the saved edit stands). refresh_from_sheet
 // is refused in that state.
 //
+// Fields kept in client_profiles.extra (the client's Post For Me accounts: postforme_instagram_account_id
+// and postforme_facebook_account_id) ride in the same `changes` map. They are saved only while SyncView is
+// the main copy: Post For Me must first say each account is on the right network, then the same
+// client_profile_admin_edit transaction saves them in extra with one history row each ("extra.<field>";
+// migrations/2026-10-31-client-facebook-page.sql) and queues the usual Sheet copy.
+//
 // action "status" says whether Sheet writing is configured, and which Google
 // account the Sheet must be shared with. It never returns a secret.
 //
@@ -51,7 +57,9 @@
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { clientSlug } from "../_shared/sheets-mirror.mjs";
-import { EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange } from "../_shared/client-profile-edit.mjs";
+import {
+  accountPlatformProblem, EDITABLE_FIELDS, EXTRA_ACCOUNT_PLATFORM, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
+} from "../_shared/client-profile-edit.mjs";
 import { makeStore } from "../_shared/roster-handlers.mjs";
 import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
 
@@ -168,6 +176,31 @@ async function authority(supabase: SupabaseClient): Promise<string> {
 
 const blankToNull = (v: unknown) => (clean(v) === "" ? null : clean(v));
 
+const PFM = "https://api.postforme.dev/v1";
+// Post For Me must report each new account id on the expected network. Returns "" or an error code.
+async function checkExtraAccounts(extra: Record<string, string>): Promise<{ error: string; field?: string }> {
+  for (const [field, value] of Object.entries(extra)) {
+    const want = (EXTRA_ACCOUNT_PLATFORM as Record<string, string>)[field];
+    if (!want || !clean(value)) continue;
+    const key = clean(Deno.env.get("POST_FOR_ME_API_KEY"));
+    if (!key) return { error: "postforme_not_configured", field };
+    let resp: Response;
+    try {
+      resp = await fetch(PFM + "/social-accounts/" + encodeURIComponent(clean(value)), {
+        headers: { Authorization: "Bearer " + key, Accept: "application/json" }, signal: AbortSignal.timeout(20000),
+      });
+    } catch (_e) {
+      return { error: "postforme_unreachable", field };
+    }
+    if (resp.status === 404) return { error: "postforme_account_unknown", field };
+    if (!resp.ok) return { error: "postforme_unreachable", field };
+    const data = await resp.json().catch(() => ({}));
+    const problem = accountPlatformProblem(data, want);
+    if (problem) return { error: problem, field };
+  }
+  return { error: "" };
+}
+
 // The database is the main copy (client_profiles_authority = "syncview").
 async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string }): Promise<Response> {
   const slug = clientSlug(body.slug);
@@ -183,6 +216,11 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   }
   const norm = normalizeChanges(body.changes);
   if (!norm.ok) return json({ ok: false, error: norm.error, field: norm.field || null }, 400);
+  const split = splitChanges(norm.changes) as { columns: Record<string, string>; extra: Record<string, string> };
+  if (Object.keys(split.extra).length) {
+    const check = await checkExtraAccounts(split.extra);
+    if (check.error) return json({ ok: false, error: check.error, field: check.field || null }, check.error === "postforme_unreachable" ? 502 : check.error === "postforme_not_configured" ? 503 : 400);
+  }
   const dbChanges: JsonMap = {};
   for (const [f, v] of Object.entries(norm.changes as Record<string, string>)) dbChanges[f] = blankToNull(v);
   const requestId = crypto.randomUUID();
@@ -198,13 +236,20 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   });
   if (rpcErr) {
     if (String(rpcErr.message).includes("client_profile_version_conflict")) return json({ ok: false, error: "client_profile_version_conflict", row: current }, 409);
-    // A field the database cannot take yet (the Slack person, before its migration).
-    if (String(rpcErr.message).includes("client_profile_edit_field_not_editable")) return json({ ok: false, error: "field_not_editable", field: null }, 400);
+    // A field the database cannot take yet (the Slack person or the Facebook Page, before its migration).
+    if (String(rpcErr.message).includes("client_profile_edit_field_not_editable")) {
+      const m = String(rpcErr.message).match(/not_editable:\s*([a-z_]+)/);
+      return json({ ok: false, error: "field_not_editable", field: m ? m[1] : null }, 400);
+    }
+    if (String(rpcErr.message).includes("client_profile_edit_bad_value")) return json({ ok: false, error: "bad_value", field: null }, 400);
     console.error("client-profile-write: native save failed", rpcErr.message);
     return json({ ok: false, error: "write_failed" }, 500);
   }
   const result = saved as JsonMap;
-  const fields = Object.keys(dbChanges).filter(f => (result.row as JsonMap)[f] !== (current as JsonMap)[f]);
+  const row = result.row as JsonMap;
+  const extraOf = (r: JsonMap) => (r.extra && typeof r.extra === "object" ? r.extra : {}) as JsonMap;
+  const fields = Object.keys(split.columns).filter(f => row[f] !== (current as JsonMap)[f])
+    .concat(Object.keys(split.extra).filter(f => clean(extraOf(row)[f]) !== clean(extraOf(current as JsonMap)[f])));
   // Best effort: never turns a saved edit into a failure.
   const sheetCopy = await copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch });
   return json({ ok: true, native: true, fields, request_id: requestId, row: result.row, sheet_copy: sheetCopy });
@@ -364,6 +409,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const norm = normalizeChanges(body.changes);
     if (!norm.ok) return json({ ok: false, error: norm.error, field: norm.field || null }, 400);
+    // A field kept in extra is not a Sheet column: it can only be saved once SyncView is the main copy.
+    const extraKeys = Object.keys((splitChanges(norm.changes) as { extra: JsonMap }).extra);
+    if (extraKeys.length) return json({ ok: false, error: "authority_not_syncview", field: extraKeys[0] }, 409);
     const changes = norm.changes as Record<string, string>;
 
     const plan = planSheetEdit(values, slug, current, changes, TAB) as JsonMap;

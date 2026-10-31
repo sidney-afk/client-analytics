@@ -102,9 +102,18 @@
            call to act, so violet, the page's own action colour, not red, which reads as an error (owner's yes 2026-10-31,
            session Linkpolish). Text contrast: 6.9:1 (bold, light and dark), 8.1:1 (classic light), 7.7:1 (classic dark).
            Client link only (html.boot-client): staff keep their colours. */
-        html.boot-client:not([data-status-palette="classic"]) { --cal-status-client-approval-bg: #a78bfa; --cal-status-client-approval-fg: #101114; }
-        html.boot-client[data-status-palette="classic"] { --cal-status-client-approval-bg: #e0e7ff; --cal-status-client-approval-fg: #3730a3; }
-        html.boot-client[data-theme="dark"][data-status-palette="classic"] { --cal-status-client-approval-bg: #312e81; --cal-status-client-approval-fg: #c7d2fe; }
+        html.boot-client:not([data-status-palette="classic"]) {
+            --cal-status-client-approval-bg: #a78bfa;
+            --cal-status-client-approval-fg: #101114;
+        }
+        html.boot-client[data-status-palette="classic"] {
+            --cal-status-client-approval-bg: #e0e7ff;
+            --cal-status-client-approval-fg: #3730a3;
+        }
+        html.boot-client[data-theme="dark"][data-status-palette="classic"] {
+            --cal-status-client-approval-bg: #312e81;
+            --cal-status-client-approval-fg: #c7d2fe;
+        }
         /* Generated legacy color tokens. Prefer semantic tokens for new UI. */
         :root {
             --sv-bg-000: #000;

@@ -94,12 +94,9 @@ async function shot(page, name) {
   await page.screenshot({ path: path.join(SHOTS, name.replace(/[^\w.-]+/g, '-') + '.png') });
 }
 
-// A staff page on the Sheet with the given switch value and saved card size.
-async function staffPage(browser, origin, { flag, zoom, viewport, mobile, reduced }) {
-  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, isMobile: !!mobile, hasTouch: !!mobile, reducedMotion: reduced ? 'reduce' : 'no-preference' });
-  if (zoom) await ctx.addInitScript(z => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ zoom: z, view: 'organizer' })); } catch (e) {} }, zoom);
-  // Count what every ResizeObserver is watching right now (observe adds, unobserve and disconnect take away), so a
+// Count what every ResizeObserver is watching right now (observe adds, unobserve and disconnect take away), so a
   // case can say whether anything watches #calBody.
+async function installRoSpy(ctx) {
   await ctx.addInitScript(() => {
     const Real = window.ResizeObserver;
     if (!Real) return;
@@ -111,6 +108,13 @@ async function staffPage(browser, origin, { flag, zoom, viewport, mobile, reduce
       disconnect() { live.delete(this); return super.disconnect(); }
     };
   });
+}
+
+// A staff page on the Sheet with the given switch value and saved card size.
+async function staffPage(browser, origin, { flag, zoom, viewport, mobile, reduced }) {
+  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, isMobile: !!mobile, hasTouch: !!mobile, reducedMotion: reduced ? 'reduce' : 'no-preference' });
+  if (zoom) await ctx.addInitScript(z => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ zoom: z, view: 'organizer' })); } catch (e) {} }, zoom);
+  await installRoSpy(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
@@ -348,6 +352,46 @@ async function wheelCases(engineName, browser, origin) {
   }
 }
 
+// With the switch on for everyone ({ "all": true }, live since 31 Oct 22:40 UTC), the #calBody watcher exists only on
+// the Sheet: never on the client link's review stage (where WebKit reported a ResizeObserver loop next to the stage's
+// own watcher, main red on 31 Oct) nor on the staff Review tab; it comes with the Sheet and goes when the view leaves.
+async function reviewStageCases(engineName, browser, origin) {
+  const fixture = require('./fixtures/review-stage-fixture');
+  const watched = page => page.evaluate(() => (window.__roWatching ? window.__roWatching().includes('calBody') : null));
+  {
+    const L = `${engineName} client link review stage, switch on for all`;
+    const t = await fixture.open(browser, origin, { stage: 'client', flags: 'on', width: 1440, height: 900, flagValues: { sheet_fit_v1: { all: true } } });
+    await installRoSpy(t.ctx);
+    await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: fixture.CLIENT, v: 'calendar', t: fixture.TOKEN }), { waitUntil: 'domcontentloaded' });
+    await fixture.waitNew(t);
+    await t.page.waitForTimeout(800);
+    expect(await t.page.evaluate(() => document.documentElement.classList.contains('sv-sheet-fit')), `${L}: the switch is on for this link`);
+    expect((await watched(t.page)) === false, `${L}: no ResizeObserver watches #calBody on the review stage`);
+    // Request a change, the case that went red on main, and read the page's errors.
+    await fixture.inS(t.page, '[data-chg="video"]').click().catch(() => {});
+    await fixture.inS(t.page, 'textarea').fill('Fit switch check.').catch(() => {});
+    await t.page.waitForTimeout(600);
+    expect((await watched(t.page)) === false, `${L}: still nothing watches #calBody after opening a change`);
+    expect(t.errors.filter(e => /ResizeObserver/i.test(e)).length === 0, `${L}: no ResizeObserver error (${t.errors.join(' | ')})`);
+    await t.ctx.close();
+  }
+  {
+    const L = `${engineName} staff, switch on for all`;
+    const { ctx, page } = await staffPage(browser, origin, { flag: { all: true }, zoom: 'm', viewport: { width: 1440, height: 900 } });
+    expect((await watched(page)) === true, `${L}: on the Sheet the fit watches #calBody`);
+    await page.evaluate(() => onCalViewChange('smmreview'));
+    await settle(page);
+    expect((await watched(page)) === false, `${L}: leaving for the Review tab stops watching #calBody`);
+    await page.evaluate(() => onCalViewChange('organizer'));
+    await settle(page);
+    expect((await watched(page)) === true, `${L}: back on the Sheet it watches again`);
+    await page.setViewportSize({ width: 700, height: 900 });
+    await settle(page);
+    expect((await watched(page)) === false, `${L}: below 768 px nothing watches #calBody`);
+    await ctx.close();
+  }
+}
+
 // Switch off in every form: the same boxes as a page with no row at all, and today's spacing.
 function boxes() {
   const q = s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height), cs.padding, cs.margin].join(' '); };
@@ -467,6 +511,8 @@ async function launchOptional(type, opts) {
     if (wk) await defaultSizeCases('WebKit', wk, origin);
     await wheelCases('Chromium', classic, origin);
     if (wk) await wheelCases('WebKit', wk, origin);
+    await reviewStageCases('Chromium', classic, origin);
+    if (wk) await reviewStageCases('WebKit', wk, origin);
     await offCases(classic, origin);
     await phoneCase(overlay, origin);
     await clientCases(classic);

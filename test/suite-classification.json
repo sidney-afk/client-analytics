@@ -1783,6 +1783,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-sheet-full-width-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar Sheet strip spans the window edge to edge at 1280, 1440 and 1920 at every card size (no card cut by a page gutter mid-scroll, first card on the toolbar's edge at rest, no sideways page scroll), the new smallest card size keeps title, thumbnail, status pills and every control and is saved across a reload, and the staff phone strip and the client link keep their own layout.",
+      "reproduce": "node test/calendar-sheet-full-width-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-sheet-skeleton-shape-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

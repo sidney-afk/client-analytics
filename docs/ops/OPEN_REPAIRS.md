@@ -35734,7 +35734,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **With the switch on for everyone** (`{"all": true}`, set live on 31 Oct about 22:40 UTC): the same test opens the client link's review stage with the switch on for all and finds nothing watching `#calBody` there, before and after opening a change, and no ResizeObserver error; on the staff side the watcher comes with the Sheet, goes on the Review tab and below 768 px, and comes back on the Sheet (4 of these fail on main, all pass here; 252 checks in all). ATLAS now shows the switch on for all staff and clients.
 - **Way back:** revert the PR (the switch-off page then carries the observer again).
 
-## 623. [2026-11-01 UTC, BUILT, NOT MERGED] Calendar card: the thumbnail's folder opens from the Files menu, not its own icon on the Thumbnail row (session Sheetzoom)
+## 624. [2026-11-01 UTC, BUILT, NOT MERGED] Calendar card: the thumbnail's folder opens from the Files menu, not its own icon on the Thumbnail row (session Sheetzoom)
 
 - **Asked:** the owner, 1 Nov: "can we move the 'open this folder' link, the button for the thumbnail to open the folder of the thumbnail, into the files button, next to the thumbnail file."
 - **Before:** on a staff Calendar card the Thumbnail row read [Thumbnail] [folder icon] [pencil]; the folder icon (`.cal-link-folder`, 160 `_calLinkFieldHtml`, shown once `thumbnail_folder_url` was known) opened the thumbnail's Drive folder. The card's Files button (`.cal-files-btn`, on the thumbnail; in the tool row on the staff phone) listed Filming plan, Raw footage folder, Frame folder and Thumbnail file.

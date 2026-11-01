@@ -733,7 +733,11 @@ async function prepare(page,name) {
     await staff.chooseCalendarView(page,view);await settle(page);
   }
   if(name==='calendar-card-detail') {
-    await staff.chooseCalendarView(page,'month');await settle(page);await page.locator('.cal-month-pill').first().tap();
+    await staff.chooseCalendarView(page,'month');await settle(page);
+    // The fixture post is dated 2026-10-06 and this pass runs on the real clock: from 1 Nov 2026 the Month view opened
+    // on a month with no post, so there was nothing to tap. Show the post's own month (session Linkpolish, 2026-11-01).
+    await page.evaluate(()=>{calState.monthCursor='2026-10-01';_calRenderBody();});await settle(page);
+    await page.locator('.cal-month-pill').first().tap();
     await page.locator('.cal-preview-overlay.open').waitFor();
   }
   if(name.endsWith('card-notes')) {

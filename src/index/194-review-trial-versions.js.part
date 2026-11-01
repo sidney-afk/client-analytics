@@ -63,12 +63,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        waits on any card of a client trial reels is on for (svTrialReviewPending). After that the page is today's, as on
        a read that failed. */
     const TRV_HOLD_MS = 2000;
-    if (_isClientLink) {
+    // After every module has loaded (_isClientLink is declared in 260, which loads after this one).
+    setTimeout(() => {
         try {
+            if (!_isClientLink) return;
             const c = new URLSearchParams(location.search).get('c') || '';
             if (c) svRsFlagsReady().then(() => { const slug = _trvSlug(c); if (slug && svTrialReelsOn(slug)) _trvLoad(slug); }, () => {});
         } catch (e) {}
-    }
+    }, 0);
 
     /* The trial shape of one card for the review page, or null for today's page. Samples have no trial. */
     function svTrialReviewShape(post, mode, item) {

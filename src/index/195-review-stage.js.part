@@ -873,6 +873,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 /* A comment is only a message (session Linkpolish, 2026-11-01): one calm line beside the buttons, and the inline
    "What should change?" row "Ask for a change" opens when no part is picked. Hover lights only the button under it. */
 .cl-hint{flex:1 1 170px;min-width:0;margin-right:auto;font-size:.72rem;line-height:1.35;color:var(--text-secondary)}
+/* Shown once words are typed (the moment the choice is made): the empty box keeps its height, so the loading screen
+   still reserves the page's exact layout (review-stage-phone-browser, iPhone SE). */
+.compose.cl:not(.typed) .cl-hint{display:none}
 .cl-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 8px 6px;padding:6px 6px 10px 10px;border-radius:10px;background:var(--well);box-shadow:inset 0 0 0 1px var(--well-line);animation:clPickIn .16s var(--ease) both}
 .cl-pick .lbl{order:0;flex:1 1 calc(100% - 56px);font-size:.76rem;font-weight:700;color:var(--text-primary)}
 .cl-pick .pk{order:2}

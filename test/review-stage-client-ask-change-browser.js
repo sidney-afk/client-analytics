@@ -66,6 +66,8 @@ const box = t => R(t.page, (r) => {
   try {
     if (run('hint') || run('pick') || run('escape') || run('comment')) {
       const t = await openIt(browser, origin, {});
+      const empty = await box(t);
+      if (run('hint')) expect(!empty.hint, 'hint: the empty box shows no line (its height stays as before, so the loading screen still fits)');
       await typeIn(t, 'Can the intro be shorter?');
       let B = await box(t);
       if (run('hint')) {

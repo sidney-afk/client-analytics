@@ -90,7 +90,12 @@ async function gmail(tok: string, path: string): Promise<Record<string, any>> {
     const r = await fetch(GMAIL + path, { headers: { Authorization: "Bearer " + tok } });
     if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1))); continue; }
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error("gmail_" + r.status);
+    if (!r.ok) {
+      // Google's short reason code (e.g. accessNotConfigured, insufficientPermissions), never a message body.
+      const e = (body as any).error || {};
+      const why = clean((e.errors && e.errors[0] && e.errors[0].reason) || e.status).replace(/[^A-Za-z_]/g, "").slice(0, 60);
+      throw new Error("gmail_" + r.status + (why ? "_" + why : ""));
+    }
     return body;
   }
   throw new Error("gmail_busy");

@@ -185,9 +185,20 @@ const SPLIT_ROW = {
       assert.equal(c.kind, 'carousel', 'a carousel create'); checks++;
       assert.deepEqual([c.alsoFacebook, c.facebookAccountId, c.itemTypes], [true, FB, ['image', 'image']], 'with the Page and one type per item'); checks++;
 
-      // --- phone width: the card fits without a sideways scroll
+      // --- phone width: the card fits without a sideways scroll. A resize from desktop applies the staff phone
+      // layout on the next animation frame (099-phone-staff-shell, html.fph-on); until then the desktop header
+      // nav is still laid out at 900+ px. A phone loads at phone width and never sees that frame, so measure the
+      // phone layout itself, not the moment between the two (OPEN_REPAIRS 623: the check used to race it).
       await page.setViewportSize({ width: 390, height: 900 });
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no sideways scroll at 390'); checks++;
+      await page.waitForFunction(() => document.documentElement.classList.contains('fph-on')
+        && document.documentElement.getAttribute('data-fph') === 'tiktok-upload', null, { timeout: 10000 });
+      const fit = await page.evaluate(() => {
+        const card = document.getElementById('igFacebookCard');
+        const r = card ? card.getBoundingClientRect() : null;
+        return { sw: document.documentElement.scrollWidth, w: window.innerWidth, cardRight: r ? r.right : -1, cardWidth: r ? r.width : 0 };
+      });
+      assert.ok(fit.sw <= fit.w + 1, 'no sideways scroll at 390 (' + JSON.stringify(fit) + ')'); checks++;
+      assert.ok(fit.cardWidth > 0 && fit.cardRight <= fit.w + 1, 'the Facebook card sits inside the 390 screen (' + JSON.stringify(fit) + ')'); checks++;
 
       assert.deepEqual(errors, [], 'no page errors'); checks++;
       await context.close();

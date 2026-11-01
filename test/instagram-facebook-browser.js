@@ -187,7 +187,11 @@ const SPLIT_ROW = {
 
       // --- phone width: the card fits without a sideways scroll
       await page.setViewportSize({ width: 390, height: 900 });
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no sideways scroll at 390'); checks++;
+      // Wait for the page to settle at the new width before measuring. Right after the resize the desktop header nav
+      // is still laid out (651px wide on a busy runner), and 500 ms later it is 390 (main red twice, 31 Oct and 1 Nov;
+      // 2 in 18 here under load). It still fails if the page never fits.
+      const fits = await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 3000, polling: 50 }).then(() => true, () => false);
+      assert.ok(fits, 'no sideways scroll at 390'); checks++;
 
       assert.deepEqual(errors, [], 'no page errors'); checks++;
       await context.close();

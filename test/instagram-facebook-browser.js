@@ -188,7 +188,7 @@ const SPLIT_ROW = {
       // --- phone width: the card fits without a sideways scroll. A resize from desktop applies the staff phone
       // layout on the next animation frame (099-phone-staff-shell, html.fph-on); until then the desktop header
       // nav is still laid out at 900+ px. A phone loads at phone width and never sees that frame, so measure the
-      // phone layout itself, not the moment between the two (OPEN_REPAIRS 623: the check used to race it).
+      // phone layout itself, not the moment between the two (it used to race that frame).
       await page.setViewportSize({ width: 390, height: 900 });
       await page.waitForFunction(() => document.documentElement.classList.contains('fph-on')
         && document.documentElement.getAttribute('data-fph') === 'tiktok-upload', null, { timeout: 10000 });

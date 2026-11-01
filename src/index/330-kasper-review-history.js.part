@@ -6,7 +6,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import {
   _calAssertSavingOn, _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _calReadFreshCardStamp, _writeUiAdoptRepairAck,
-  _writeUiFailureSentence, _writeUiNativeId, _writeUiRepairCompanions, _writeUiReportFailure,
+  _writeUiFailureSentence, _writeUiNativeId, _writeUiRepairCompanions, _writeUiReportFailure, _writeUiReviewEvent,
   computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
@@ -1824,13 +1824,18 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
         panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
     }
 
+    /* A press this board drops on purpose is still reported (OPEN_REPAIRS 623): the same part
+       already saving, or a card no longer in his list. Ids only. */
+    function _kasperDropped(action, code, pid, comp) {
+        _writeUiReviewEvent('calendar', 'review_repeat', code, { card: String(pid || ''), component: String(comp || '') }, action);
+    }
     async function _kasperApproveComp(pid, comp, dest) {
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item) return;
+        if (!item) { _kasperDropped('approve', 'card_not_in_list', pid, comp); return; }
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._touchedComps) item._touchedComps = new Set();
-        if (item._saving[comp]) return;
+        if (item._saving[comp]) { _kasperDropped('approve', 'save_in_flight', pid, comp); return; }
         /* The Approve button is already disabled for a component he cannot
            review, but a button is a courtesy and this is the handler: a panel
            rendered before the video URL was cleared still carries a live
@@ -1957,13 +1962,14 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     // note; the Review Session offers Reply only in the team's own threads.
     async function _kasperAddCommentComp(pid, comp, parentId) {
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item) return;
+        if (!item) { _kasperDropped('comment', 'card_not_in_list', pid, comp); return; }
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         if (!item._touchedComps) item._touchedComps = new Set();
         const body = String(item._drafts[comp] || '').trim();
-        if (!body || item._saving[comp]) return;
+        if (!body) return;
+        if (item._saving[comp]) { _kasperDropped('comment', 'save_in_flight', pid, comp); return; }
         _kasperInvalidateInFlightLoad();
         const prev = Object.assign({ updated_at: item.post.updated_at },
             _kasperCommentSnapshot(item.post));
@@ -2011,13 +2017,14 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks, opts) {
         const keepStatus = !!(opts && opts.keepStatus);
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item) return;
+        if (!item) { _kasperDropped('change', 'card_not_in_list', pid, comp); return; }
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         if (!item._touchedComps) item._touchedComps = new Set();
         const body = String(item._drafts[comp] || '').trim();
-        if (!body || item._saving[comp]) return;
+        if (!body) return;
+        if (item._saving[comp]) { _kasperDropped('change', 'save_in_flight', pid, comp); return; }
         _kasperInvalidateInFlightLoad();
         // Mirrors the client-review submit: comment lands in the thread,
         // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's

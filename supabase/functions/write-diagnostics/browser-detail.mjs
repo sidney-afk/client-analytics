@@ -32,3 +32,17 @@ export function shapeBrowserReceipt(receipt,body){
  if(body?.failure==='network'){out.code='network_failure';out.status=null;}
  return out;
 }
+// OPEN_REPAIRS 623 (2026-11-01): the review boards' own code for what happened and how
+// full the browser's store is. Codes are a short snake_case word; the store is counted in
+// thousands of characters and as a percent of the ~5.2 million where browsers stop.
+const UI_CODE=/^[a-z0-9_]{1,60}$/;
+export function browserEnv(body){
+ const e=body&&body.env&&typeof body.env==='object'&&!Array.isArray(body.env)?body.env:null;
+ if(!e)return null;
+ const out={
+  ui_code:typeof e.code==='string'&&UI_CODE.test(e.code)?e.code:null,
+  storage_kc:Number.isInteger(e.storage_kc)&&e.storage_kc>=0&&e.storage_kc<=100000?e.storage_kc:null,
+  storage_pct:Number.isInteger(e.storage_pct)&&e.storage_pct>=0&&e.storage_pct<=100?e.storage_pct:null
+ };
+ return out.ui_code!==null||out.storage_kc!==null||out.storage_pct!==null?out:null;
+}

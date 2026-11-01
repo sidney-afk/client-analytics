@@ -835,6 +835,15 @@
       "required_for_release": true
     },
     {
+      "file": "review-board-diagnostics-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/review-board-diagnostics-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "write-refusal-detail-viewer-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 16,
@@ -2014,6 +2023,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member, with a slow or refusing card save switched at run time), no hosted credentials and no live data. Checks that every save on the new review stage ends on screen: an SMM approval that clears the card shows Approved to Kasper within three seconds (it used to stay on Saving), a slow server says it is still waiting, and a refused save shows its reason with Try again, which saves.",
       "reproduce": "node test/review-stage-save-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-board-gauntlet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_GAUNTLET_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, with the database's copy of a native status onto its card), fictional client, cards and people, no hosted credentials and no live data. Kasper's review board (second layout, fast boot) and the client link under his conditions: three approves in a row on one card all reach the server (failed on main), a double click, a slow line, a lost answer, a reload during a save (re-read after the reload; failed on main), two tabs, a tab open five hours, a nearly full browser store, an uncaught error, and the client link's double tap and refusal; every report carries ids, codes and the store's fill, never names, titles or words.",
+      "reproduce": "node test/review-board-gauntlet-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
       "ci": "representative"
     },
     {

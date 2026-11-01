@@ -685,7 +685,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-repair-checkpoint-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -705,6 +705,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           SHEET_FIT_REQUIRE_WEBKIT: '1'
         run: node test/calendar-sheet-fit-window-browser.js
+      - name: Kasper's review board and the client link under his conditions (Chromium and WebKit; approves in a row, double click, slow and lost answers, reload during a save, two tabs, an old tab, a full store, the refusal log's reports)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
+        run: node test/review-board-gauntlet-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

@@ -13,7 +13,7 @@ import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
+import { _kasperPersistPost, _kasperReloadReview, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
 import { svTrialReviewWanted } from './189-trial-reels-card.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -1437,7 +1437,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_mid_save', String(x.act || 'save'), { card: String(x.card || ''), component: String(x.component || ''), client_slug: String(x.client_slug || ''), board: x.board }); } catch (e) {}
         });
         if (note.mode !== 'kasper' || R.mode !== 'kasper' || !(Date.now() - Number(note.at) < 60000)) return;
-        [4000, 10000].forEach(ms => setTimeout(() => { try { if (typeof window._kasperLoadReview === 'function') window._kasperLoadReview(true); } catch (e) {} }, ms));
+        /* Never while a save on his board is running: a re-read replaces the cards and would drop that save's
+           "saving" guard and its place in the card's chain of writes (Codex on #2485). It waits for the board to be
+           quiet, up to a minute. */
+        const busy = () => (_kasperState.items || []).some(it => it && it._saving && Object.keys(it._saving).some(k => it._saving[k]));
+        const reread = (until) => {
+            try {
+                if (busy() && Date.now() < until) { setTimeout(() => reread(until), 500); return; }
+                if (!busy()) _kasperReloadReview(true);
+            } catch (e) {}
+        };
+        [4000, 10000].forEach(ms => setTimeout(() => reread(Date.now() + 60000), ms));
     }
     // An uncaught error while one of these pages is open: its kind and where, never its message.
     function _rsErrWhere(name, file, line, col) {

@@ -698,6 +698,7 @@ import {
         renderOnboarding: _kasperRenderOnboarding,
         loadFilming: _kasperLoadFilming,
         paintReview: _kasperPaintReviewNow,
+        loadReview: _kasperLoadReview,   // a re-read after a reload during a save (195, OPEN_REPAIRS 626)
         openLightbox: _kasperOpenLightboxNow,
         gotoTab: _kasperGotoTabNow,
         fallbackToReview: _kasperFallbackToReviewNow,

@@ -809,6 +809,8 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         return undefined;
     }
     function _kasperPaintReview(...args) { return _kasperForward('paintReview', args, false); }
+    // Only when Kasper is loaded: the board it re-reads is his (a re-read after a reload during a save, 195).
+    function _kasperReloadReview(...args) { return _kasperForward('loadReview', args, false); }
     function _kasperOpenLightbox(...args) { return _kasperForward('openLightbox', args, true); }
     function _kasperGotoTab(...args) { return _kasperForward('gotoTab', args, true); }
     function _kasperFallbackToReview(...args) { return _kasperForward('fallbackToReview', args, true); }
@@ -825,7 +827,7 @@ export {
   _ccEsc, _ccEscAttr, _ccOpenSelectId, _ccSelectHtml, _ccTogglePasswordField, _kasperCalCacheKey,
   _kasperCalCachePrune, _kasperFallbackToReview, _kasperGotoTab, _kasperIsFinished,
   _kasperLoadSMMMap, _kasperOnboardingStamp, _kasperOnboardingSubs, _kasperOnboardingUnreadCount,
-  _kasperOpenLightbox, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
+  _kasperOpenLightbox, _kasperPaintReview, _kasperReloadReview, _kasperPartitionItems, _kasperPatchSnapshot,
   KASPER_FRESH_COLUMNS, _kasperAdoptServerFields, _kasperLocalFlagLive, _kasperUrgentSupersedes,
   _kasperPersistCache, _kasperPersistPost, _kasperSetSaveAlert, _kasperResolveSubtab, _kasperResumeSourceRepairs,
   _kasperSampleOpenCount, _kasperSamplePartition, _kasperSamplesEnabled, _kasperSamplesMerged,

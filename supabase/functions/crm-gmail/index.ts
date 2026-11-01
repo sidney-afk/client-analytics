@@ -94,7 +94,9 @@ async function gmail(tok: string, path: string): Promise<Record<string, any>> {
       // Google's short reason code (e.g. accessNotConfigured, insufficientPermissions), never a message body.
       const e = (body as any).error || {};
       const why = clean((e.errors && e.errors[0] && e.errors[0].reason) || e.status).replace(/[^A-Za-z_]/g, "").slice(0, 60);
-      throw new Error("gmail_" + r.status + (why ? "_" + why : ""));
+      // For a switched-off API, Google names the Cloud project number to switch it on in.
+      const proj = (String(e.message || "").match(/project (\d{4,20})/) || [])[1];
+      throw new Error("gmail_" + r.status + (why ? "_" + why : "") + (proj ? "_project_" + proj : ""));
     }
     return body;
   }

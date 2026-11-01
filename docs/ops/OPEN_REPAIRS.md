@@ -35618,7 +35618,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proof:** `test/repair-checkpoint-browser.js` part `full-store` (new): fills the browser's real quota with rebuildable caches plus a draft and a repair-carrying cache, then writes a checkpoint. Fails on main (`repair_storage_unavailable`), passes here in Chromium, Firefox and WebKit; the draft and the repair-carrying cache survive.
 - **Way back:** revert the PR.
 
-## 616. [2026-10-31 UTC, BUILT, NOT MERGED] n8n quota watchdog red on 31 Oct: a one-day read fell into hourly mode on the US clock change (session Quota)
+## 616. [2026-10-31 UTC, CLOSED 2026-11-01 (merged #2468 as 6dba5917; the 1 Nov 13:17 UTC db-timer run, the first after the US clock change, passed)] n8n quota watchdog red on 31 Oct: a one-day read fell into hourly mode on the US clock change (session Quota)
 
 **Symptom.** The db-timer run of the n8n execution quota watchdog on
 2026-10-31 13:17 UTC (run 41204858570) failed with `HTTP 403: Hourly data is
@@ -35667,6 +35667,7 @@ main before 2026-11-01T06:00Z (Guatemala midnight) still counts October; after
 that the November cache key starts fresh and November is unaffected. A dry-run
 dispatch on the fix branch reads the real 30 Oct checkpoint and saves nothing.
 To close: the next db-timer run (2026-11-01 13:17 UTC) is green after merge.
+Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UTC (run 41310503607) passed, after the US fall-back at 06:00 UTC. A 31 Oct manual run (41233856124) had also passed after the 17:41 scheduled run skipped.
 
 ## 617. [2026-10-31 UTC, BUILT, NOT MERGED] Staff Calendar Sheet: one smaller card size, and the card strip runs the full window width (session Sheetzoom)
 

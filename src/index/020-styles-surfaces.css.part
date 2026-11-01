@@ -4080,6 +4080,19 @@
         .pto-admin-form { display: grid; gap: 10px; }
         .pto-check { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; }
         .pto-check input { width: 16px; height: 16px; accent-color: var(--text-primary); }
+        /* Log time off (Kasper). The quote line keeps one height whether it holds
+           the check skeleton, the answer or a refusal, so the Log button never jumps. */
+        .pto-check input:disabled + span { opacity: 0.5; }
+        .pto-optional { font-weight: 500; color: var(--text-muted); }
+        .pto-log-quote { min-height: calc(1.45em + 20px); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; background: var(--bg); color: var(--text-secondary); font-size: 0.68rem; font-weight: 650; line-height: 1.45; font-variant-numeric: tabular-nums; }
+        .pto-log-quote.is-problem { color: var(--pto-negative); }
+        .pto-log-quote-skel { --sv-skel-base: var(--border-light); --sv-skel-sheen: var(--white); display: block; width: 72%; height: 1.45em; border-radius: 6px; }
+        .pto-log-done { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--bg); color: var(--text-secondary); font-size: 0.68rem; line-height: 1.45; animation: pto-log-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1); }
+        .pto-log-done strong { color: var(--text-primary); }
+        .pto-log-done .pto-row-btn { flex: none; }
+        @keyframes pto-log-done-in { from { opacity: 0; transform: translateY(4px); } }
+        @media (prefers-reduced-motion: reduce) { .pto-log-done { animation: none; } }
+        @media (max-width: 640px) { .pto-log-done { flex-direction: column; align-items: stretch; } }
         /* Kasper Time Off calendar. Month and by-person reads of the same
            merged event list; every colour comes from an existing theme token so
            both views stay legible in light and dark. */

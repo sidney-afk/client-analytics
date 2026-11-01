@@ -160,7 +160,7 @@ The applied additive base migration is `migrations/2026-07-15-pto-tracker.sql`. 
 | Table | Purpose | Browser access |
 |---|---|---|
 | `pto_members` | Private start date, explicit enablement, and balance-state version. | None. |
-| `pto_requests` | Requested dates, type, server day count, status, and decision audit fields; the candidate delta adds separate cancellation audit fields. | None. |
+| `pto_requests` | Requested dates, type, server day count, status, and decision audit fields; the candidate delta adds separate cancellation audit fields. `source` is `syncview` (the member asked), `hrvey_migration`, or `admin_log` (an admin logged it; `2026-11-01-pto-admin-log-source.sql`). | None. |
 | `pto_adjustments` | Dated wellness/sick migration entries and admin corrections. | None. |
 | `pto_member_events` | **Candidate (OPEN_REPAIRS 399, not applied):** append-only record of Member setup: who created a PTO profile or changed its start date or enabled switch, the values before and after, and when. Written only inside `pto_set_member_start_v2`. | None; service role may only read it. |
 
@@ -225,7 +225,9 @@ individual server-derived sessions remain post-launch hardening.
 | `request` | POST | Any staff role | Validates active/enabled membership, eligibility, type/range/day count, balance, and floating-holiday availability; inserts pending through the versioned transactional RPC, which rechecks the active roster row under lock. |
 | `decide` | POST | Admin | Approves or denies a pending request, rechecking wellness and recording the verified actor. |
 | `cancel` | POST | Requester for own pending; Admin before start date for pending/approved | Applies only the lifecycle-bounded cancellation transition. Candidate source writes cancellation attribution separately and preserves an earlier approval decision. |
-| `adjust` | POST | Admin | Inserts a dated wellness or sick adjustment. |
+| `adjust` | POST | Admin | Inserts a dated wellness or sick adjustment. Changes a balance only; never on the team calendar. |
+| `log_quote` | POST | Admin | Read-only. For a chosen enabled member: the same checks as `request` (past dates allowed) plus an overlap check against their pending/approved leave; returns full and half-day counts and the balance before. Writes nothing. (OPEN_REPAIRS 627) |
+| `log` | POST | Admin | Kasper's **Log time off**. Same checks as `log_quote`, then creates the row through `pto_create_request_v1` with `source = 'admin_log'` and approves it through the `decide` path (`pto_finalize_decision_v1`, `decided_by` = the admin). If the approval refuses, the new row is withdrawn (cancelled by the admin), never left pending. Before `migrations/2026-11-01-pto-admin-log-source.sql` it answers `503 admin_log_not_ready` and writes nothing. A member cannot cancel a logged entry (members cancel only pending); an admin can, before its start date. (OPEN_REPAIRS 627) |
 | `set_start_date` | POST | Admin | Transactionally upserts private start date and enabled state for one active roster member; rejects deactivation, history, and concurrent-state conflicts under lock. Candidate source (OPEN_REPAIRS 399) records the verified actor and the before/after values in `pto_member_events` in the same transaction. |
 
 The browser URL contract is the project Edge base plus `functions/v1/pto`. The dedicated workflow

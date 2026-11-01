@@ -555,59 +555,74 @@ function floatingAlreadyClaimed(
   );
 }
 
-async function requestTimeOff(
-  supabase: SupabaseClient,
-  caller: MemberRow,
+type TimeOffPlan = {
+  type: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  note: string;
+  fullDays: number;
+  partialDayCount: number;
+  ptoMember: PtoMemberRow;
+  requestYearBalance: JsonMap;
+};
+
+// The one set of request checks (type, dates, business-day count, half days,
+// eligibility, leave year, balance, floating holiday). A member's own request
+// and an admin's logged entry both go through it; the only difference an admin
+// gets is allowPast, because logging records leave that may already be over.
+// quoteOnly lets a quote run before a day count is chosen (the full count is
+// assumed).
+function checkTimeOff(
+  snapshot: MemberPolicySnapshot,
+  memberId: string,
   body: JsonMap,
-): Promise<Response> {
-  const snapshot = await loadMemberPolicySnapshot(supabase, caller.id);
+  options: { allowPast: boolean; quoteOnly?: boolean },
+): { error: Response } | { plan: TimeOffPlan } {
+  const fail = (body: JsonMap, status: number) => ({ error: json({ ok: false, ...body }, status) });
   const ptoMember = snapshot.ptoMember;
-  if (!ptoMember || !ptoMember.pto_enabled) {
-    return json({ ok: false, error: "pto_not_enabled" }, 403);
-  }
+  if (!ptoMember || !ptoMember.pto_enabled) return fail({ error: "pto_not_enabled" }, 403);
 
   const type = clean(body.type, 40);
   const startDate = parseIsoDate(body.start_date);
   const endDate = parseIsoDate(body.end_date);
-  const days = halfDayAmount(body.days);
+  const daysGiven = !(options.quoteOnly && (body.days == null || body.days === ""));
+  const requestedDays = daysGiven ? halfDayAmount(body.days) : null;
   const note = clean(body.note, 2000);
-  if (!PTO_TYPES.includes(type)) return json({ ok: false, error: "invalid_type" }, 400);
-  if (!startDate || !endDate || endDate < startDate) {
-    return json({ ok: false, error: "invalid_date_range" }, 400);
-  }
-  if (days == null) return json({ ok: false, error: "invalid_days" }, 400);
+  if (!PTO_TYPES.includes(type)) return fail({ error: "invalid_type" }, 400);
+  if (!startDate || !endDate || endDate < startDate) return fail({ error: "invalid_date_range" }, 400);
+  if (daysGiven && requestedDays == null) return fail({ error: "invalid_days" }, 400);
   if (requestSpanDays(startDate, endDate) > MAX_REQUEST_SPAN_DAYS) {
-    return json({ ok: false, error: "request_range_too_long" }, 400);
+    return fail({ error: "request_range_too_long" }, 400);
   }
   const today = ptoPolicyToday();
-  if (type !== "sick" && startDate <= today) {
-    return json({ ok: false, error: "past_date_not_allowed" }, 400);
+  if (!options.allowPast && type !== "sick" && startDate <= today) {
+    return fail({ error: "past_date_not_allowed" }, 400);
   }
 
   let fullDays: number;
   try {
     fullDays = countPtoDays(startDate, endDate);
   } catch (_error) {
-    return json({ ok: false, error: "invalid_date_range" }, 400);
+    return fail({ error: "invalid_date_range" }, 400);
   }
-  if (fullDays > MAX_REQUEST_FULL_DAYS) {
-    return json({ ok: false, error: "request_range_too_long" }, 400);
-  }
+  if (fullDays > MAX_REQUEST_FULL_DAYS) return fail({ error: "request_range_too_long" }, 400);
   // A partial request may subtract half-day increments from the server-derived
   // full count. It may never invent a day outside that recomputed range.
   const partialDayCount = Math.max(0.5, fullDays - 0.5);
+  const days = requestedDays == null ? fullDays : requestedDays;
   if (fullDays <= 0 || (days !== fullDays && days !== partialDayCount)) {
-    return json({ ok: false, error: "days_mismatch", full_days: fullDays }, 400);
+    return fail({ error: "days_mismatch", full_days: fullDays }, 400);
   }
   // A floating holiday represents one calendar square on the team calendar.
   // A half-day is allowed, but it must still be attached to one business date.
   if (type === "floating_holiday" && (startDate !== endDate || fullDays !== 1)) {
-    return json({ ok: false, error: "floating_holiday_range" }, 400);
+    return fail({ error: "floating_holiday_range" }, 400);
   }
 
   const currentBalance = computePtoBalance(ptoMember, snapshot.requests, snapshot.adjustments, today);
   if (paidType(type) && (!currentBalance.eligible || startDate < currentBalance.eligibility_date)) {
-    return json({ ok: false, error: "not_eligible" }, 403);
+    return fail({ error: "not_eligible" }, 403);
   }
 
   const requestYearBalance = computePtoBalance(
@@ -617,57 +632,90 @@ async function requestTimeOff(
     startDate,
   );
   if (paidType(type) && endDate > String(requestYearBalance.leave_year_end || "")) {
-    return json({ ok: false, error: "crosses_leave_year" }, 400);
+    return fail({ error: "crosses_leave_year" }, 400);
   }
   if (type === "wellness" && Number(requestYearBalance.wellness_available) < days) {
-    return json({ ok: false, error: "insufficient_balance" }, 409);
+    return fail({ error: "insufficient_balance" }, 409);
   }
   if (type === "sick" && Number(requestYearBalance.sick_available) < days) {
-    return json({ ok: false, error: "insufficient_sick_balance" }, 409);
+    return fail({ error: "insufficient_sick_balance" }, 409);
   }
   if (type === "floating_holiday") {
-    if (days > FLOATING_HOLIDAY_ALLOWANCE || floatingAlreadyClaimed(snapshot.requests, caller.id, startDate.slice(0, 4))) {
-      return json({ ok: false, error: "floating_holiday_used" }, 409);
+    if (days > FLOATING_HOLIDAY_ALLOWANCE || floatingAlreadyClaimed(snapshot.requests, memberId, startDate.slice(0, 4))) {
+      return fail({ error: "floating_holiday_used" }, 409);
     }
   }
+  return {
+    plan: { type, startDate, endDate, days, note, fullDays, partialDayCount, ptoMember, requestYearBalance },
+  };
+}
 
-  const expectedStateVersion = Number(ptoMember.state_version);
+// Inserts a pending row through pto_create_request_v1 (the same transactional
+// path as a member's request: row lock, state-version check, floating-holiday
+// uniqueness). Answers the created row, or a refusal Response.
+async function createRequestRow(
+  supabase: SupabaseClient,
+  memberId: string,
+  plan: TimeOffPlan,
+  source: "syncview" | "admin_log",
+): Promise<{ row: PtoRequestRow } | { error: Response }> {
+  const expectedStateVersion = Number(plan.ptoMember.state_version);
   if (!Number.isSafeInteger(expectedStateVersion) || expectedStateVersion < 0) {
     throw new Error("pto_request_state_invalid");
   }
   const { data: createdRaw, error } = await supabase.rpc("pto_create_request_v1", {
-    p_member_id: caller.id,
-    p_type: type,
-    p_start_date: startDate,
-    p_end_date: endDate,
-    p_days: days,
-    p_note: note,
-    p_source: "syncview",
+    p_member_id: memberId,
+    p_type: plan.type,
+    p_start_date: plan.startDate,
+    p_end_date: plan.endDate,
+    p_days: plan.days,
+    p_note: plan.note,
+    p_source: source,
     p_expected_state_version: expectedStateVersion,
   });
+  // Deployed before migrations/2026-11-01-pto-admin-log-source.sql: the
+  // source check refuses 'admin_log' (23514) and nothing is written. Say so
+  // instead of failing as a generic service error.
+  if (error && source === "admin_log" && (error.code === "23514" || /pto_requests_source_check/.test(clean(error.message, 500)))) {
+    return {
+      error: json({
+        ok: false,
+        error: "admin_log_not_ready",
+        message: "Logging time off is paused until the admin-log database update is applied.",
+      }, 503),
+    };
+  }
   if (error || !createdRaw || typeof createdRaw !== "object") {
     throw new Error("pto_request_insert_failed");
   }
   const created = createdRaw as JsonMap;
   const createStatus = clean(created.status, 40);
-  if (createStatus === "stale") return json({ ok: false, error: "request_state_changed" }, 409);
-  if (createStatus === "member_not_found") {
-    return json({ ok: false, error: "member_not_found" }, 409);
-  }
-  if (createStatus === "not_enabled") {
-    return json({ ok: false, error: "pto_not_enabled" }, 409);
-  }
+  if (createStatus === "stale") return { error: json({ ok: false, error: "request_state_changed" }, 409) };
+  if (createStatus === "member_not_found") return { error: json({ ok: false, error: "member_not_found" }, 409) };
+  if (createStatus === "not_enabled") return { error: json({ ok: false, error: "pto_not_enabled" }, 409) };
   if (createStatus === "floating_holiday_used") {
-    return json({ ok: false, error: "floating_holiday_used" }, 409);
+    return { error: json({ ok: false, error: "floating_holiday_used" }, 409) };
   }
   if (createStatus !== "ok" || !created.request || typeof created.request !== "object") {
     throw new Error("pto_request_insert_failed");
   }
-  const inserted = created.request as PtoRequestRow;
+  return { row: created.request as PtoRequestRow };
+}
+
+async function requestTimeOff(
+  supabase: SupabaseClient,
+  caller: MemberRow,
+  body: JsonMap,
+): Promise<Response> {
+  const snapshot = await loadMemberPolicySnapshot(supabase, caller.id);
+  const checked = checkTimeOff(snapshot, caller.id, body, { allowPast: false });
+  if ("error" in checked) return checked.error;
+  const created = await createRequestRow(supabase, caller.id, checked.plan, "syncview");
+  if ("error" in created) return created.error;
   return json({
     ok: true,
-    request: serializeRequest(inserted, caller.name),
-    full_days: fullDays,
+    request: serializeRequest(created.row, caller.name),
+    full_days: checked.plan.fullDays,
   }, 201);
 }
 
@@ -743,6 +791,19 @@ async function decideRequest(
   if (decision !== "approved" && decision !== "denied") {
     return json({ ok: false, error: "invalid_decision" }, 400);
   }
+  return await finalizeDecision(supabase, caller, requestId, decision, decisionNote);
+}
+
+// The approval path itself: a transactional snapshot, the balance re-check at
+// the moment of approval, and pto_finalize_decision_v1 with the caller as the
+// decider. Kasper's Approve button and an admin's logged entry both use it.
+async function finalizeDecision(
+  supabase: SupabaseClient,
+  caller: MemberRow,
+  requestId: string,
+  decision: "approved" | "denied",
+  decisionNote: string,
+): Promise<Response> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const { data: snapshotRaw, error: snapshotError } = await supabase
       .rpc("pto_decision_snapshot_v1", { p_request_id: requestId });
@@ -872,6 +933,127 @@ async function cancelRequest(
   if (error) throw new Error("pto_request_cancel_failed");
   if (!updated) return json({ ok: false, error: "request_state_changed" }, 409);
   return json({ ok: true, request: serializeRequest(updated as PtoRequestRow) });
+}
+
+function balanceKindFor(type: string): "wellness" | "sick" | "floating_holiday" | null {
+  if (type === "wellness" || type === "sick" || type === "floating_holiday") return type;
+  return null;
+}
+
+function availableFor(type: string, balance: JsonMap, requests: PtoRequestRow[], memberId: string, startDate: string): number | null {
+  if (type === "wellness") return Number(balance.wellness_available || 0);
+  if (type === "sick") return Number(balance.sick_available || 0);
+  if (type === "floating_holiday") {
+    return floatingAlreadyClaimed(requests, memberId, startDate.slice(0, 4)) ? 0 : FLOATING_HOLIDAY_ALLOWANCE;
+  }
+  return null;
+}
+
+// Live (pending or approved) leave of the same member on any of these dates.
+// A member's own request path has no such check; a logged entry must not draw
+// a second bar over leave that is already on the calendar or in the queue.
+function overlappingRequest(
+  requests: PtoRequestRow[],
+  memberId: string,
+  startDate: string,
+  endDate: string,
+): PtoRequestRow | null {
+  return requests.find((row) =>
+    row.member_id === memberId
+    && (row.status === "pending" || row.status === "approved")
+    && row.start_date <= endDate
+    && row.end_date >= startDate
+  ) || null;
+}
+
+// Admin "Log time off" (Kasper > Time Off). Creates the member's entry through
+// the same checks and the same create RPC as their own request, then approves
+// it through the same approval path as Kasper's Approve button, with the admin
+// as the decider. The row carries source 'admin_log' and decided_by = the
+// admin, so every view can say who logged it. Past dates are allowed (a sick
+// day is usually logged after it happened); everything else is the member's
+// rule set. quoteOnly answers what it would use and writes nothing.
+async function logTimeOff(
+  supabase: SupabaseClient,
+  admin: MemberRow,
+  members: MemberRow[],
+  body: JsonMap,
+  quoteOnly: boolean,
+): Promise<Response> {
+  const memberId = clean(body.member_id, 80);
+  if (!UUID.test(memberId)) return json({ ok: false, error: "invalid_member_id" }, 400);
+  const member = members.find((row) => row.id === memberId);
+  if (!member) return json({ ok: false, error: "member_not_found" }, 404);
+
+  const snapshot = await loadMemberPolicySnapshot(supabase, memberId);
+  const checked = checkTimeOff(snapshot, memberId, body, { allowPast: true, quoteOnly });
+  if ("error" in checked) return checked.error;
+  const plan = checked.plan;
+  const overlap = overlappingRequest(snapshot.requests, memberId, plan.startDate, plan.endDate);
+  if (overlap) {
+    return json({
+      ok: false,
+      error: "overlaps_existing",
+      overlap: {
+        status: overlap.status,
+        type: overlap.type,
+        start_date: overlap.start_date,
+        end_date: overlap.end_date,
+      },
+    }, 409);
+  }
+
+  const availableBefore = availableFor(plan.type, plan.requestYearBalance, snapshot.requests, memberId, plan.startDate);
+  const quote = {
+    member_id: member.id,
+    member_name: member.name,
+    type: plan.type,
+    start_date: plan.startDate,
+    end_date: plan.endDate,
+    full_days: plan.fullDays,
+    partial_day_count: plan.partialDayCount,
+    days: plan.days,
+    balance_kind: balanceKindFor(plan.type),
+    available_before: availableBefore,
+    available_after: availableBefore == null ? null : availableBefore - plan.days,
+    leave_year_end: plan.requestYearBalance.leave_year_end || null,
+  };
+  if (quoteOnly) return json({ ok: true, ...quote });
+
+  const created = await createRequestRow(supabase, memberId, plan, "admin_log");
+  if ("error" in created) return created.error;
+  // Who logged it is decided_by (the admin) plus source 'admin_log'; the
+  // decision note stays empty so the member's own view reads "Logged by".
+  const loggedNote = "";
+  const withdraw = async () => {
+    await supabase
+      .from("pto_requests")
+      .update({ status: "cancelled", cancelled_by: admin.name, cancelled_at: new Date().toISOString() })
+      .eq("id", created.row.id)
+      .eq("status", "pending");
+  };
+  let decided: Response;
+  try {
+    decided = await finalizeDecision(supabase, admin, created.row.id, "approved", loggedNote);
+  } catch (error) {
+    try { await withdraw(); } catch (_withdrawError) {}
+    throw error;
+  }
+  let decidedBody: JsonMap = {};
+  try { decidedBody = await decided.clone().json() as JsonMap; } catch (_error) {}
+  if (decided.ok && decidedBody.ok === true && decidedBody.request) {
+    return json({
+      ok: true,
+      logged: true,
+      request: serializeRequest(decidedBody.request as PtoRequestRow, member.name),
+      quote,
+    }, 201);
+  }
+  // The approval refused (a write slipped in between, or the balance moved).
+  // Never leave a stray pending row in Kasper's queue that nobody asked for:
+  // withdraw it, recorded as cancelled by the admin, and pass the refusal on.
+  await withdraw();
+  return json({ ...decidedBody, ok: false, withdrawn: true }, decided.status >= 400 ? decided.status : 409);
 }
 
 function halfDayDelta(value: unknown): number | null {
@@ -1008,11 +1190,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (req.method === "GET" && action !== "overview") {
       return json({ ok: false, error: "unknown_action" }, 400);
     }
-    if (req.method === "POST" && !["quote", "request", "decide", "cancel", "adjust", "set_start_date"].includes(action)) {
+    if (req.method === "POST" && !["quote", "request", "decide", "cancel", "adjust", "set_start_date", "log", "log_quote"].includes(action)) {
       return json({ ok: false, error: "unknown_action" }, 400);
     }
 
-    const adminOnly = action === "decide" || action === "adjust" || action === "set_start_date";
+    // log / log_quote put time off on someone else's record: admin key only,
+    // refused here before any HR table is read.
+    const adminOnly = action === "decide" || action === "adjust" || action === "set_start_date"
+      || action === "log" || action === "log_quote";
     const auth = authorizeStaffKey(
       clean(req.headers.get("x-syncview-key"), 5000),
       adminOnly ? ["admin"] : STAFF_ROLES,
@@ -1038,14 +1223,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       callerMemberId = body.member_id;
     }
 
-    // Approval gets a transactional snapshot from its database RPC. Quote and
-    // request use a state-version-bracketed per-member snapshot. None of these
+    // Approval gets a transactional snapshot from its database RPC. Quote,
+    // request and an admin's log use a state-version-bracketed per-member snapshot. None of these
     // paths depend on the global overview/history loader.
-    if (action === "decide" || action === "quote" || action === "request") {
+    if (action === "decide" || action === "quote" || action === "request" || action === "log" || action === "log_quote") {
       const members = await loadAllMembers(supabase);
       const caller = resolveCaller(members, req, callerMemberId, auth.role);
       if (!caller) return json({ ok: false, error: "forbidden" }, 403);
       if (action === "decide") return await decideRequest(supabase, caller, body);
+      if (action === "log" || action === "log_quote") {
+        return await logTimeOff(supabase, caller, members, body, action === "log_quote");
+      }
       if (action === "quote") return await quoteTimeOff(supabase, caller, body);
       return await requestTimeOff(supabase, caller, body);
     }

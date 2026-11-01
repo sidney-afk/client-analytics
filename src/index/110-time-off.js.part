@@ -150,11 +150,13 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         if (code === 'pto_service_failed') return 'Time Off is temporarily unavailable. Try again in a moment.';
         if (code === 'cancellation_audit_not_ready') return 'Approved leave cannot be cancelled until the private cancellation-audit migration is ready.';
         if (code === 'start_date_history_conflict') return 'This start date cannot be changed here because leave history already exists. Use a reviewed data correction so balances are not silently rewritten.';
+        if (code === 'overlaps_existing') return 'They already have time off on these dates. Approve or cancel that entry instead.';
+        if (code === 'admin_log_not_ready') return 'Logging time off is paused until its database update is applied. Nothing was saved.';
         if (code === 'days_mismatch' || code === 'day_count_mismatch' || code === 'invalid_days') return 'Choose a half-day amount no larger than the business days in this range.';
         return String(json && (json.message || json.error_description || json.error) || (status === 403 ? 'This action is not available for this staff role.' : 'Time Off could not be updated.'));
     }
     async function _ptoApi(action, method, payload, retried) {
-        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date' || (action === 'cancel' && _syncviewStaffCan('pto-admin'));
+        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date' || action === 'log' || action === 'log_quote' || (action === 'cancel' && _syncviewStaffCan('pto-admin'));
         const identity = await _syncviewRequireStaffIdentity(adminAction ? 'pto-admin' : undefined);
         method = method || (action === 'overview' ? 'GET' : 'POST');
         const wire = Object.assign({}, payload || {});
@@ -404,8 +406,8 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
             + '<div class="pto-notice" id="ptoNotice" hidden>Less than 14 days’ notice. This is allowed, but the policy asks for two weeks when possible.</div>'
             + '<div class="pto-field full"><label for="ptoNote">Note <span style="font-weight:500;color:var(--text-muted);">(optional)</span></label><textarea id="ptoNote" maxlength="1000" placeholder="Anything Kasper should know"' + (enabled ? '' : ' disabled') + '></textarea></div>'
             + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled && !writeLocked ? '' : ' disabled') + '>' + (writeLocked ? 'Refresh to verify' : 'Send request') + '</button></form></section>';
-        const requestRows = requests.length ? '<div class="pto-table-scroll pto-staff-history-table"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
-            + '<div class="pto-request-history-cards">' + requests.map(row => '<article class="pto-request-history-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-history-top">' + _ptoTypePill(row.type) + _ptoStatusHtml(row.status) + '</div><div class="pto-request-history-dates">' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</div>' + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '<div class="pto-request-history-actions"><span class="pto-request-history-meta">' + _ptoFmtDays(row.days) + ' days requested</span>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel request</button>' : '') + '</div></article>').join('') + '</div>'
+        const requestRows = requests.length ? '<div class="pto-table-scroll pto-staff-history-table"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + _ptoLoggedNoteHtml(row) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
+            + '<div class="pto-request-history-cards">' + requests.map(row => '<article class="pto-request-history-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-history-top">' + _ptoTypePill(row.type) + _ptoStatusHtml(row.status) + '</div><div class="pto-request-history-dates">' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</div>' + _ptoLoggedNoteHtml(row) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '<div class="pto-request-history-actions"><span class="pto-request-history-meta">' + _ptoFmtDays(row.days) + ' days requested</span>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel request</button>' : '') + '</div></article>').join('') + '</div>'
             : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
         const historyHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">My requests</div><div class="pto-card-sub">Pending requests can be cancelled before Kasper decides.</div></div></div>' + requestRows + '</section>';
         const memberRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Staff member') + '</strong></td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td>' + (member.on_leave_today ? '<span class="pto-status approved">Away today</span>' : '—') + '</td></tr>').join('') : '';
@@ -708,11 +710,11 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         const recentRows = recent.length ? recent.map(row => {
             const wasCancelled = String(row.status) === 'cancelled';
             const decisionAttribution = wasCancelled && row.cancelled_by && row.decided_by
-                ? '<span>' + _ptoEsc('Approved by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') + '</span>'
+                ? '<span>' + _ptoEsc((row.source === 'admin_log' ? 'Logged by ' : 'Approved by ') + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') + '</span>'
                 : '';
             const currentAttribution = wasCancelled
                 ? (row.cancelled_by ? _ptoEsc('Cancelled by ' + row.cancelled_by) + (row.cancelled_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.cancelled_at)) : '') : 'Cancellation attribution unavailable')
-                : (row.decided_by ? _ptoEsc('Decided by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') : 'Decision attribution unavailable');
+                : (row.decided_by ? _ptoEsc((row.source === 'admin_log' ? 'Logged by ' : 'Decided by ') + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') : 'Decision attribution unavailable');
             const decisionNote = String(row.decision_note || '').trim();
             return '<div class="pto-history-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><span>' + _ptoTypePill(row.type) + '</span></div><div><span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>' + _ptoStatusHtml(row.status) + '</span></div>' + (decisionNote ? '<div class="pto-history-note"><strong>Decision note:</strong> ' + _ptoEsc(decisionNote) + '</div>' : '') + '<small>' + decisionAttribution + '<span>' + currentAttribution + '</span></small></div>';
         }).join('') : '<div class="pto-empty">No completed requests yet.</div>';
@@ -729,15 +731,220 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
             return { value: String(member.member_id || ''), label: duplicate ? base + ' · ' + context : base };
         });
         const kindItems = [{ value: 'wellness', label: 'Wellness', tone: 'wellness' }, { value: 'sick', label: 'Sick', tone: 'sick' }];
+        // Only people whose Time Off is switched on can have leave logged; the
+        // server refuses the rest (pto_not_enabled) anyway.
+        const enabledIds = new Set(members.filter(member => member.pto_enabled).map(member => String(member.member_id || '')));
+        const logMemberItems = memberItems.filter(item => enabledIds.has(item.value));
         const asOf = String(overview.as_of_date || _ptoTodayIso());
         const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last admin change. Select Refresh before making another update.</div>' : '';
         root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div>' + writeUnknownHtml + '<div class="pto-admin-grid">'
             + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('pending-requests', 'Pending requests', 'The server re-checks policy and available balance at the moment an approval is saved.', 'pto-admin-title') + '<span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
             + '<section class="pto-admin-card full pto-cal-admin" id="ptoAdminCalendarCard">' + _ptoRenderAdminCalendar(overview) + '</section>'
             + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll-cue">Swipe sideways to view all balance columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Member balances; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
+            + _ptoLogCardHtml(overview, logMemberItems, asOf, writeLocked)
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days. An adjustment never appears on the team calendar.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Changes a balance only. It does not put anything on the team calendar. To record a day someone was off, use Log time off.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which calendar leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
             + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which calendar leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
             + '</div></div>';
+        _ptoLogSync(false);
+    }
+    /* ── Log time off (admin) ────────────────────────────────────────────
+       Kasper records leave for someone else: it is created through the same
+       checks as the member's own request and approved in the same step, so it
+       lands on the team calendar and uses their balance like any approved
+       request (pto action `log`; `log_quote` answers what it would use). */
+    function _ptoLoggedNoteHtml(row) {
+        if (!row || row.source !== 'admin_log') return '';
+        const who = String(row.decided_by || '').trim();
+        const note = String(row.note || '').trim();
+        return '<div class="pto-table-note">' + _ptoEsc(who ? 'Logged by ' + who : 'Logged by an admin') + '</div>'
+            + (note ? '<div class="pto-table-note"><strong>Note:</strong> ' + _ptoEsc(note) + '</div>' : '');
+    }
+    function _ptoLogDaysWord(value) { return _ptoFmtDays(value) + (_ptoNumber(value) === 1 ? ' day' : ' days'); }
+    function _ptoLogRangeText(start, end) {
+        if (!start) return '';
+        if (!end || end === start) return _ptoFmtDate(start, { weekday: 'short', month: 'short', day: 'numeric' });
+        return _ptoFmtDate(start, { month: 'short', day: 'numeric' }) + ' – ' + _ptoFmtDate(end, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function _ptoLogCardHtml(overview, memberItems, asOf, writeLocked) {
+        const typeItems = [
+            { value: 'sick', label: 'Sick', tone: 'sick' },
+            { value: 'wellness', label: 'Wellness', tone: 'wellness' },
+            { value: 'floating_holiday', label: 'Floating holiday', tone: 'floating' },
+            { value: 'unpaid', label: 'Unpaid', tone: 'unpaid' },
+        ];
+        _ptoAdminState.logQuote = null;
+        _ptoAdminState.logEndTouched = false;
+        const last = _ptoAdminState.lastLog;
+        const done = last ? '<div class="pto-log-done" role="status"><div><strong>Logged.</strong> ' + _ptoEsc(_ptoTypeLabel(last.type)) + ' for ' + _ptoEsc(last.name) + ', ' + _ptoEsc(_ptoLogRangeText(last.start, last.end)) + ' (' + _ptoEsc(_ptoLogDaysWord(last.days)) + '). It is on the team calendar.</div><button class="pto-row-btn" type="button" onclick="_ptoLogShowOnCalendar(' + _jsAttrArg(last.start) + ')">See it on the calendar</button></div>' : '';
+        const controls = 'ptoLogMemberBtn ptoLogTypeBtn ptoLogStartBtn ptoLogEndBtn';
+        return '<section class="pto-admin-card pto-log-card" id="ptoLogCard"><div class="pto-admin-title-row">' + _svExplainLabel('log-time-off', 'Log time off', 'For leave someone did not request themselves, such as a sick day. It is saved as approved, shows on the team calendar, and uses their balance exactly like an approved request.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Record leave for a team member. It goes straight onto the team calendar and uses their balance.</div>'
+            + done
+            + '<form class="pto-admin-form" id="ptoLogForm" onsubmit="_ptoAdminLog(event)" oninput="_ptoClearValidation(\'ptoLogError\', \'' + controls + '\')" onchange="_ptoClearValidation(\'ptoLogError\', \'' + controls + '\')">'
+            + '<div class="pto-field"><label for="ptoLogMemberBtn">Team member</label>' + _svSelectHtml('ptoLogMember', memberItems, '', memberItems.length ? 'Choose member' : 'Nobody has Time Off on yet', { disabled: !memberItems.length, onchange: '_ptoLogSync(false)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoLogTypeBtn">' + _svExplainLabel('log-type', 'Type', 'Sick and wellness use their matching balance. A floating holiday uses the one flexible day for that year. Unpaid leave changes no balance.') + '</label>' + _svSelectHtml('ptoLogType', typeItems, '', 'Choose type', { onchange: '_ptoLogSync(false)' }) + '</div>'
+            + '<div class="pto-form"><div class="pto-field"><label for="ptoLogStartBtn">From</label>' + _svDateHtml('ptoLogStart', asOf, { required: true, today: asOf, onchange: '_ptoLogSync(true)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoLogEndBtn">To</label>' + _svDateHtml('ptoLogEnd', asOf, { required: true, today: asOf, min: asOf, onchange: '_ptoLogEndPicked()' }) + '</div></div>'
+            + '<label class="pto-check"><input id="ptoLogHalf" type="checkbox" onchange="_ptoLogSync(false)"> <span id="ptoLogHalfLabel">Half day</span></label>'
+            + '<div class="pto-field"><label for="ptoLogNote">Note <span class="pto-optional">(optional, they will see it)</span></label><input id="ptoLogNote" type="text" maxlength="1000" placeholder="Called in sick"></div>'
+            + '<div class="pto-log-quote" id="ptoLogQuote" aria-live="polite">Choose a team member and a type to see what this uses.</div>'
+            + '<button class="pto-submit" id="ptoLogSubmit" type="submit" disabled>' + (writeLocked ? 'Refresh to verify' : 'Log time off') + '</button><div class="pto-form-error" id="ptoLogError" role="alert"></div></form></section>';
+    }
+    function _ptoLogInputs() {
+        const value = id => { const el = document.getElementById(id); return el ? String(el.value || '') : ''; };
+        const half = document.getElementById('ptoLogHalf');
+        return { member_id: value('ptoLogMember'), type: value('ptoLogType'), start_date: value('ptoLogStart'), end_date: value('ptoLogEnd'), half: !!(half && half.checked && !half.disabled), note: value('ptoLogNote').trim() };
+    }
+    function _ptoLogKey(inputs) { return [inputs.member_id, inputs.type, inputs.start_date, inputs.end_date].join('|'); }
+    function _ptoLogEndPicked() {
+        _ptoAdminState.logEndTouched = true;
+        _ptoLogSync(false);
+    }
+    let _ptoLogQuoteGen = 0;
+    let _ptoLogQuoteTimer = null;
+    // Brings the form in line with its inputs. The end date follows the start
+    // until someone picks it, so a single day needs one date. The half-day box
+    // speaks to the range it is in. A quote is asked for (debounced) whenever
+    // the member, type or dates change; the Log button waits for it.
+    function _ptoLogSync(startChanged) {
+        const start = document.getElementById('ptoLogStart');
+        const end = document.getElementById('ptoLogEnd');
+        const half = document.getElementById('ptoLogHalf');
+        const halfLabel = document.getElementById('ptoLogHalfLabel');
+        if (!start || !end) return;
+        const type = (document.getElementById('ptoLogType') || {}).value || '';
+        const floating = type === 'floating_holiday';
+        if (start.value && (floating || !_ptoAdminState.logEndTouched || !end.value || end.value < start.value)) end.value = start.value;
+        end.min = start.value || '';
+        end.disabled = floating;
+        _svSyncDateControl('ptoLogStart');
+        _svSyncDateControl('ptoLogEnd');
+        const overview = _ptoAdminState.overview;
+        const localDays = _ptoCountRequestDays(start.value, end.value, overview && overview.holidays);
+        if (half) half.disabled = localDays <= 0 && !!(start.value && end.value);
+        if (halfLabel) halfLabel.textContent = localDays > 1 ? 'The first or last day is a half day' : 'Half day';
+        const inputs = _ptoLogInputs();
+        const key = _ptoLogKey(inputs);
+        if (_ptoAdminState.logQuote && _ptoAdminState.logQuote.key === key) { _ptoLogRenderQuote(); return; }
+        _ptoAdminState.logQuote = null;
+        const generation = ++_ptoLogQuoteGen;
+        if (_ptoLogQuoteTimer) clearTimeout(_ptoLogQuoteTimer);
+        if (!inputs.member_id || !inputs.type || !inputs.start_date || !inputs.end_date) { _ptoLogRenderQuote(); return; }
+        _ptoLogRenderQuote(true);
+        _ptoLogQuoteTimer = setTimeout(() => _ptoLogFetchQuote(generation, key, inputs), 220);
+    }
+    async function _ptoLogFetchQuote(generation, key, inputs) {
+        let result;
+        try {
+            const quote = await _ptoApi('log_quote', 'POST', { member_id: inputs.member_id, type: inputs.type, start_date: inputs.start_date, end_date: inputs.end_date });
+            result = { key, ok: true, quote };
+        } catch (error) {
+            result = { key, ok: false, code: error && error.code || '', message: _ptoLogMessage(error) };
+        }
+        if (generation !== _ptoLogQuoteGen || _ptoLogKey(_ptoLogInputs()) !== key) return;
+        _ptoAdminState.logQuote = result;
+        _ptoLogRenderQuote();
+    }
+    // Admin-voiced versions of the member's messages: here "your profile" is
+    // somebody else's.
+    function _ptoLogMessage(error) {
+        const code = String(error && error.code || '');
+        if (code === 'pto_not_enabled') return 'Their Time Off is switched off. Turn it on in Member setup first.';
+        if (code === 'not_eligible') return 'Paid time off starts 60 days after their start date. Log it as unpaid instead.';
+        if (code === 'insufficient_balance') return 'That is more than their wellness balance for that leave year.';
+        if (code === 'insufficient_sick_balance') return 'That is more than their sick balance for that leave year.';
+        if (code === 'floating_holiday_used') return 'Their floating holiday for that year is already used or waiting for a decision.';
+        if (code === 'crosses_leave_year') return 'Paid leave cannot cross Dec 31. Log each year separately.';
+        if (code === 'days_mismatch') return 'There are no business days in these dates (weekends and paid holidays are skipped).';
+        return error && error.message ? error.message : 'SyncView could not check this. Try again.';
+    }
+    function _ptoLogRenderQuote(pending) {
+        const box = document.getElementById('ptoLogQuote');
+        const button = document.getElementById('ptoLogSubmit');
+        if (!box) return;
+        const state = _ptoAdminState.logQuote;
+        const inputs = _ptoLogInputs();
+        let ready = false;
+        box.classList.remove('is-problem');
+        box.removeAttribute('aria-busy');
+        if (pending) {
+            box.setAttribute('aria-busy', 'true');
+            box.innerHTML = '<span class="sv-skeleton pto-log-quote-skel" aria-hidden="true"></span><span class="sr-only">Checking their balance</span>';
+        } else if (!state || state.key !== _ptoLogKey(inputs)) {
+            box.textContent = 'Choose a team member and a type to see what this uses.';
+        } else if (!state.ok) {
+            box.classList.add('is-problem');
+            box.textContent = state.message;
+        } else {
+            const q = state.quote || {};
+            const days = inputs.half ? _ptoNumber(q.partial_day_count) : _ptoNumber(q.full_days);
+            const before = q.available_before == null ? null : _ptoNumber(q.available_before);
+            let text;
+            if (q.type === 'unpaid' || before == null) text = 'Unpaid, ' + _ptoLogDaysWord(days) + '. Their balances do not change.';
+            else if (q.type === 'floating_holiday') text = 'Uses their floating holiday for ' + String(q.start_date || '').slice(0, 4) + ' (' + _ptoLogDaysWord(days) + ').';
+            else text = 'Uses ' + _ptoLogDaysWord(days) + ' of ' + (q.type === 'sick' ? 'sick' : 'wellness') + ' time. ' + _ptoFmtDays(before) + ' available, ' + _ptoFmtDays(before - days) + ' left after.';
+            box.textContent = text;
+            ready = days > 0;
+        }
+        if (button) {
+            button.dataset.quotePending = pending ? 'true' : 'false';
+            button.disabled = _ptoAdminState.writeOutcomeUnknown || !ready;
+        }
+    }
+    async function _ptoAdminLog(event) {
+        event.preventDefault();
+        if (_ptoBlockWrites('admin')) return;
+        const button = document.getElementById('ptoLogSubmit');
+        const errorBox = document.getElementById('ptoLogError');
+        const inputs = _ptoLogInputs();
+        _ptoClearValidation('ptoLogError', 'ptoLogMemberBtn ptoLogTypeBtn ptoLogStartBtn ptoLogEndBtn');
+        if (!inputs.member_id) { _ptoShowValidation('ptoLogError', 'Choose a team member.', 'ptoLogMemberBtn'); return; }
+        if (!inputs.type) { _ptoShowValidation('ptoLogError', 'Choose the type of time off.', 'ptoLogTypeBtn'); return; }
+        if (!_ptoDate(inputs.start_date) || !_ptoDate(inputs.end_date) || inputs.end_date < inputs.start_date) { _ptoShowValidation('ptoLogError', 'Choose valid dates.', 'ptoLogStartBtn', 'ptoLogStartBtn ptoLogEndBtn'); return; }
+        const state = _ptoAdminState.logQuote;
+        if (!state || !state.ok || state.key !== _ptoLogKey(inputs)) { _ptoShowValidation('ptoLogError', 'Wait for the balance check above before logging.', 'ptoLogMemberBtn'); return; }
+        const days = inputs.half ? _ptoNumber(state.quote.partial_day_count) : _ptoNumber(state.quote.full_days);
+        const member = _ptoAdminMemberRows(_ptoAdminState.overview).find(row => String(row.member_id) === inputs.member_id);
+        button.disabled = true;
+        svBusyText(button, 'Logging…');
+        try {
+            await _ptoApi('log', 'POST', { member_id: inputs.member_id, type: inputs.type, start_date: inputs.start_date, end_date: inputs.end_date, days, note: inputs.note });
+            _ptoAdminState.lastLog = { name: member && member.name || 'Team member', type: inputs.type, start: inputs.start_date, end: inputs.end_date, days };
+            _ptoShowToast('Time off logged');
+            _ptoInvalidateOverviewCaches();
+            await _ptoLoadAdmin(true);
+            const done = document.querySelector('#ptoLogCard .pto-log-done button');
+            if (done) done.focus({ preventScroll: true });
+        } catch (error) {
+            const message = _ptoLogMessage(error);
+            if (errorBox) errorBox.textContent = message;
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                button.textContent = 'Refresh to verify';
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', message);
+                return;
+            }
+            button.textContent = 'Log time off';
+            _ptoAdminState.logQuote = null;
+            _ptoLogSync(false);
+            if (errorBox) errorBox.textContent = message;
+        }
+    }
+    // The confirmation's link: open the team calendar on that day.
+    function _ptoLogShowOnCalendar(iso) {
+        const date = _ptoDate(iso);
+        if (!date || !_ptoAdminState.overview) return;
+        _ptoAdminState.calView = 'month';
+        _ptoAdminState.month = new Date(date.getFullYear(), date.getMonth(), 1);
+        _ptoAdminState.monthInitialized = true;
+        _ptoAdminState.selectedDay = String(iso);
+        _ptoAdminState.calFocusDay = String(iso);
+        _ptoCalRepaint(['[data-pto-cal-day="' + String(iso) + '"]', '.pto-cal-today']);
+        const card = document.getElementById('ptoAdminCalendarCard');
+        const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (card) card.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
     }
     function _ptoAdminPickMember(memberId) {
         const member = _ptoAdminMemberRows(_ptoAdminState.overview).find(row => String(row.member_id) === String(memberId));
@@ -1381,11 +1588,12 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _ptoAdminAdjust, _ptoAdminCancel, _ptoAdminDecide, _ptoAdminPickMember, _ptoAdminSetMember,
-        _ptoAdminSignIn, _ptoCalClearDay, _ptoCalDetailKeydown, _ptoCalGoToday, _ptoCalGridKeydown,
-        _ptoCalPickDay, _ptoCalReviewRequest, _ptoCalSetView, _ptoCalShiftMonth, _ptoCancelRequest,
-        _ptoClearValidation, _ptoLoadAdmin, _ptoLoadOverview, _ptoOpenFromMenu, _ptoShiftMonth,
-        _ptoSubmitRequest, _ptoSyncRequestForm
+        _ptoAdminAdjust, _ptoAdminCancel, _ptoAdminDecide, _ptoAdminLog, _ptoAdminPickMember,
+        _ptoAdminSetMember, _ptoAdminSignIn, _ptoCalClearDay, _ptoCalDetailKeydown, _ptoCalGoToday,
+        _ptoCalGridKeydown, _ptoCalPickDay, _ptoCalReviewRequest, _ptoCalSetView, _ptoCalShiftMonth,
+        _ptoCancelRequest, _ptoClearValidation, _ptoLoadAdmin, _ptoLoadOverview, _ptoLogEndPicked,
+        _ptoLogShowOnCalendar, _ptoLogSync, _ptoOpenFromMenu, _ptoShiftMonth, _ptoSubmitRequest,
+        _ptoSyncRequestForm
     });
 export {
   _ptoAdminPending, _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview,

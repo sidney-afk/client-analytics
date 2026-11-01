@@ -169,15 +169,16 @@ async function contactDigest(tok: string, body: Record<string, unknown>) {
     const q = encodeURIComponent(`from:${email} OR to:${email} OR cc:${email}`);
     const list = await gmail(tok, `/messages?q=${q}&maxResults=${per}`).catch(() => null);
     const messages = [];
+    let failed = 0;
     for (const m of (list && list.messages) || []) {
       const g = await gmail(tok, `/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`).catch(() => null);
-      if (!g) continue;
+      if (!g) { failed++; continue; }
       const hs: any[] = (g.payload && g.payload.headers) || [];
       const h = (n: string) => clean((hs.find((x) => String(x.name).toLowerCase() === n) || {}).value);
       messages.push({ date: new Date(Number(g.internalDate) || 0).toISOString(), from_us: h("from").toLowerCase().includes("@" + OWN_DOMAIN),
         subject: h("subject").slice(0, 200), snippet: clean(g.snippet).slice(0, 300) });
     }
-    contacts.push({ email, ok: !!list, messages });
+    contacts.push({ email, ok: !!list && failed === 0, failed, messages });
   }
   return { ok: true, contacts };
 }

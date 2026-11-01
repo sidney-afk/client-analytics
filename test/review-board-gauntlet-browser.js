@@ -16,10 +16,12 @@
  *  5. A reload while the approve saves: after the reload the part does not wait, and the page reported the reload.
  *  6. Two tabs: the approve in one; the other, brought to the front, shows it approved and sends nothing again.
  *  7. A tab left open five hours, then used: the approve lands.
- *  8. A nearly full browser store: the approve lands; a refused save is reported with the store's fill (all of it).
+ *  8. A nearly full browser store: the approve lands; a refused save is reported with the store's fill (all of it),
+ *     and Try again lands and is reported as landed_after_retry.
  *  9. An uncaught error on the board is reported by kind and place only, never its message.
  * 10. The client link: a double tap on Approve sends one approve; a refused approve is reported with its code.
- * Every report: ids and codes only, never a client name, a card title or typed words.
+ * Every report: a signature of fixed words (board, action, code, part, store fill) plus ids the server hashes; never a
+ * client name, a card title or typed words.
  */
 const { chromium, webkit } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -67,6 +69,8 @@ async function refreshBoard(t) {
   await sleep(600);
 }
 const inList = (t, id) => t.page.evaluate(pid => _kasperState.items.some(i => i.post && i.post.id === pid), id || 'rs1');
+// Give the filler back, so the retry's own recovery copy fits again.
+const localStorage_free = t => t.page.evaluate(() => { try { localStorage.removeItem('fixture_full_store'); } catch (e) {} });
 const noWords = (beacons) => !JSON.stringify(beacons).match(/Fixture Studio|first second matters|Why the first|calmer week|secret words/i);
 
 async function burst(browser, origin, order) {
@@ -139,8 +143,8 @@ async function runEngine(browserType, origin) {
     await until(() => t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post.id === 'rs1'); return !i || i.post.video_status !== 'Kasper Approval'; }), 9000);
     const vAfter = await t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post.id === 'rs1'); return i ? i.post.video_status : 'gone'; });
     expect(vAfter !== 'Kasper Approval', '5: after the reload the video is not waiting for him again (' + vAfter + ', server ' + card(t).video_status + ')');
-    const reloadRep = t.beacons.find(b => b.operation === 'review_reload_during_save');
-    expect(!!reloadRep && reloadRep.env && reloadRep.env.code === 'approve', '5: the reload during the save was reported (' + JSON.stringify(reloadRep || null) + ')');
+    const reloadRep = t.beacons.find(b => b.operation === 'review_reload_mid_save');
+    expect(!!reloadRep && reloadRep.env && reloadRep.env.code === 'approve' && reloadRep.env.board === 'kasper' && reloadRep.env.part === 'video' && !!(reloadRep.identifiers && reloadRep.identifiers.client_slug), '5: the reload during the save was reported (' + JSON.stringify(reloadRep || null) + ')');
     expect(noWords(t.beacons), '5: no names, titles or words in any report');
     await t.ctx.close();
 
@@ -194,7 +198,13 @@ async function runEngine(browserType, origin) {
     await inS(t.page, part('caption') + ' [data-ok]').first().click();
     const rep8 = await until(async () => t.beacons.some(x => x.operation === 'review_approve'), 15000);
     const r8 = t.beacons.find(x => x.operation === 'review_approve') || {};
-    expect(rep8 >= 0 && r8.env && r8.env.storage_kc >= Math.floor(filled / 1000) - 10 && r8.env.storage_pct >= Math.min(99, Math.floor(filled / 5242880 * 100) - 1) && r8.env.code && r8.identifiers && r8.identifiers.card === 'rs1' && r8.identifiers.component === 'caption', '8: the refused approve is reported with its code and the store\'s fill (' + JSON.stringify(r8.env || null) + ')');
+    expect(rep8 >= 0 && r8.env && r8.env.storage_kc >= Math.floor(filled / 1000) - 10 && r8.env.storage_pct >= Math.min(99, Math.floor(filled / 5242880 * 100) - 1) && r8.env.code && r8.env.board === 'kasper' && r8.env.part === 'caption' && r8.identifiers && r8.identifiers.card === 'rs1' && r8.identifiers.component === 'caption', '8: the refused approve is reported with its code, board, part and the store\'s fill (' + JSON.stringify(r8.env || null) + ')');
+    // Try again lands: a second report says so, for the watcher's "retry landed".
+    await localStorage_free(t);
+    const retry8 = inS(t.page, '[data-retry="caption"]').first();
+    if (await retry8.count()) await retry8.click();
+    const rl8 = await until(async () => t.beacons.some(x => x.operation === 'review_approve' && x.env && x.env.code === 'landed_after_retry' && x.env.part === 'caption'), 15000);
+    expect(rl8 >= 0 && card(t).caption_status === 'Client Approval', '8: Try again lands and is reported as landed_after_retry (server ' + card(t).caption_status + ')');
     expect(noWords(t.beacons), '8: no names, titles or words in any report');
     await t.ctx.close();
 
@@ -202,8 +212,8 @@ async function runEngine(browserType, origin) {
     console.log('--- 9. an uncaught error on the board ---');
     t = await openKasper(browser, origin);
     await t.page.evaluate(() => { setTimeout(() => { throw new TypeError('secret words from a card title'); }, 0); });
-    const rep9 = await until(async () => t.beacons.some(x => x.operation === 'review_page_error'), 5000);
-    const r9 = t.beacons.find(x => x.operation === 'review_page_error') || {};
+    const rep9 = await until(async () => t.beacons.some(x => x.operation === 'review_uncaught'), 5000);
+    const r9 = t.beacons.find(x => x.operation === 'review_uncaught') || {};
     expect(rep9 >= 0 && r9.env && r9.env.code === 'uncaught_error' && /^TypeError/.test(String(r9.message || '')), '9: the error is reported by kind and place (' + JSON.stringify({ message: r9.message, env: r9.env }) + ')');
     expect(noWords(t.beacons), '9: its message is not in the report');
     await t.ctx.close();
@@ -225,7 +235,7 @@ async function runEngine(browserType, origin) {
     if (await b10.count()) await b10.click();
     const rep10 = await until(async () => t.beacons.some(x => x.operation === 'review_approve' && x.page === 'client_link'), 15000);
     const r10 = t.beacons.find(x => x.operation === 'review_approve') || {};
-    expect(rep10 >= 0 && r10.env && r10.env.code && typeof r10.env.storage_pct === 'number', '10: a refused client approve is reported with its code and the store\'s fill (' + JSON.stringify(r10.env || null) + ')');
+    expect(rep10 >= 0 && r10.env && r10.env.code && r10.env.board === 'client' && typeof r10.env.storage_pct === 'number', '10: a refused client approve is reported with its code and the store\'s fill (' + JSON.stringify(r10.env || null) + ')');
     expect(noWords(t.beacons), '10: no names, titles or words in any report');
     expect(t.errors.length === 0, '10: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();

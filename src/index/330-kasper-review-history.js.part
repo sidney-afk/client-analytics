@@ -1827,7 +1827,8 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     /* A press this board drops on purpose is still reported (OPEN_REPAIRS 626): the same part
        already saving, or a card no longer in his list. Ids only. */
     function _kasperDropped(action, code, pid, comp) {
-        _writeUiReviewEvent('calendar', 'review_repeat', code, { card: String(pid || ''), component: String(comp || '') }, action);
+        const it = _kasperState.items.find(x => x.post && x.post.id === pid);
+        _writeUiReviewEvent('calendar', 'review_double_click', code, { card: String(pid || ''), component: String(comp || ''), client_slug: it ? String(it.slug || '') : '', board: 'kasper' }, action);
     }
     async function _kasperApproveComp(pid, comp, dest) {
         const item = _kasperState.items.find(x => x.post.id === pid);
@@ -2017,14 +2018,14 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks, opts) {
         const keepStatus = !!(opts && opts.keepStatus);
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item) { _kasperDropped('change', 'card_not_in_list', pid, comp); return; }
+        if (!item) { _kasperDropped('tweak', 'card_not_in_list', pid, comp); return; }
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         if (!item._touchedComps) item._touchedComps = new Set();
         const body = String(item._drafts[comp] || '').trim();
         if (!body) return;
-        if (item._saving[comp]) { _kasperDropped('change', 'save_in_flight', pid, comp); return; }
+        if (item._saving[comp]) { _kasperDropped('tweak', 'save_in_flight', pid, comp); return; }
         _kasperInvalidateInFlightLoad();
         // Mirrors the client-review submit: comment lands in the thread,
         // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's

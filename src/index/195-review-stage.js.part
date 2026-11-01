@@ -1357,14 +1357,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     /* REPORTS FROM THE CLIENT LINK AND KASPER'S REVIEW BOARD (OPEN_REPAIRS 626, session Reviewguard). The refusal log
        had nothing from these pages when Kasper said he sometimes has to approve twice. They now report, through the
-       shared beacon (120, _writeUiReviewEvent): a save the stage shows as not saved, with the action that started it;
-       a press dropped because that part was already answered; a reload or a closed tab while a save was running; and
-       an uncaught error. Ids, codes and the error's kind only, never words, titles or names. Built after the fact, on a
-       timer, fire-and-forget: nothing here sits in a save's path. The SMM's Review tab is not part of this report. */
+       shared beacon (120, _writeUiReviewEvent), with a signature a scheduled watcher can group by: the board (kasper or
+       client), the action (approve, tweak, comment, reload_mid_save, double_click, uncaught), a code, the part. What
+       goes: a save the stage shows as not saved; the same save landing later on a retry (`landed_after_retry`); a press
+       dropped because that part was already answered; a reload while a save was running (reported by the next page);
+       and an uncaught error. Ids, codes and the error's kind only, never words, titles or names. Built after the fact,
+       on a timer, fire-and-forget: nothing here sits in a save's path. The SMM's Review tab is not part of this. */
     function _rsBoardOn() { return !!(R.host && R.host.isConnected && !R.host.hidden && R.S && (R.mode === 'client' || R.mode === 'kasper')); }
     function _rsReport(action, code, m, comp, where) {
         if (!_rsBoardOn()) return;
-        try { _writeUiReviewEvent(m && m.sample ? 'sxr' : 'calendar', action, code, m ? { card: String(m.id), component: String(comp || '') } : null, where || ''); } catch (e) {}
+        try { _writeUiReviewEvent(m && m.sample ? 'sxr' : 'calendar', action, code, _rsReportIds(m, comp), where || ''); } catch (e) {}
+    }
+    // Ids for a report: the card, the part, the board, and on Kasper's board the card's client (hashed by the function;
+    // the client link's own client is added by the beacon).
+    function _rsReportIds(m, comp) {
+        const ids = { board: R.mode === 'client' ? 'client' : 'kasper' };
+        if (!m) return ids;
+        ids.card = String(m.id); ids.component = String(comp || '');
+        if (R.mode === 'kasper' && m.item && m.item.slug) ids.client_slug = String(m.item.slug);
+        return ids;
     }
     // The last action pressed on each part this visit: names a save's failure, and finds the saves still running.
     function _rsActed(m, comp, act) { const S = R.S; (S.lastAct || (S.lastAct = {}))[m.id + '|' + comp] = act; }
@@ -1393,6 +1404,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!err) { delete seen[key]; return; }
             if (seen[key] === err) return;
             seen[key] = err;
+            (S.failedAct || (S.failedAct = {}))[key] = S.lastAct[key];
             _rsReport('review_' + S.lastAct[key], _rsErrCode(err), m, k);
         });
     }
@@ -1409,7 +1421,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const S = R.S, saving = [];
             Object.keys(S.lastAct || {}).forEach(key => {
                 const i = key.lastIndexOf('|'), m = _rsModelById(key.slice(0, i)), k = key.slice(i + 1);
-                if (m && _rsSaving(m, k)) saving.push({ id: String(m.id), k, act: S.lastAct[key], sxr: !!m.sample });
+                if (m && _rsSaving(m, k)) saving.push(Object.assign(_rsReportIds(m, k), { act: S.lastAct[key], sxr: !!m.sample }));
             });
             if (saving.length) sessionStorage.setItem(RS_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), mode: R.mode, saving: saving.slice(0, 10) }));
         } catch (e) {}
@@ -1422,7 +1434,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         try { note = JSON.parse(sessionStorage.getItem(RS_INFLIGHT_KEY) || 'null'); sessionStorage.removeItem(RS_INFLIGHT_KEY); } catch (e) { note = null; }
         if (!note || !(Date.now() - Number(note.at || 0) < 10 * 60000) || !Array.isArray(note.saving)) return;
         note.saving.forEach(x => {
-            try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_during_save', String(x.act || 'save'), { card: String(x.id || ''), component: String(x.k || '') }); } catch (e) {}
+            try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_mid_save', String(x.act || 'save'), { card: String(x.card || ''), component: String(x.component || ''), client_slug: String(x.client_slug || ''), board: x.board }); } catch (e) {}
         });
         if (note.mode !== 'kasper' || R.mode !== 'kasper' || !(Date.now() - Number(note.at) < 60000)) return;
         [4000, 10000].forEach(ms => setTimeout(() => { try { if (typeof window._kasperLoadReview === 'function') window._kasperLoadReview(true); } catch (e) {} }, ms));
@@ -1444,14 +1456,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!_rsBoardOn() || !e) return;
             // Browser noise that is not a fault (a ResizeObserver loop), and cross-origin errors with nothing in them.
             if (!e.error && (/ResizeObserver/.test(String(e.message || '')) || !e.filename)) return;
-            _rsReport('review_page_error', 'uncaught_error', null, '', _rsErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
+            _rsReport('review_uncaught', 'uncaught_error', null, '', _rsErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
         } catch (x) {}
     });
     addEventListener('unhandledrejection', e => {
         try {
             if (!_rsBoardOn() || !e) return;
             const r = e.reason;
-            _rsReport('review_page_error', 'unhandled_rejection', null, '', r && typeof r === 'object' ? _rsStackWhere(r) : 'NonError');
+            _rsReport('review_uncaught', 'unhandled_rejection', null, '', r && typeof r === 'object' ? _rsStackWhere(r) : 'NonError');
         } catch (x) {}
     });
     function _rsFreshState() {
@@ -3345,6 +3357,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 }
                 delete S.slow[key]; delete S.pressed[key];
                 if (!_rsError(cur, comp) && landed) { delete S.retry[key]; delete S.retryText[key]; if (done) _rsFlash(done, comp, m.id, true); }
+                /* This part's save was reported as failed earlier in the visit and has now ended well (OPEN_REPAIRS 626).
+                   On Kasper's board an approved part can leave the card's list of parts, so "gone" counts as landed. */
+                if (S.failedAct && S.failedAct[key] && !_rsError(cur, comp) && (landed || !part)) {
+                    _rsReport('review_' + S.failedAct[key], 'landed_after_retry', cur, comp);
+                    delete S.failedAct[key];
+                }
                 _rsRender();
                 return;
             }
@@ -3386,11 +3404,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
            finished the SMM's stage, so the part no longer waits, yet the card goes on to Kasper (Nightreel, 2026-10-30). */
         const trialOn = trialDone && comp === 'video' && R.mode === 'smm' && fx && fx.st === 'chg' && fresh.post && fresh.post.video_status === 'Tweaks Needed';
         if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp) && !trialOn)) {
-            _rsReport('review_repeat', !fresh || fresh.gone || !fx ? 'card_gone' : 'already_answered', m, comp, 'approve');
+            _rsReport('review_double_click', !fresh || fresh.gone || !fx ? 'card_gone' : 'already_answered', m, comp, 'approve');
             _rsRender({ force: true });
             return;
         }
-        _rsActed(m, comp, how === 'client' ? 'approve_to_client' : 'approve');
+        _rsActed(m, comp, 'approve');
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];   // an earlier refused caption edit must not stand in for this save's own result
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
@@ -3436,7 +3454,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             return;
         }
-        _rsActed(m, comp, opts.aat ? 'approve_after_tweaks' : 'change');
+        _rsActed(m, comp, 'tweak');
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };

@@ -1687,14 +1687,19 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
        log cannot see: a press the page dropped because the same action was already sent, a
        reload while a save was running, a save the stage shows as failed, and an uncaught error.
 
-       What goes: the action (`review_approve`, `review_repeat`, ...), a short code, the card
-       and part ids (hashed by the function before they are stored), how full the browser's
-       store is, and for a page error only the error's kind and file:line. Never a client name,
-       a card title or any typed words. The function reads browser and OS from the user agent.
+       What goes, as a signature a watcher can group by and paste into a public fix PR:
+       the board (`kasper` or `client`), the action (`review_approve`, `review_tweak`,
+       `review_comment`, `review_reload_mid_save`, `review_double_click`, `review_uncaught`),
+       a short code, the part (video, graphic, caption, title), how full the browser's store
+       is, and, when a failed save later lands on a retry, a second report with the code
+       `landed_after_retry`. Card and client ids go along for grouping and are hashed by the
+       function before they are stored (the card id is kept readable, as for every report);
+       for a page error only the error's kind and file:line. Never a client name, a card title
+       or any typed words. The function reads browser and OS from the user agent.
 
        Cheap and never in the way: a report is built after the action is over, on a timer, and
        sent fire-and-forget through the same capped beacon; at most 20 a page, and the same
-       report once a minute. Read per day with production_write_refusal_review_daily_v1
+       report once a minute. Read by signature with production_write_refusal_review_signatures_v1
        (docs/ops/OPEN_REPAIRS.md 626). */
     const WRITE_UI_REVIEW_MAX = 20;
     let _writeUiReviewBudget = WRITE_UI_REVIEW_MAX;
@@ -1721,8 +1726,10 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
     function _writeUiReviewCode(value) {
         return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'unknown';
     }
-    /* `ids` may hold card and component (ids, never words); `where` is used only for a page
-       error ("TypeError at sv-12-reviewstage.js:120:7") and for the action a dropped press was. */
+    /* `ids`: card, component, client_slug (ids, never words) and board ('kasper' or 'client');
+       `where` is used only for a page error ("TypeError at sv-12-reviewstage.js:120:7") and for
+       the action a dropped press was. */
+    const WRITE_UI_REVIEW_PARTS = ['video', 'graphic', 'caption', 'title'];
     function _writeUiReviewEvent(surface, action, code, ids, where) {
         try {
             if (_writeUiReviewBudget <= 0) return;
@@ -1736,8 +1743,11 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
                     const item = { kind: String(action || 'review_other').slice(0, 40) };
                     if (ids && ids.card) item.card = String(ids.card);
                     if (ids && ids.component) item.component = String(ids.component);
+                    if (ids && ids.client_slug) item.client_slug = String(ids.client_slug).slice(0, 120);
+                    const env = { code: c, board: ids && ids.board === 'client' ? 'client' : 'kasper' };
+                    if (ids && WRITE_UI_REVIEW_PARTS.indexOf(ids.component) >= 0) env.part = ids.component;
                     _writeRefusalBeacon(surface === 'sxr' ? 'sxr' : 'calendar', 'ui_write_failure', item,
-                        { code: c, message: where ? String(where).slice(0, 120) : '', reviewEnv: { code: c } });
+                        { code: c, message: where ? String(where).slice(0, 120) : '', reviewEnv: env });
                 } catch (e) {}
             }, 0);
         } catch (e) {}

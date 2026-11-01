@@ -22,6 +22,10 @@
  * OPEN_REPAIRS 414 (2026-10-13): only the _calReviewApprove hash was re-pinned. The change is in its
  * staff-only (smm) branch; the client requests above are unchanged.
  *
+ * OPEN_REPAIRS 623 (2026-11-01): the two write-diagnostics REPORTS gained `env` (the browser store's fill, numbers
+ * only), added to the golden by hand with the numbers normalised; the approve and request-changes requests, and every
+ * source hash, are unchanged.
+ *
  * Note outbox (2026-10-15): only the _calReviewRequestTweak hash was re-pinned. It now keeps the note
  * on screen, marked "Sending…", while the request is on its way (UI state only); the requests above
  * are unchanged.
@@ -72,13 +76,15 @@ const FUNCTIONS = ['_calReviewApprove', '_calReviewRequestTweak', '_sxrReviewApp
 // these four source hashes were refreshed, exactly as PR 2 did for the Calendar twins.
 
 // Per-run values (times, random ids) must not make two identical clicks differ.
-function normalise(value) {
-  if (Array.isArray(value)) return value.map(normalise);
+function normalise(value, key) {
+  if (Array.isArray(value)) return value.map(v => normalise(v));
   if (value && typeof value === 'object') {
     const out = {};
-    for (const key of Object.keys(value).sort()) out[key] = normalise(value[key]);
+    for (const k of Object.keys(value).sort()) out[k] = normalise(value[k], k);
     return out;
   }
+  // The browser store's fill on a refusal report (OPEN_REPAIRS 623) depends on what this run's browser holds.
+  if ((key === 'storage_kc' || key === 'storage_pct') && typeof value === 'number') return '<n>';
   if (typeof value === 'number' && value > 1e12) return '<ms>';
   if (typeof value !== 'string') return value;
   return value

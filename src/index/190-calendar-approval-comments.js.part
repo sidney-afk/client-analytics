@@ -6,7 +6,7 @@ import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
   _calIsYouTubeCard, _calNormStatus, _prodCommentAddRoutesLegacy, _writeUiBindRepairAck,
   _writeUiComponentHasWorkItem, _writeUiFailureSentence, _writeUiMergeCommittedBatch, _writeUiNativeId,
-  _writeUiRecordFailure, _writeUiReportFailure, _writeUiReviewEvent, _writeUiSourceClientSlug, computeOverallStatus
+  _writeUiRecordFailure, _writeUiReportFailure, _writeUiSourceClientSlug, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
   _calCommentsFor, _calCommentsForView, _calCompLinked, _calLinearUrlFor, _calMsgAudience,
@@ -867,16 +867,11 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         return true;
     }
     // onSaved (optional): called once the server has confirmed the save, never after a refused one.
-    /* A client-link press dropped because the same part is still saving (OPEN_REPAIRS 623):
-       reported with ids only. Staff pages are out of this report's scope. */
-    function _calReviewDropped(action, pid, comp) {
-        if (_isClientLink) _writeUiReviewEvent('calendar', 'review_repeat', 'save_in_flight', { card: String(pid || ''), component: String(comp || '') }, action);
-    }
     function _calReviewApplyApprove(pid, comp, dest, resolvedBefore, onSaved) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
-        if (_calReviewState.saving[key]) { _calReviewDropped('approve', pid, comp); return; }
+        if (_calReviewState.saving[key]) return;
         const mode = _calReviewMode();
         const subKey = comp + '_status';
         // A client can only approve a component sitting on THEIR review surface
@@ -994,8 +989,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!post) return;
         const key = pid + '|' + comp;
         const body = String(_calReviewState.drafts[key] || '').trim();
-        if (!body) return;
-        if (_calReviewState.saving[key]) { _calReviewDropped('comment', pid, comp); return; }
+        if (!body || _calReviewState.saving[key]) return;
         const role = _calCommentRole();
         const _now = new Date().toISOString();
         // The note goes in the outbox first (its words survive a failed send
@@ -1080,8 +1074,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const key = pid + '|' + comp;
         const rawDraft = String(_calReviewState.drafts[key] || '');
         const body = rawDraft.trim();
-        if (!body) return;
-        if (_calReviewState.saving[key]) { _calReviewDropped('change', pid, comp); return; }
+        if (!body || _calReviewState.saving[key]) return;
         if (_isClientLink) {
             const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
             if (cur !== 'client approval' && cur !== 'tweaks needed') return;

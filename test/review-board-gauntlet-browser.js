@@ -16,7 +16,7 @@
  *  5. A reload while the approve saves: after the reload the part does not wait, and the page reported the reload.
  *  6. Two tabs: the approve in one; the other, brought to the front, shows it approved and sends nothing again.
  *  7. A tab left open five hours, then used: the approve lands.
- *  8. A nearly full browser store: the approve lands; a refused save is reported with the store's fill (99 %+).
+ *  8. A nearly full browser store: the approve lands; a refused save is reported with the store's fill (all of it).
  *  9. An uncaught error on the board is reported by kind and place only, never its message.
  * 10. The client link: a double tap on Approve sends one approve; a refused approve is reported with its code.
  * Every report: ids and codes only, never a client name, a card title or typed words.
@@ -194,7 +194,7 @@ async function runEngine(browserType, origin) {
     await inS(t.page, part('caption') + ' [data-ok]').first().click();
     const rep8 = await until(async () => t.beacons.some(x => x.operation === 'review_approve'), 15000);
     const r8 = t.beacons.find(x => x.operation === 'review_approve') || {};
-    expect(rep8 >= 0 && r8.env && r8.env.storage_pct >= 99 && r8.env.code && r8.identifiers && r8.identifiers.card === 'rs1' && r8.identifiers.component === 'caption', '8: the refused approve is reported with its code and the store\'s fill (' + JSON.stringify(r8.env || null) + ')');
+    expect(rep8 >= 0 && r8.env && r8.env.storage_kc >= Math.floor(filled / 1000) - 10 && r8.env.storage_pct >= Math.min(99, Math.floor(filled / 5242880 * 100) - 1) && r8.env.code && r8.identifiers && r8.identifiers.card === 'rs1' && r8.identifiers.component === 'caption', '8: the refused approve is reported with its code and the store\'s fill (' + JSON.stringify(r8.env || null) + ')');
     expect(noWords(t.beacons), '8: no names, titles or words in any report');
     await t.ctx.close();
 

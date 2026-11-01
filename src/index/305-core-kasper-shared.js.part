@@ -681,7 +681,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
            Kasper write on this card diffs against the post-write state (sequential
            approvals on different components each patch only their own column).
 
-           ONLY WHAT THIS WRITE SENT (OPEN_REPAIRS 623, Kasper's "I sometimes have to
+           ONLY WHAT THIS WRITE SENT (OPEN_REPAIRS 626, Kasper's "I sometimes have to
            approve twice"). The base used to be a snapshot of the card as it stood
            when this write ENDED. A part he approved while it was in flight (his
            second layout shows every part at once, and a write takes 1.5 to 3 s live)

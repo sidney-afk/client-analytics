@@ -32,7 +32,7 @@ export function shapeBrowserReceipt(receipt,body){
  if(body?.failure==='network'){out.code='network_failure';out.status=null;}
  return out;
 }
-// OPEN_REPAIRS 623 (2026-11-01): the review boards' own code for what happened and how
+// OPEN_REPAIRS 626 (2026-11-01): the review boards' own code for what happened and how
 // full the browser's store is. Codes are a short snake_case word; the store is counted in
 // thousands of characters and as a percent of the ~5.2 million where browsers stop.
 const UI_CODE=/^[a-z0-9_]{1,60}$/;

@@ -142,7 +142,7 @@ const CAL_SUPABASE_URL = 'https://synthetic.invalid';
   + grabFunc('_writeRefusalAttemptId') + '\n'
   + grabConst('WRITE_REFUSAL_NETWORK_MESSAGE') + '\n'
   + grabFunc('_writeRefusalIsNetworkFailure') + '\n'
-  // OPEN_REPAIRS 623: every claim also says how full the browser's store is.
+  // OPEN_REPAIRS 626: every claim also says how full the browser's store is.
   + grabConst('WRITE_UI_STORE_CAP_CHARS') + '\n'
   + 'let _writeUiStorageMemo = null;\n'
   + grabFunc('_writeUiStorageUse') + '\n'
@@ -201,7 +201,7 @@ ok(claim.page === 'staff_page' && beaconCalls[0].headers['X-Syncview-Key'] === '
 'a staff page sends its role key so the server can verify the role');
 ok(!('message' in claim), 'an error with no message sends no message');
 ok(claim.env && Number.isInteger(claim.env.storage_kc) && Number.isInteger(claim.env.storage_pct) && Object.keys(claim.env).every(k => ['storage_kc', 'storage_pct', 'code'].includes(k)),
-'the claim says how full the browser store is, in numbers only (OPEN_REPAIRS 623)');
+'the claim says how full the browser store is, in numbers only (OPEN_REPAIRS 626)');
 run2(`var _isClientLink = true; _writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-B' }, { code: 'write_conflict', message: 'Someone else changed this card' });`);
 ok(beaconCalls.length === 2 && beaconCalls[1].body.page === 'client_link' && !('X-Syncview-Key' in beaconCalls[1].headers),
 'a client link never sends a staff key');

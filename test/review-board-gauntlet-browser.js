@@ -1,6 +1,6 @@
 'use strict';
 /*
- * KASPER'S REVIEW BOARD AND THE CLIENT LINK UNDER KASPER'S OWN CONDITIONS (OPEN_REPAIRS 623, session Reviewguard,
+ * KASPER'S REVIEW BOARD AND THE CLIENT LINK UNDER KASPER'S OWN CONDITIONS (OPEN_REPAIRS 626, session Reviewguard,
  * 2026-11-01). Kasper said he sometimes has to approve twice. Real browsers (Chromium, and WebKit, Mac Safari's
  * engine, wherever it is installed; CI requires it with REVIEW_GAUNTLET_REQUIRE_WEBKIT=1), fully offline on the shared
  * review-stage fixture (fictional client, cards and people), his live setup (the Review Session, second layout, fast

@@ -1,7 +1,7 @@
 -- ef-auto-deploy: functions-cope-without-this
 -- (write-diagnostics calls production_write_refusal_record_browser_v3 and falls back to v2, then v1, while it is missing.)
 --
--- OPEN_REPAIRS 623 (session Reviewguard, 2026-11-01): the client link and Kasper's review
+-- OPEN_REPAIRS 626 (session Reviewguard, 2026-11-01): the client link and Kasper's review
 -- board report what they could not before (a press dropped because the part was already
 -- answered or still saving, a reload during a save, a save shown as not saved, an
 -- uncaught error), and every browser report now says how full the browser's store is.

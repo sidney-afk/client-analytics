@@ -21,7 +21,7 @@ Deno.serve(async(req:Request)=>{
  if(body.action==='browser_claim'){
   const receipt=shapeBrowserReceipt(await makeRefusalReceipt({surface:body.surface,operation:body.operation,identifiers:body.identifiers},body.code,body.status,'browser_claim',{traffic:requestTraffic(req),claimed_page:body.page}),body);
   const detail=browserDetail(body,req.headers.get('user-agent'),staff?.ok?staff.role:null),env=browserEnv(body);
-  // v3 (migration 20261101220000, OPEN_REPAIRS 623) also keeps the review boards' code and the store's
+  // v3 (migration 20261101220000, OPEN_REPAIRS 626) also keeps the review boards' code and the store's
   // fill. Until it is applied a claim records through v2 without them, then v1.
   let result=env?await db.rpc('production_write_refusal_record_browser_v3',{p_receipt:receipt,p_detail:detail,p_env:env}):null;
   if(!result||missingRpc(result.error))result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:receipt,p_detail:detail});

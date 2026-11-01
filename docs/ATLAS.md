@@ -1957,7 +1957,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261021180000_hf_tools.sql -->[`supabase/migrations/20261021180000_hf_tools.sql`](../supabase/migrations/20261021180000_hf_tools.sql) | `public.hf_tools` |
 | <!-- atlas:migration supabase/migrations/20261026200000_studio_trial_versions.sql -->[`supabase/migrations/20261026200000_studio_trial_versions.sql`](../supabase/migrations/20261026200000_studio_trial_versions.sql) | `public.studio_trial_versions` |
 | <!-- atlas:migration supabase/migrations/20261027090000_trial_reels.sql -->[`supabase/migrations/20261027090000_trial_reels.sql`](../supabase/migrations/20261027090000_trial_reels.sql) | `public.studio_trial_versions` (SyncView's columns), `public.trial_reel_cards` |
-| <!-- atlas:migration supabase/migrations/20261101220000_review_board_diagnostics.sql -->[`supabase/migrations/20261101220000_review_board_diagnostics.sql`](../supabase/migrations/20261101220000_review_board_diagnostics.sql) | `write_refusal_diagnostics.review_env_v1`, `public.production_write_refusal_record_browser_v3`, `public.production_write_refusal_review_daily_v1` (OPEN_REPAIRS 623) |
+| <!-- atlas:migration supabase/migrations/20261101220000_review_board_diagnostics.sql -->[`supabase/migrations/20261101220000_review_board_diagnostics.sql`](../supabase/migrations/20261101220000_review_board_diagnostics.sql) | `write_refusal_diagnostics.review_env_v1`, `public.production_write_refusal_record_browser_v3`, `public.production_write_refusal_review_daily_v1` (OPEN_REPAIRS 626) |
 
 ## Verification limits and keeping this map true
 

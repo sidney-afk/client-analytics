@@ -1642,7 +1642,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
                an error object, so it cannot ride along. */
             const message = String(error && error.message || '').slice(0, 200);
             if (message) claim.message = message;
-            /* OPEN_REPAIRS 623: how full this browser's store is, on every report (a full store
+            /* OPEN_REPAIRS 626: how full this browser's store is, on every report (a full store
                refused Kasper's tweaks in October, OPEN_REPAIRS 615, and nothing on the server
                could see it), and, from the review boards, the page's own code for what happened. */
             const env = Object.assign({}, _writeUiStorageUse() || {}, error && error.reviewEnv || {});
@@ -1681,7 +1681,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             localStorage.setItem(WRITE_UI_QUEUE_DIAG_KEY, JSON.stringify(list.slice(-50)));
         } catch (e) {}
     }
-    /* THE REVIEW BOARDS' OWN REPORTS (OPEN_REPAIRS 623, session Reviewguard, 2026-11-01).
+    /* THE REVIEW BOARDS' OWN REPORTS (OPEN_REPAIRS 626, session Reviewguard, 2026-11-01).
        Kasper said he sometimes has to approve twice, and the refusal log had nothing from his
        board to say why. The client link and Kasper's review board now also report what a save
        log cannot see: a press the page dropped because the same action was already sent, a
@@ -1695,7 +1695,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
        Cheap and never in the way: a report is built after the action is over, on a timer, and
        sent fire-and-forget through the same capped beacon; at most 20 a page, and the same
        report once a minute. Read per day with production_write_refusal_review_daily_v1
-       (docs/ops/OPEN_REPAIRS.md 623). */
+       (docs/ops/OPEN_REPAIRS.md 626). */
     const WRITE_UI_REVIEW_MAX = 20;
     let _writeUiReviewBudget = WRITE_UI_REVIEW_MAX;
     const _writeUiReviewSeen = new Map();

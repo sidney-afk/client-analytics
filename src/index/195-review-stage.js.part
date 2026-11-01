@@ -1355,7 +1355,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         q.forEach(x => { const d = edits[x.id]; if (d && Number(d.at || 0) > at) { best = x; at = Number(d.at || 0); } });
         return best;
     }
-    /* REPORTS FROM THE CLIENT LINK AND KASPER'S REVIEW BOARD (OPEN_REPAIRS 623, session Reviewguard). The refusal log
+    /* REPORTS FROM THE CLIENT LINK AND KASPER'S REVIEW BOARD (OPEN_REPAIRS 626, session Reviewguard). The refusal log
        had nothing from these pages when Kasper said he sometimes has to approve twice. They now report, through the
        shared beacon (120, _writeUiReviewEvent): a save the stage shows as not saved, with the action that started it;
        a press dropped because that part was already answered; a reload or a closed tab while a save was running; and
@@ -1398,7 +1398,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     /* A reload while a save on this page was still running. The server still finishes a request it has received, but
        Kasper's board, read again at once after a reload (and painted from his browser's copy before that), could show
-       the part waiting before the server was done, and he approved it again (OPEN_REPAIRS 623, test 5 of
+       the part waiting before the server was done, and he approved it again (OPEN_REPAIRS 626, test 5 of
        review-board-gauntlet-browser.js). So, as the page goes, this tab notes which saves were running (ids and the
        action only); the next page in the tab reports them, and his board reads the cards again a few seconds after it
        opens. Noted, not sent, on the way out: a request from a page being unloaded is not reliably delivered (Safari). */

@@ -1824,7 +1824,7 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
         panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
     }
 
-    /* A press this board drops on purpose is still reported (OPEN_REPAIRS 623): the same part
+    /* A press this board drops on purpose is still reported (OPEN_REPAIRS 626): the same part
        already saving, or a card no longer in his list. Ids only. */
     function _kasperDropped(action, code, pid, comp) {
         _writeUiReviewEvent('calendar', 'review_repeat', code, { card: String(pid || ''), component: String(comp || '') }, action);

@@ -1,5 +1,5 @@
 'use strict';
-// OPEN_REPAIRS 623 (session Reviewguard, 2026-11-01): migration 20261101220000 keeps the
+// OPEN_REPAIRS 626 (session Reviewguard, 2026-11-01): migration 20261101220000 keeps the
 // review boards' own code and the browser store's fill beside each browser report, and
 // adds a per-day read. Proves on a disposable PostgreSQL 16 that:
 //   - v3 records the claim through v2 (every older check still runs) and the extra fields

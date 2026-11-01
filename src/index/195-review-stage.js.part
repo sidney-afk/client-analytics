@@ -1438,7 +1438,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         });
         if (note.mode !== 'kasper' || R.mode !== 'kasper' || !(Date.now() - Number(note.at) < 60000)) return;
         /* Never while a save on his board is running: a re-read replaces the cards and would drop that save's
-           "saving" guard and its place in the card's chain of writes (Codex on #2485). It waits for the board to be
+           "saving" guard and its place in the card's chain of writes (Codex on PR 2485). It waits for the board to be
            quiet, up to a minute. */
         const busy = () => (_kasperState.items || []).some(it => it && it._saving && Object.keys(it._saving).some(k => it._saving[k]));
         const reread = (until) => {

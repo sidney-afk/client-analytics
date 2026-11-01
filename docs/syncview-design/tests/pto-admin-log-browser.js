@@ -91,8 +91,11 @@ async function install(page, state) {
         const clash = live.find(r => r.member_id === body.member_id && r.start_date <= body.end_date && r.end_date >= body.start_date);
         if (clash) return reply(409, { ok: false, error: 'overlaps_existing' });
         const full = businessDays(body.start_date, body.end_date);
-        const before = body.type === 'sick' ? 3 : (body.type === 'wellness' ? 4 : (body.type === 'floating_holiday' ? 1 : null));
-        const quote = { ok: true, type: body.type, start_date: body.start_date, end_date: body.end_date, full_days: full, partial_day_count: Math.max(0.5, full - 0.5), available_before: before };
+        const partial = Math.max(0.5, full - 0.5);
+        const before = body.type === 'sick' ? state.sickLeft : (body.type === 'wellness' ? 4 : (body.type === 'floating_holiday' ? 1 : null));
+        const days = action === 'log' ? Number(body.days) : (body.half === true ? partial : full);
+        if (before != null && days > before) return reply(409, { ok: false, error: body.type === 'sick' ? 'insufficient_sick_balance' : 'insufficient_balance' });
+        const quote = { ok: true, type: body.type, start_date: body.start_date, end_date: body.end_date, full_days: full, partial_day_count: partial, days, available_before: before };
         if (action === 'log_quote') {
           if (state.quoteDelayMs) await new Promise(resolve => setTimeout(resolve, state.quoteDelayMs));
           return reply(200, quote);
@@ -146,7 +149,7 @@ async function waitQuote(page, needle) {
 }
 
 async function main() {
-  const state = { overview: overview(), calls: [], unexpectedWrites: [], seq: 0, quoteDelayMs: 0, failNextLog: '' };
+  const state = { overview: overview(), calls: [], unexpectedWrites: [], seq: 0, quoteDelayMs: 0, failNextLog: '', sickLeft: 3 };
   const server = await serveStatic();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
@@ -207,6 +210,20 @@ async function main() {
     await setDate(page, 'ptoLogStart', '2030-04-07');
     assert(await page.locator('#ptoLogEnd').inputValue() === '2030-04-09', 'a picked end date stays put when the start moves before it');
     await page.locator('#ptoLogHalf').uncheck();
+    await waitQuote(page, '2.0 days');
+
+    // ── Only half a day left: the full day is refused, the half day is offered ──
+    state.sickLeft = 0.5;
+    await setDate(page, 'ptoLogStart', '2030-04-11');
+    await setDate(page, 'ptoLogEnd', '2030-04-11');
+    await waitQuote(page, 'more than their sick balance');
+    await page.locator('#ptoLogHalf').check();
+    await waitQuote(page, '0.0 left after');
+    assert(/Uses 0\.5 days of sick time\. 0\.5 available, 0\.0 left after\./.test(await quoteText(page)) && await page.locator('#ptoLogSubmit').isEnabled(),
+      'with half a day left, ticking Half day asks again and the half day can be logged');
+    assert(state.calls.filter(c => c.action === 'log_quote').pop().body.half === true, 'the quote is asked with the half-day choice');
+    await page.locator('#ptoLogHalf').uncheck();
+    state.sickLeft = 3;
 
     // ── Overlap refusal ──
     await setDate(page, 'ptoLogStart', '2030-04-16');
@@ -240,6 +257,18 @@ async function main() {
     await page.locator('#ptoLogCard .pto-log-done button').click();
     await page.waitForFunction(iso => _ptoAdminState.selectedDay === iso && !!document.querySelector('.pto-cal-detail'), AS_OF);
     assert((await page.locator('.pto-cal-detail').innerText()).includes(MEMBER.name), 'the link opens the team calendar on that day, showing the logged leave');
+    // A day logged more than three months back: the link still reaches its month.
+    await pick(page, 'ptoLogMember', MEMBER.id);
+    await pick(page, 'ptoLogType', 'unpaid');
+    await setDate(page, 'ptoLogStart', '2029-11-05');
+    await waitQuote(page, 'balances do not change');
+    await page.locator('#ptoLogSubmit').click();
+    await page.waitForFunction(() => (document.querySelector('#ptoLogCard .pto-log-done')?.textContent || '').includes('Nov'));
+    await page.locator('#ptoLogCard .pto-log-done button').click();
+    await page.waitForFunction(() => _ptoAdminState.selectedDay === '2029-11-05' && !!document.querySelector('.pto-cal-detail'));
+    assert(await page.evaluate(() => _ptoAdminState.month.getFullYear() === 2029 && _ptoAdminState.month.getMonth() === 10)
+      && (await page.locator('.pto-cal-detail').innerText()).includes(MEMBER.name),
+    'leave logged five months back opens its own month on the calendar, not the three-month limit');
     await page.locator('details.pto-admin-history summary').click();
     assert((await page.locator('.pto-history-list').innerText()).includes('Logged by ' + ADMIN.name), 'recent history says who logged it');
 

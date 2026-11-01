@@ -252,6 +252,16 @@ const over = await call("log", { member_id: MEMBER.id, type: "sick", start_date:
 ok(over.status === 409 && over.body.error === "insufficient_sick_balance" && rowsOf(MEMBER.id).length === 2, "a fourth sick day is refused for balance and writes nothing");
 const half = await call("log", { member_id: OTHER.id, type: "sick", start_date: d1, end_date: d1, days: 0.5 }, asAdmin);
 ok(half.status === 201 && Number((half.body.request as Row).days) === 0.5, "a half day logs 0.5");
+// Only half a day of sick time left: the half day must quote and log; the full day must not.
+tables.pto_adjustments.push({ id: newId(), member_id: OTHER.id, kind: "sick", delta: -2, effective_date: d1, reason: "Fixture", created_by: ADMIN.name, created_at: new Date().toISOString() });
+bump(OTHER.id);
+const halfLeftFull = await call("log_quote", { member_id: OTHER.id, type: "sick", start_date: lone, end_date: lone }, asAdmin);
+const halfLeftHalf = await call("log_quote", { member_id: OTHER.id, type: "sick", start_date: lone, end_date: lone, half: true }, asAdmin);
+ok(halfLeftFull.status === 409 && halfLeftFull.body.error === "insufficient_sick_balance", "with 0.5 sick left, a full-day quote is refused");
+ok(halfLeftHalf.status === 200 && halfLeftHalf.body.days === 0.5 && halfLeftHalf.body.available_before === 0.5 && halfLeftHalf.body.available_after === 0,
+  "and a half-day quote is answered with 0.5 and nothing left after (" + JSON.stringify(halfLeftHalf.body) + ")");
+tables.pto_adjustments.pop();
+bump(OTHER.id);
 const badHalf = await call("log", { member_id: OTHER.id, type: "wellness", start_date: d2, end_date: d3, days: 0.5 }, asAdmin);
 ok(badHalf.status === 400 && badHalf.body.error === "days_mismatch", "half-day rule unchanged: over two days only 2 or 1.5 is accepted");
 const pastWellness = await call("log", { member_id: OTHER.id, type: "wellness", start_date: d2, end_date: d2, days: 1 }, asAdmin);

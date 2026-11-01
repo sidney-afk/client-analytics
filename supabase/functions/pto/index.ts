@@ -571,8 +571,8 @@ type TimeOffPlan = {
 // eligibility, leave year, balance, floating holiday). A member's own request
 // and an admin's logged entry both go through it; the only difference an admin
 // gets is allowPast, because logging records leave that may already be over.
-// quoteOnly lets a quote run before a day count is chosen (the full count is
-// assumed).
+// quoteOnly lets a quote run without a day count (full range, or one half-day
+// endpoint when body.half is true).
 function checkTimeOff(
   snapshot: MemberPolicySnapshot,
   memberId: string,
@@ -610,7 +610,10 @@ function checkTimeOff(
   // A partial request may subtract half-day increments from the server-derived
   // full count. It may never invent a day outside that recomputed range.
   const partialDayCount = Math.max(0.5, fullDays - 0.5);
-  const days = requestedDays == null ? fullDays : requestedDays;
+  // A quote with no day count asks about the full range, or about the range
+  // with one half-day endpoint when body.half is true, so a half day that
+  // fits the balance is not refused for the full day it is not.
+  const days = requestedDays != null ? requestedDays : (body.half === true ? partialDayCount : fullDays);
   if (fullDays <= 0 || (days !== fullDays && days !== partialDayCount)) {
     return fail({ error: "days_mismatch", full_days: fullDays }, 400);
   }

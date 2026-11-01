@@ -794,7 +794,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         const half = document.getElementById('ptoLogHalf');
         return { member_id: value('ptoLogMember'), type: value('ptoLogType'), start_date: value('ptoLogStart'), end_date: value('ptoLogEnd'), half: !!(half && half.checked && !half.disabled), note: value('ptoLogNote').trim() };
     }
-    function _ptoLogKey(inputs) { return [inputs.member_id, inputs.type, inputs.start_date, inputs.end_date].join('|'); }
+    function _ptoLogKey(inputs) { return [inputs.member_id, inputs.type, inputs.start_date, inputs.end_date, inputs.half ? 'half' : 'full'].join('|'); }
     function _ptoLogEndPicked() {
         _ptoAdminState.logEndTouched = true;
         _ptoLogSync(false);
@@ -835,7 +835,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
     async function _ptoLogFetchQuote(generation, key, inputs) {
         let result;
         try {
-            const quote = await _ptoApi('log_quote', 'POST', { member_id: inputs.member_id, type: inputs.type, start_date: inputs.start_date, end_date: inputs.end_date });
+            const quote = await _ptoApi('log_quote', 'POST', { member_id: inputs.member_id, type: inputs.type, start_date: inputs.start_date, end_date: inputs.end_date, half: inputs.half });
             result = { key, ok: true, quote };
         } catch (error) {
             result = { key, ok: false, code: error && error.code || '', message: _ptoLogMessage(error) };
@@ -876,7 +876,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
             box.textContent = state.message;
         } else {
             const q = state.quote || {};
-            const days = inputs.half ? _ptoNumber(q.partial_day_count) : _ptoNumber(q.full_days);
+            const days = q.days != null ? _ptoNumber(q.days) : (inputs.half ? _ptoNumber(q.partial_day_count) : _ptoNumber(q.full_days));
             const before = q.available_before == null ? null : _ptoNumber(q.available_before);
             let text;
             if (q.type === 'unpaid' || before == null) text = 'Unpaid, ' + _ptoLogDaysWord(days) + '. Their balances do not change.';
@@ -902,7 +902,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         if (!_ptoDate(inputs.start_date) || !_ptoDate(inputs.end_date) || inputs.end_date < inputs.start_date) { _ptoShowValidation('ptoLogError', 'Choose valid dates.', 'ptoLogStartBtn', 'ptoLogStartBtn ptoLogEndBtn'); return; }
         const state = _ptoAdminState.logQuote;
         if (!state || !state.ok || state.key !== _ptoLogKey(inputs)) { _ptoShowValidation('ptoLogError', 'Wait for the balance check above before logging.', 'ptoLogMemberBtn'); return; }
-        const days = inputs.half ? _ptoNumber(state.quote.partial_day_count) : _ptoNumber(state.quote.full_days);
+        const days = state.quote.days != null ? _ptoNumber(state.quote.days) : (inputs.half ? _ptoNumber(state.quote.partial_day_count) : _ptoNumber(state.quote.full_days));
         const member = _ptoAdminMemberRows(_ptoAdminState.overview).find(row => String(row.member_id) === inputs.member_id);
         button.disabled = true;
         svBusyText(button, 'Logging…');
@@ -1036,6 +1036,14 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
         const min = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
         const max = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+        // An entry just logged further back than three months: its own month
+        // is reachable, so "See it on the calendar" lands on it (it is in the
+        // recent history the overview carries).
+        const logged = _ptoDate(_ptoAdminState.lastLog && _ptoAdminState.lastLog.start);
+        if (logged) {
+            const loggedMonth = new Date(logged.getFullYear(), logged.getMonth(), 1);
+            if (loggedMonth < min) min.setTime(loggedMonth.getTime());
+        }
         (Array.isArray(events) ? events : []).forEach(event => {
             const end = _ptoDate(event.end);
             if (!end) return;

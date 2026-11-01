@@ -870,6 +870,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .b-cmt:hover:not(:disabled){background:var(--fill)}
 .b-cmt svg{width:12px;height:12px}
 .b-cmt:disabled,.cl-foot .b-send-chg:disabled{background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);cursor:not-allowed}
+/* A comment is only a message (session Linkpolish, 2026-11-01): one calm line beside the buttons, and the inline
+   "What should change?" row "Ask for a change" opens when no part is picked. Hover lights only the button under it. */
+.cl-hint{flex:1 1 170px;min-width:0;margin-right:auto;font-size:.72rem;line-height:1.35;color:var(--text-secondary)}
+.cl-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 8px 6px;padding:6px 6px 10px 10px;border-radius:10px;background:var(--well);box-shadow:inset 0 0 0 1px var(--well-line);animation:clPickIn .16s var(--ease) both}
+.cl-pick .lbl{order:0;flex:1 1 calc(100% - 56px);font-size:.76rem;font-weight:700;color:var(--text-primary)}
+.cl-pick .pk{order:2}
+.cl-pick .pk{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px 0 10px;border-radius:99px;background:var(--deck);color:var(--text-primary);font-size:.78rem;font-weight:700;white-space:nowrap;box-shadow:inset 0 0 0 1px var(--border);transition:background .14s,box-shadow .14s}
+.cl-pick .pk:hover{background:var(--chgb);box-shadow:inset 0 0 0 1px var(--cmp-chg-line);color:var(--chg-fg)}
+.cl-pick .pk .pdot{width:7px;height:7px}
+.cl-pick .pk-x{order:1;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;color:var(--text-secondary);transition:background .14s,color .14s}
+.cl-pick .pk-x:hover{background:var(--fill-hover);color:var(--text-primary)}
+.cl-pick .pk-x svg{width:11px;height:11px}
+@keyframes clPickIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.cl-pick{animation:none}}
+@media (hover:none) and (pointer:coarse){.cl-pick .pk{min-height:44px;padding:0 14px 0 12px}.cl-pick .pk-x{width:44px;height:44px}}
 .tc-text{white-space:pre-line}
 .bub .diff{margin-top:4px}
 .bub .diff .new{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem;line-height:1.45;color:var(--text-primary)}
@@ -2795,12 +2810,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const reopenNote = x && x.st === 'ok' && !(k === 'video' && svTrialReviewCanReopen(m, R.mode, nt.trialLetter));
         const keys = opts.map(q => q.key);
         if (k && keys.indexOf(k) < 0) keys.push(k);
-        const chips = keys.length ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
+        // While "What should change?" is open, its row is the only place the parts are named (no second row of chips).
+        const chips = keys.length && !(!k && nt.pick && keys.length > 1) ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
             + (k ? (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>') + (R.cp ? '</span>' : '') : '') + '</div>' : '';
         const chgLabel = reopenNote ? 'Send to your team' : 'Ask for a change';
-        const foot = '<div class="cl-foot">'
+        /* Owner's ask (2026-11-01, session Linkpolish): "Ask for a change" is clickable as soon as there are words; with no
+           part picked it asks "What should change?" right here in the panel (one part: it sends at once), and a calm line
+           says a comment is only a message. */
+        R.S.askKeys = keys.slice();
+        const pick = !k && nt.pick && keys.length > 1 ? '<div class="cl-pick" id="clPick" role="group" aria-labelledby="clPickH"><span class="lbl" id="clPickH">What should change?</span>'
+            + keys.map(q => '<button class="pk" type="button" data-ask="' + q + '">' + _rsDot(q) + RS_PART[q] + '</button>').join('')
+            + '<button class="pk-x" type="button" id="clPickX" aria-label="Not now" title="Not now (Esc)">' + RI.x + '</button></div>' : '';
+        const hint = !k && keys.length && !pick ? '<span class="cl-hint" id="clHint">A comment is just a message. To get something changed, use Ask for a change.</span>' : '';
+        const foot = pick + '<div class="cl-foot">' + hint
             + '<button class="b-cmt" type="button" id="cmtBtn"' + (typed ? '' : ' disabled') + '>' + RI.send + 'Send comment</button>'
-            + (keys.length ? '<button class="b-send-chg" type="button" id="sendBtn"' + (typed && k ? '' : ' disabled') + (k ? '' : ' title="Pick what it is about first"') + '>' + RI.back + chgLabel + '</button>' : '') + '</div>';
+            + (keys.length ? '<button class="b-send-chg" type="button" id="sendBtn"' + (typed ? '' : ' disabled') + (k || pick ? '' : ' aria-describedby="clHint"') + (pick ? ' aria-expanded="true" aria-controls="clPick"' : '') + '>' + RI.back + chgLabel + '</button>' : '') + '</div>';
         // Polish: a reply says whom it answers, with a cross to make it a plain comment again.
         const re = R.cp && !k && nt.re ? nt.re : null;
         const reLine = re ? '<div class="cl-re" id="reLine">Replying to <b>' + _re(re.who) + '</b><button class="x" type="button" id="reX" aria-label="Not a reply" title="Not a reply">' + RI.x + '</button></div>' : '';
@@ -3128,6 +3152,34 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             n.addEventListener('contextmenu', (e) => { if (n.classList.contains('cp-show')) e.preventDefault(); });
         });
     }
+    /* The client's box: the part a change is about (the "About" chips, and the "What should change?" row). */
+    function _rsClientSetPart(key) {
+        const S = R.S, pm = _rsCur(), px = pm && pm.parts.find(p => p.key === key);
+        S.note.part = key; S.note.where = 'chat'; S.note.aat = false; S.note.pick = false;
+        S.note.was = px ? px.st : '';
+        S.note.trialLetter = key === 'video' ? svTrialReviewLetter(pm, R.mode) : '';
+    }
+    /* "Ask for a change" (session Linkpolish, 2026-11-01). A part picked, or the stage's own change box: it sends as before.
+       In the client's box with no part picked: one part to change sends at once; more open "What should change?" in the
+       panel, and the chosen part sends. The words are kept the whole time (they are the box's own). */
+    function _rsAskChange(q) {
+        const S = R.S;
+        if (R.mode !== 'client' || S.note.part || S.note.where === 'stage') { _rsSendNote(!S.note.part); return; }
+        if (!String(S.note.text || '').trim()) { _rsFocusTa(); return; }
+        const keys = (S.askKeys || []).filter(k => _rsCur() && _rsCur().parts.some(p => p.key === k));
+        if (keys.length === 1) { _rsClientSetPart(keys[0]); _rsSendNote(false); return; }
+        if (!keys.length) { _rsSendNote(true); return; }
+        S.note.pick = true;
+        _rsRender({ force: true });
+        const first = _rsQ('clPick') && _rsQ('clPick').querySelector('[data-ask]');
+        if (first) first.focus({ preventScroll: true });
+    }
+    function _rsAskPickClose(toButton) {
+        const S = R.S;
+        S.note.pick = false;
+        _rsRender({ force: true });
+        if (toButton) { const b = _rsQ('sendBtn'); if (b) b.focus({ preventScroll: true }); }
+    }
     function _rsBindComposer(root) {
         const S = R.S;
         // Looked up inside the region being bound, never in the whole page: the stage and the conversation can both hold a box for a moment, and a button bound in the other one is lost when that one is replaced.
@@ -3138,9 +3190,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cc = q('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = q('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
         const rx = q('reX'); if (rx) rx.addEventListener('click', () => { S.note.re = null; _rsRender({ force: true }); _rsFocusTa(); });
-        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; S2.note.trialLetter = b.dataset.pc === 'video' ? svTrialReviewLetter(pm, R.mode) : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { _rsClientSetPart(b.dataset.pc); _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
         const mb = q('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
-        const sb = q('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
+        const sb = q('sendBtn'); if (sb) sb.addEventListener('click', () => _rsAskChange(q));
+        root.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => { _rsClientSetPart(b.dataset.ask); _rsSendNote(false); }));
+        const px = q('clPickX'); if (px) px.addEventListener('click', () => _rsAskPickClose(true));
+        const pk = q('clPick'); if (pk) pk.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _rsAskPickClose(true); } });
         const ta = q('ta');
         if (!ta) return;
         const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight + 2) + 'px'; };
@@ -3149,13 +3204,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsPersistCur();
             const has = !!ta.value.trim();
             const cp = q('compose'); if (cp) cp.classList.toggle('typed', has);
-            const s = q('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
+            const s = q('sendBtn'); if (s) s.disabled = !has;
             const cm = q('cmtBtn'); if (cm) cm.disabled = !has;
             grow();
         });
         ta.addEventListener('keydown', (e) => {
             // On a client's touch screen Enter is a new line and only the Send button sends (_rsTouchNewline).
             if (e.key === 'Enter' && !e.shiftKey && !_rsTouchNewline()) { e.preventDefault(); _rsSendNote(!S.note.part); }
+            else if (e.key === 'Escape' && S.note.pick) { e.preventDefault(); e.stopPropagation(); _rsAskPickClose(false); _rsFocusTa(); }
             else if (e.key === 'Escape' && S.note.part) { e.preventDefault(); e.stopPropagation(); _rsClearChange(S.note.where === 'chat', S.note.where === 'stage'); }
         });
         if (S.note.text) grow();

@@ -88,6 +88,7 @@ async function launchCalmBoard(options) {
     flagRows: o.flagRows || (o.calm ? [CALM_FLAG] : []),
     flagResponse: o.flagResponse,
     query: o.query,
+    engine: o.engine,
   });
   if (o.viewport) await h.page.setViewportSize(o.viewport);
   if (o.theme === 'dark') await h.page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'dark'); });

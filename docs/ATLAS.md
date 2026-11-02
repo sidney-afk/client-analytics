@@ -631,7 +631,7 @@ Switch values below are the live values read on 2026-10-28.
 **Who can use it:** any signed-in staff member (admin, SMM, or editor/designer). The server turns away anyone without a staff sign-in. Clients never see this tab.
 
 - **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
-- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account.
+- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account. Beside that message (and beside the Facebook box's "No Facebook Page connected"), **Open Post for Me** opens postforme.dev in a new tab, where the account is connected.
   - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
   - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`). An admin adds it under **Kasper > More > Clients > Publishing > "Instagram (Post for Me)"** (or through roster-write). The Clients Info sheet only holds a copy of it.
   - The client's Facebook Page (for "Also post to Facebook") is added the same way, under **"Facebook Page (Post for Me)"**. It is not in the sheet.

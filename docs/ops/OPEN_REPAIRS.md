@@ -35904,3 +35904,23 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Proof:** `test/calendar-recent-save-adopts-others-browser.js` (new, mocked backend, in calendar-unit-tests part 2). Client link, collab on: the client saves a caption, then the server clears the alt caption and changes the call to action and title. Staff Calendar: the tab saves a caption, then a teammate changes the alt caption and call to action while the call to action is being typed. On main 4 checks fail (alt caption, call to action, title, alt caption still drawn on the Sheet card). All pass here, including: the field this browser saved never flips back to a stale server value; a queued edit, a field in the outbox and the call to action being typed in an open box are not replaced (the outbox check fails if its guard is removed); the client's next save sends no alt caption, call to action or title.
 - **Closing check:** the next nightly run's p52 is green.
 - **Way back:** revert the PR.
+
+## 637. [2026-11-02 UTC, BUILT, NOT MERGED] The SMM's Approve on the Review tab marked change requests done on the card's legacy copy only, when nothing had yet looked up the card's link to its work item (found by the supervisor; fixed by session Reviewguard)
+
+- **Seen:** after an SMM approved a part with open change requests from the Review tab, `production_comments.resolved_at` stayed empty for those requests. The card's legacy copy said done, but everywhere the canonical thread is read (Notes, Production, Kasper) the requests showed open again. The gate said `crosswalk_unresolved`.
+- **Cause, in 190 `_calReviewApprove`:**
+  - The approve decides between the canonical resolve and the legacy one with `_prodCanonicalCommentGate(post, comp).linked`.
+  - The gate is only `linked` once the card's link to its work item (the crosswalk) has been looked up. On the Calendar that lookup is started by Notes (opening it, or pointing at its door).
+  - On the Review tab the SMM can approve without ever touching Notes. The gate then answers `crosswalk_unresolved` (not looked up, not "not linked"), the in-flight check passes because nothing is running, and the requests are marked done on the legacy copy only.
+- **Fix, also in `svCalResolveVersionTweaks`** (the SMM approving a version's new cut, which resolves that version's requests the same way): when the gate answers `crosswalk_unresolved` for a part that has a work item, the approve first runs the same lookup Notes runs (`_calNotesWarm`, which reuses a lookup that is already running or just finished), then decides again. The part is held while the lookup runs, so a second press waits instead of resolving twice. If the lookup still has no answer, the person is told "Notes are still loading. Nothing was changed. Try again in a moment.", as for the other done and delete paths, rather than writing to the legacy copy only. A card that turns out not to be linked keeps the legacy path, as before.
+- **Proof:**
+  - `test/cal-note-done-delete-reach-canonical.js` runs the shipped functions against a fake canonical store and gains three cases:
+    - 6: an approve on a linked card whose link was never looked up resolves the canonical rows, they stay done after a reload, the part is sent once, and the link is looked up once;
+    - 7: a double press while the lookup runs resolves each request once and sends once;
+    - 8: a card that turns out not to be linked still marks its legacy requests done and sends once;
+    - 9 (Codex on PR 2512): a trial-reel approve that keeps a version's requests open (its new cut is still coming) keeps them open across the lookup. The keep list is set only for the caller's own call, so it is carried into the retry;
+    - 10: approving a version's new cut on a card whose link was never looked up resolves that version's requests canonically, and leaves the others alone.
+    - On main case 6 fails (the canonical rows are never resolved); case 9 failed on this PR's first head; with the fix all ten cases pass.
+  - `test/client-review-requests-unchanged-browser.js`: only the `_calReviewApprove` hash was re-pinned; the change is in its staff-only (smm) branch, and the client's approve and request-changes requests are unchanged (37 checks pass).
+  - Not covered: a full browser drive of the Review tab with a canonical thread. The review-stage fixture does not mock the crosswalk or the canonical read, so the proof is at the level of the shipped functions.
+- **Way back:** revert the PR.

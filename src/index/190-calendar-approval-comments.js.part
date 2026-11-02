@@ -752,6 +752,30 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             if (open.length) {
                 const key = pid + '|' + comp;
                 if (_calReviewState.saving[key]) return;
+                /* OPEN_REPAIRS 637 (Reviewguard): on the Review tab nothing has looked up the card's link to its work
+                   item unless Notes was opened or pointed at, so the gate below answered "not linked" for a card that
+                   is, and the requests were marked done on the card's legacy copy only (production_comments.resolved_at
+                   stayed empty, and they read as open again everywhere the canonical thread is shown). Look the link
+                   up first (the same read Notes starts), then decide; the part is held so a second press waits. */
+                if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved' && _writeUiNativeId(post, comp)) {
+                    const closing = _calReviewState.closing || (_calReviewState.closing = {});
+                    if (closing[key]) return;
+                    closing[key] = true;
+                    // The trial-version requests this approve must leave open are set only for the caller's own
+                    // synchronous call (svCalReviewApproveKeeping), so they are carried across the lookup (Codex on PR 2512).
+                    const keep = _calKeepTweakLetters;
+                    Promise.resolve(_calNotesWarm(pid)).catch(() => false).then(() => {
+                        delete closing[key];
+                        if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved') {
+                            showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
+                            return;
+                        }
+                        const was = _calKeepTweakLetters;
+                        _calKeepTweakLetters = keep;
+                        try { _calReviewApprove(pid, comp, dest); } finally { _calKeepTweakLetters = was; }
+                    });
+                    return;
+                }
                 const pickDest = dest === 'client' ? 'client' : 'kasper';
                 const ids = open.map(t => t.id);
                 /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
@@ -3899,6 +3923,18 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!post || !Array.isArray(letters) || !letters.length || _calReviewMode() !== 'smm' || !_calCanResolveComment()) return;
         const ids = _calOpenTweaksForComp(post, comp).filter(t => letters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || '')))).map(t => t.id);
         if (!ids.length) return;
+        // OPEN_REPAIRS 637: as in _calReviewApprove, a card whose link to its work item nothing has looked up yet is
+        // looked up first, so these requests are resolved where they are read, not on the legacy copy only.
+        if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved' && _writeUiNativeId(post, comp)) {
+            Promise.resolve(_calNotesWarm(pid)).catch(() => false).then(() => {
+                if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved') {
+                    showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
+                    return;
+                }
+                svCalResolveVersionTweaks(pid, comp, letters);
+            });
+            return;
+        }
         if (_prodCanonicalCommentGate(post, comp).linked) { _calReviewResolveCanonical(post, comp, ids, 'kasper').catch(() => {}); return; }
         if (_calCanonicalCrosswalkPending(post, comp)) return;
         if (_calResolveTweaksDone(post, comp, ids)) { _calWatchNoteSave(pid); _calRefreshCommentsBtn(pid); _calUpdateCardStatusDisplay(pid); }

@@ -28,6 +28,11 @@ line is older than a week, re-check it before relying on it.
 
 ## Latest (session Reviewguard, 2026-11-01): Kasper's "approve twice", and a review-board error log a watcher can read
 
+- **Workload logging (OPEN_REPAIRS 638, built, not merged):** the Workload calendar now sends the same reports as the
+  review boards (board `workload`): refused saves, a second change dropped while saving, a reload mid-save, uncaught
+  errors, and saves that landed after a failure. They appear in the same watcher's read. Migration `20261102130000`
+  widens the board column; the content Calendar is next.
+
 - **#2485 (OPEN_REPAIRS 626, built, not merged):** on Kasper's board a second Approve on the same card during the first
   one's save was never sent (the card came back waiting after a refresh); fixed. A reload mid-save now re-reads his cards.
   The client link and his board report failed, dropped and repeated actions, reloads mid-save and uncaught errors, with

@@ -42,7 +42,7 @@ const clientWrite = INDEX.slice(
   INDEX.indexOf('function wlDueWriteRoute('),
 );
 const clientPersist = INDEX.slice(
-  INDEX.indexOf('async function _wlPersistPlanDate('),
+  INDEX.indexOf('async function _wlPersistPlanDateOnce('),
   INDEX.indexOf('async function wlSetPlanDate('),
 );
 const clientSet = INDEX.slice(
@@ -627,7 +627,9 @@ ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacity
    covering the end of the function as soon as it grows, which is how the
    auto-assign slice in deliverable-counts-exclude-parents broke on 2026-09-14
    for a property that had not changed. */
-const persistStart = INDEX.indexOf('async function _wlPersistPlanDate(');
+// OPEN_REPAIRS 638: _wlPersistPlanDate is now a thin wrapper that notes the save for Workload's reports; the
+// write and every restore are in _wlPersistPlanDateOnce.
+const persistStart = INDEX.indexOf('async function _wlPersistPlanDateOnce(');
 let persistEnd = -1;
 for (let i = INDEX.indexOf('{', persistStart), depth = 0; i < INDEX.length; i++) {
   if (INDEX[i] === '{') depth++;

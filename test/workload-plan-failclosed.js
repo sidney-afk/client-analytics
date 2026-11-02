@@ -78,6 +78,7 @@ function makeContext(reply, optimisticDate) {
   context.globalThis = context;
   Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext(extract('_wlPersistPlanDate'), context);
+  vm.runInContext(extract('_wlPersistPlanDateOnce'), context);
   return { context, issue, planByIssueId, notifies, renders };
 }
 
@@ -140,6 +141,7 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin', initialPlan
   vm.runInContext(extract('wlApplyPlanLocal'), context);
   vm.runInContext(extract('_wlPlanWriteRequest'), context);
   vm.runInContext(extract('_wlPersistPlanDate'), context);
+  vm.runInContext(extract('_wlPersistPlanDateOnce'), context);
   vm.runInContext(extract('wlSetPlanDate'), context);
   return { context, issue, renderDays, notifies };
 }
@@ -207,6 +209,7 @@ function makeGroupContext() {
   context.globalThis = context;
   Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext(extract('_wlPersistPlanDate'), context);
+  vm.runInContext(extract('_wlPersistPlanDateOnce'), context);
   vm.runInContext(extract('wlMovePlanGroup'), context);
   return {
     context, issues, sourceDate, targetDate, priorOverrideId, fallbackFailureId,

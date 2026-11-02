@@ -602,6 +602,7 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Client link Calendar is read only and its video button opens the in-app viewer (caption, call to action, dates, Month and Week drag; staff unchanged)|node test/client-calendar-read-only-browser.js
+          A card this browser just saved still takes everyone else's changes to its other fields (OPEN_REPAIRS 636)|node test/calendar-recent-save-adopts-others-browser.js
           Clean addresses reach their screens, Kasper sub-tabs included|node test/clean-urls-browser.js
           Client link in a dark browser, frame by frame (dark from the first frame, loading screen in the page's shape)|node test/client-link-dark-first-paint-browser.js
           New review page as one system (one Kasper header on every section, Messages inside the tab, no page scroll, the app's colour tokens)|node test/review-stage-one-system-browser.js
@@ -716,6 +717,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          WORKLOAD_REPORTS_REQUIRE_WEBKIT: '1'
+        run: node test/workload-reports-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

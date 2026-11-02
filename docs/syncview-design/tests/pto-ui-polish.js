@@ -62,7 +62,24 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Axe reads the colours on screen at that instant. A CSS transition still running (a focused or hovered label's
+// background fading after a theme switch, 0.12 s) shows a colour pair that never rests on screen: light text on a
+// still-light background failed color-contrast on a busy runner (#2502, d799fb8). Wait for every finite transition
+// and animation inside the checked area to finish first (at most 3 s); the rule itself is unchanged.
+async function settleTransitions(page, selectors) {
+  await page.evaluate(async sels => {
+    const inside = el => !!el && el.closest && sels.some(sel => el.closest(sel));
+    const running = document.getAnimations().filter(a => {
+      const t = a.effect && a.effect.target;
+      const timing = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : {};
+      return inside(t) && a.playState === 'running' && Number.isFinite(timing.endTime);
+    });
+    await Promise.race([Promise.all(running.map(a => a.finished.catch(() => null))), new Promise(r => setTimeout(r, 3000))]);
+  }, Array.isArray(selectors) ? selectors : [selectors]);
+}
+
 async function assertNoSeriousAxe(page, selector, label) {
+  await settleTransitions(page, selector);
   let builder = new AxeBuilder({ page });
   for (const include of (Array.isArray(selector) ? selector : [selector])) builder = builder.include(include);
   const result = await builder.analyze();

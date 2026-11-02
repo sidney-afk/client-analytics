@@ -33,6 +33,8 @@ const fails = (sql, pattern, message) => {
   if (pattern) assert.match(String(err.stderr || err.message), pattern, message);
 };
 const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.sql';
+// OPEN_REPAIRS 638: the Workload calendar (and next the content Calendar) send the same reports.
+const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diagnostics.sql';
 
 (async () => {
   psql(`create database ${db}`, 'postgres');
@@ -50,6 +52,8 @@ const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.s
     psql(`create table public.clients (slug text primary key, kind text); insert into public.clients values ('fixture-test-client','test'),('fixture-real-client','client')`);
     file(MIGRATION);
     file(MIGRATION);
+    file(MIGRATION_638);
+    file(MIGRATION_638);
     const api = await import(path.join(root, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
     const shape = await import(path.join(root, 'supabase/functions/write-diagnostics/browser-detail.mjs'));
     const q = v => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
@@ -64,6 +68,8 @@ const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.s
     assert.deepEqual(shape.browserEnv({ env: { code: 'Card title here', board: 'Some Client', part: 'the intro', storage_kc: -1, storage_pct: 101, body: 'words' } }), null, 'nothing usable: no env at all');
     assert.deepEqual(shape.browserEnv({ env: { code: 'ok', storage_pct: 12.5 } }), { ui_code: 'ok', board: null, part: null, storage_kc: null, storage_pct: null });
     assert.equal(shape.browserEnv({}), null);
+    assert.equal(shape.browserEnv({ env: { code: 'save_in_flight', board: 'workload' } }).board, 'workload', 'OPEN_REPAIRS 638: the Workload board');
+    assert.equal(shape.browserEnv({ env: { code: 'x', board: 'calendar' } }).board, 'calendar');
     assert.equal(shape.browserEnv({ env: [1] }), null);
 
     // v3 records the claim and its extra fields.
@@ -90,7 +96,7 @@ const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.s
     fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"storage_pct":140}'::jsonb)`, /check constraint/, 'a percent is 0 to 100');
     fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"text":"words"}'::jsonb)`, /refusal_env_shape/, 'unknown keys are refused');
     fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"ui_code":5}'::jsonb)`, /refusal_env_shape/, 'a code is text');
-    fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"board":"Some Client"}'::jsonb)`, /check constraint/, 'a board is kasper or client');
+    fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"board":"Some Client"}'::jsonb)`, /check constraint/, 'a board is kasper, client, workload or calendar');
     fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await claim(body))}, '{}'::jsonb, '{"part":"the intro"}'::jsonb)`, /check constraint/, 'a part is one of the four');
     fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(await api.makeRefusalReceipt({}, 'write_conflict', 409))}, '{}'::jsonb, '{}'::jsonb)`, /refusal_shape/, 'v3 records browser claims only');
 
@@ -118,6 +124,13 @@ const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.s
     rec(await claim(landed), detail(landed), shape.browserEnv(landed));
     const onTest = { operation: 'review_approve', code: 'save_failed', card: 'p_card_4', client: 'fixture-test-client', env: { code: 'save_failed', board: 'kasper', part: 'caption', storage_kc: 4200, storage_pct: 81 } };
     rec(await claim(onTest), detail(onTest), shape.browserEnv(onTest));
+    // OPEN_REPAIRS 638: a Workload save that failed and then landed, and a dropped second move.
+    const wlFail = { operation: 'workload_plan_save', code: 'save_failed', card: 'wl_issue_1', env: { code: 'http_503', board: 'workload', storage_kc: 900, storage_pct: 17 } };
+    rec(await claim(wlFail), detail(wlFail), shape.browserEnv(wlFail));
+    const wlLanded = { operation: 'workload_plan_save', code: 'landed_after_retry', card: 'wl_issue_1', env: { code: 'landed_after_retry', board: 'workload', storage_kc: 900, storage_pct: 17 } };
+    rec(await claim(wlLanded), detail(wlLanded), shape.browserEnv(wlLanded));
+    const wlDrop = { operation: 'workload_double_click', code: 'save_in_flight', card: 'wl_issue_2', env: { code: 'save_in_flight', board: 'workload', storage_kc: 900, storage_pct: 17 } };
+    rec(await claim(wlDrop), detail(wlDrop), shape.browserEnv(wlDrop));
     const sigs = JSON.parse(psql(`set role service_role; select coalesce(jsonb_agg(s),'[]'::jsonb) from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now()) s`).split('\n').pop());
     const sig = (signature, tc, tr) => sigs.filter(r => r.signature === signature && r.test_client === tc && (!tr || r.traffic === tr));
     const real = sig('kasper|approve|save_failed|safari|mac|80-94|retry_landed', false, 'person');
@@ -127,6 +140,8 @@ const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.s
     assert.equal(sig('kasper|double_click|save_in_flight|safari|mac|95-100|no_retry_landed', false, 'person').length, 1, 'the double click signature');
     assert.equal(sig('client|approve|offline|safari|mac|0-49|no_retry_landed', false, 'automation').length, 1, 'automation is listed, apart from people');
     assert.equal(sig('client|approve|offline|safari|mac|0-49|no_retry_landed', false, 'person').length, 1);
+    assert.equal(sig('workload|plan_save|http_503|safari|mac|0-49|retry_landed', false, 'person').length, 1, 'a Workload save that later landed: ' + JSON.stringify(sigs));
+    assert.equal(sig('workload|double_click|save_in_flight|safari|mac|0-49|no_retry_landed', false, 'person').length, 1, 'a dropped second move on Workload');
     assert(!sigs.some(r => r.code === 'landed_after_retry'), 'a landed-after-retry report is not a signature of its own');
     assert(!sigs.some(r => r.code === 'write_conflict'), 'a report without a board (not from a review board) is not listed');
     assert(sigs.every(r => /^[a-z0-9_|.-]+$/.test(r.signature)), 'every signature is fixed words only');

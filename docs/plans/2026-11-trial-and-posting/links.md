@@ -369,6 +369,29 @@ PR 1 alone (half a day) answers the open measurement.
   `403 Forbidden` error", and links are null while a file is still transcoding.
 - **Link lifetime:** the reference gives no number. Links are signed with an `Expires=` value, which
   `frameio-view` already reads. Store file ids, never links; fetch a link right before use.
+- **Share contents are flat:** `GET .../shares/{share_id}/assets` is "a recursively flat list. The response
+  includes every direct member of the share's collection (files, folders, and version stacks), plus every
+  descendant of any shared folder or version stack — expanded into its own row in the flat list." So a file
+  inside a shared folder is in that one list.
+- **Paging:** `page_size` defaults to 50, maximum 500. The answer's `links.next` is "the request path with
+  the addition of the `after` query parameter"; follow it until it is null.
+- **Thumbnails:** a listing can carry them with `include=media_links.thumbnail` (or
+  `thumbnail_high_quality`); they are signed links like the others.
+- **Share access:** a share is `public` or `secure`, with a `downloading_enabled` setting. SyncView reads a
+  share through the account endpoints as a member of that Frame account, not as a reviewer. So a `secure`
+  share in SyncView's own Frame account should read the same, and one from another account should not.
+  That is my reading of the reference, not measured: check it once on a real secure share.
+- **Folder links:** the reference's example `view_url` has the same shape for a file and a folder,
+  `https://next.frame.io/project/<project>/view/<id>`. A pasted project link may therefore point to either;
+  ask for it as a file, then as a folder.
+
+**Post for Me, the questions the reference leaves open** (each needs one cheap real try):
+- `media[].url` is "Public URL of the media"; the reference does not limit it to Post for Me storage.
+  It does not say whether the file is fetched when the post is created or when it is published. A signed
+  Frame link may expire before a scheduled post goes out, so copy into Post for Me storage first.
+- `create-upload-url`: no size limit stated; the upload link is "publicly signed for a short time".
+- LinkedIn: one platform, `linkedin`; page or person is `connection_type` at connect time. There is no
+  visibility setting and no video limit in the reference.
 
 ---
 

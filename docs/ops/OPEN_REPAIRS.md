@@ -36072,5 +36072,6 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Proof:**
   - `test/diagnostics-test-traffic-browser.js` (new, on the review-stage fixture, Chromium): a robot-driven page's report carries the flag, the fixture sends it without keepalive, and a page with `navigator.webdriver` false sends no flag. On main it fails: the report has no flag.
   - `test/linear-exit-write-diagnostics-handlers.js`: a Firefox user agent with the flag is automation, without it a person, and only `true` counts. On main it fails ("a robot-driven page is automation").
+  - The client-requests golden's two diagnostics reports gained `automation: true` (added by hand; the requests and every source hash are unchanged).
   - Unchanged and passing on the fixture: `test/review-board-gauntlet-browser.js`, `test/review-stage-save-browser.js`, `test/review-stage-browser.js`, `test/client-calendar-read-only-browser.js`, `test/first-paint-theme-browser.js`.
 - **Way back:** revert the PR.

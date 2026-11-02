@@ -26,6 +26,14 @@ line is older than a week, re-check it before relying on it.
 - **Admins log time off for someone else** (Kasper > Time Off > Log time off, #2488, 628): person, type, date, straight onto the team calendar as approved (`pto_requests.source = 'admin_log'`). Migration `pto_admin_log_source` applied and read back; `pto` v57 released by hand (the PTO lane rule holds `pto` on any PTO SQL change whatever the cope marker says, #2500). Add adjustment changes the balance only and never reaches the calendar.
 - **Open:** #2485 (Kasper's second Approve during a save, review-board error logging), #2481 (thumbnail folder in the Files menu), #2494 (undated strip room), #2495 (633, review-stage ResizeObservers write on the next frame), #2496 and #2499 (634, a note sent close to another no longer vanishes), #2498 (631). A one-off red of `kasper-fast-boot-browser.js` on main d26242f is being root-caused by session Bootrace.
 
+## Latest (session Reviewguard, 2026-11-01): Kasper's "approve twice", and a review-board error log a watcher can read
+
+- **#2485 (OPEN_REPAIRS 626, built, not merged):** on Kasper's board a second Approve on the same card during the first
+  one's save was never sent (the card came back waiting after a refresh); fixed. A reload mid-save now re-reads his cards.
+  The client link and his board report failed, dropped and repeated actions, reloads mid-save and uncaught errors, with
+  the store's fill, as signatures of fixed words. **Watcher's read** (SQL as owner, migration `20261101220000` applied):
+  `select signature, traffic, test_client, reports, cards from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now()) where traffic = 'person' and not test_client;`
+
 ## Latest (SyncView supervisor, 2026-10-31 evening): Sheet fit for everyone, client link polish, Facebook cross-post
 
 - **Trial reels (#2470, OPEN_REPAIRS 619):** the client's Change my mind on an approved trial version reopens it as a

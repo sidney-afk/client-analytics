@@ -52,7 +52,8 @@ assert(!/status:\s*409\b/.test(func(source, '_writeRefusalBeacon')), 'beacon mus
 // a save), so a helper missing here makes it send nothing rather than throw:
 // #1792 and #1796 (2026-09-27/28) added four, and this test then failed for
 // two weeks unseen because no workflow ran it (OPEN_REPAIRS 408).
-const names = ['_writeUiDiagnosticIds', '_writeRefusalAppVersion', '_writeRefusalNewId', '_writeRefusalAttemptId',
+// OPEN_REPAIRS 626 (2026-11-02) added _writeUiStorageUse (how full the browser store is).
+const names = ['_writeUiStorageUse', '_writeUiDiagnosticIds', '_writeRefusalAppVersion', '_writeRefusalNewId', '_writeRefusalAttemptId',
   '_writeRefusalIsNetworkFailure', '_writeRefusalBeacon', '_writeUiQueueDiagnostic', '_calReplyDraftsLoad', '_calReplyDraftsPersist'];
 
 (async () => {
@@ -92,6 +93,8 @@ const names = ['_writeUiDiagnosticIds', '_writeRefusalAppVersion', '_writeRefusa
         + constant('WRITE_REFUSAL_ATTEMPT_MS')
         + constant('_writeRefusalStaged')
         + constant('WRITE_REFUSAL_NETWORK_MESSAGE')
+        + 'let _writeUiStorageMemo = null;'
+        + constant('WRITE_UI_STORE_CAP_CHARS')
         // A page with no verified staff identity: the beacon sends no role key.
         + 'function _syncviewStaffIdentityForHeaders() { return null; }'
         + constant('CAL_REPLY_DRAFTS_PREFIX')

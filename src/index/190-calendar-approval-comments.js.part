@@ -3,6 +3,7 @@ import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyO
 import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageFor, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
+  _writeUiBoardHinted, _writeUiPageBoard, _writeUiReviewEvent,
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
   _calIsYouTubeCard, _calNormStatus, _prodCommentAddRoutesLegacy, _writeUiBindRepairAck,
   _writeUiComponentHasWorkItem, _writeUiFailureSentence, _writeUiMergeCommittedBatch, _writeUiNativeId,
@@ -890,12 +891,22 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
         return true;
     }
+    /* OPEN_REPAIRS 638: a press this page drops because the same action on the same part is still saving. The buttons
+       are disabled while saving, so this counts only the presses that slip past them. Not while the review stage is
+       showing (it reports its own). */
+    function _calReportDropped(action, pid, comp) {
+        try {
+            if (_writeUiBoardHinted()) return;
+            _writeUiReviewEvent('calendar', action, 'save_in_flight',
+                { board: _writeUiPageBoard('calendar'), card: String(pid || ''), component: String(comp || '') }, comp || '');
+        } catch (e) {}
+    }
     // onSaved (optional): called once the server has confirmed the save, never after a refused one.
     function _calReviewApplyApprove(pid, comp, dest, resolvedBefore, onSaved) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
-        if (_calReviewState.saving[key]) return;
+        if (_calReviewState.saving[key]) { _calReportDropped('calendar_double_click', pid, comp); return; }
         const mode = _calReviewMode();
         const subKey = comp + '_status';
         // A client can only approve a component sitting on THEIR review surface
@@ -1013,6 +1024,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!post) return;
         const key = pid + '|' + comp;
         const body = String(_calReviewState.drafts[key] || '').trim();
+        if (body && _calReviewState.saving[key]) _calReportDropped('calendar_double_click', pid, comp);
         if (!body || _calReviewState.saving[key]) return;
         const role = _calCommentRole();
         const _now = new Date().toISOString();
@@ -3424,7 +3436,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        same note twice, each copy overwriting the other's view of the thread. */
     let _calComposerSending = false;
     async function _calSubmitComposer() {
-        if (_calComposerSending) return;
+        if (_calComposerSending) { _calReportDropped('calendar_double_click', _calOpenCommentsPid, 'note'); return; }
         _calComposerSending = true;
         try { return await _calSubmitComposerNow(); }
         finally { _calComposerSending = false; }

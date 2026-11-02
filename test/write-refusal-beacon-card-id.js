@@ -74,6 +74,9 @@ function grabConst(name) {
     grabConst('WRITE_UI_STORE_CAP_CHARS'),
     'let _writeUiStorageMemo = null;',
     grabFunc('_writeUiStorageUse'),
+    // OPEN_REPAIRS 638: the board a refusal comes from, and the refused saves a later landing can name.
+    grabConst('WRITE_UI_REVIEW_BOARDS'), 'let _writeUiBoardHint = null;', 'const _isClientLink = false;',
+    'const _writeUiFailedSaves = new Set();', grabFunc('_writeUiPageBoard'),
     grabFunc('_writeRefusalBeacon'),
     grabFunc('_writeUiQueueDiagnostic'),
     grabFunc('_writeUiTagDiagIds'),

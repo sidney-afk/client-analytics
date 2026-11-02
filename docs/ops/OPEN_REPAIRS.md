@@ -35964,3 +35964,23 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
+
+## 639. [2026-11-02 UTC, BUILT, NOT MERGED] The content Calendar reports what goes wrong, the same way the review boards and Workload do (session Reviewguard)
+
+- **Asked:** the last of the three logging PRs (after the review boards, OPEN_REPAIRS 626, and Workload, 638): the content Calendar, by extending `_writeUiRecordFailure`'s path rather than copying it.
+- **Before:** a refused Calendar save already reached the refusal log (through `_writeUiReportFailure` / `_writeUiRecordFailure` and the shared beacon), but with no board, so the watcher's signature read never listed it. Nothing reported a reload during a card save, an uncaught error on the Calendar, a save that landed after a failure, or a press the review buttons or the Notes composer dropped while the same thing was saving.
+- **Now:**
+  - **120 (the shared path):** every refused Calendar save carries a board. It is `calendar` on a staff page and `client` on a client link (`_writeUiPageBoard`). While the review stage is showing it registers its own board (`_writeUiSetBoardHint`, from 195), so a refusal from Kasper's board still says `kasper`. Samples names none. `_writeUiQueueDiagnostic` (which `_writeUiRecordFailure` and `_writeUiReportFailure` both go through) now remembers a refused Calendar save by card, and `_writeUiRecordLanded` reports the card's next save that lands as `landed_after_retry`, under the refused save's own action.
+  - **170 (the card-save funnel `_calFlushCardSave`):**
+    - its success reports a landing after a failure;
+    - a note in session storage while a card save is on its way. It is kept once the page is leaving (`beforeunload`/`pagehide`), and read after every part of the page has loaded (the client-link flag the board reads loads after 170). It is reported as `calendar_reload_mid_save`;
+    - uncaught errors and rejections while the Calendar is showing (not Workload, not the review stage) are reported as `calendar_uncaught`, by kind and file:line only.
+  - **190:** a press dropped by `_calReviewApplyApprove` or `_calReviewComment` because the same part is still saving, or a second Send in the Notes composer while the first is sending, is reported as `calendar_double_click` / `save_in_flight`. The buttons are disabled while saving, so this counts only the presses that slip past them. `_calReviewApprove`'s own first check and `_calReviewRequestTweak` are left as they are (one is changed by #2512, the other is pinned by the client-requests check, and its buttons are disabled while saving).
+  - Ids and the client slug only, never names, titles or words; sent after the save is handled, capped per page.
+- **Server:** nothing new. The `calendar` board and the signature read's `calendar_` prefix came with OPEN_REPAIRS 638 (#2514, migration `20261102130000`), which this PR builds on.
+- **Watcher's read** unchanged; Calendar rows appear in it, e.g. `calendar|status|http_503|safari|mac|0-49|retry_landed`.
+- **Proof:**
+  - `test/calendar-reports-browser.js` (new, on the shared staff-Calendar harness `lost-work-lib.js`, mocked): a refused card save (board calendar) and its later landing, a reload during a card save, a dropped press, an uncaught error and a rejection, no words in any report. Without this change it fails at the first board check.
+  - `test/write-failure-receipt.js` now also requires board `calendar` on a staff Calendar refusal. The client-requests golden's Calendar report gained `board: "client"` (the requests and every source hash are unchanged).
+  - The suites that lift the beacon or the composer carry the new helpers (`test/write-refusal-beacon-card-id.js`, `test/linear-exit-write-diagnostics-browser.js`, `test/notes-composer-one-send.js`).
+- **Way back:** revert the PR.

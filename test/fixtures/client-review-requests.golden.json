@@ -58,6 +58,7 @@
             "attempt": "<uuid>",
             "code": "legacy_tweak_confirmation_pending",
             "env": {
+              "board": "client",
               "storage_kc": "<n>",
               "storage_pct": "<n>"
             },

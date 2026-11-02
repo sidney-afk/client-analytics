@@ -260,7 +260,15 @@ Step 1                                     Step 2 (the minimalist matching step)
   row, pre-set to the first free letter. Many: as above.
 - **Which link is stored per version:** `next.frame.io/share/<share>/view/<file>`, so the client player, Production's
   availability check and "Open in Frame" all work as they do with today's pasted links. Needs the folder lookup fix in
-  section 1.
+  section 1. The link carries the Frame file id, so no extra column is needed; a signed media address is never stored.
+- **Frame facts this relies on (from Linkplan, V4 reference read 2026-11-02, see `links.md`):** the token frameio-view
+  already holds is enough (nothing new from Sidney). The list uses `folders/{id}/children` with `include` set to the
+  thumbnail and metadata only (name, Duration). Never ask for `media_links.original`: it answers 403 without download
+  rights. Media links are null while a file is transcoding, so a still-processing video shows as a row with "Still
+  processing in Frame" and its picker disabled. Pages follow a cursor (`after`, `links.next`), so going past 50 is
+  cheap if it is ever needed. The rate limit is 100 calls a minute per Frame user, and one import makes 3 to 5 calls.
+  **Still to measure on one real link in PR 3:** whether a `/share/<id>/view/<file>` browser link opens a file inside a
+  folder share, and the shape of a project folder (non-share) address.
 
 ### 4.4 The SMM's status menu (item 2)
 

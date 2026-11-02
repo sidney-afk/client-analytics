@@ -174,11 +174,20 @@ async function staffLanes(view) {
     // L a caption note (saved on the card only) whose card save is refused
     // stays "Not sent" when Notes is opened again and after a refresh: the
     // note in the page's own thread is not a server receipt (Codex, PR 2096)
+    // L refuses every card save. E's note is saved, but its calendar copy (the
+    // card save behind it) can still be on its way on a busy machine. If it is,
+    // that copy is refused too, and the page says so, rightly, with "Note saved;
+    // calendar copy pending" over the Send button (4 of 4 runs four at a time,
+    // 2 Nov). So wait for this card's saves to settle before refusing them, and
+    // say plainly if any notice is open before L's own Send.
+    check(await until(() => page.evaluate(() => !_calPendingEdits.p_t1 && !_calSaveInFlight.p_t1), 15000), tag('L: the card has no save in flight before its saves are refused'));
     S.behave['cal-upsert'] = { mode: 'http', status: 503, times: 40, commit: false };
     await page.evaluate(() => openCalComments('p_t1'));
     await page.waitForSelector('#calCommentsModal #calCommentComposer');
     await page.evaluate(() => _calSetComposeComp('caption'));
     await page.fill('#calCommentComposer', 'Outbox caption note L');
+    const overL = await page.evaluate(() => { const o = document.getElementById('confirmOverlay'); return o && o.classList.contains('active') ? o.innerText.replace(/\s+/g, ' ').trim() : ''; });
+    check(!overL, tag('L: no notice is open over Send before the caption note is sent (' + overL + ')'));
     await page.click('#calCommentsModal .cal-cm-send');
     check(await until(async () => (await rowState(page, 'Outbox caption note L')).some(r => r.failed && r.retry), 15000), tag('L: a refused caption note says "Not sent"'));
     await page.evaluate(() => closeCalComments());

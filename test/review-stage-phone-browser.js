@@ -117,7 +117,7 @@ async function reconnect(t) { t.state.writeDelay = 0; t.state.networkDelay = 0; 
    next red names its cause. */
 async function goOffline(t) { await t.ctx.setOffline(true); t.offlineHeld = true; }
 async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = false; }
-function watchPageErrors(t) {
+async function watchPageErrors(t) {
   // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event.
   t.pageErrors = [];
   // Every frameio-view request's life (request, finish with status, failure with its text, console lines naming it,
@@ -128,6 +128,22 @@ function watchPageErrors(t) {
   t.page.on('requestfailed', r => { if (fv(r)) t.fvTrace.push({ ev: 'failed', ms: Date.now() - t0, method: r.method(), offline: !!t.offlineHeld, error: (r.failure() || {}).errorText || '' }); });
   t.page.on('console', m => { if (/frameio-view/.test(m.text())) t.fvTrace.push({ ev: 'console.' + m.type(), ms: Date.now() - t0, text: m.text().slice(0, 200) }); });
   t.page.on('pageerror', () => t.fvTrace.push({ ev: 'pageerror', ms: Date.now() - t0, offline: !!t.offlineHeld }));
+  // Every <video> the page makes: when it first started loading (and whether it was in the page then: a warm copy
+  // loads while still out of the page and is adopted later), and at each error its code, which file it was playing
+  // (full or the smaller "efficient" one), readyState and networkState, and whether it was in the page. Read back on a red.
+  await t.page.addInitScript(() => {
+    const t0 = performance.now(); window.__fvVideos = []; const make = Document.prototype.createElement;
+    Document.prototype.createElement = function (tag, o) {
+      const el = make.call(this, tag, o);
+      if (String(tag).toLowerCase() === 'video') {
+        const rec = { id: window.__fvVideos.length, made: Math.round(performance.now() - t0), loadstart: null, loadedWhileOut: null, errors: [] };
+        window.__fvVideos.push(rec);
+        el.addEventListener('loadstart', () => { if (rec.loadstart == null) { rec.loadstart = Math.round(performance.now() - t0); rec.loadedWhileOut = !el.isConnected; } });
+        el.addEventListener('error', () => { rec.errors.push({ ms: Math.round(performance.now() - t0), code: el.error ? el.error.code : null, message: el.error ? String(el.error.message || '').slice(0, 120) : '', file: el.getAttribute('data-fv-file') || 'full', hasSrc: !!el.getAttribute('src'), readyState: el.readyState, networkState: el.networkState, inPage: el.isConnected, muted: el.muted }); });
+      }
+      return el;
+    };
+  });
   t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0].slice(0, 300), offline: !!t.offlineHeld, at: new Date().toISOString(), url: (() => { try { return t.page.url(); } catch (x) { return ''; } })() }));
 }
 async function media(t, label) {
@@ -300,7 +316,7 @@ async function kasperJourney(t, label) {
         console.log('RUN ' + label);
         const t = await open(browser, origin, { phone: true, flags: 'on', stage: role, staff: role === 'kasper' ? STAFF : null, dark: theme === 'dark', phoneMedia: engine === 'webkit', context: { ...devices[profile], colorScheme: theme } });
         t.page.setDefaultTimeout(10000);
-        watchPageErrors(t);
+        await watchPageErrors(t);
         try {
           if (role === 'client') t.state.postsDelay = 1800;
           await boot(t, origin, role);
@@ -327,6 +343,7 @@ async function kasperJourney(t, label) {
           if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
           if (t.errors.length) console.log('PAGE_ERRORS_SEEN ' + JSON.stringify(t.pageErrors));
           if (t.errors.length) console.log('FRAMEIO_TRACE ' + label + ' ' + JSON.stringify(t.fvTrace));
+          if (t.errors.length) console.log('VIDEO_TRACE ' + label + ' ' + JSON.stringify(await t.page.evaluate(() => (window.__fvVideos || []).filter(v => v.errors.length || v.loadedWhileOut)).catch(e => String(e))));
           check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
           cases++;
         } catch (e) {

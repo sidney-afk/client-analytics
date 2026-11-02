@@ -8,7 +8,8 @@
  * test client and card, nothing reaches a live backend). Each case drives the Calendar's own card-save funnel
  * (_calFlushCardSave, the path every field edit, status pick and date move takes):
  *   1. a refused card save is reported with board calendar, and the same card's next save that lands is reported as
- *      landed_after_retry under the refused save's own action, so the watcher can tell a failure that recovered;
+ *      landed_after_retry under the refused save's own action, so the watcher can tell a failure that recovered (also
+ *      after a status that committed while the card's own save failed, status_committed_source_failed);
  *   2. a reload while a card save was on its way is reported once the Calendar is back (calendar_reload_mid_save);
  *   3. a press dropped because the same part is still saving is reported (calendar_double_click / save_in_flight);
  *   4. an uncaught error while the Calendar is open is reported by kind and place, never by its message;
@@ -81,6 +82,15 @@ async function laterParts(page) {
       await edit(page, 'third words');
       await sleep(300);
       assert.equal(ops(reports, 'status').filter(r => r.env && r.env.code === 'landed_after_retry').length, 1, 'a landing is reported once');
+      // A status that committed while the card's own save failed is logged under its own kind; the card's next save
+      // that lands is that failure's recovery, reported under the same kind so the signature read can pair them.
+      await page.evaluate(() => _writeUiQueueDiagnostic('calendar', 'ui_write_failure',
+        { kind: 'status_committed_source_failed', card: 'p_t1', client_slug: 'sidneylaruel' }, new Error('source save failed')));
+      await edit(page, 'fourth words');
+      const rec = await until(() => ops(reports, 'status_committed_source_failed').find(r => r.env && r.env.code === 'landed_after_retry'), 'the recovery of a committed status is reported under its own kind');
+      assert.equal(rec.env.board, 'calendar');
+      assert.equal(rec.identifiers && rec.identifiers.card, 'p_t1');
+      ok('a status that committed while the card save failed, then a save that lands, is reported as that kind\'s landed_after_retry');
       noWords(reports);
     } finally { await S.close(); }
   }

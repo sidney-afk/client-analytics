@@ -1961,9 +1961,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // that basis (the recent-save guard now covers it).
             _calFailedNewCards.delete(realId);
             _calSyncRetryState.delete(realId);
-            // OPEN_REPAIRS 639: this card's earlier save was refused on this page; this one landed.
-            _writeUiRecordLanded('calendar', 'status', pid);
-            if (realId !== pid) _writeUiRecordLanded('calendar', 'status', realId);
+            // OPEN_REPAIRS 639: this card's earlier save was refused on this page; this one landed. Reported under the
+            // earlier failure's own kind: a refused save ('status') or a status that committed while the card's save
+            // failed ('status_committed_source_failed'), which this save retries.
+            for (const kind of ['status', 'status_committed_source_failed']) {
+                _writeUiRecordLanded('calendar', kind, pid);
+                if (realId !== pid) _writeUiRecordLanded('calendar', kind, realId);
+            }
             const _okPost = calState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;

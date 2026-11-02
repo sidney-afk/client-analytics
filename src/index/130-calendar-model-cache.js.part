@@ -771,6 +771,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         view: 'organizer',
         client: null,
         posts: [],
+        postsClient: null,   // the client whose posts were last read from the server (150 loadCalendarPosts)
         loading: false,
         error: null,
         monthCursor: null,

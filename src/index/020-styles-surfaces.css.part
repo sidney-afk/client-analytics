@@ -2343,7 +2343,7 @@
         /* An empty day is as tall as a day holding one tile (padding 12 + date row 22 + gap 4 + the tile: its square
            thumbnail, var(--cal-month-w), plus 22 for its name, state and border), and never under 196, so the loading
            skeleton (the same grid with no posts) has the loaded rows' height and posts land without moving the weeks
-           below (OPEN_REPAIRS 625; test/calendar-month-week-skeleton-shape-browser.js). The date row keeps 22 on every
+           below (OPEN_REPAIRS 629; test/calendar-month-week-skeleton-shape-browser.js). The date row keeps 22 on every
            day, the height of today's circled date, so today's week is no taller than another. The columns are
            minmax(0, 1fr): at the largest card size a tile is wider than a day at 1440, and a plain 1fr column grew to
            hold it, so the loaded grid was wider than its skeleton; the tile (max-width 100%) now shrinks to its day. */

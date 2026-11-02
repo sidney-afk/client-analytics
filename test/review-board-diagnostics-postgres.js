@@ -35,7 +35,7 @@ const fails = (sql, pattern, message) => {
 const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.sql';
 // OPEN_REPAIRS 638: the Workload calendar (and next the content Calendar) send the same reports.
 const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diagnostics.sql';
-const MIGRATION_641 = 'supabase/migrations/20261102180000_workload_surface.sql';
+const MIGRATION_642 = 'supabase/migrations/20261102180000_workload_surface.sql';
 
 (async () => {
   psql(`create database ${db}`, 'postgres');
@@ -55,8 +55,8 @@ const MIGRATION_641 = 'supabase/migrations/20261102180000_workload_surface.sql';
     file(MIGRATION);
     file(MIGRATION_638);
     file(MIGRATION_638);
-    file(MIGRATION_641);
-    file(MIGRATION_641);
+    file(MIGRATION_642);
+    file(MIGRATION_642);
     const api = await import(path.join(root, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
     const shape = await import(path.join(root, 'supabase/functions/write-diagnostics/browser-detail.mjs'));
     const q = v => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";

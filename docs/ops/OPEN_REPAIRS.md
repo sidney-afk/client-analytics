@@ -35748,3 +35748,10 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - Throwaway cards made through `calendar-card-write` are not linked to Production, and on them every move a page makes through the status gateway is refused (`native_link_required`). That is the test setup, not a product bug.
 - **Test run mistake (session Trialchange):** an early run of the walk acted on "Video 1 — TEST1" while the client page was still on it: it approved its video (22:15 UTC) and added one client note "Trialchange final round: on second thought, a new ending on A." (22:19). The video is back at Client Approval through the staff status pick; the note could not be deleted from the client link in the run and is still stored; `client_video_approved_at` keeps 22:15. "Video 2 — TEST2" was not touched.
 - **Way back:** revert the PR.
+
+## 630. [2026-11-02 UTC, BUILT, NOT MERGED] Production asked trial-reels for a card's versions with no staff key (found by session Reviewguard; fixed by session Trialchange)
+
+- **Seen:** signed out (or before the staff key is verified), opening a video sub-issue in Production whose client trial reels is on (every client since `"all": true`, 2 Nov 00:49 UTC) sent trial-reels `{ action: 'read' }`. The function answers only a staff key here, so it came back 401, with a red console error, and the Assets panel said the versions "Could not be read".
+- **Fix (245):** `_trlProdLoad` sends no read without a verified staff key (`_syncviewStaffIdentityForHeaders`). The sub-issue then reads as having no versions, as with Trial reels off: today's single "Deliverable file" row. The first draw after sign-in reads it.
+- **Proof:** `test/trial-reels-production-browser.js`, the new "signed out" checks: no trial-reels request at all, today's single row, no read error. On main the read is sent and "Could not be read" shows (2 of the 38 checks fail); all 38 pass here.
+- **Way back:** revert the PR.

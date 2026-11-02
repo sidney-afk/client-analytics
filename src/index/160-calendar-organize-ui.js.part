@@ -2771,14 +2771,10 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             if (String(post.thumbnail_url || '').trim() !== url) return;
             _calApplyThumbnailFolderFields(post, json.fields);
             _calRefreshLinkField(pid, 'thumbnail_url', post, opts && opts.sxr);
+            if (!(opts && opts.sxr)) _calFilesMenuRefresh();
         }).catch(e => {
             console.warn('[Thumbnail folder] resolve failed', e);
         });
-    }
-    function _calOpenThumbnailFolder(pid) {
-        const post = calState.posts.find(p => p.id === pid);
-        const url = _calThumbnailFolderUrl(post, post && post.thumbnail_url);
-        if (url) window.open(url, '_blank', 'noopener,noreferrer');
     }
     function _calDeriveThumbInfo(p) {
         const raw = String((p && (p.thumbnail_url || p.asset_url)) || '').trim();
@@ -3372,9 +3368,8 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         const kind = isThumb ? 'thumb' : 'post';
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
-        const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
-            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open the folder this link is in">${_calThumbFolderIconSvg()}</button>`
-            : '';
+        // The thumbnail's folder opens from the card's Files menu (owner, 2026-11-01: "move the open this folder link
+        // into the files button, next to the thumbnail file"), so the Thumbnail row has one icon fewer.
         const compareSlot = isThumb ? _thumbCompareSlotHtml('calendar', post, false, 'link') : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         if (ro) {
@@ -3415,7 +3410,6 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
                 ${trialSwitch}
-                ${folderBtn}
                 ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
                 ${input}
@@ -3851,12 +3845,15 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
          Raw footage folder brain `folders` -> raw[], per client (above)
          Frame folder       brain `folders` -> frame[], per client (above)
          Thumbnail file     the card's own thumbnail_url
+         Thumbnail folder   the Drive folder that file is in (thumbnail_folder_url, resolved by thumbnail-folder-resolve;
+                            moved here from the Thumbnail row's own folder icon, owner 2026-11-01)
        Each opens in a new tab; a missing one reads "not linked yet". Staff only. */
     const _CAL_FILES_ICONS = {
         plan: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M6 8h4.5M6 10.6h4.5"/></svg>',
         raw: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4h4l1.5 1.6h6.9v7.6H1.8z"/></svg>',
         frame: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6.5 6.3v3.4l3-1.7z"/></svg>',
         thumb: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><circle cx="6" cy="6.5" r="1.3"/><path d="M2.5 12l3.8-3.5 2.6 2.3 2-1.6 2.6 2.3"/></svg>',
+        thumbfolder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4h4l1.5 1.6h6.9v7.6H1.8z"/><rect x="6.2" y="7.4" width="4.6" height="3.8" rx=".8"/></svg>',
         ext: '<svg class="cal-files-ext" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg>',
     };
     function _calFrameFolderSlotHtml(pid) {
@@ -3896,6 +3893,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             ['raw', 'Raw footage folder', entry.raw || ''],
             ['frame', 'Frame folder', entry.url || ''],
             ['thumb', 'Thumbnail file', /^https?:\/\//i.test(thumb) ? thumb : ''],
+            ['thumbfolder', 'Thumbnail folder', _calThumbnailFolderUrl(p, p.thumbnail_url)],
         ];
         const I = _CAL_FILES_ICONS;
         const items = rows.map(([k, label, url]) => url
@@ -4374,13 +4372,13 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         _calCloseClientLinks, _calCloseFilesMenu, _calCloseKebab, _calEditLink, _calFillComponent,
         _calLinearClear, _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel,
         _calOnLinkBlur, _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError,
-        _calOnThumbImgError, _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu,
-        _calTabScrollBy, _calToggleCardStatusMenu, _calToggleClientLinks, _calToggleFilesMenu,
-        _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll,
-        _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn,
-        calZoom, notifyClientOpen, onCalCardStatusClear, onCalCardStatusMode, onCalCardStatusToggle,
-        onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange,
-        onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
+        _calOnThumbImgError, _calOpenLink, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
+        _calToggleCardStatusMenu, _calToggleClientLinks, _calToggleFilesMenu, _calToggleImportActions,
+        _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll, _thumbCompareClose,
+        _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn, calZoom,
+        notifyClientOpen, onCalCardStatusClear, onCalCardStatusMode, onCalCardStatusToggle, onCalClearFilters,
+        onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange, onCalTabAddClick, onCalTabClick,
+        onCalTabRemove, onCalViewChange
     });
 export {
   onCalClientChange, _notifyClientBtnHtml,

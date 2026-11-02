@@ -7,7 +7,8 @@ import {
   _syncviewEfHeaders, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
   _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence, _writeUiGatewayError,
   _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice, _writeUiPrincipalKey,
-  _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure,
+  _writeUiBoardHinted, _writeUiErrWhere, _writeUiPageBoard, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRecordLanded,
+  _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure, _writeUiReviewEvent, _writeUiStackWhere,
   _writeUiSnapshotRepairRefs, _writeUiSourceEditsOnly, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
@@ -1411,6 +1412,69 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
     // Status columns a whole-card save may only send when this save edited them.
     const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
+    /* CALENDAR REPORTS (OPEN_REPAIRS 639, session Reviewguard). The same reports the review boards and Workload send,
+       through the same beacon: a reload while a card save was on its way, an uncaught error while the Calendar is
+       open, and (in _calFlushCardSave) a save that landed after an earlier refused save on the same card. Refused
+       saves already reported through _writeUiReportFailure / _writeUiRecordFailure, now with board 'calendar' ('client'
+       on a client link). Ids only; sent after the save is handled, capped per page. */
+    const CAL_INFLIGHT_KEY = 'syncview_cal_inflight_v1';
+    let _calInflightCount = 0, _calLeaving = false;
+    const _calMarkLeaving = () => { if (_calInflightCount > 0) _calLeaving = true; };
+    addEventListener('beforeunload', _calMarkLeaving);
+    addEventListener('pagehide', _calMarkLeaving);
+    addEventListener('pageshow', () => { _calLeaving = false; });
+    function _calInflightNote(delta) {
+        _calInflightCount = Math.max(0, _calInflightCount + delta);
+        try {
+            // Written when a save starts; once the page is leaving (which aborts the save) nothing clears it.
+            if (_calInflightCount > 0) sessionStorage.setItem(CAL_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), n: _calInflightCount }));
+            else if (!_calLeaving) sessionStorage.removeItem(CAL_INFLIGHT_KEY);
+        } catch (e) {}
+    }
+    function _calReportEvent(action, code, card, where) {
+        try {
+            if (_writeUiBoardHinted()) return;   // the review stage reports its own
+            const board = _writeUiPageBoard('calendar');
+            _writeUiReviewEvent('calendar', action, code, { board, card: card ? String(card) : '' }, where || '');
+        } catch (e) {}
+    }
+    (function _calReportsMount() {
+        // Once every part of the page has run: this file loads before the one that says whether this is a client link
+        // (the report's board reads it), and with the split build a timer set here can fire while that part is still
+        // downloading, which dropped the report. Every part is written in before DOMContentLoaded.
+        const whenWhole = fn => { if (document.readyState === 'loading') addEventListener('DOMContentLoaded', () => setTimeout(fn, 0), { once: true }); else setTimeout(fn, 0); };
+        whenWhole(() => {
+            try {
+                const note = JSON.parse(sessionStorage.getItem(CAL_INFLIGHT_KEY) || 'null');
+                if (!note) return;
+                // A save that started on this page since it loaded owns the note; it is not from before the reload.
+                if (_calInflightCount > 0) return;
+                sessionStorage.removeItem(CAL_INFLIGHT_KEY);
+                if (Date.now() - Number(note.at || 0) < 60000) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
+            } catch (e) {}
+        });
+        const on = () => {
+            const cv = document.getElementById('calView');
+            return !!(cv && cv.isConnected && cv.offsetParent !== null) && !document.querySelector('.workload-view');
+        };
+        addEventListener('error', e => {
+            try {
+                if (!on() || !e) return;
+                const msg = String(e.message || '');
+                // OPEN_REPAIRS 645: a cross-origin "Script error." is kept (as script_error); other empty ones are noise.
+                if (!e.error && (/ResizeObserver/.test(msg) || (!e.filename && !/^script error\.?$/i.test(msg)))) return;
+                _calReportEvent('calendar_uncaught', 'uncaught_error', '', e.error && e.error.stack ? _writeUiStackWhere(e.error) : _writeUiErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno, (e.error && e.error.message) || msg));
+            } catch (x) {}
+        });
+        addEventListener('unhandledrejection', e => {
+            try {
+                if (!on() || !e) return;
+                const r = e.reason;
+                _calReportEvent('calendar_uncaught', 'unhandled_rejection', '', r && typeof r === 'object' ? _writeUiStackWhere(r) : 'NonError');
+            } catch (x) {}
+        });
+    })();
+
     async function _calFlushCardSave(pid) {
         let edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -1492,6 +1556,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         let _releaseSave;
         _calSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
         let realId = pid;
+        _calInflightNote(1);
         try {
         const isBlank = _calIsBlankId(pid);
         const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
@@ -1898,6 +1963,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // that basis (the recent-save guard now covers it).
             _calFailedNewCards.delete(realId);
             _calSyncRetryState.delete(realId);
+            // OPEN_REPAIRS 639: this card's earlier save was refused on this page; this one landed. Reported under the
+            // earlier failure's own kind: a refused save ('status') or a status that committed while the card's save
+            // failed ('status_committed_source_failed'), which this save retries.
+            for (const kind of ['status', 'status_committed_source_failed']) {
+                _writeUiRecordLanded('calendar', kind, pid);
+                if (realId !== pid) _writeUiRecordLanded('calendar', kind, realId);
+            }
             const _okPost = calState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
@@ -2050,6 +2122,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             if (gatewayCommitted && !wasNewRow) _calScheduleSyncRetry(realId);
         }
         } finally {
+            _calInflightNote(-1);
             // Release the per-card lock and, if the user kept editing while
             // this save was in flight, flush the queued edits now — strictly
             // after this request finished, so writes to the same sheet row

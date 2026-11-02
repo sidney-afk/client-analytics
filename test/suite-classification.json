@@ -2060,6 +2060,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-reports-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared staff-Calendar harness (docs/syncview-design/tests/lost-work-lib.js, fictional client, card and staff member), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 639: the content Calendar reports a refused card save with board calendar and its later landing (landed_after_retry), a reload during a card save, a press dropped while the same part is saving, and an uncaught error, ids and the client slug only; failed without the change.",
+      "reproduce": "node test/calendar-reports-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "workload-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

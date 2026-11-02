@@ -112,7 +112,7 @@ jobs:
           echo "- Linear-exit native SQL preflight: PASS" >> "$GITHUB_STEP_SUMMARY"
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.0
       - name: Deploy push-safe staff-sensitive functions
         id: push_safe_deploy
         # The production secret is scoped to the deploy step only — never the job

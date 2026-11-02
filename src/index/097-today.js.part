@@ -11,7 +11,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
 import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialListShared } from './189-trial-reels-card.js';
+import { svTrialListSharedMany } from './189-trial-reels-card.js';
 import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     /* TODAY (owner design 2026-09-27, session Compass).
      *
@@ -383,7 +383,9 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         await Promise.race([Promise.resolve(svRsFlagsReady()).catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
         const slugs = [...new Set(cal.map(r => r.client_slug))].filter(s => svTrialReelsOn(s));
         const by = {};
-        await Promise.all(slugs.map(s => svTrialListShared(s, true).then(l => { by[s] = (l && l.cards) || {}; }, () => {})));
+        // One list_many read for every such client, not one read each (OPEN_REPAIRS 631).
+        const lists = await svTrialListSharedMany(slugs, true).catch(() => ({}));
+        slugs.forEach(s => { by[s] = (lists[s] && lists[s].cards) || {}; });
         return cal.map(r => {
             const card = (by[r.client_slug] || {})[r.card_id];
             const asked = card && card.enabled ? (card.versions || []).filter(v => v.status === 'change asked').map(v => v.letter) : [];

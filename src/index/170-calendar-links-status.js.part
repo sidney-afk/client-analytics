@@ -12,7 +12,7 @@ import {
 } from './120-calendar-flags-write-repair.js';
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
 import {
-  CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
+  CAL_CONFLICT_WINDOW_MS, CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
   _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calIsCollabOn, _calLocalRecentSaves,
   _calMigratePostShape, _calNoLinearPush, _calNormMonthFilter, _calPendingEdits,
   _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
@@ -1871,12 +1871,22 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // Record this successful local write so the next background
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.
+            const _rsPrevAt = _calLocalRecentSaves.get(realId);
             _calLocalRecentSaves.set(realId, Date.now());
             // Remember what we just wrote + the pre-save base for each sub-status
             // so a v2 background merge can adopt a genuinely new status from
             // another actor (Kasper) while still riding out a stale Linear
             // round-trip. Paired with _calLocalRecentSaves (same lifetime).
+            // `fields`: every field this browser has written to the card while the
+            // window is live (a union across saves), so the merge keeps only
+            // those local and takes everyone else's newer values for the rest
+            // (OPEN_REPAIRS 636: an SMM's alt-caption removal was hidden for 90 s
+            // behind a client's own caption save).
+            const _rsfPrev = (_rsPrevAt && (Date.now() - _rsPrevAt) <= CAL_CONFLICT_WINDOW_MS) ? _calRecentSaveFields.get(realId) : null;
+            const _rsfFields = new Set((_rsfPrev && Array.isArray(_rsfPrev.fields)) ? _rsfPrev.fields : []);
+            Object.keys(edits || {}).forEach(k => _rsfFields.add(k));
             _calRecentSaveFields.set(realId, {
+                fields: Array.from(_rsfFields),
                 wrote: { video_status: post.video_status, graphic_status: post.graphic_status, caption_status: post.caption_status, title_status: post.title_status },
                 base: prevSnapshot
                     ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }

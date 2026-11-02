@@ -1759,7 +1759,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                         // kept local.
                         if (_calV2Enabled()) {
                             const _rsf = _calRecentSaveFields.get(fp.id);
-                            const reconciled = _calRecentSaveReconcile(lp, fp, _rsf);
+                            const reconciled = _calRecentSaveReconcile(lp, fp, _rsf, _calPendingEdits[fp.id]);
                             // Heal any stale Linear round-trip we just refused to
                             // adopt: re-assert the kept approval onto the Linear
                             // sub-issue so the next sync echoes the right value

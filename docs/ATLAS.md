@@ -188,7 +188,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 
 - Switch `pto_v1` is on. Open from the account menu (no tab). Every staff member: balances (Wellness available, Sick left, floating holiday), **Request time off** (Wellness, Sick, Floating holiday, Unpaid; SyncView counts business days; half-day option), **My requests** (cancel while pending), a **Team calendar** of approved absences and paid holidays, and who is away today.
 - Rules (server side): paid leave starts 60 days after the start date; wellness is earned monthly (capped per year, resets 1 January); 3 sick days a year; one floating holiday a year; only sick leave can be today or in the past; a warning when the start is under 14 days away.
-- **Kasper › Time Off** (Admin): **Pending requests** (**Approve** / **Deny** with a note), team calendar, member balances, **Add adjustment**, and **Member setup** (start date, enabled).
+- **Kasper › Time Off** (Admin): **Pending requests** (**Approve** / **Deny** with a note), team calendar, member balances, **Log time off** (put leave on someone's record: member, type, dates, half day, note; a line shows what it uses from their balance; it is saved as approved, shows on the team calendar, and the member sees "Logged by" with no Cancel), **Add adjustment** (changes a balance only, never on the calendar), and **Member setup** (start date, enabled).
 
 #### SMM weekly reports
 

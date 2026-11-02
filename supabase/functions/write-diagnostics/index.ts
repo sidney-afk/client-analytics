@@ -23,12 +23,19 @@ Deno.serve(async(req:Request)=>{
   const detail=browserDetail(body,req.headers.get('user-agent'),staff?.ok?staff.role:null),env=browserEnv(body);
   // v3 (migration 20261101220000, OPEN_REPAIRS 626) also keeps the review boards' code and the store's
   // fill. Until it is applied a claim records through v2 without them, then v1.
-  let result=env?await db.rpc('production_write_refusal_record_browser_v3',{p_receipt:receipt,p_detail:detail,p_env:env}):null;
-  // OPEN_REPAIRS 638: v3 refusing for ANY reason (missing, or a value its table does not take yet, such as a board
-  // added before its migration) must not lose the report: it is recorded through v2 without the extra fields. v3
-  // records through v2 inside its own transaction, so a refused v3 has written nothing and v2 records it once.
-  if(!result||result.error)result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:receipt,p_detail:detail});
-  if(missingRpc(result.error))result=await db.rpc('production_write_refusal_record_v1',{p_receipt:receipt});
+  const record=async(r:Record<string,unknown>)=>{
+   let result=env?await db.rpc('production_write_refusal_record_browser_v3',{p_receipt:r,p_detail:detail,p_env:env}):null;
+   // OPEN_REPAIRS 638: v3 refusing for ANY reason (missing, or a value its table does not take yet, such as a board
+   // added before its migration) must not lose the report: it is recorded through v2 without the extra fields. v3
+   // records through v2 inside its own transaction, so a refused v3 has written nothing and v2 records it once.
+   if(!result||result.error)result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:r,p_detail:detail});
+   if(missingRpc(result.error))result=await db.rpc('production_write_refusal_record_v1',{p_receipt:r});
+   return result;
+  };
+  let result=await record(receipt);
+  // OPEN_REPAIRS 643: a surface the table does not take yet (before migration 20261102180000) is recorded as
+  // 'unknown', as before, so no report is lost.
+  if(result.error&&receipt.surface!=='unknown'&&!['calendar','sxr','production'].includes(receipt.surface))result=await record({...receipt,surface:'unknown'});
   return json({ok:!result.error&&result.data?.recorded===true},result.error?503:202);
  }
  // Staff "Save problems" page: admin role key only.
@@ -36,7 +43,7 @@ Deno.serve(async(req:Request)=>{
   if(!staff||!staff.ok)return json({ok:false},staff?.role?403:401);
   if(staff.role!=='admin')return json({ok:false},403);
   const days=Number.isInteger(body.days)?body.days:7;
-  const surface=['calendar','sxr','production','unknown'].includes(body.surface)?body.surface:null;
+  const surface=['calendar','sxr','production','workload','unknown'].includes(body.surface)?body.surface:null;
   const page=['client_link','staff_page','unknown'].includes(body.page)?body.page:null;
   const result=await db.rpc('production_write_refusal_list_v1',{p_days:days,p_include_automation:body.include_automation===true,p_limit:300,p_surface:surface,p_page:page});
   return result.error?json({ok:false,error:'telemetry_unavailable'},503):json({ok:true,result:result.data});

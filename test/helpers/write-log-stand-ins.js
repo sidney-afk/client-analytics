@@ -7,4 +7,9 @@
 module.exports = {
   _writeUiTrackSave: (surface, operation, context, send) => send(),
   _writeUiRecordSaveFailure: () => {},
+  // OPEN_REPAIRS 638: Workload's reports (a dropped second change, a save that landed after a failure, a reload
+  // mid-save). They only report; test/workload-reports-browser.js runs the real ones.
+  _wlReport: () => {},
+  _wlSaveStarted: () => {},
+  _wlSaveSettled: () => {},
 };

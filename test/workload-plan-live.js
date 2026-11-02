@@ -29,7 +29,9 @@ function grab(name) {
 }
 
 // Wiring: the announce sits after the success validation, not in a failure path.
-const persist = grab('_wlPersistPlanDate');
+// OPEN_REPAIRS 638: _wlPersistPlanDate is a thin wrapper that notes the save for Workload's reports; the write, its
+// validation and the announce are in _wlPersistPlanDateOnce.
+const persist = grab('_wlPersistPlanDateOnce');
 const throwAt = persist.indexOf('throw new Error((json && json.error)');
 const annAt = persist.indexOf('wlAnnouncePlanSaved()');
 ok(throwAt > 0 && annAt > throwAt, 'announce runs only after the saved row is validated');

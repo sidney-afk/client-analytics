@@ -24,7 +24,10 @@ Deno.serve(async(req:Request)=>{
   // v3 (migration 20261101220000, OPEN_REPAIRS 626) also keeps the review boards' code and the store's
   // fill. Until it is applied a claim records through v2 without them, then v1.
   let result=env?await db.rpc('production_write_refusal_record_browser_v3',{p_receipt:receipt,p_detail:detail,p_env:env}):null;
-  if(!result||missingRpc(result.error))result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:receipt,p_detail:detail});
+  // OPEN_REPAIRS 638: v3 refusing for ANY reason (missing, or a value its table does not take yet, such as a board
+  // added before its migration) must not lose the report: it is recorded through v2 without the extra fields. v3
+  // records through v2 inside its own transaction, so a refused v3 has written nothing and v2 records it once.
+  if(!result||result.error)result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:receipt,p_detail:detail});
   if(missingRpc(result.error))result=await db.rpc('production_write_refusal_record_v1',{p_receipt:receipt});
   return json({ok:!result.error&&result.data?.recorded===true},result.error?503:202);
  }

@@ -35943,3 +35943,29 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Seen:** #2514's repair-checkpoint (head 36a0c50), 2 checks of 395 red and not #2514's: "no ResizeObserver error (ResizeObserver loop completed with undelivered notifications.)" and 633's own check naming the cause, `["skList -> skList","skList -> view","skList -> svReviewStage"]`. 633 moved three of the stage's watchers to the next frame; the fourth, the strip-edge watcher on #skList (195 `_rsStripEdge`), still toggled the strip's right-edge fade class inside its callback. In WebKit that mask changes the strip's height (its scrollbar), which resizes the strip, #view and the stage in the same frame, and WebKit reports the loop. Chromium measures no size change there, which is why 633's size check passed it locally.
 - **Fix (195):** the strip-edge watcher sets the fade on the next frame, and only when it changed (the scroll listener keeps setting it at once). No watcher on the review stage writes inside an observation any more.
 - **Proof:** `test/calendar-sheet-fit-window-browser.js` now also records every class or style write a watcher's callback makes while it runs, in any engine. The case gives the strip 11 posts, so it overflows at 1440 and not at 3600, then widens the window and back, so the strip watcher's fade has to flip. On main it fails in Chromium, naming the strip watcher; here it passes (Chromium; WebKit in CI).
+
+## 638. [2026-11-02 UTC, BUILT, NOT MERGED] The Workload calendar reports what goes wrong, the same way the review boards do (session Reviewguard)
+
+- **Asked:** after the review boards (OPEN_REPAIRS 626), put the same logging on the Workload calendar, then on the content Calendar, as separate PRs. This is the Workload one.
+- **Before:** a refused Workload save (work day or due date) already reached the refusal log through `_writeUiTrackSave`, but with no board, so the watcher's signature read never listed it. Nothing reported a second change dropped while the first was saving, a reload during a save, an uncaught error on Workload, or a save that landed after a failure.
+- **Now (080, 120):**
+  - every refused Workload save carries board `workload`;
+  - a second move or due-date change that reaches the board's in-flight guard is reported as `workload_double_click` / `save_in_flight`;
+  - a reload while a save was on its way is reported once the board is back (`workload_reload_mid_save`, code `plan` or `due`). The note is written when the save starts and kept once the page is leaving (`beforeunload`/`pagehide`), because leaving aborts the save and its failure path would otherwise clear it;
+  - an uncaught error or unhandled rejection while Workload is open is reported by kind and file:line only (`workload_uncaught`), never its message;
+  - a save that lands on an item whose previous save failed is reported as `landed_after_retry`, so the signature read marks the failure `retry_landed`.
+  - Ids and the client slug only, never a name, title or words; sent after the action is handled, capped per page.
+  - The two error-location helpers moved from 195 to 120 (`_writeUiErrWhere`, `_writeUiStackWhere`) so both pages share them.
+- **Server:**
+  - `write-diagnostics` takes boards `workload` and `calendar`, and now records through v2 whenever v3 refuses for any reason (it used to fall back only when v3 was missing, so a value v3's table refused lost the report).
+  - Migration `20261102130000_workload_calendar_diagnostics.sql` (functions cope without it): the board column also takes `workload` and `calendar`, and the signature read strips the `workload_` and `calendar_` prefixes from actions, as it already did `review_`. Revokes name all four roles.
+  - Applied when: `select pg_get_constraintdef(oid) like '%workload%' from pg_constraint where conname = 'review_env_v1_board_check';` answers true.
+- **Found on the way, not a bug:** a card that is saving shows no drag handle and its date controls are disabled, so a person cannot start a second move by hand; nothing is lost through the board's own controls. The in-flight guard behind them is a backstop for races, and is what the new report covers.
+- **Watcher's read** is unchanged; Workload rows now appear in it, e.g. `workload|plan_save|http_503|chrome|windows|0-49|retry_landed`:
+  `select signature, traffic, test_client, reports, cards, tries, first_at, last_at, app_version from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now()) where traffic = 'person' and not test_client;`
+- **Proof:**
+  - `test/workload-reports-browser.js` (new, mocked on the shared Workload harness, Chromium and WebKit; wired into the repair-checkpoint job with WebKit required): the dropped second move, a refused move and its later landing, a reload during a save, an uncaught error and a rejection, and no names or words in any report. On main it fails at the first report.
+  - `test/review-board-diagnostics-postgres.js` applies the new migration twice and records a Workload failure, its landing and a dropped move; the signature read lists `workload|plan_save|…|retry_landed` and `workload|double_click|save_in_flight|…`.
+  - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
+  - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
+- **Way back:** revert the PR; the migration only widens a check and replaces one read.

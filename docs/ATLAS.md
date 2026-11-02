@@ -253,7 +253,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - Staff only on the card; the client approves the title on their Review page.
 - **Date chip:** "Add date" / the date. Opens a date picker (staff).
 - **Thumbnail URL** and **Video URL (Frame.io / Drive)** fields:
-  - Once filled, each shows an open pill, a pencil to edit and, for thumbnails, "Open the folder this link is in".
+  - Once filled, each shows an open pill and a pencil to edit. The thumbnail's Drive folder opens from the card's **Files** button (the folder button on the thumbnail): **Thumbnail folder**, right under **Thumbnail file** (moved there from its own icon on the row, 2026-11-01).
   - A **Compare** icon shows the previous and current thumbnail after a thumbnail has been replaced (switch `thumbnail_revision_v2`, on).
   - Changing a thumbnail refreshes it for every viewer without a hard refresh.
 - **Caption box:**

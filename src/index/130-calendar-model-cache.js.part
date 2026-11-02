@@ -1204,8 +1204,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        link for 90 s after the client's own caption save (OPEN_REPAIRS 636,
        nightly probe p52). Arrays, comment cells, ordering and local-only
        underscore keys are left to their own merges. */
-    const CAL_RECONCILE_SKIP_FIELDS = new Set(['id', 'client', 'updated_at', 'created_at', 'order_index', 'status',
-        'video_status', 'graphic_status', 'caption_status', 'title_status', 'comments']);
+    const CAL_RECONCILE_SKIP_FIELDS = new Set(['id', 'client', 'updated_at', 'created_at', 'order_index', 'status', 'video_status', 'graphic_status', 'caption_status', 'title_status', 'comments']);
     function _calRecentSaveReconcile(lp, fp, rsf, pend) {
         if (!lp || !fp || !rsf) return null;
         const lT = Date.parse(lp.updated_at || '');

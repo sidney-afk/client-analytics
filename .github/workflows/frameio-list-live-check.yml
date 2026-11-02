@@ -1,0 +1,43 @@
+name: frameio-view list live check (manual)
+
+# The live check for frameio-view's folder list (plan row F1, which V2's Frame import uses): one test-client card's
+# Frame share listed, and one listed video looked up by its own link (it must be that same file, F0). Read-only.
+# Prints only counts and true/false (scripts/frameio-list-live-check.js, summarize), never an address, an id, a name
+# or a key. Run by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: 'A test-client trial card id whose version link is a Frame folder share'
+        required: true
+        type: string
+      letter:
+        description: 'Optional version letter (A to G); empty = the version on the card'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frameio-list-live-check
+  cancel-in-progress: false
+
+jobs:
+  list-once:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: List one test-client Frame share and report the counts
+        env:
+          # The SMM role key, a repository secret (as the dawn check and the post-source live check use). Never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          LIVE_CHECK_CARD: ${{ inputs.card }}
+          LIVE_CHECK_LETTER: ${{ inputs.letter }}
+        run: node scripts/frameio-list-live-check.js

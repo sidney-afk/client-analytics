@@ -35965,7 +35965,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
 
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
+## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
 
 - **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
 - **Now (`supabase/functions/frameio-view/logic.mjs`):**

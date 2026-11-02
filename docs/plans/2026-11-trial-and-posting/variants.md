@@ -38,8 +38,11 @@ What is missing is that a version carries only a video, not its own thumbnail an
 - **Frame.io.** `frameio-view` already reads Frame's V4 API with SyncView's own Adobe login (`frameio-token`). It
   resolves `f.io/...`, `next.frame.io/share/<id>[/view/<file>]` and `next.frame.io/project/<p>/view/<file>`
   (`frameio-view/logic.mjs:42`), and already opens folders, but only takes the **first** video in one
-  (`logic.mjs:127`). It never lists a folder. Bug to fix on the way: a `/share/<id>/view/<file>` link whose share is a
-  folder falls back to the first video, because the file is looked for only at the share's top level (`logic.mjs:151`).
+  (`logic.mjs:127`). It never lists a folder. A risk to fix on the way: a `/share/<id>/view/<file>` link is looked up in
+  the first page of the share's asset list only (no `page_size`, no cursor), and when the file is not found it silently
+  falls back to the share's first asset (`logic.mjs:151`). Frame's share list is flat and recursive (Linkplan, V4
+  reference), so a file inside a shared folder is normally found; the wrong video appears only past the first 50 rows.
+  The fix is to follow the cursor and refuse instead of falling back.
 - **SMM status today.** The SMM can approve a version only on the Review tab, at the SMM stage. On the calendar card
   a version row has its link, a pencil, Drop and (after 24 h) the trophy. There is no way to say "the client approved
   this" or "change asked" from the card. That is item 2.
@@ -259,16 +262,19 @@ Step 1                                     Step 2 (the minimalist matching step)
   plain message under the link box, link kept for editing. Empty folder: "This folder has no videos." One video: one
   row, pre-set to the first free letter. Many: as above.
 - **Which link is stored per version:** `next.frame.io/share/<share>/view/<file>`, so the client player, Production's
-  availability check and "Open in Frame" all work as they do with today's pasted links. Needs the folder lookup fix in
-  section 1. The link carries the Frame file id, so no extra column is needed; a signed media address is never stored.
+  availability check and "Open in Frame" all work as they do with today's pasted links. Needs the lookup fix in section 1
+  (follow the cursor, refuse instead of falling back). The link carries the Frame file id, so no extra column is needed; a signed media address is never stored.
 - **Frame facts this relies on (from Linkplan, V4 reference read 2026-11-02, see `links.md`):** the token frameio-view
   already holds is enough (nothing new from Sidney). The list uses `folders/{id}/children` with `include` set to the
   thumbnail and metadata only (name, Duration). Never ask for `media_links.original`: it answers 403 without download
   rights. Media links are null while a file is transcoding, so a still-processing video shows as a row with "Still
   processing in Frame" and its picker disabled. Pages follow a cursor (`after`, `links.next`), so going past 50 is
   cheap if it is ever needed. The rate limit is 100 calls a minute per Frame user, and one import makes 3 to 5 calls.
-  **Still to measure on one real link in PR 3:** whether a `/share/<id>/view/<file>` browser link opens a file inside a
-  folder share, and the shape of a project folder (non-share) address.
+  Page size goes up to 500; thumbnails are signed links, shown and never stored. A project address
+  (`next.frame.io/project/<p>/view/<id>`) can be a file or a folder; v1 still refuses a folder one with the share
+  advice. **Still to measure on one real link in PR 3:** whether Frame's own web page opens a
+  `/share/<id>/view/<file>` link to a file inside a folder share, and that a secure (non-public) share in our own Frame
+  account reads through our login (Linkplan's reading of the reference says yes).
 
 ### 4.4 The SMM's status menu (item 2)
 
@@ -310,7 +316,7 @@ first. Every PR runs `node scripts/repo-identity-exposure-check.js --diff=origin
 |---|---|---|---|
 | 1 | Migration: the four columns, cope marker, grants read back | migration test that the columns exist and no browser role gained anything; read-back SQL after Lighthouse applies it | nothing reads them yet |
 | 2 | `trial-reels`: `smm_set` + the SMM status menu on the card (item 2). Smallest, independent, Sidney's most direct ask | `test/trial-reels*.js`: an SMM `smm_set approved` is refused before (unknown action) and passes after; a creative and a client are refused; the ledger row is written. Live: on a sidneylaruel trial card, mark B approved as SMM, see it on the client link and gone from Kasper's queue | the card moving to Approved early if the "all versions approved" count is wrong; covered by a test per stage |
-| 3 | `frameio-view` `part: "list"` + the folder `/view/<file>` fix. No screen yet | unit tests on `logic.mjs` with a mocked Frame answer: a folder of 6 videos and 2 images lists 6; a `/view/<file>` inside a folder plays that file, not the first (fails before, passes after). Live: list one test folder with a staff key | the existing "Watch here" player, if the fix changes which file a link picks; covered by today's frameio-view tests |
+| 3 | `frameio-view` `part: "list"` + the share lookup fix (follow the cursor; refuse, never fall back). No screen yet | unit tests on `logic.mjs` with a mocked Frame answer: a folder of 6 videos and 2 images lists 6; a `/view/<file>` that is the 60th row of a share plays that file (fails before, passes after); a file not in the share is refused, not replaced by the first. Live: list one test folder with a staff key | the existing "Watch here" player, if the fix changes which file a link picks; covered by today's frameio-view tests |
 | 4 | The import sheet and `versions_import` (item 1), behind the flag | browser test with mocked answers: paste, list, pick, add; a duplicate letter cannot be set; a refusal writes nothing. Live: import three videos into a sidneylaruel card | today's link paste on a version (shared code path) |
 | 5 | `trial-reels` `version_fields_set`, `effective` in reads, `part` on a change; card UI: the switch moves to the card, rows get thumbnail and caption | function tests (a null field reads as the card's; a set field wins; the winner copy covers thumbnail and caption); browser test on the card at 1440 and 390. Live: give B its own thumbnail and caption on sidneylaruel | today's card height (owner rule: a collapsed card keeps today's height); the Sheet fit (`sheet_fit_v1`) |
 | 6 | Review page: the version strip, the version's thumbnail and caption, Approve covers all parts, a change picks its part. **Waits for Trialchange's Safari fix to merge** | review-stage tests: approving every version calls today's approve on video, thumbnail and caption once each; a thumbnail change reaches the graphic part. Live: walk SMM, Kasper and the client link on sidneylaruel at 1440 and 390 | the review boards (largest risk; section 6) |
@@ -348,9 +354,8 @@ PRs 2 and 3 can run in parallel. 4 needs 3. 5 needs 1. 6 needs 5. 7 is optional 
     Marking versions "on trial" stays as today (the card set to Posted). No disagreement.
   - There is one matcher, the Frame one. It does not take a dropped local folder, because a version's video must be
     a Frame link (the review boards play it from Frame). Local files are a Post tab source only.
-  - **One overlap to sequence:** my PR 3 changes `frameio-view/logic.mjs` (a new list part, plus the fix for a file
-    inside a folder share). `post-source` reuses that file. Whichever lands second rebases. The fix helps
-    `post-source` too: without it, a version link inside a folder share would post the folder's first video.
+  - **One overlap to sequence:** my PR 3 changes `frameio-view/logic.mjs` (a new list part, plus the share lookup fix). `post-source` reuses that file. Whichever lands second rebases. Postplan's `post-source` already refuses an inexact file match on
+    its own, so it is safe before the fix lands.
 - **Rate limits.** The import adds one Frame listing per click, staff only. The strip adds one thumbnail image per
   version, no extra function reads.
 

@@ -152,7 +152,7 @@ const tick = () => new Promise(r => setImmediate(r));
     await tick(); await tick();
     assert.equal(applies, 2, 'the hold is released once the send has taken over (a later press with nothing open sends directly)');
   }
-  // 6. OPEN_REPAIRS 635 (Reviewguard, 2026-11-02): the SMM approves from the Review tab on a card whose link to its work
+  // 6. OPEN_REPAIRS 637 (Reviewguard, 2026-11-02): the SMM approves from the Review tab on a card whose link to its work
   //    item nothing has looked up yet. The approve used to read that as "not linked" and mark the requests done on the
   //    card's legacy copy only, so production_comments.resolved_at stayed empty and the requests showed open again on
   //    every canonical read. It must look the link up first and resolve the canonical rows.

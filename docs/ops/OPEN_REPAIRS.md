@@ -35897,7 +35897,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - the unit checks on this send path.
 - **Way back:** revert the PR.
 
-## 635. [2026-11-02 UTC, BUILT, NOT MERGED] The SMM's Approve on the Review tab marked change requests done on the card's legacy copy only, when nothing had yet looked up the card's link to its work item (found by the supervisor; fixed by session Reviewguard)
+## 637. [2026-11-02 UTC, BUILT, NOT MERGED] The SMM's Approve on the Review tab marked change requests done on the card's legacy copy only, when nothing had yet looked up the card's link to its work item (found by the supervisor; fixed by session Reviewguard)
 
 - **Seen:** after an SMM approved a part with open change requests from the Review tab, `production_comments.resolved_at` stayed empty for those requests. The card's legacy copy said done, but everywhere the canonical thread is read (Notes, Production, Kasper) the requests showed open again. The gate said `crosswalk_unresolved`.
 - **Cause, in 190 `_calReviewApprove`:**

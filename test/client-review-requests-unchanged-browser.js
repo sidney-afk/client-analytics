@@ -22,7 +22,7 @@
  * OPEN_REPAIRS 414 (2026-10-13): only the _calReviewApprove hash was re-pinned. The change is in its
  * staff-only (smm) branch; the client requests above are unchanged.
  *
- * OPEN_REPAIRS 635 (2026-11-02): only the _calReviewApprove hash was re-pinned. The change is in its staff-only (smm)
+ * OPEN_REPAIRS 637 (2026-11-02): only the _calReviewApprove hash was re-pinned. The change is in its staff-only (smm)
  * branch: an approve first looks up the card's link to its work item when nothing has yet; the client requests above
  * are unchanged.
  *

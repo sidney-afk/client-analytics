@@ -89,13 +89,21 @@ press.
    `{ media_url, thumb_url, caption, caption_alt, caption_alt_platform, file_name, bytes, width, height, duration }`.
 3. **The file never passes through the browser.** The browser shows Frame's small `efficient` copy in a plain
    `<video>` so the SMM sees what will go out, with the Frame file name and size under it. Typical size: a 30 to 90
-   s 1080p reel is 20 to 150 MB; the server refuses anything over TikTok's limit (287 MB) when TikTok is ticked,
-   and over Post for Me's limit otherwise (fact pending from Linkplan).
+   s 1080p reel is 20 to 150 MB; the server refuses anything over TikTok's limit (287 MB) when TikTok is ticked.
+   Post for Me's reference states no size limit of its own (Linkplan, 2026-11-02), so other limits are each
+   network's; PR 1 and the first real post per network measure them.
 4. **Spike first (PR 1).** Two things are not proven and decide the route: whether Post for Me's signed upload
    address takes a streamed (chunked) PUT, and how long the copy takes against the Edge Function time limit.
-   PR 1 measures one real copy on the test client and picks: (a) stream (preferred); (b) if Post for Me
-   accepts any public https media address and fetches it at create time, hand it Frame's signed address and copy
-   nothing; (c) fall back to "Download from Frame" with a clear message for files the server cannot move.
+   PR 1 measures one real copy on the test client and picks: (a) stream (preferred); (b) Post for Me does accept
+   any public https media address (Linkplan), so hand it Frame's signed address and copy nothing, but only if PR 1
+   shows Post for Me fetches it at create time, because Frame's addresses expire and a scheduled post would
+   otherwise fail later; (c) fall back to "Download from Frame" with a clear message for files the server cannot
+   move. Post for Me deletes uploaded media 24 h after upload if no post uses it, so the copy runs on the card pick
+   and is redone if the press comes later than that.
+6. **The exact file, or nothing.** Variantplan found that `frameio-view` falls back to the first video when a
+   `/view/<file>` link sits inside a folder share. For posting that would send the wrong video, so `post-source`
+   resolves the file id from the link and refuses when it cannot match it exactly ("This link points at a folder;
+   open the card and paste the video's own link"). It never takes "the first video".
 5. Caption: the card's caption, or `caption_alt` when written for the network being posted to (today's rule,
    `299:241-257`). Only an empty caption box is filled; typed text is never overwritten.
 
@@ -123,8 +131,15 @@ press.
 | TikTok | today's fields, unchanged (privacy with no default, comments/duet/stitch, disclosure) | as today | `postforme_account_id` |
 | Instagram | Reel or Carousel, cover, Trial reel | as today | `postforme_instagram_account_id` |
 | Facebook | nothing extra | Reel as a Facebook Reel | `postforme_facebook_account_id` |
-| YouTube | **title** (required, up to 100 characters), description (the caption, up to 5,000), **privacy** (public, unlisted, private), **made for kids** (YouTube requires an answer) | title = first line of the caption, Public, Not made for kids | `postforme_youtube_account_id` |
-| LinkedIn | nothing extra (caption up to 3,000) | posts as whatever account is connected | `postforme_linkedin_account_id` |
+| YouTube | **title** (up to 100 characters), description (the caption, up to 5,000 bytes), **privacy** (public, unlisted, private), **made for kids** (a legal declaration) | title = first line of the caption, Public; made for kids has **no default**: asked once per client, then remembered on the profile | `postforme_youtube_account_id` |
+| LinkedIn | nothing extra for a video (caption up to 3,000) | posts as whatever account is connected | `postforme_linkedin_account_id` |
+
+Post for Me facts (Linkplan, read 2026-11-02 from Post for Me's live API reference): every network is the same
+`POST /v1/social-posts` with one more account id and one configuration block; YouTube takes `title`,
+`description`, `privacy_status`, `made_for_kids`, `tags`, `category_id` and others, and has **no Shorts flag**;
+LinkedIn takes only caption and media overrides for a video; a person or a company page is fixed when the account
+is connected (`connection_type`), not per post. A TikTok connected as `tiktok_business` would fail today's
+`platform === "tiktok"` check; PR 5 accepts both.
 
 - **YouTube Shorts vs long video.** YouTube itself makes a vertical video of 3 minutes or less a Short. The form
   shows "Will be a Short" or "Will be a regular video" from the file's shape and length; there is no switch. A
@@ -140,12 +155,14 @@ press.
 Trial reels are an Instagram feature, so:
 
 - **A trial card, "Trial versions" chosen**: one row per approved version (A, B, C...), each with its own video,
-  thumbnail and caption from Variantplan's version model, each with a small checkbox (all ticked). Instagram is
+  thumbnail and caption from Variantplan's version model (the `effective` set that `trial-reels` read returns per
+  version, card values filled in where a version has none), each with a small checkbox (all ticked). Instagram is
   the only network, Trial reel is fixed on, and Facebook, YouTube, LinkedIn and TikTok are off with the reason. One
   press sends one Instagram post **per version**, each with its own key (the press key plus the letter), so a
   re-press after a partial failure resends only the versions that have no post yet.
-- **The winner, after the trial**: pick the same card, "Winner" chosen: the composer fills from the winner
-  version, with Instagram **unticked** ("Already on Instagram as a trial. Share it to followers in the Instagram
+- **The winner, after the trial**: in Variantplan's model the card's own video, thumbnail and caption become the
+  winner's once it is picked, so this is just picking the card. The composer sees a trial card with a winner and
+  starts with Instagram **unticked** ("Already on Instagram as a trial. Share it to followers in the Instagram
   app.") and the other connected networks ticked.
 - **A card without trial** works as any card.
 - The upload rows keep `options.card = { post_id, letter }` (JSON, no migration) so the queue reads "Video 15 · B".
@@ -191,7 +208,7 @@ Facebook did:
 
 | Function | Change | Lane | Section 4 re-pin |
 |---|---|---|---|
-| `post-source` (new) | Card or version to Post for Me storage: reads the Frame link from `calendar_posts.asset_url` or `studio_trial_versions.frame_url` (never from the request), staff key only, the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (or TikTok's rule), Frame token through the `frameio-token` broker as `frameio-view` does. Reuses `frameio-view/logic.mjs` for the lookup. Writes no table. | merge lane (new function deploys on merge) | none |
+| `post-source` (new) | Card or version to Post for Me storage: reads the Frame link, thumbnail and caption from `calendar_posts` or, for a version, from the same `effective` set `trial-reels` returns (shared logic module, never from the request), staff key only, the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (or TikTok's rule), Frame token through the `frameio-token` broker as `frameio-view` does. Reuses `frameio-view/logic.mjs` for the lookup. Writes no table. | merge lane (new function deploys on merge) | none |
 | `instagram-upload` | Account map per network; `platformMismatch(acct, want)` for youtube and linkedin; YouTube and LinkedIn configuration builders; per-network results generalised from Facebook's. | merge lane | none |
 | `tiktok-upload` | none (the stable key is a page change) | – | – |
 | `trial-reels`, `production-write`, `frameio-view`, `calendar-upsert` | none | – | none |
@@ -261,7 +278,8 @@ Post to
 [thumb] Video 17   no date     Approved
 ```
 
-A trial card opens a second step: `( Main video )  ( Trial versions )  ( Winner )`, only the ones that apply.
+A trial card with no winner yet opens a second step: `( Trial versions )  ( Main video )`. After a winner is picked
+the card itself carries the winner, so there is no second step.
 
 ### Trial versions
 
@@ -342,7 +360,10 @@ both `{ "clients": [test client] }` first, then `"all"` on the owner's go.
 - **Posting itself (the real risk):**
   - the card's Frame link points at an old cut: the preview, the Frame file name and its upload date are shown
     before the press;
-  - Frame's `high_quality` copy is not ready (still processing): refused with Frame's reason, no post;
+  - Frame's `high_quality` copy is not ready (still processing, or links withheld for a watermarked or
+    no-download share): refused with Frame's reason, no post;
+  - a folder-share link resolving to the wrong video (`frameio-view` bug found by Variantplan): refused, see
+    section 2, step 6;
   - a big file times out the copy: refused with "Download from Frame and drop it" (route c);
   - the same Post for Me media address in a TikTok post and a multi-network post: to be confirmed in PR 1 (else mint
     one per post);
@@ -357,8 +378,11 @@ both `{ "clients": [test client] }` first, then `"all"` on the owner's go.
   ways to post the wrong thing.
 - **Matching a folder of versions to letters.** Variantplan builds that for the Frame folder; trials post from the
   card instead.
-- **The Post tab marking the card Posted or versions "on trial".** It would write card status from a new place and
-  touch the status sync; today's button and the auto-posted timer stay.
+- **The Post tab marking the card Posted or versions "on trial".** Variantplan left this to this plan. Not in v1:
+  calling `trial_start` from the Post tab writes trial state from a second place, and a scheduled trial reel is not
+  out yet when the press happens, so the 24 h would start too early. Today's rule stays (the trial starts when the
+  card is set to Posted). Worth a later PR once posting results arrive by webhook: start the trial when Post for Me
+  says every version's post is live.
 - **YouTube long-form extras** (custom thumbnail on long videos, playlists, tags, category). Shorts first.
 - **Different files per network** (a landscape cut for YouTube). One video per press.
 - **Folder picking on phones.** Phones use "From a card".
@@ -375,8 +399,8 @@ both `{ "clients": [test client] }` first, then `"all"` on the owner's go.
 3. **Trial versions go to Instagram only, as trial reels; the winner later goes to TikTok, Facebook, YouTube and
    LinkedIn from the same card, with Instagram unticked** (it is shared to followers in the Instagram app)?
    *Recommended: yes.*
-4. **YouTube defaults: Public, Not made for kids, title = the caption's first line; Shorts only for now?**
-   *Recommended: yes.*
+4. **YouTube: Public, title = the caption's first line, Shorts only for now, and "made for kids" asked once per
+   client and remembered (it is a legal declaration, so no silent default)?** *Recommended: yes.*
 5. **LinkedIn: one account per client, whichever you connect (a company page or the founder's profile)?**
    *Recommended: yes.*
 
@@ -393,12 +417,14 @@ trial half.
 
 ## Lining up with the other plans
 
-- **Variantplan:** PR 7 needs each version to carry its own video link, thumbnail and caption, readable by
-  `(client, post_id, letter)` from the server. If versions become rows of their own (copies of the card),
-  `post-source` reads those instead; only its read changes.
-- **Linkplan:** this plan assumes account ids at `client_profiles.extra.postforme_<network>_account_id` and asks it
-  for five Post for Me / Frame facts (media address rules, upload size and life, YouTube and LinkedIn fields, Frame
-  originals). Answers will be folded in here.
+- **Variantplan (#2521):** agreed. Versions stay rows in `studio_trial_versions` with their own thumbnail and
+  caption (empty = the card's); `post-source` reads the `effective` set, not the card. After a winner, the card
+  holds the winner. Automatic "on trial" after posting: this plan says not yet (section 7). PR 7 waits on its
+  version fields; the `frameio-view` folder-share fallback must not reach posting (section 2, step 6).
+- **Linkplan:** agreed on `client_profiles.extra.postforme_youtube_account_id` and `..._linkedin_account_id`
+  (TikTok stays in `postforme_account_id`). Its Post for Me and Frame facts are folded in above. Frame needs no new
+  scope or anything from Sidney. Linkplan would make YouTube's made-for-kids a required choice; this plan agrees
+  and remembers it per client so it is asked once.
 
 Skills used: none of the named skills (karpathy-guidelines, frontend-design, interface-design, Hallmark, Emil
 Kowalski, taste-skill) is installed in this session; their rules were applied by hand (measure first, simplest

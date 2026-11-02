@@ -39,8 +39,8 @@ import {
   _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
 } from './170-calendar-links-status.js';
 import {
-  COMP_LABELS, _calCapGenBtnRefresh, _calWireDragOnCard, calMonthShift, calWeekShiftDays, renderCalMonth,
-  renderCalWeek, wireCalOrganizerDrag
+  COMP_LABELS, _calCapGenBtnRefresh, _calWireDragOnCard, _calWithUndatedReserve,
+  calMonthShift, calWeekShiftDays, renderCalMonth, renderCalWeek, wireCalOrganizerDrag
 } from './180-calendar-native-post-media.js';
 import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, renderCalReview } from './190-calendar-approval-comments.js';
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
@@ -1967,7 +1967,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         }
         if (calState.loading) {
             const grid = _calLoadingGridHtml();
-            body.innerHTML = grid || _calLoaderHtml();
+            body.innerHTML = grid || (_calPhoneUndatedReserveHtml() + _calLoaderHtml());
             if (grid && calState.view === 'week') _calWireWeekWheel(body);
             return;
         }
@@ -2025,6 +2025,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             }
         }
         if (patchOnly) { _calLastBodyPaint = lastPaint; return false; }
+        const undatedReserveH = _calUndatedReserveHeight(body);
         _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
@@ -2050,6 +2051,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
+        if (undatedReserveH) _calCollapseUndatedReserve(body, undatedReserveH);
         if (preserveScroll) { _calRestoreLiveUi(body, liveSnap); _calRestoreScroll(body, scrollSnap); }
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
@@ -2228,13 +2230,72 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
         const keep = calState.posts;
         try {
             calState.posts = [];
-            const html = calState.view === 'month' ? renderCalMonth() : renderCalWeek();
+            const html = _calWithUndatedReserve(() => calState.view === 'month' ? renderCalMonth() : renderCalWeek());
             return `<div class="cal-grid-skeleton" role="status" aria-label="Loading your calendar" aria-busy="true" inert>${html}</div>`;
         } catch (e) {
             return '';
         } finally {
             calState.posts = keep;
         }
+    }
+    /* Phone Month and Week load under the timeline skeleton, not the grid. When a strip is remembered, the loaded
+       view's own month header and that strip go above it, where they sit once loaded (on a client phone the strip is
+       the folded "Not scheduled yet" row from #2482; on a staff phone, the tray). No memory: the timeline skeleton
+       alone, as before. Inert, like the desktop skeleton. */
+    function _calPhoneUndatedReserveHtml() {
+        if (calState.view !== 'month' && calState.view !== 'week') return '';
+        const keep = calState.posts;
+        try {
+            calState.posts = [];
+            return _calWithUndatedReserve(has => {
+                if (!has) return '';
+                const tpl = document.createElement('template');
+                tpl.innerHTML = calState.view === 'month' ? renderCalMonth() : renderCalWeek();
+                const strips = [...tpl.content.querySelectorAll('.cal-unscheduled-top')];
+                if (!strips.length) return '';
+                const head = tpl.content.querySelector('.cal-month-header');
+                const wrap = calState.view === 'month' ? 'cal-month-wrap' : 'cal-week-wrap';
+                return `<div class="${wrap} cal-undated-reserve" inert aria-hidden="true">${head ? head.outerHTML : ''}${strips.map(e => e.outerHTML).join('')}</div>`;
+            });
+        } catch (e) {
+            return '';
+        } finally {
+            calState.posts = keep;
+        }
+    }
+    /* The skeleton drew a remembered undated strip (OPEN_REPAIRS 632). Returns the room it took, from the top of the
+       first strip to the bottom margin of the last, or 0. Read before the loaded paint replaces it. */
+    function _calUndatedReserveHeight(body) {
+        if (calState.view !== 'month' && calState.view !== 'week') return 0;
+        const strips = [...body.querySelectorAll('.cal-grid-skeleton .cal-unscheduled-top, .cal-undated-reserve .cal-unscheduled-top')];
+        if (!strips.length) return 0;
+        const top = strips[0].getBoundingClientRect().top;
+        const last = strips[strips.length - 1];
+        let mb = 0;
+        try { mb = parseFloat(getComputedStyle(last).marginBottom) || 0; } catch (e) { mb = 0; }
+        const h = last.getBoundingClientRect().bottom - top + mb;
+        return h > 0 ? Math.round(h) : 0;
+    }
+    /* The posts landed and no undated strip came with them (they were all scheduled since): the room the skeleton
+       kept for it closes smoothly instead of the grid jumping up by it, and never jumps down. Reduced motion: it
+       closes at once. A strip that did come keeps its own place, so this only ever runs for an empty one. */
+    function _calCollapseUndatedReserve(body, h) {
+        if (body.querySelector('.cal-unscheduled-top')) return;
+        let reduce = false;
+        try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduce = false; }
+        if (reduce) return;
+        const wrap = body.querySelector('.cal-month-wrap, .cal-week-wrap');
+        const head = wrap && wrap.querySelector(':scope > .cal-month-header');
+        if (!head) return;
+        const gap = document.createElement('div');
+        gap.className = 'cal-undated-collapse';
+        gap.setAttribute('aria-hidden', 'true');
+        gap.style.height = h + 'px';
+        head.after(gap);
+        const done = () => { if (gap.isConnected) gap.remove(); };
+        gap.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 700);
+        requestAnimationFrame(() => requestAnimationFrame(() => { gap.style.height = '0px'; }));
     }
     function _calWireWeekWheel(body) {
         const vp = body.querySelector('.cal-week-viewport');

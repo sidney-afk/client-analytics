@@ -2120,6 +2120,13 @@ import {
         calView: 'month',
         selectedDay: '',
         calFocusDay: '',
+        // "Log time off" card: the last server quote (keyed to the inputs it
+        // answered), whether the end date was picked by hand (otherwise it
+        // follows the start, so one day is the default), and the last entry
+        // logged, kept across the tab's refresh so its confirmation survives.
+        logQuote: null,
+        logEndTouched: false,
+        lastLog: null,
     };
 
     function _ptoInvalidateOverviewCaches() {

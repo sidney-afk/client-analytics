@@ -30,6 +30,7 @@ on:
       - '.github/workflows/edge-function-type-ratchet.yml'
       - 'test/thumbnail-title-runs-deno.ts'
       - 'test/trial-reels-function-deno.ts'
+      - 'test/pto-admin-log-deno.ts'
   push:
     branches:
       - main
@@ -41,6 +42,7 @@ on:
       - '.github/workflows/edge-function-type-ratchet.yml'
       - 'test/thumbnail-title-runs-deno.ts'
       - 'test/trial-reels-function-deno.ts'
+      - 'test/pto-admin-log-deno.ts'
 
 # A newer push to the same pull request replaces the run it supersedes (session
 # Express, 2026-10-19). Pushes to main are never cancelled: their group is the commit.
@@ -75,3 +77,7 @@ jobs:
       # The trial-reels function (docs/features/TRIAL_REELS_PLAN.md) driven end to end against an in-memory database.
       - name: Trial reels function (Deno, in-memory database)
         run: deno run --allow-env --allow-net=127.0.0.1 --allow-read --node-modules-dir=auto test/trial-reels-function-deno.ts
+      # The pto function's admin "Log time off" (OPEN_REPAIRS 628) driven against an in-memory database:
+      # admin allowed, non-admin refused, balance, overlap, half days, withdrawal, and before-migration refusal.
+      - name: PTO admin log (Deno, in-memory database)
+        run: deno run --allow-env --allow-net=127.0.0.1 --allow-read --node-modules-dir=auto test/pto-admin-log-deno.ts

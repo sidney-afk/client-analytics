@@ -133,6 +133,7 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
   assert.strictEqual(seven.open_tweaks, 3);
   assert.deepStrictEqual(seven.download, { edit_video: 'https://assets.frame.io/orig.mov', edit_video_small: 'https://assets.frame.io/small.mp4', file_name: 'video7_v3.mov', link_expires: '2026-10-20T12:00:00.000Z' });
   assert.ok(/import_file/.test(body.how_to_download) && /client_filming_plan/.test(body.how_to_download));
+  assert.ok(/SAVE AS YOU GO/.test(body.save_to_profile) && /studio_profile_save/.test(body.save_to_profile), "review_notes reminds SyncMate to save approved looks");
   // Video 8 has no edit link yet.
   assert.strictEqual(body.videos[1].latest_edit, null);
   assert.strictEqual(body.videos[1].download, null);

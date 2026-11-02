@@ -79,6 +79,7 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "trial-version-fields-migration.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -1623,6 +1624,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Open Post for Me link beside every no-account message on the Post tab (TikTok and Instagram account lines and refusals, the Facebook box's reason), new tab and noopener, on desktop and on a phone, and no link when every account is on file.",
       "reproduce": "node test/postforme-link-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "tiktok-press-key-reload-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that the TikTok side keeps a create's key across a reload while its outcome is unknown: the same key and storage address after a reload with an unchanged form and no new upload; a new key for a changed form, after a success and after a 4xx; the same key with a new upload for an attempt older than 20 hours.",
+      "reproduce": "node test/tiktok-press-key-reload-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

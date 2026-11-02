@@ -633,6 +633,43 @@ import {
             if (d.mediaType === 'photo' || d.mediaType === 'video') tkState.mediaType = d.mediaType;
             if (Array.isArray(d.photosMeta)) tkState.photosMeta = d.photosMeta;
         } catch (e) { console.warn('[SyncView] TikTok draft load error:', e); }
+        _tkLoadRetryCreate();
+    }
+
+    // A create whose answer was lost is kept in this browser as well as in memory, so a reload does not lose its
+    // key: the same draft pressed again after a reload sends the same key, and the function adopts the first post
+    // instead of making a second (plan row P0, OPEN_REPAIRS 647). The key is kept until the attempt is resolved (a
+    // success, a clear no, or a changed form), however old it is, because only the key lets the function find the
+    // first post. Only the video in storage ages: Post for Me deletes an upload no post uses after 24 hours, so
+    // after TK_RETRY_MEDIA_MAX_AGE_MS the file is uploaded again, under the same key.
+    const TK_RETRY_KEY = 'syncview_tiktokRetryCreate_v1';
+    const TK_RETRY_MEDIA_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+    function _tkRetryUsable(r) {
+        return !!(r && r.key && r.sig && r.media);
+    }
+    function _tkRetryMediaFresh(r) {
+        return Date.now() - (Number(r && r.savedAt) || 0) < TK_RETRY_MEDIA_MAX_AGE_MS;
+    }
+    function _tkSetRetryCreate(next) {
+        const prev = tkState.retryCreate;
+        // savedAt is when this media reached storage: a retry with the same media keeps it, a new upload resets it.
+        if (next) next.savedAt = (prev && prev.key === next.key && JSON.stringify(prev.media) === JSON.stringify(next.media) && prev.savedAt) || Date.now();
+        tkState.retryCreate = next;
+        try {
+            if (next) localStorage.setItem(TK_RETRY_KEY, JSON.stringify(next));
+            else localStorage.removeItem(TK_RETRY_KEY);
+        } catch (e) {
+            // quota or private mode: the in-memory copy still works for this page
+        }
+    }
+    function _tkLoadRetryCreate() {
+        try {
+            const r = JSON.parse(localStorage.getItem(TK_RETRY_KEY) || 'null');
+            if (_tkRetryUsable(r)) tkState.retryCreate = r;
+            else localStorage.removeItem(TK_RETRY_KEY);
+        } catch (e) {
+            // unreadable: nothing kept
+        }
     }
 
     function _tkSaveDraft() {
@@ -1448,7 +1485,7 @@ import {
         const err = _tkValidate();
         if (err) { tkState.error = err; _tkRenderForm(); return; }
 
-        const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `tk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        let idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `tk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const scheduledAtWall = tkState.schedule.postNow ? '' : tkState.schedule.at;
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
 
@@ -1462,7 +1499,8 @@ import {
         // A create whose answer was lost may have reached Post For Me. The same draft is sent again with the
         // SAME key and the media already in storage, so the server finds the first attempt instead of posting twice.
         const again = tkState.retryCreate;
-        if (source === 'supabase' && again && again.sig === _tkDraftSig()) {
+        const sameDraft = source === 'supabase' && _tkRetryUsable(again) && again.sig === _tkDraftSig();
+        if (sameDraft && _tkRetryMediaFresh(again)) {
             const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
             tkState.submitting = true;
             tkState.error = null;
@@ -1471,7 +1509,9 @@ import {
             _tkCreateViaFunction(again.media, again.key, again.scheduledAtWall, again.scheduledAtUTC, target, again.what);
             return;
         }
-        tkState.retryCreate = null;
+        // The same draft, but its video may be gone from storage: upload it again under the SAME key.
+        if (sameDraft) idempotencyKey = again.key;
+        else _tkSetRetryCreate(null);
 
         if (tkState.mediaType === 'photo') {
             _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
@@ -1975,7 +2015,7 @@ import {
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
-            tkState.retryCreate = ambiguous;
+            _tkSetRetryCreate(ambiguous);
             if (e && e.name === 'AbortError') {
                 // Cancel at this point only stops the browser waiting. The
                 // request to create the post may already be with the server,
@@ -1995,7 +2035,7 @@ import {
         }
         _tkActivePhotoAbort = null;
         tkState.submitting = false;
-        tkState.retryCreate = _tkCreateAnswerKeepsKey(out) ? ambiguous : null;
+        _tkSetRetryCreate(_tkCreateAnswerKeepsKey(out) ? ambiguous : null);
         if (!out.ok) {
             tkState.progress = 0;
             _tkRecordFailure('tiktok_upload', out.json && out.json.ok === false && out.status < 300 ? 0 : out.status);

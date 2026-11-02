@@ -35964,3 +35964,18 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
+
+## 641. [2026-11-02 UTC, BUILT, NOT MERGED] A Workload report is stored as surface `workload`, not `unknown` (session Reviewguard)
+
+- **Seen:** the live check after #2514 (OPEN_REPAIRS 638) on the test client. The Workload report landed with board `workload`, but its receipt's `surface` read `unknown`. The shared receipt maker (`_shared/write-refusal-diagnostics.mjs`) keeps only `calendar`, `sxr` and `production`, and the receipts table's check takes only those and `unknown`. The watcher's signature read uses the board, so nothing was lost, but the staff "Save problems" list could not tell a Workload report from any other unknown one.
+- **Asked:** the supervisor, as its own small PR after the Calendar logging (639), with a test that fails on the old surface list.
+- **Now:**
+  - **write-diagnostics only** (`browser-detail.mjs` `shapeBrowserReceipt`): a browser claim from surface `workload` keeps it. The shared receipt maker is left as it is, because `production-write` imports it too and must not move its fingerprint.
+  - **No report is lost before the migration:** if the table refuses the surface, `index.ts` records the same report again as `unknown`, as before.
+  - The staff list's surface filter takes `workload`.
+  - **Migration `20261102180000_workload_surface.sql`** (functions cope without it): `receipts_v1.surface` also takes `workload`, and `production_write_refusal_list_v1` accepts it as a filter (re-created from the live definition, otherwise unchanged). EXECUTE is revoked from public, anon, authenticated and service_role, then granted to service_role. Rows already stored are left as they are.
+- **Proof:**
+  - `test/linear-exit-write-diagnostics-handlers.js`: a Workload claim is sent with surface `workload` (fails on main: "a Workload report keeps its surface"); any other surface is still `unknown`; a table that refuses `workload` gets the same report as `unknown` (three record calls: v3, v2, then v3 as unknown); the staff list filters by `workload`.
+  - `test/review-board-diagnostics-postgres.js` applies the migration twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
+  - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
+- **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.

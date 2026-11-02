@@ -6,10 +6,14 @@
 //
 //   probe            { }                     -> { ok, client_id, messages_total? , error? }
 //   sent_recipients  { after?, max_messages? } -> { ok, recipients: [{ email, name, count, first, last }] }
+//   contact_digest   { emails: [..up to 40], per?: 1-3 } -> { ok, contacts: [{ email, messages: [{ date, from_us, subject, snippet }] }] }
+//     (gmail.readonly, approved by Kasper 1 Nov 2026, so leads can be sorted by what was said;
+//      returns Gmail's short snippet, never a full body)
 //
 // The mailbox is the MAILBOX constant only.
 
 const SCOPE = "https://www.googleapis.com/auth/gmail.metadata";
+const SCOPE_READ = "https://www.googleapis.com/auth/gmail.readonly";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const OWN_DOMAIN = "synchrosocial.com";
 const MAX_MESSAGES = 5000;
@@ -60,7 +64,7 @@ function readCreds() {
   return { email, key, clientId: clean(c.client_id), tokenUri: clean(c.token_uri) || "https://oauth2.googleapis.com/token" };
 }
 
-async function token(creds: { email: string; key: string; tokenUri: string }, subject: string): Promise<string> {
+async function token(creds: { email: string; key: string; tokenUri: string }, subject: string, scope = SCOPE): Promise<string> {
   const enc = new TextEncoder();
   const b64url = (s: string | Uint8Array) => {
     const bytes = typeof s === "string" ? enc.encode(s) : s;
@@ -70,7 +74,7 @@ async function token(creds: { email: string; key: string; tokenUri: string }, su
   };
   const now = Math.floor(Date.now() / 1000);
   const unsigned = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" })) + "." +
-    b64url(JSON.stringify({ iss: creds.email, sub: subject, scope: SCOPE, aud: creds.tokenUri, exp: now + 3600, iat: now }));
+    b64url(JSON.stringify({ iss: creds.email, sub: subject, scope, aud: creds.tokenUri, exp: now + 3600, iat: now }));
   const pkcs8 = creds.key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s+/g, "");
   const k = await crypto.subtle.importKey("pkcs8", Uint8Array.from(atob(pkcs8), (ch) => ch.charCodeAt(0)),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
@@ -90,7 +94,14 @@ async function gmail(tok: string, path: string): Promise<Record<string, any>> {
     const r = await fetch(GMAIL + path, { headers: { Authorization: "Bearer " + tok } });
     if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1))); continue; }
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error("gmail_" + r.status);
+    if (!r.ok) {
+      // Google's short reason code (e.g. accessNotConfigured, insufficientPermissions), never a message body.
+      const e = (body as any).error || {};
+      const why = clean((e.errors && e.errors[0] && e.errors[0].reason) || e.status).replace(/[^A-Za-z_]/g, "").slice(0, 60);
+      // For a switched-off API, Google names the Cloud project number to switch it on in.
+      const proj = (String(e.message || "").match(/project (\d{4,20})/) || [])[1];
+      throw new Error("gmail_" + r.status + (why ? "_" + why : "") + (proj ? "_project_" + proj : ""));
+    }
     return body;
   }
   throw new Error("gmail_busy");
@@ -148,6 +159,30 @@ async function sentRecipients(tok: string, body: Record<string, unknown>) {
   return { ok: true, messages: list.length, failed, complete: failed === 0 && ids.length < cap, truncated: ids.length >= cap, recipients: [...people.values()].sort((a, b) => b.last.localeCompare(a.last)) };
 }
 
+/** The latest few emails with each address: subject and Gmail's snippet only. */
+async function contactDigest(tok: string, body: Record<string, unknown>) {
+  const emails = (Array.isArray(body.emails) ? body.emails : []).map((e) => clean(e).toLowerCase())
+    .filter((e) => /^[^@\s"()<>]+@[^@\s"()<>]+\.[a-z]{2,}$/.test(e)).slice(0, 40);
+  const per = Math.min(3, Math.max(1, Number(body.per) || 3));
+  const contacts = [];
+  for (const email of emails) {
+    const q = encodeURIComponent(`from:${email} OR to:${email} OR cc:${email}`);
+    const list = await gmail(tok, `/messages?q=${q}&maxResults=${per}`).catch(() => null);
+    const messages = [];
+    let failed = 0;
+    for (const m of (list && list.messages) || []) {
+      const g = await gmail(tok, `/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`).catch(() => null);
+      if (!g) { failed++; continue; }
+      const hs: any[] = (g.payload && g.payload.headers) || [];
+      const h = (n: string) => clean((hs.find((x) => String(x.name).toLowerCase() === n) || {}).value);
+      messages.push({ date: new Date(Number(g.internalDate) || 0).toISOString(), from_us: h("from").toLowerCase().includes("@" + OWN_DOMAIN),
+        subject: h("subject").slice(0, 200), snippet: clean(g.snippet).slice(0, 300) });
+    }
+    contacts.push({ email, ok: !!list && failed === 0, failed, messages });
+  }
+  return { ok: true, contacts };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, error: "use POST" }, 405);
   if (!(await serverKeyOk(req))) return json({ ok: false, error: "unauthorized" }, 401);
@@ -170,6 +205,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, client_id: creds.clientId, messages_total: p.messagesTotal || 0 });
     }
     if (action === "sent_recipients") return json(await sentRecipients(tok, body));
+    if (action === "contact_digest") return json(await contactDigest(await token(creds, mailbox, SCOPE_READ), body));
     return json({ ok: false, error: "bad_action" }, 400);
   } catch (e) {
     console.log(JSON.stringify({ fn: "crm-gmail", action, error: String((e as Error).message) }));

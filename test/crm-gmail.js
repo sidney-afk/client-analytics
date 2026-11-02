@@ -5,7 +5,8 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/crm-gmail/index.ts'), 'utf8');
 let passed = 0;
 function ok(c, m) { if (!c) { console.error('FAIL ' + m); process.exit(1); } passed++; console.log('  ok  ' + m); }
-ok(/const SCOPE = "https:\/\/www\.googleapis\.com\/auth\/gmail\.metadata";/.test(src) && (src.match(/googleapis\.com\/auth\//g) || []).length === 1, 'the only Google scope is gmail.metadata (headers only)');
+ok(/const SCOPE = "https:\/\/www\.googleapis\.com\/auth\/gmail\.metadata";/.test(src) && /const SCOPE_READ = "https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly";/.test(src) && (src.match(/googleapis\.com\/auth\//g) || []).length === 2, 'scopes are gmail.metadata and, for contact_digest only, gmail.readonly; nothing that can send or change mail');
+ok((src.match(/SCOPE_READ/g) || []).length === 2 && /contactDigest\(await token\(creds, mailbox, SCOPE_READ\), body\)/.test(src), 'gmail.readonly is used by contact_digest only');
 ok(!/\/send\b|messages\/send|drafts|\/modify|\/trash|method: "(PUT|DELETE|PATCH)"/.test(src), 'no send, draft, modify or delete call');
 ok(/format=metadata&metadataHeaders=To&metadataHeaders=Cc/.test(src) && !/format=full|format=raw/.test(src), 'reads To and Cc headers only, never a body');
 ok(/if \(!\(await serverKeyOk\(req\)\)\) return json\(\{ ok: false, error: "unauthorized" \}, 401\);/.test(src) && src.indexOf('serverKeyOk(req)') < src.indexOf('readCreds()\n') + 1e9, 'server key checked before anything else');

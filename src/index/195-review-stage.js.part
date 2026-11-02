@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -2575,6 +2575,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         /* Every version is answered but the card did not move on (svTrialReviewBehind): on a version this reviewer approved,
            today's approve on the video part, with a line saying why it is there. A version passed on or out for a change
            keeps saying so. */
+        // The card's trial read is not in yet (at most a moment, 194): the video's answer waits, so it never answers the
+        // whole video of a trial card by mistake.
+        if (x.key === 'video' && !busy && x.st === 'wait' && _rsCur() && svTrialReviewPending(_rsCur().post, _rsCur().item)) return '<span class="dst trv-wait" role="status">' + (R.mode !== 'client' ? svBusyHtml('Loading…') : 'Loading…') + '</span>';
         const behind = x.key === 'video' && x.st === 'wait' && svTrialReviewAnswered(_rsCur(), R.mode) && svTrialReviewBehind(_rsCur(), R.mode);
         const trialWord = x.key === 'video' && !behind ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
         if (behind && !busy) return '<span class="dst ok trv-behind"><span class="ck">' + RI.check + '</span>' + (R.mode === 'client' ? 'You approved every version' : 'Every version is approved') + '</span>'
@@ -3373,7 +3376,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             // What the card does (194): the owner's choice (a) keeps it while another version waits for this reviewer;
             // per-version routing moves it on when the others passed, and never moves a card that is already further on.
             const after = svTrialReviewAfterChange(m, R.mode, about);
-            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter);
+            // 'keep' was decided from the versions this page had read: once the function answers the change, the card
+            // goes to Tweaks Needed if, by its answer, nothing waits for this reviewer after all (194, svTrialReviewSettles).
+            const S0 = R.S;
+            const settle = after !== 'keep' ? null : json => {
+                const t0 = Date.now();
+                const go = () => {
+                    if (R.S !== S0) return;
+                    const cur = _rsModelById(m.id) || m;
+                    if (_rsSaving(cur, 'video') && Date.now() - t0 < 20000) { setTimeout(go, 100); return; }
+                    if (svTrialReviewSettles(cur, R.mode, json.versions)) _rsTrialToTweaks(cur);
+                };
+                go();
+            };
+            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter, settle);
             _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true, keepStatus: after !== 'tweaks' }));
             // The SMM's and Kasper's other versions go on to the next reviewer now, through today's stage approve, once the
             // change's own save on the part has landed (the save path takes one write per part at a time).
@@ -4230,6 +4246,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             approve: () => _rsApprove(cur(), 'video', ''),
             change: () => _rsStartChange('video', 'stage'),
             all: () => { R.S.acted.add(m.id + '|video'); return svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true, () => _rsTrialToTweaks(cur())); },
+            // A drop that finishes this reviewer's stage moves the card on, as the last approve would (194).
+            proceed: () => { R.S.acted.add(m.id + '|video'); _rsApprove(cur(), 'video', '', true); },
+            toTweaks: () => _rsTrialToTweaks(cur()),
         });
     }
     function _rsL2Render(m) {

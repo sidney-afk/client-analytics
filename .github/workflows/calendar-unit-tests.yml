@@ -579,6 +579,7 @@ jobs:
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js
           Calendar and Samples, an edit stays with its client|node test/calendar-edit-stays-with-its-client-browser.js
           Review page skeleton has the shape of what loads (client link, 1440 and 390)|node test/review-stage-skeleton-browser.js
+          Review page player never re-asks for a video it is leaving|node test/review-stage-player-leaving-browser.js
           Notes on a switched-on client link opens straight into the player view (no old dialog first, final shape from the first frame)|node test/review-stage-notes-browser.js
           Kasper board, urgent cards arrive with a draft open|node test/kasper-board-browser.js
           One scrollbar for the whole app (6px, rounded, the theme's thumb, light and dark; hidden ones stay hidden)|node test/scrollbars-browser.js
@@ -639,6 +640,7 @@ jobs:
           Instagram also to Facebook (box on by default, off for a trial, a video carousel or no Page; results apart)|node test/instagram-facebook-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
+          TikTok keeps its press key across a reload while the post's outcome is unknown (dropped on success or a 4xx; re-uploads after 20 hours under the same key)|node test/tiktok-press-key-reload-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
           Staff gate seed answers trial-reels reads sent with an invented key in the browser (no live 401s)|node test/staff-gate-trial-reels-stub-local.js

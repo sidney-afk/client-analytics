@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       card:
-        description: 'A test-client trial card id whose version link is a Frame folder share'
+        description: 'A test-client card that is not Posted and whose video link matches its on-card version, because the trial-reels read can heal or start a trial otherwise. Its version link must be a Frame folder share.'
         required: true
         type: string
       letter:

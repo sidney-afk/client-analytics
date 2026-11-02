@@ -4,7 +4,9 @@
  * .github/workflows/frameio-list-live-check.yml. Read-only: nothing is written anywhere.
  *
  *   1. trial-reels read (a staff key) gives the test-client card's version link (the letter asked for, else the card's
- *      own version);
+ *      own version). A staff read is not strictly read-only: it heals the on-card version's link when it differs from
+ *      the card's, and starts the trial on a Posted card. So the card given must be one that is not Posted and whose
+ *      video link matches its on-card version; then the read changes nothing (supervisor's call on Codex's #2546 P2);
  *   2. frameio-view part "list" lists that share;
  *   3. frameio-view part "video" looks up the first listed video that is not processing, by its own link, and the
  *      answer must name that same file (F0: a file link plays that file, never the folder's first video).

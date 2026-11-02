@@ -357,7 +357,7 @@ async function pfmAccountsSync(supabase: SupabaseClient, body: JsonMap, member: 
     accounts: result.accounts || 0, already_linked: result.already_linked || 0, linked: result.linked || [], needs_person: result.needs_person || [],
   } });
   if (logErr) console.error("client-profile-write: the account-link run was not recorded", logErr.code || "");
-  return json(result, result.ok ? 200 : result.error === "postforme_unreachable" ? 502 : 500);
+  return json(result, result.ok ? 200 : result.error === "postforme_unreachable" || result.error === "postforme_list_incomplete" ? 502 : 500);
 }
 
 const MANAGER_SLUG = /^[a-z0-9&]+$/;

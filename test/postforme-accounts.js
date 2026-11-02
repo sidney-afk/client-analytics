@@ -155,6 +155,13 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   pg.deps.fetchPage = async (offset, limit) => { pg.fetched.push(offset); return many.slice(offset, offset + limit); };
   const rp = await m.runAccountSync(pg.deps, { dryRun: true });
   ok(rp.accounts === 120 && same(pg.fetched, [0, 50, 100]) && rp.linked.length === 1 && rp.linked[0].account_id === 'spc_FixturePage117', 'every page of 50 is read (an account on page 3 links)');
+  // Codex P2 on #2538: a list that never ends (the page cap reached with every page full) is incomplete, so a match
+  // that looks unique may not be: refuse before planning or saving.
+  const endless = fake([prof('pageclient', { instagram_handle: 'page.0' })]);
+  let n = 0;
+  endless.deps.fetchPage = async (offset, limit) => Array.from({ length: limit }, () => raw('spc_FixtureLoop' + String(n++).padStart(5, '0'), 'instagram', 'loop.' + n));
+  const re = await m.runAccountSync(endless.deps, { dryRun: false });
+  ok(!re.ok && re.error === 'postforme_list_incomplete' && endless.saves.length === 0 && n === m.PAGE_SIZE * m.MAX_PAGES, 'an account list past the page cap is refused as incomplete, with no save');
   const bad = fake(profiles, { fetchFail: true });
   const rb = await m.runAccountSync(bad.deps, { dryRun: false });
   ok(!rb.ok && rb.error === 'postforme_unreachable' && bad.saves.length === 0, 'a failed list read writes nothing');

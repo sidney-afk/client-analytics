@@ -105,7 +105,7 @@ export function changesByClient(links) {
 }
 
 export const PAGE_SIZE = 50;
-const MAX_PAGES = 40; // 2,000 accounts; a guard against a list that never ends
+export const MAX_PAGES = 40; // 2,000 accounts; past it the list is treated as incomplete
 
 // One run. deps (all async):
 //   fetchPage(offset, limit) -> raw Post for Me accounts (array), or null when Post for Me could not be read;
@@ -116,12 +116,15 @@ const MAX_PAGES = 40; // 2,000 accounts; a guard against a list that never ends
 // Raw accounts are projected to safe fields at once and never leave this function.
 export async function runAccountSync(deps, { dryRun = false } = {}) {
   const accounts = [];
+  let complete = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const got = await deps.fetchPage(page * PAGE_SIZE, PAGE_SIZE);
     if (!Array.isArray(got)) return { ok: false, error: 'postforme_unreachable' };
     for (const a of got) { const s = safeAccount(a); if (s) accounts.push(s); }
-    if (got.length < PAGE_SIZE) break;
+    if (got.length < PAGE_SIZE) { complete = true; break; }
   }
+  // Without the whole list a match that looks unique may not be (another account could want the same slot).
+  if (!complete) return { ok: false, error: 'postforme_list_incomplete' };
   const profiles = await deps.readProfiles();
   const plan = planLinks(accounts, profiles);
   const out = { ok: true, dry_run: !!dryRun, accounts: plan.accounts, already_linked: plan.already_linked, linked: [], needs_person: plan.needs_person.slice() };

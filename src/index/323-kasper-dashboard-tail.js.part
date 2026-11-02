@@ -520,6 +520,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         if (st.error) {
             const why = st.error === 'postforme_unreachable' ? 'Post for Me could not be reached. Try again in a minute.'
                 : st.error === 'postforme_not_configured' ? 'The Post for Me key is not set on the server.'
+                : st.error === 'postforme_list_incomplete' ? 'Post for Me has more accounts than SyncView reads at once, so nothing was linked.'
                 : st.error === 'authority_not_syncview' ? 'Accounts can be linked once SyncView is the main copy of client details.'
                 : 'Could not check (' + _calEsc(st.error) + '). Nothing was changed.';
             body = `<p class="ca-pfm-msg is-error" role="status">${why}</p>`;

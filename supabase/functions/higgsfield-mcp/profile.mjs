@@ -159,6 +159,11 @@ export function profileFactId(folder) {
   return `client.${folder}.video-profile`;
 }
 
+// Said after every profile read and every review_notes answer, so SyncMate saves
+// what the person approves without being asked (Sidney, 2026-11-02: saves had
+// stopped happening during tweak jobs).
+export const SAVE_REMINDER = "SAVE AS YOU GO: whenever the person approves a look, a fix or a rule for this client (captions, fonts, colours, cuts, hook, music, framing, \"always\" or \"never\"), call studio_profile_save at once with just those fields (it merges), without asking, and say it in one line. Save once more with a one-line recap when each video is finished.";
+
 // What studio_profile answers when the file exists.
 export function profileReply(clientName, text) {
   let parsed;
@@ -167,7 +172,7 @@ export function profileReply(clientName, text) {
   } catch (_e) {
     return `Could not read ${clientName}'s video profile: the file is not valid JSON. Here is what it says, so it can be fixed with studio_profile_save:\n\n${String(text).slice(0, PROFILE_MAX_CHARS)}`;
   }
-  return `${clientName}, video profile from the Synchro Brain (clients/…/${PROFILE_FILE}):\n\n${profileJson(parsed)}`;
+  return `${clientName}, video profile from the Synchro Brain (clients/…/${PROFILE_FILE}):\n\n${profileJson(parsed)}\n\n${SAVE_REMINDER}`;
 }
 
 // What studio_profile answers when there is no file yet: what the brain already
@@ -177,7 +182,7 @@ export function draftReply(clientName, lookBullets, specs) {
   const spec = (specs || []).map((s) => `- ${s.heading}: ${s.spec}`).join("\n");
   const known = [look && `From the brief's Look section:\n${look}`, spec && `Exact values in the editing facts:\n${spec}`].filter(Boolean).join("\n\n");
   const fields = Object.entries(PROFILE_FIELDS).map(([k, v]) => `- ${k}: ${v}`).join("\n");
-  return `${clientName} has no video profile yet.${known ? ` Here is what the Synchro Brain already knows about the look, to draft a first one from:\n\n${known}` : " The Synchro Brain has no Look notes for this client yet either."}\n\nA profile is one JSON object. Proposed fields (any other field is kept too):\n${fields}\n\nDraft it with the person, show it, and save it with studio_profile_save only after they agree.`;
+  return `${clientName} has no video profile yet.${known ? ` Here is what the Synchro Brain already knows about the look, to draft a first one from:\n\n${known}` : " The Synchro Brain has no Look notes for this client yet either."}\n\nA profile is one JSON object. Proposed fields (any other field is kept too):\n${fields}\n\nDraft it with the person, show it, and save it with studio_profile_save only after they agree. When their first video is finished, save a first draft from what you learned even if nobody asked, and say so in one line.`;
 }
 
 // The JSON block of a filed profile change (see profileChangeText), or null.

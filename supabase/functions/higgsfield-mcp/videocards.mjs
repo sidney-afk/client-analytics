@@ -21,6 +21,8 @@
 //   comments(ids)           -> production_comments rows for those work item ids
 //   frameio(link) (optional)-> the frameio-view lookup body ({ video, comments, comments_error, open_url }) or throws
 
+import { SAVE_REMINDER } from "./profile.mjs";
+
 export const MAX_VIDEOS = 30;
 export const MAX_FRAMEIO = 8;
 export const MAX_CHARS = 60_000;
@@ -365,7 +367,7 @@ export async function videoCards(deps, args) {
   if (a.frameio === false) notes.push("Frame.io was not asked (frameio false): no time-stamped notes and no download link.");
 
   const head = `${name}: ${out.length} video card${out.length > 1 ? "s" : ""} from SyncView (read only).`;
-  const body = { client: name, videos: out, how_to_download: how, ...(notes.length ? { notes: notes } : {}) };
+  const body = { client: name, videos: out, how_to_download: how, save_to_profile: SAVE_REMINDER, ...(notes.length ? { notes: notes } : {}) };
   let text = JSON.stringify(body, null, 1);
   if (head.length + text.length > MAX_CHARS) {
     // Too long: keep every card, drop the longest note texts first, and say so.

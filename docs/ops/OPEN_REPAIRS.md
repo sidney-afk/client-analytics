@@ -35978,3 +35978,24 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Proof:** `test/frameio-view-source.js` gains a mocked share (a stack and a folder on page 1, another stack on page 2 reached only through `links.next`). A named file found on page 1 plays without asking for page 2, so a later page that fails cannot stop it (Codex review). On main, a file inside the folder, a stack inside the folder, the page-2 stack, an older version and a missing file all get the first video; with the fix each plays its own file and the missing one is refused. A top-level stack and a bare share pass on both. Every existing check is unchanged (143 pass).
 - **Live check after merge:** on the main test client's folder share with two videos, the second video's link plays the second video.
 - **Way back:** revert the PR.
+
+## 670. [2026-11-02 UTC, BUILT, NOT MERGED] frameio-view lists the videos in a Frame.io folder, and has a strict lookup (session Framefix, plan item F1)
+
+- **Asked:** plan item F1, on top of F0 (OPEN_REPAIRS 644). V2 (import versions from a Frame folder) needs the list; F4 (`post-source`) needs the strict lookup.
+- **Now (`supabase/functions/frameio-view/logic.mjs`, read-only):**
+  - `part: "list"` answers `{ name, videos: [{ file_id, name, duration_seconds, thumbnail_url, created_at, processing, link }], truncated, open_url }`. For a shared folder, the walk takes every page, goes through folders and version stacks (newest version), and keeps videos only (no images). It returns up to 50 of them, newest first, and `truncated` says when more were left out. A file link lists that one video.
+  - Each row's `link` is `next.frame.io/share/<share>/view/<asset>`, which F0 plays exactly.
+  - Only names, lengths, Frame's thumbnails (signed links: shown, never stored) and links come back. No playable address is asked for (never `media_links.original`), and no comments.
+  - A staff key only: the client path is always the video part, so a client token cannot list.
+  - `strict: true` (an option of the module, for `post-source`) refuses a folder link with `folder_link` (422, plain words). That covers a bare share that is not exactly one file, and a link naming a folder. A link naming a file plays it. Without `strict`, the player keeps today's "first video" for a bare folder link.
+- **Proof:** `test/frameio-view-source.js`, mocked Frame.io:
+  - a folder of 6 videos and 2 images lists the 6;
+  - a folder past one page is followed to page 2 and cut at 50 (`truncated`), keeping the newest;
+  - a file link lists one row;
+  - a listed link plays its own video;
+  - strict refuses a bare folder link and a link naming a folder, and plays a named file;
+  - a client lookup asking for a list gets the video only.
+
+  On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (159 pass in all).
+- **Live check after merge:** list one folder share of the main test client.
+- **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.

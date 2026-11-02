@@ -35938,3 +35938,23 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/client-review-requests-unchanged-browser.js`: only the `_calReviewApprove` hash was re-pinned; the change is in its staff-only (smm) branch, and the client's approve and request-changes requests are unchanged (37 checks pass).
   - Not covered: a full browser drive of the Review tab with a canonical thread. The review-stage fixture does not mock the crosswalk or the canonical read, so the proof is at the level of the shipped functions.
 - **Way back:** revert the PR.
+
+## 641. [2026-11-02 UTC, BUILT, NOT MERGED] The Production polish gate went red on main three times with no app defect behind it: two suites raced, one against its own page change and one against the live refresh (found by the supervisor; fixed by session Polishred)
+
+- **Seen:** "Production polish gate (push)" red on d25a912 (run 41466534746, heavy lane: `behav_wired:noConsoleErrors` and `pixel_wired:console silence`), on 3ea2693 (run 41474472991, interaction lane: `ipi_silent_noop` + `ipi_state_list`), and on 27e6d15 on 29 Oct (run 40925484078, interaction lane: `ipi_hover_tip`). Green on the merges before and after each. None of the three merges touched Production.
+- **Cause 1 (d25a912), the audit kept waiting for reads from a page that no longer existed.** `behav-wired.js` loads the page, then loads it again a few seconds later (`globalNavKeyboardExit`). The first page's boot reads (the deliverables first page and the team list) were still open at the second load. Playwright reported neither a finish nor a failure for them, so `installReadConsoleAudit` kept them as outstanding for the whole three-minute run. `settle()` then reported "pending read requests" while every app loading flag was down. Their age at settle was about 198 s, the length of the run. This reproduced 3 of 3 times on main from a sandbox (read-only, live). `pixel-wired.js` uses the same audit and reloads too.
+- **Cause 2 (27e6d15, 3ea2693), the interaction sweep ran while the page refreshed itself.** `prod-interaction-inventory.js` waited for the first load, then spent about three minutes clicking and hovering. It never held the 30-second tick, the authority re-read or the realtime channel, and it did not wait for the finished-cards tail. Each of these rebuilds `#prodRoot` when live data moves. Playwright's own log of a failed hover reads "element was detached from the DOM, retrying", and then no tip appeared. This reproduced 2 of 3 times on main. The `ipi_silent_noop` red did not reproduce here (0 of 15 list-state passes), but the list's candidate count changed between passes (35 vs 28): the same moving surface.
+- **Fix (tests only, nothing weakened):**
+  - `prod-test-utils.js` `installReadConsoleAudit`: when a real navigation commits (a page load, not a route change inside the page), the audit stops waiting for a main-frame read that started before the commit. That read belonged to the page that went away. It is counted with the navigation-aborted reads. A read the new page opens and never finishes is still reported, exactly as before, and so is any read open across a route change inside the same page.
+  - `prod-interaction-inventory.js`: after the first load it now runs `waitForProductionIdle`, which waits until every load flag stays down and then holds the ticks and the channel. The a11y and layout suites already do this. A hover that finds no tip now says whether `#prodRoot` was rebuilt during the hover, as a new code `ipi_repaint_under_probe` beside `ipi_hover_tip`.
+  - `prod-comments-browser.js` had no stage names, so its reds could not say which step failed. It now announces 13 steps (`boot` through `write_audit`) under its own marker. The gate harvests the allowed names from the suite's source, as it does for the read-only smoke suite, and reports the last one reached.
+- **Proof:**
+  - `test/prod-read-console-audit.js` gains four cases:
+    - an old-page read a navigation tore down silently passes;
+    - a read the new page opens and never finishes still fails;
+    - a route change inside the page excuses nothing;
+    - a half-read response body from the old page is not waited for.
+    - The first case fails on main.
+  - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
+  - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
+- **Way back:** revert the PR.

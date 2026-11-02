@@ -307,6 +307,11 @@ function installReadConsoleAudit(page, opts = {}) {
   const requestStartedAt = new WeakMap();
   const requestHeadersOf = new Map();
   const outstandingReads = new Set();
+  // The schema-compatibility body wait, per request, so a request the page
+  // stopped owning (see 'framenavigated' below) can be let go of too.
+  const bodyTaskOf = new WeakMap();
+  // Reads a full navigation tore down without Playwright reporting an end.
+  let navigationOrphans = 0;
   const recoveryWindowMs = Math.max(1000, Number(opts.recoveryWindowMs || 15000));
   const navigationAbortWindowMs = Math.max(100, Number(opts.navigationAbortWindowMs || 1000));
   const revalidationTimeoutMs = Math.max(1000, Number(opts.revalidationTimeoutMs || 40000));
@@ -377,6 +382,7 @@ function installReadConsoleAudit(page, opts = {}) {
     schemaOutcomes.push(item);
     const task = Promise.resolve().then(() => typeof response.json === 'function' ? response.json() : undefined).then(body => { item.body = body; item.finished = true; }).catch(() => {});
     responseBodies.add(task); task.finally(() => responseBodies.delete(task));
+    bodyTaskOf.set(request, task);
   });
   page.on('request', request => {
     requestStartedAt.set(request, Date.now());
@@ -393,7 +399,40 @@ function installReadConsoleAudit(page, opts = {}) {
   page.on('framenavigated', frame => {
     if (frame !== page.mainFrame()) return;
     const pending = [...mainFrameNavigations].reverse().find(item => item.committedAt === null);
-    if (pending) pending.committedAt = Date.now();
+    if (!pending) return;
+    pending.committedAt = Date.now();
+    /*
+     * A READ THE OLD DOCUMENT OPENED DIES WITH IT, EVEN WHEN NOBODY SAYS SO.
+     *
+     * When a full navigation commits (a suite's second page.goto, a reload),
+     * every read the old document still had open is torn down. Playwright
+     * usually reports that as a requestfailed (net::ERR_ABORTED, excused
+     * below as a navigation abort), but not always: measured 2026-11-02 on
+     * behav-wired, the first document's boot reads (the deliverables first
+     * page and the team list) got neither requestfinished nor requestfailed,
+     * sat in this set for the whole three-minute run, and settle() reported
+     * them as "pending read requests" with every app flag down. That was
+     * the d25a912 red (OPEN_REPAIRS 641), 3 of 3 runs here.
+     *
+     * So at the commit, a read that STARTED before it, in the main frame, and
+     * is not the navigation's own document request belongs to the document
+     * that just went away: stop waiting for it. Only a real navigation pairs
+     * with a commit here (same-document history changes have no pending
+     * entry), and reads the new document opens start after the commit, so a
+     * read that hangs on the page under test is still reported exactly as
+     * before. If Playwright does report its end later, nothing changes:
+     * an abort is still judged by the navigation-abort rule below.
+     */
+    const committedAt = pending.committedAt;
+    for (const request of [...outstandingReads]) {
+      let mainFrameRead = false;
+      try { mainFrameRead = request.frame() === page.mainFrame() && !request.isNavigationRequest(); } catch (_) {}
+      if (!mainFrameRead || !((requestStartedAt.get(request) || committedAt) < committedAt)) continue;
+      outstandingReads.delete(request);
+      const task = bodyTaskOf.get(request);
+      if (task) responseBodies.delete(task);
+      navigationOrphans++;
+    }
   });
   page.on('requestfailed', request => {
     const errorText = request.failure() && request.failure().errorText;
@@ -660,7 +699,7 @@ function installReadConsoleAudit(page, opts = {}) {
     return {
       ok,
       recoveredReadAttempts: recoveredReads.length,
-      navigationAborts,
+      navigationAborts: navigationAborts + navigationOrphans,
       error: ok
         ? ''
         : errors.slice(0, 5).map(item => typeof item === 'string' ? item : item.message).join(' | ')

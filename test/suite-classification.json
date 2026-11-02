@@ -1440,6 +1440,14 @@
       "ci": "representative"
     },
     {
+      "file": "staff-gate-trial-reels-stub-local.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Proves the shared gate seed answers trial-reels reads (list, list_many, read) sent with an invented staff key in the browser with an empty answer, lets writes, other keys and client tokens through, and yields to a suite's own trial-reels mock.",
+      "reproduce": "node test/staff-gate-trial-reels-stub-local.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-preview-empty-clearance-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -45,7 +45,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRL_BACK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6H11a2.5 2.5 0 0 1 0 5H8"/><path d="M7 4 5 6l2 2"/></svg>';
     // What the function's refusals mean, in a sentence a person can act on.
     const TRL_ERRORS = {
-        network: 'The connection dropped before the server answered. Check your connection, reload, and try again.',
         attach_first: 'The card still carries another link for this version. Save the card\'s Video link first, then try again.',
         not_enabled: 'Trial reels are not switched on for this client.',
         trial_reels_off: 'Turn Trial reels on for this card first.',
@@ -129,10 +128,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             body: JSON.stringify(body),
             });
         } catch (netErr) {
-            // Never reached the function (offline, a dropped connection): worth a retry for a read.
-            const err = new Error('network');
-            err.code = 'network'; err.status = 0; err.transient = true;
-            throw err;
+            // Never reached the function (offline, a dropped connection): worth a retry for a read. The browser's own
+            // error is kept as it was (no new refusal code: a write's failure is recorded exactly as before).
+            if (netErr && typeof netErr === 'object') { netErr.transient = true; netErr.status = 0; }
+            throw netErr;
         }
         let json = {};
         try { json = await resp.json(); } catch (e) { json = {}; }
@@ -393,7 +392,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialListShared(slug, force) {
         return Promise.resolve(_trlLoad(slug, !!force)).then(e => {
             // Never read, and the last try was refused or lost: say so, so the review page keeps what it holds (631).
-            if (!e.at && e.failedAt) { const err = new Error('list_unavailable'); err.code = 'list_unavailable'; err.transient = true; throw err; }
+            if (!e.at && e.failedAt) { const err = new Error('The trial versions could not be read yet.'); err.transient = true; throw err; }
             return { at: e.at, cards: Object.assign({}, e.cards) };
         });
     }

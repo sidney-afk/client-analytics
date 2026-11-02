@@ -35,7 +35,7 @@ const fails = (sql, pattern, message) => {
 const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.sql';
 // OPEN_REPAIRS 638: the Workload calendar (and next the content Calendar) send the same reports.
 const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diagnostics.sql';
-const MIGRATION_642 = 'supabase/migrations/20261102180000_workload_surface.sql';
+const MIGRATION_643 = 'supabase/migrations/20261102180000_workload_surface.sql';
 
 (async () => {
   psql(`create database ${db}`, 'postgres');
@@ -55,8 +55,8 @@ const MIGRATION_642 = 'supabase/migrations/20261102180000_workload_surface.sql';
     file(MIGRATION);
     file(MIGRATION_638);
     file(MIGRATION_638);
-    file(MIGRATION_642);
-    file(MIGRATION_642);
+    file(MIGRATION_643);
+    file(MIGRATION_643);
     const api = await import(path.join(root, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
     const shape = await import(path.join(root, 'supabase/functions/write-diagnostics/browser-detail.mjs'));
     const q = v => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
@@ -134,7 +134,7 @@ const MIGRATION_642 = 'supabase/migrations/20261102180000_workload_surface.sql';
     rec(await claim(wlLanded), detail(wlLanded), shape.browserEnv(wlLanded));
     const wlDrop = { operation: 'workload_double_click', code: 'save_in_flight', card: 'wl_issue_2', env: { code: 'save_in_flight', board: 'workload', storage_kc: 900, storage_pct: 17 } };
     rec(await claim(wlDrop), detail(wlDrop), shape.browserEnv(wlDrop));
-    // OPEN_REPAIRS 642: a Workload report is stored as surface workload (it read unknown before), and the staff list
+    // OPEN_REPAIRS 643: a Workload report is stored as surface workload (it read unknown before), and the staff list
     // filters by it. Any other surface the table does not know is still refused.
     const wlSurface = shape.shapeBrowserReceipt(await api.makeRefusalReceipt({ surface: 'workload', operation: 'workload_double_click', identifiers: { card: 'wl_issue_3', client_slug: 'fixture-real-client' } }, 'save_in_flight', 409, 'browser_claim', { traffic: 'person', claimed_page: 'staff_page' }), { surface: 'workload' });
     assert.equal(wlSurface.surface, 'workload');

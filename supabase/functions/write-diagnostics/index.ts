@@ -33,7 +33,7 @@ Deno.serve(async(req:Request)=>{
    return result;
   };
   let result=await record(receipt);
-  // OPEN_REPAIRS 642: a surface the table does not take yet (before migration 20261102180000) is recorded as
+  // OPEN_REPAIRS 643: a surface the table does not take yet (before migration 20261102180000) is recorded as
   // 'unknown', as before, so no report is lost.
   if(result.error&&receipt.surface!=='unknown'&&!['calendar','sxr','production'].includes(receipt.surface))result=await record({...receipt,surface:'unknown'});
   return json({ok:!result.error&&result.data?.recorded===true},result.error?503:202);

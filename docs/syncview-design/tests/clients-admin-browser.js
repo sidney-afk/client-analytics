@@ -457,6 +457,9 @@ const measure = page => page.evaluate(() => {
       // A failed manager list (e.g. before client-profile-write is deployed) offers Try again.
       // Every manager load fails until "Try again" is pressed: a background re-render of the tab may load the
       // managers too, and a single planned failure could be used up by it (seen 2026-10-10, a race, not a defect).
+      // A manager load still in flight from "Try again" above was answered before the failures were planned, so it
+      // would land after the reset below and draw "Manager One" (seen 2026-11-02 on main too, about one run in two).
+      await s.page.waitForFunction(() => !_caState.managersLoading, null, { timeout: 5000 }).catch(() => {});
       s.ctl.managersFail = 1000;
       await s.page.evaluate(() => { _caState.managers = null; _caState.managersError = null; });
       await s.page.evaluate(() => _caLoadManagers());

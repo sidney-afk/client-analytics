@@ -5374,10 +5374,11 @@
         .ca-switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         .ca-switch:disabled { cursor: wait; opacity: .7; }
         .ca-switch-track { position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 99px; background: var(--border); transition: background .15s; }
-        .ca-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; }
+        .ca-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: transform .15s; }
         .ca-switch[aria-checked="true"] .ca-switch-track { background: var(--brief-music-ink); }
         .ca-switch[aria-checked="true"] .ca-switch-knob { transform: translateX(14px); }
         .ca-switch.is-conflict .ca-switch-track { box-shadow: 0 0 0 2px var(--sv-fg-b91c1c); }
+        @media (prefers-reduced-motion: reduce) { .ca-switch-track, .ca-switch-knob { transition: none; } }
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }

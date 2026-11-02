@@ -392,15 +392,21 @@ function installReadConsoleAudit(page, opts = {}) {
     if (['GET', 'HEAD'].includes(request.method())) outstandingReads.add(request);
     try {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-        mainFrameNavigations.push({ startedAt: Date.now(), committedAt: null });
+        mainFrameNavigations.push({ startedAt: Date.now(), committedAt: null, retired: false, request });
       }
     } catch (_) {}
   });
   page.on('framenavigated', frame => {
     if (frame !== page.mainFrame()) return;
-    const pending = [...mainFrameNavigations].reverse().find(item => item.committedAt === null);
+    const pending = [...mainFrameNavigations].reverse().find(item => item.committedAt === null && !item.retired);
     if (!pending) return;
     pending.committedAt = Date.now();
+    /* Every earlier entry still waiting is spent by this commit: a redirect's
+       first hop never commits on its own, and left open it would pair with a
+       later same-document route change and excuse a read that really hung
+       (Codex on PR 2520). Retired, not committed, so the abort rule below
+       treats them exactly as it did before. */
+    mainFrameNavigations.forEach(item => { if (item !== pending && item.committedAt === null) item.retired = true; });
     /*
      * A READ THE OLD DOCUMENT OPENED DIES WITH IT, EVEN WHEN NOBODY SAYS SO.
      *
@@ -439,6 +445,8 @@ function installReadConsoleAudit(page, opts = {}) {
     const networkCode = String(errorText || '').match(/net::[A-Z_]+/);
     recordReadOutcome(request, networkCode ? `network-error:${networkCode[0]}` : 'network-error');
     if (outstandingReads.delete(request)) completedReads++;
+    // A navigation that failed never commits a document, so nothing may pair with it.
+    mainFrameNavigations.forEach(item => { if (item.request === request && item.committedAt === null) item.retired = true; });
   });
   page.on('requestfinished', request => {
     if (outstandingReads.delete(request)) completedReads++;

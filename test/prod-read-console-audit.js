@@ -295,6 +295,37 @@ async function main() {
   });
   assert.equal(sameDocumentNavigation.ok, false, 'a same-document route change does not excuse a read that never finished');
 
+  /* Codex on PR 2520: a redirect's first hop never commits. Left pending, it
+     paired with a later same-document route change and excused a hung read. */
+  const redirectThenRouteChange = await auditCase((page, frame) => {
+    const hop = request('http://localhost/old', { navigation: true, frame });
+    page.emit('request', hop);
+    respond(page, hop, 302);
+    page.at(1001);
+    const destination = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', destination);
+    page.at(1002);
+    page.emit('framenavigated', frame);
+    respond(page, destination, 200);
+    page.at(1003);
+    page.emit('request', request(readUrl, { frame }));
+    page.at(1004);
+    page.emit('framenavigated', frame);
+  });
+  assert.equal(redirectThenRouteChange.ok, false, 'a redirect hop left behind does not let a later route change excuse a hung read');
+
+  const failedNavigationThenRouteChange = await auditCase((page, frame) => {
+    page.emit('request', request(readUrl, { frame }));
+    page.at(1001);
+    const navigation = request('http://localhost/', { navigation: true, frame, failure: 'net::ERR_ABORTED' });
+    page.emit('request', navigation);
+    page.at(1002);
+    page.emit('requestfailed', navigation);
+    page.at(1003);
+    page.emit('framenavigated', frame);
+  });
+  assert.equal(failedNavigationThenRouteChange.ok, false, 'a navigation that failed never commits, so a route change after it excuses nothing');
+
   const orphanedSchemaBody = await auditCase((page, frame) => {
     const url = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/production_deliverables_browser_v1?select=id&limit=1000&order=id.asc';
     const oldRead = request(url, { frame });

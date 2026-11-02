@@ -874,7 +874,7 @@ import {
         const photoCard = `${photoGrid}${photoDropZone}${photoReattachHint}`;
 
         const opts = tkState.options;
-        const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}${tkState.error === TK_NO_ACCOUNT_ERR ? svPostForMeLinkHtml() : ''}</div>` : '';
+        const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}${tkState.client && !tkState.profile ? svPostForMeLinkHtml() : ''}</div>` : '';
 
         // Scheduling: parse stored "YYYY-MM-DDTHH:MM" into date / 12-hr / minute / AM-PM pieces.
         // If the current minute isn't on the 5-min grid we add it as its own option so picking it
@@ -1410,10 +1410,9 @@ import {
         return !!(tkState.client && tkState.profile && hasMedia && tkState.title.trim() && tkState.title.length <= 2200 && !tkState.submitting);
     }
 
-    const TK_NO_ACCOUNT_ERR = 'This client has no Post For Me account yet. An admin adds its Connection ID under Kasper, Clients, Publishing, "Post for Me".';
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
-        if (!tkState.profile) return TK_NO_ACCOUNT_ERR;
+        if (!tkState.profile) return 'This client has no Post For Me account yet. An admin adds its Connection ID under Kasper, Clients, Publishing, "Post for Me".';
         if (tkState.mediaType === 'photo') {
             if (!tkState.photos.length) return 'Attach at least one image.';
         } else if (!tkState.file) return 'Attach a video.';

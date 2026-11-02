@@ -429,17 +429,37 @@ const SMOKE_STAGES = (() => {
   } catch (_) { return new Set(); }
 })();
 
+/* The comment-thread suite's stages, harvested the same way from its own source
+   (added 2026-11-02, OPEN_REPAIRS 641: that suite's reds named no step). Its
+   marker is COMMENTS_STAGE, so a smoke stage can never be read as one of these. */
+const COMMENTS_STAGES = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'prod-comments-browser.js'), 'utf8');
+    const names = new Set();
+    const re = /\bstage\('([a-z0-9_]+)'\)/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+function lastAnnouncedStage(text, marker, allowed) {
+  const seen = String(text || '').match(new RegExp(marker + ' ([a-z0-9_]+)', 'g')) || [];
+  for (let i = seen.length - 1; i >= 0; i--) {
+    const name = seen[i].slice(marker.length + 1);
+    if (allowed.has(name)) return name;
+  }
+  return '';
+}
+
 /* The LAST stage announced, which is the one that did not finish. Returns ''
    when the suite printed no marker at all, so a suite that has none -- or one
    whose markers were renamed out of the allowlist -- degrades to exactly the
    old behaviour rather than to a wrong answer. */
 function smokeFailedStage(text) {
-  const seen = String(text || '').match(/SMOKE_STAGE ([a-z0-9_]+)/g) || [];
-  for (let i = seen.length - 1; i >= 0; i--) {
-    const name = seen[i].slice('SMOKE_STAGE '.length);
-    if (SMOKE_STAGES.has(name)) return name;
-  }
-  return '';
+  return lastAnnouncedStage(text, 'SMOKE_STAGE', SMOKE_STAGES)
+    || lastAnnouncedStage(text, 'COMMENTS_STAGE', COMMENTS_STAGES);
 }
 
 /* The one place the three classifiers are combined, so the caller's reason line

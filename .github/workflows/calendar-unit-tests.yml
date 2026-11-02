@@ -723,6 +723,10 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           WORKLOAD_REPORTS_REQUIRE_WEBKIT: '1'
         run: node test/workload-reports-browser.js
+      - name: The content Calendar reports what goes wrong, like the review boards and Workload (a refused save and its landing, a reload during a save, a dropped press, an uncaught error, no words)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-reports-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

@@ -138,7 +138,10 @@ Post for Me facts (Linkplan, read 2026-11-02 from Post for Me's live API referen
 `POST /v1/social-posts` with one more account id and one configuration block; YouTube takes `title`,
 `description`, `privacy_status`, `made_for_kids`, `tags`, `category_id` and others, and has **no Shorts flag**;
 LinkedIn takes only caption and media overrides for a video; a person or a company page is fixed when the account
-is connected (`connection_type`), not per post. A TikTok connected as `tiktok_business` would fail today's
+is connected (`connection_type`), not per post: a page and a person are two connections with two `spc_` ids, so
+"one LinkedIn account per client" means one slot. Frame (Linkplan's reading, unmeasured): our login reads files as a
+member of the Frame account, so a share's own download setting should not block the copy; a file our login cannot
+download answers 403, shown as a plain refusal. PR 1 tries it once. A TikTok connected as `tiktok_business` would fail today's
 `platform === "tiktok"` check; PR 5 accepts both.
 
 - **YouTube Shorts vs long video.** YouTube itself makes a vertical video of 3 minutes or less a Short. The form

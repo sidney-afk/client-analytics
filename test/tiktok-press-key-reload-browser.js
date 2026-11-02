@@ -6,8 +6,9 @@
 //      server adopts the first post instead of making a second one);
 //   2. after that success the kept attempt is gone, so the next post gets a key of its own;
 //   3. a changed form after the reload gets a new key and a new upload;
-//   4. a kept attempt older than Post for Me keeps an unattached upload (24 hours) is dropped: a new key and
-//      a new upload;
+//   4. a kept attempt older than Post for Me keeps an unattached upload (24 hours) keeps its key but uploads
+//      the video again, after a reload and in a page left open alike (the key, not the upload, is what lets the
+//      function find a first post that did land);
 //   5. a clear "no" (HTTP 400) drops the kept attempt as well.
 // Every backend answer is local; nothing reaches Post for Me.
 const assert = require('assert/strict');
@@ -169,8 +170,19 @@ const kept = (page) => page.evaluate((k) => localStorage.getItem(k), RETRY_KEY);
       await openForm(page, base, false);
       await attach(page, 'clip-one.mp4');
       await press(page, null);
-      assert.notEqual(calls.creates[1].idempotencyKey, calls.creates[0].idempotencyKey, 'a 25-hour-old attempt is not reused'); checks++;
-      assert.equal(calls.mints, 2, 'the video is uploaded again (Post for Me has deleted the old copy)'); checks++;
+      assert.equal(calls.creates[1].idempotencyKey, calls.creates[0].idempotencyKey, 'a 25-hour-old attempt keeps its key'); checks++;
+      assert.equal(calls.mints, 2, 'but the video is uploaded again (Post for Me has deleted the old copy)'); checks++;
+      assert.notEqual(calls.creates[1].mediaUrl, calls.creates[0].mediaUrl, 'and the new storage address is sent'); checks++;
+      assert.equal(await kept(page), null, 'the success then drops it'); checks++;
+      // The same in a page left open: no reload, the in-memory attempt ages past the upload's life.
+      await attach(page, 'clip-three.mp4');
+      await page.fill('#tkTitle', 'Open all day');
+      calls.plan.push('lost');
+      await press(page, LOST);
+      await page.evaluate(() => { tkState.retryCreate.savedAt = Date.now() - 25 * 3600 * 1000; });
+      await press(page, null);
+      assert.equal(calls.creates[3].idempotencyKey, calls.creates[2].idempotencyKey, 'a page left open keeps the key too'); checks++;
+      assert.equal(calls.mints, 4, 'and uploads again'); checks++;
       assert.deepEqual(errors, [], 'no page errors'); checks++;
       await context.close();
     }

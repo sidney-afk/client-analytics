@@ -29,7 +29,7 @@ assert.strictEqual(keeps({ ok: false, status: 409, json: { ok: false } }), false
 assert.strictEqual(keeps({ ok: true, status: 200, json: { ok: true } }), false, 'a success needs no retry key');
 
 const create = stripNonCode(extractFunction(INDEX, '_tkCreateViaFunction'));
-assert.ok(/tkState\.retryCreate = _tkCreateAnswerKeepsKey\(out\) \? ambiguous : null;/.test(create),
+assert.ok(/_tkSetRetryCreate\(_tkCreateAnswerKeepsKey\(out\) \? ambiguous : null\);/.test(create),
   'the create flow keeps the attempt exactly when that rule says so');
 assert.ok(!/out\.status >= 500 \|\| !out\.json/.test(create), 'the old rule (only a 5xx or no JSON keeps the key) is gone');
 

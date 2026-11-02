@@ -9,6 +9,9 @@ export const BUDGET_MS = 40000; // one open must finish inside this, whatever Fr
 const CALL_MS = 12000;
 const COMMENT_PAGE = 100;
 const MAX_COMMENT_PAGES = 3;
+const LIST_PAGE = 50;
+const MAX_LIST_PAGES = 20; // a share or folder listing is followed through links.next up to this many pages
+const MAX_SEARCH_CALLS = 40; // the most Frame.io calls one search for a named file may spend; past it, the link is refused
 export const MAX_REPLY_LOOKUPS = 30; // V4 leaves the author off a reply, so each name is one extra call
 const TOKEN_MARGIN_MS = 120000;
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -26,6 +29,7 @@ const MESSAGES = {
   share_off: ['This Frame.io share link is switched off.', 404],
   share_expired: ['This Frame.io share link has expired.', 404],
   empty_share: ['This Frame.io share has no video in it.', 404],
+  file_not_in_share: ["This link's video is not in the Frame.io share any more. Paste the video's own link.", 404],
   not_video: ['This Frame.io file is not a video, so it cannot be played here.', 415],
   still_processing: ['Frame.io is still processing this video. Try again in a minute.', 409],
   no_playable_address: ['Frame.io did not give a playable address for this video.', 502],
@@ -139,6 +143,56 @@ async function fileFromAsset(ctx, acct, asset) {
   return null;
 }
 
+// The items of a Frame.io list, following links.next, stopping at the first page that holds an item `found` accepts
+// (so a named file on page 1 never waits on, or fails because of, a later page). Each page spends one call from
+// `budget`; when the budget or the page cap runs out the list is cut short, which can only make a named file be
+// refused, never swapped.
+async function listAll(ctx, path, budget, found) {
+  const out = [];
+  for (let page = 0; path && page < MAX_LIST_PAGES && budget.left > 0; page++) {
+    budget.left--;
+    const got = await api(ctx, path);
+    if (got.missing) break;
+    for (const x of (got.data || [])) if (x) out.push(x);
+    if (out.some(found)) break;
+    const next = clean(got.links && got.links.next).replace(/^https:\/\/api\.frame\.io\/v4/i, '');
+    path = next.startsWith('/accounts/') ? next : '';
+  }
+  return out;
+}
+
+// The share's item that a /share/<id>/view/<file> link names: on any page of the share, inside a shared folder (at
+// any depth), or as an older version inside a version stack. { pick, file? } or null when it is not there.
+async function findInShare(ctx, acct, shareId, id) {
+  const budget = { left: MAX_SEARCH_CALLS };
+  const names = (a) => !!a && (a.id === id || (!!a.head_version && a.head_version.id === id));
+  let level = await listAll(ctx, '/accounts/' + acct + '/shares/' + shareId + '/assets?page_size=' + LIST_PAGE, budget, names);
+  const stacks = [];
+  const seen = new Set();
+  while (level.length) {
+    const hit = level.find(names);
+    if (hit) return { pick: hit };
+    const below = [];
+    for (const a of level) {
+      if (a.type === 'version_stack') stacks.push(a);
+      if (a.type === 'folder' && !seen.has(a.id)) {
+        seen.add(a.id);
+        const kids = await listAll(ctx, '/accounts/' + acct + '/folders/' + a.id + '/children?page_size=' + LIST_PAGE, budget, names);
+        const inside = kids.find(names);
+        if (inside) return { pick: inside };
+        below.push(...kids);
+      }
+    }
+    level = below;
+  }
+  const isFile = (k) => k.type === 'file' && k.id === id;
+  for (const s of stacks) {
+    const file = (await listAll(ctx, '/accounts/' + acct + '/version_stacks/' + s.id + '/children', budget, isFile)).find(isFile);
+    if (file) return { pick: s, file };
+  }
+  return null;
+}
+
 async function resolveShare(ctx, accounts, link) {
   for (const acct of accounts) {
     const share = await api(ctx, '/accounts/' + acct + '/shares/' + link.shareId);
@@ -146,12 +200,20 @@ async function resolveShare(ctx, accounts, link) {
     const s = share.data;
     if (s.enabled === false) throw fail('share_off');
     if (s.expiration && Date.parse(s.expiration) < ctx.now()) throw fail('share_expired');
-    const assets = await api(ctx, '/accounts/' + acct + '/shares/' + link.shareId + '/assets');
-    const list = ((assets && assets.data) || []);
     let pick = null;
-    if (link.assetId) pick = list.find((a) => a.id === link.assetId || (a.head_version && a.head_version.id === link.assetId)) || null;
-    if (!pick) pick = list[0] || null;
-    const file = await fileFromAsset(ctx, acct, pick);
+    let file = null;
+    if (link.assetId) {
+      // A link that names a file plays that file or is refused: it never falls back to another video.
+      const found = await findInShare(ctx, acct, link.shareId, link.assetId);
+      if (!found) throw fail('file_not_in_share');
+      pick = found.file || found.pick;
+      file = found.file || (await fileFromAsset(ctx, acct, found.pick));
+    } else {
+      // A bare share (a folder sent as a whole) plays its first video, as before.
+      const assets = await api(ctx, '/accounts/' + acct + '/shares/' + link.shareId + '/assets');
+      pick = ((assets && assets.data) || [])[0] || null;
+      file = await fileFromAsset(ctx, acct, pick);
+    }
     if (!file) throw fail('empty_share');
     return { acct, file, openUrl: 'https://next.frame.io/share/' + link.shareId + (pick && pick.id ? '/view/' + pick.id : '') };
   }

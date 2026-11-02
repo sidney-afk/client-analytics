@@ -45,7 +45,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* Who may ask trial-reels: a client link (its review token) or a verified staff key. Anyone else (signed out, the
        key not yet checked, Production's own boot before verification) gets a 401 and a red console error, so they read
        nothing and see no versions, as with Trial reels off (session Trialchange, OPEN_REPAIRS 630; Production's
-       plp_console_errors went red after #2486). */
+       plp_console_errors went red after PR 2486). */
     function _trvMayRead() {
         if (_isClientLink) return true;
         try { return !!_syncviewStaffIdentityForHeaders(); } catch (e) { return false; }

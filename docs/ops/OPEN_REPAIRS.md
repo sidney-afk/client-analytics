@@ -35785,3 +35785,31 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/trial-reels-everyone-browser.js`, new part `signedout`: switch on for every client, the function answering 401 as live. Unverified: zero trial-reels requests, no console error. Verified: still reads. On main 31 requests and 31 console 401s (2 of 4 fail); all 24 checks of the file pass here.
   - Client link and verified staff unchanged: the rest of the everyone, production and nightreel suites pass.
 - **Way back:** revert the PR.
+
+## 634. [2026-11-02 UTC, BUILT, NOT MERGED] A note sent close to another one could vanish from the open Notes thread and from the card's calendar copy (found and fixed by session Trialchange)
+
+- **Seen:** running `docs/syncview-design/tests/note-send-outbox-browser.js` four at a time (busy runners, 2 Nov), its part D ("a double click … shows one") failed about 1 run in 8.
+  - The server held the note, but the open Notes thread on the card showed notes A, B1 and C only. Notes B2 and D were gone, and so was the card's own list.
+  - With the page's CPU slowed 4× (Chrome's throttling) it failed every run, desktop and phone.
+- **Cause, a lost update in 190 `_calAppendComment` (and the same code in 280 `_sxrAppendComment`, Samples):**
+  - It copied the card's comment list (`arr`) before awaiting the route check and the gateway send, then wrote that copy plus its own note back: to the thread, and to the card's calendar copy (`*_tweaks`).
+  - Two notes sent close together each held their own copy, and the one answered last wrote its copy over the other.
+  - The dropped note stayed on the server (the native comment), but left the open thread and the card's calendar copy until a reload.
+  - Not a stale read: no canonical read was involved (`_canonicalCommentReads` was empty on the card).
+- **Fix:** after the awaits, the note is added to the card's **current** list, read from the live card (`calState.posts` / `sxrState.posts`), not to the copy taken before the send. This is a merge against the latest list, not a delay. A note already there is not added twice, and a client's change request flips status only when the note is new.
+- **Proof:**
+  - `docs/syncview-design/tests/note-send-overlap-browser.js` (new, mocked, desktop and 390 px):
+    - two notes where the first is answered 2.5 s after the second;
+    - then three answered in reverse order;
+    - every note shows once in the thread, is in the card's list, and is in the card's last calendar copy.
+    - On main 9 of 12 checks fail (notes missing from all three places); with the fix 12 of 12 pass.
+  - `note-send-outbox-browser.js` part D: at 4× CPU it fails every run on main and passes with the fix. Four at a time, two rounds (8 runs, with the part-L test fix of #2496 applied): 94 of 94 in every run.
+  - `test/write-ui-writer-durability.js` now also requires, for both functions, that the list the note joins is read after the gateway answered, and that nothing is pushed onto the earlier copy. It fails on main.
+  - Samples has no browser test of its own here; it shares the code shape and the source check.
+  - The other notes suites pass:
+    - the composer threads, caption composer and quick-open reply tests;
+    - the lost-work drafts and retry-intent tests;
+    - popup behaviour;
+    - the trial-reels notes test;
+    - the unit checks on this send path.
+- **Way back:** revert the PR.

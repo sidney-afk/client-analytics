@@ -243,8 +243,14 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
     && calReview.includes('.catch(')
     && sxrReview.includes('.catch('),
   'synchronous target-lock and repair-checkpoint failures enter the review rollback chains');
-  assert(extract('_calAppendComment').indexOf('await _calPostLinearComment') < extract('_calAppendComment').indexOf('arr.push(msg)'));
-  assert(extract('_sxrAppendComment').indexOf('await _sxrPostLinearComment') < extract('_sxrAppendComment').indexOf('arr.push(msg)'));
+  // The note joins the thread only after the gateway answered, and joins the card's CURRENT list, read after that
+  // await (OPEN_REPAIRS 634: a copy taken before it dropped a note another send had added meanwhile).
+  for (const [fn, gw] of [['_calAppendComment', 'await _calPostLinearComment'], ['_sxrAppendComment', 'await _sxrPostLinearComment']]) {
+    const src = extract(fn);
+    assert(src.indexOf(gw) > 0 && src.indexOf(gw) < src.indexOf('latest.push(msg)'), fn + ': the note is added after the gateway answered');
+    assert(src.indexOf(gw) < src.indexOf('const latest = '), fn + ': the list it joins is read after the gateway answered');
+    assert(!/\barr\.push\(msg\)/.test(src), fn + ': never pushed onto the copy taken before the send');
+  }
   assert(extract('_kasperPersistPostWrite').indexOf('await _calPushStatusToLinear') < extract('_kasperPersistPostWrite').indexOf('await _calUpsertFetch'));
   assert(extract('_sxrKasperApplyAndPersist').indexOf('await _sxrPushStatusToLinear') < extract('_sxrKasperApplyAndPersist').indexOf('await _sxrKasperPersist'));
   for (const fixture of [

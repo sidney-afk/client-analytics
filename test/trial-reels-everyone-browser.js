@@ -13,7 +13,11 @@
  *              2.6 s, measured 2026-11-01). The reads now run beside the card read, and the queue is cut once both are
  *              in (the trial reads waited for at most a few seconds).
  *   kasper2    Kasper's second layout: no tile placeholders are left on a card that is not a trial card.
- * TRE_PART=client|kasper|kasper2 runs one part.
+ *   signedout  a staff page whose key is not verified (Production's suites boot that way on purpose) asks trial-reels
+ *              nothing and logs no error: the function answers such a visitor 401, and the review page's "is a trial
+ *              answer pending" check (194) and the staff list (189) used to ask anyway (OPEN_REPAIRS 630; main's
+ *              plp_console_errors went red after #2486). The same page verified still reads trial reels.
+ * TRE_PART=client|kasper|kasper2|signedout runs one part.
  */
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -36,11 +40,15 @@ const POSTS_MS = 3000;   // the card read, held
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: on ? { all: true } : { clients: ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.trialCalls = [];
+    t.consoleErrors = [];
+    t.page.on('console', m => { if (m.type() === 'error') t.consoleErrors.push(m.text().slice(0, 200)); });
     await t.ctx.route('**/functions/v1/trial-reels', async route => {
       const r = route.request();
       if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
       const b = JSON.parse(r.postData() || '{}');
       t.trialCalls.push(b.action);
+      // As the live function answers a staff call with no verified key.
+      if (t.unverified) return route.fulfill({ status: 401, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'unauthorized' }) });
       await sleep(TRIAL_MS);
       const body = b.action === 'list' ? { ok: true, cards: {} } : { ok: true, enabled: false };
       return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) }).catch(() => {});
@@ -102,6 +110,39 @@ const POSTS_MS = 3000;   // the card read, held
       ok(b.ms - a.ms < 1500, `${label}: the queue is up in ${b.ms} ms with the switch on against ${a.ms} ms off (card read ${POSTS_MS} ms, trial read ${TRIAL_MS} ms, side by side, not one after the other)`);
       ok(b.late === 0, `${label}: nothing of trial reels left on a card that is not a trial card once the read is in (${b.late})`);
       ok(!a.errors.length && !b.errors.length, `${label}: no page errors (${a.errors.concat(b.errors).join(' | ')})`);
+    }
+
+    // ---------- signedout: no verified staff key, no trial-reels read, no console error ----------
+    if (part('signedout')) {
+      TRIAL_MS = 300;
+      const seen = {};
+      for (const verified of [true, false]) {
+        const t = await start('kasper', true);
+        t.unverified = !verified;
+        await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+        await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
+        await sleep(500);
+        const before = t.consoleErrors.length;
+        await t.page.evaluate(([name, verified]) => {
+          // Production's suites: boot verified, then drop it (prod-test-utils installProductionInit).
+          try { _syncviewStaffIdentityVerified = verified; } catch (e) {}
+          if (!verified) { try { localStorage.removeItem('syncview_staff_identity_v1'); } catch (e) {} }
+          try { wlMergeClientsFromSheet([name]); } catch (e) {}
+          navTo('kasper');
+        }, [CLIENT, verified]);
+        await sleep(4000);
+        // The review page's own check (194 svTrialReviewPending), asked of the client's card as the stage draws it.
+        await t.page.evaluate(() => { try { navTo('kasper'); } catch (e) {} });
+        await sleep(1500);
+        seen[verified] = { calls: t.trialCalls.length, console: t.consoleErrors.slice(before), errors: t.errors.slice() };
+        await t.ctx.close();
+      }
+      const v = seen[true], u = seen[false];
+      ok(v.calls > 0, `signedout: a verified staff page still reads trial reels (${v.calls} read(s))`);
+      ok(u.calls === 0, `signedout: with no verified staff key the page asks trial-reels nothing (${u.calls} request(s))`);
+      const trialNoise = u.console.filter(x => /401|trial|unauthori/i.test(x));
+      ok(!trialNoise.length, `signedout: no console error from trial reels (${trialNoise.join(' | ')})`);
+      ok(!u.errors.length, `signedout: no page errors (${u.errors.join(' | ')})`);
     }
   } catch (e) {
     failures.push('crashed: ' + (e && e.stack || e));

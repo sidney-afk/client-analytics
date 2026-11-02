@@ -35749,9 +35749,16 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Test run mistake (session Trialchange):** an early run of the walk acted on "Video 1 — TEST1" while the client page was still on it: it approved its video (22:15 UTC) and added one client note "Trialchange final round: on second thought, a new ending on A." (22:19). The video is back at Client Approval through the staff status pick; the note could not be deleted from the client link in the run and is still stored; `client_video_approved_at` keeps 22:15. "Video 2 — TEST2" was not touched.
 - **Way back:** revert the PR.
 
-## 630. [2026-11-02 UTC, BUILT, NOT MERGED] Production asked trial-reels for a card's versions with no staff key (found by session Reviewguard; fixed by session Trialchange)
+## 630. [2026-11-02 UTC, BUILT, NOT MERGED] Pages with no verified staff key asked trial-reels anyway: 401s, console errors, main's plp_console_errors red (found by sessions Reviewguard and Sheetzoom; fixed by session Trialchange)
 
 - **Seen:** signed out (or before the staff key is verified), opening a video sub-issue in Production whose client trial reels is on (every client since `"all": true`, 2 Nov 00:49 UTC) sent trial-reels `{ action: 'read' }`. The function answers only a staff key here, so it came back 401, with a red console error, and the Assets panel said the versions "Could not be read".
-- **Fix (245):** `_trlProdLoad` sends no read without a verified staff key (`_syncviewStaffIdentityForHeaders`). The sub-issue then reads as having no versions, as with Trial reels off: today's single "Deliverable file" row. The first draw after sign-in reads it.
-- **Proof:** `test/trial-reels-production-browser.js`, the new "signed out" checks: no trial-reels request at all, today's single row, no read error. On main the read is sent and "Could not be read" shows (2 of the 38 checks fail); all 38 pass here.
+- **Seen, wider (Sheetzoom):** main's production-polish went red after #2486 on `plp_console_errors`. #2486 made the review page's "is a trial answer pending" check (194 `svTrialReviewPending`) start the client's trial read itself, with no check of who is asking. The Production suites boot as an unverified visitor on purpose (`installProductionInit` drops verification after boot), so every such check sent a trial-reels list, got 401 and logged an error. The staff list behind it (189 `_trlLoad`, shared with Kasper's queue and the Calendar) had no check either: an unverified Kasper page sent one 401 read per client (31 on the review fixture).
+- **Fix, same guard in three places:** a trial-reels read is sent only on a client link (its review token) or with a verified staff key (`_syncviewStaffIdentityForHeaders`). Without one there is no read and no versions, as with Trial reels off, and the first draw after sign-in reads them.
+  - 194 `_trvMayRead()`, used by `svTrialReviewPending` and `_trvLoad`.
+  - 245 `_trlProdLoad`: the sub-issue shows today's single "Deliverable file" row.
+  - 189 `_trlLoad` (staff list; never used on a client link).
+- **Proof:**
+  - `test/trial-reels-production-browser.js`, "signed out": no trial-reels request, today's single row, no read error. On main 2 of 38 checks fail; all 38 pass here.
+  - `test/trial-reels-everyone-browser.js`, new part `signedout`: switch on for every client, the function answering 401 as live. Unverified: zero trial-reels requests, no console error. Verified: still reads. On main 31 requests and 31 console 401s (2 of 4 fail); all 24 checks of the file pass here.
+  - Client link and verified staff unchanged: the rest of the everyone, production and nightreel suites pass.
 - **Way back:** revert the PR.

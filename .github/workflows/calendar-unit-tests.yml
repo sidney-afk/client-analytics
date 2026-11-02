@@ -499,6 +499,7 @@ jobs:
           Trial reels on the editor's Today: a version asked to change while the card keeps its review stage is listed with the tweaks, and leaves once the new cut is in|node test/trial-reels-today-browser.js
           Trial reels, Nightreel's live walk: Not this one stays said in Tweaks Needed, the SMM gets a new cut in Tweaks Needed, Kasper's Client dropped tile and undated header|node test/trial-reels-nightreel-browser.js
           Trial reels timing: the winner toast shows on the click, and a card set to Posted shows On trial in about a second|node test/trial-reels-timing-browser.js
+          Trial reels switched on for everyone: non-trial cards unchanged on the client link, and Kasper's queue not held back by the trial reads|node test/trial-reels-everyone-browser.js
           LANES
 
 

@@ -1945,6 +1945,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-ask-change-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Checks the client's message box with the polish switch on: a line says a comment is only a message, Ask for a change is clickable with no part picked and asks What should change? inside the panel (no dialog), picking a part sends a change request on it, one part left sends at once, Escape and the cross close the choice and keep the words, Send comment still sends a plain comment, the keyboard alone works, Enter is still a new line on a phone, and the choice fits inside the box at 1440, 390 and 320, light and dark.",
+      "reproduce": "node test/review-stage-client-ask-change-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-with-editors-row-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

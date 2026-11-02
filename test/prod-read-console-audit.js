@@ -251,6 +251,96 @@ async function main() {
   assert.equal(navigationGapAbort.ok, true);
   assert.equal(navigationGapAbort.navigationAborts, 1);
 
+  /* --- a read the old document still had open when a navigation committed --
+   * Measured 2026-11-02 (OPEN_REPAIRS 641): after behav-wired's second goto,
+   * the first document's boot reads got neither requestfinished nor
+   * requestfailed and were reported as pending three minutes later. A read that
+   * started before a real navigation committed belongs to the document that
+   * went away; one that started after is the page under test's, and still has
+   * to finish. */
+  const orphanedByNavigation = await auditCase((page, frame) => {
+    const oldRead = request(readUrl, { frame });
+    page.emit('request', oldRead);
+    page.at(1001);
+    const navigation = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', navigation);
+    page.at(1002);
+    page.emit('framenavigated', frame);
+    respond(page, navigation, 200);
+    page.at(1003);
+    const newRead = request(otherUrl, { frame });
+    page.emit('request', newRead);
+    respond(page, newRead, 200);
+  });
+  assert.equal(orphanedByNavigation.ok, true, 'an old-document read a navigation tore down silently is not a pending read');
+  assert.equal(orphanedByNavigation.navigationAborts, 1);
+
+  const hangAfterNavigation = await auditCase((page, frame) => {
+    const navigation = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', navigation);
+    page.at(1001);
+    page.emit('framenavigated', frame);
+    respond(page, navigation, 200);
+    page.at(1002);
+    page.emit('request', request(readUrl, { frame }));
+  });
+  assert.equal(hangAfterNavigation.ok, false, 'a read the NEW document opened and never finished is still reported');
+  assert.match(hangAfterNavigation.error, /pending read requests/);
+
+  const sameDocumentNavigation = await auditCase((page, frame) => {
+    page.emit('request', request(readUrl, { frame }));
+    page.at(1001);
+    // A history-API route change fires framenavigated with no navigation request.
+    page.emit('framenavigated', frame);
+  });
+  assert.equal(sameDocumentNavigation.ok, false, 'a same-document route change does not excuse a read that never finished');
+
+  /* Codex on PR 2520: a redirect's first hop never commits. Left pending, it
+     paired with a later same-document route change and excused a hung read. */
+  const redirectThenRouteChange = await auditCase((page, frame) => {
+    const hop = request('http://localhost/old', { navigation: true, frame });
+    page.emit('request', hop);
+    respond(page, hop, 302);
+    page.at(1001);
+    const destination = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', destination);
+    page.at(1002);
+    page.emit('framenavigated', frame);
+    respond(page, destination, 200);
+    page.at(1003);
+    page.emit('request', request(readUrl, { frame }));
+    page.at(1004);
+    page.emit('framenavigated', frame);
+  });
+  assert.equal(redirectThenRouteChange.ok, false, 'a redirect hop left behind does not let a later route change excuse a hung read');
+
+  const failedNavigationThenRouteChange = await auditCase((page, frame) => {
+    page.emit('request', request(readUrl, { frame }));
+    page.at(1001);
+    const navigation = request('http://localhost/', { navigation: true, frame, failure: 'net::ERR_ABORTED' });
+    page.emit('request', navigation);
+    page.at(1002);
+    page.emit('requestfailed', navigation);
+    page.at(1003);
+    page.emit('framenavigated', frame);
+  });
+  assert.equal(failedNavigationThenRouteChange.ok, false, 'a navigation that failed never commits, so a route change after it excuses nothing');
+
+  const orphanedSchemaBody = await auditCase((page, frame) => {
+    const url = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/production_deliverables_browser_v1?select=id&limit=1000&order=id.asc';
+    const oldRead = request(url, { frame });
+    page.emit('request', oldRead);
+    page.at(1001);
+    // Headers arrived, the body never did: the document went away mid-body.
+    page.emit('response', { request: () => oldRead, status: () => 200, json: () => new Promise(() => {}) });
+    const navigation = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', navigation);
+    page.at(1002);
+    page.emit('framenavigated', frame);
+    respond(page, navigation, 200);
+  });
+  assert.equal(orphanedSchemaBody.ok, true, 'and its half-read schema body is not waited for either');
+
   /* --- a read the page gave up on itself, confirmed by a fresh read -------
    * The page time-limits one small read (the write routing flags) and cancels
    * it when the limit passes. That cancel is excused only for that read, on the

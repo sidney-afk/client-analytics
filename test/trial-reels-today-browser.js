@@ -44,6 +44,8 @@ const CORS = { 'access-control-allow-origin': '*' };
       await page.waitForFunction(() => typeof _tdyEditorHtml === 'function' && typeof _tdyTrialAsks === 'function', null, { timeout: 20000 }).catch(() => {});
       const run = () => page.evaluate(async () => {
         if (typeof _tdyTrialAsks !== 'function') return { missing: true };
+        // Today is a signed-in staff page: the trial list is read only with a verified staff key (OPEN_REPAIRS 630).
+        try { _syncviewStaffIdentitySave({ key: 'fixture-editor-key', role: 'creative', member: { id: 'ed1', name: 'Fixture Editor' } }); _syncviewStaffIdentityVerified = true; } catch (e) {}
         const row = (id, extra) => Object.assign({ id, client_slug: 'fixtureclient', team: 'video', kind: 'video', title: 'Trial card ' + id, status: 'client_approval', status_at: new Date().toISOString(), assignee_id: 'ed1', due_date: null, origin: 'calendar', card_id: 'p_trial', linear_issue_uuid: null }, extra);
         const rows = [row('d1'), row('d2', { card_id: 'p_other' }), row('d3', { client_slug: 'otherclient' }), row('d4', { team: 'graphics' })];
         const asks = await _tdyTrialAsks(rows);

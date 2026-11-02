@@ -35939,6 +35939,11 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - Not covered: a full browser drive of the Review tab with a canonical thread. The review-stage fixture does not mock the crosswalk or the canonical read, so the proof is at the level of the shipped functions.
 - **Way back:** revert the PR.
 
+## 640. [2026-11-02 UTC, BUILT, NOT MERGED] WebKit "ResizeObserver loop" on the client link's review stage, again: the strip-edge watcher wrote inside the observation (session Sheetzoom)
+- **Seen:** #2514's repair-checkpoint (head 36a0c50), 2 checks of 395 red and not #2514's: "no ResizeObserver error (ResizeObserver loop completed with undelivered notifications.)" and 633's own check naming the cause, `["skList -> skList","skList -> view","skList -> svReviewStage"]`. 633 moved three of the stage's watchers to the next frame; the fourth, the strip-edge watcher on #skList (195 `_rsStripEdge`), still toggled the strip's right-edge fade class inside its callback. In WebKit that mask changes the strip's height (its scrollbar), which resizes the strip, #view and the stage in the same frame, and WebKit reports the loop. Chromium measures no size change there, which is why 633's size check passed it locally.
+- **Fix (195):** the strip-edge watcher sets the fade on the next frame, and only when it changed (the scroll listener keeps setting it at once). No watcher on the review stage writes inside an observation any more.
+- **Proof:** `test/calendar-sheet-fit-window-browser.js` now also records every class or style write a watcher's callback makes while it runs, in any engine. The case gives the strip 11 posts, so it overflows at 1440 and not at 3600, then widens the window and back, so the strip watcher's fade has to flip. On main it fails in Chromium, naming the strip watcher; here it passes (Chromium; WebKit in CI).
+
 ## 638. [2026-11-02 UTC, BUILT, NOT MERGED] The Workload calendar reports what goes wrong, the same way the review boards do (session Reviewguard)
 
 - **Asked:** after the review boards (OPEN_REPAIRS 626), put the same logging on the Workload calendar, then on the content Calendar, as separate PRs. This is the Workload one.
@@ -35964,6 +35969,28 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
+
+## 639. [2026-11-02 UTC, BUILT, NOT MERGED] The content Calendar reports what goes wrong, the same way the review boards and Workload do (session Reviewguard)
+
+- **Asked:** the last of the three logging PRs (after the review boards, OPEN_REPAIRS 626, and Workload, 638): the content Calendar, by extending `_writeUiRecordFailure`'s path rather than copying it.
+- **Before:** a refused Calendar save already reached the refusal log (through `_writeUiReportFailure` / `_writeUiRecordFailure` and the shared beacon), but with no board, so the watcher's signature read never listed it. Nothing reported a reload during a card save, an uncaught error on the Calendar, a save that landed after a failure, or a press the review buttons or the Notes composer dropped while the same thing was saving.
+- **Now:**
+  - **120 (the shared path):** every refused Calendar save carries a board. It is `calendar` on a staff page and `client` on a client link (`_writeUiPageBoard`). While the review stage is showing it registers its own board (`_writeUiSetBoardHint`, from 195), so a refusal from Kasper's board still says `kasper`. Samples names none. `_writeUiQueueDiagnostic` (which `_writeUiRecordFailure` and `_writeUiReportFailure` both go through) now remembers a refused Calendar save by card, and `_writeUiRecordLanded` reports the card's next save that lands as `landed_after_retry`, under the refused save's own action.
+  - **170 (the card-save funnel `_calFlushCardSave`):**
+    - its success reports a landing after a failure;
+    - a note in session storage while a card save is on its way. It is kept once the page is leaving (`beforeunload`/`pagehide`), and read after every part of the page has loaded (the client-link flag the board reads loads after 170). It is reported as `calendar_reload_mid_save`;
+    - uncaught errors and rejections while the Calendar is showing (not Workload, not the review stage) are reported as `calendar_uncaught`, by kind and file:line only.
+  - **190:** a press dropped by `_calReviewApplyApprove` or `_calReviewComment` because the same part is still saving, or a second Send in the Notes composer while the first is sending, is reported as `calendar_double_click` / `save_in_flight`. The buttons are disabled while saving, so this counts only the presses that slip past them. `_calReviewApprove`'s own first check and `_calReviewRequestTweak` are left as they are (one is changed by #2512, the other is pinned by the client-requests check, and its buttons are disabled while saving).
+  - Ids and the client slug only, never names, titles or words; sent after the save is handled, capped per page.
+- **Server:** nothing new. The `calendar` board and the signature read's `calendar_` prefix came with OPEN_REPAIRS 638 (#2514, merged; migration `20261102130000`).
+- **Watcher's read** unchanged; Calendar rows appear in it, e.g. `calendar|status|http_503|safari|mac|0-49|retry_landed`.
+- **Proof:**
+  - `test/calendar-reports-browser.js` (new, on the shared staff-Calendar harness `lost-work-lib.js`, mocked): a refused card save (board calendar) and its later landing, a reload during a card save, a dropped press, an uncaught error and a rejection, no words in any report. Without this change it fails at the first board check.
+  - `test/write-failure-receipt.js` now also requires board `calendar` on a staff Calendar refusal. The client-requests golden's Calendar report gained `board: "client"` (the requests and every source hash are unchanged).
+  - The suites that lift the beacon or the composer carry the new helpers (`test/write-refusal-beacon-card-id.js`, `test/linear-exit-write-diagnostics-browser.js`, `test/notes-composer-one-send.js`).
+- **Found while building, fixed here:** the reload check first ran on a timer set when 170 loaded. With the split build, the parts after 170 are written into the page and fetched one by one, and on a slow line the timer fired while the part that says whether this is a client link was still on its way. The board lookup then threw, inside a `try`, and the report was dropped without a trace (4 runs in 6 under load). The check now waits for `DOMContentLoaded`, by which point every written-in part has run, and `_writeUiPageBoard` reads the link's own address when that part has not run yet. `test/calendar-reports-browser.js` holds those later parts back on its reload, so this fails on the first version every run and passes here.
+- **Codex P2 on #2519, fixed:** a status that committed while the card's own save failed is logged as `status_committed_source_failed`, but a later landing was reported only as `status`, so that recovery never paired up and the signature read kept it as `no_retry_landed`. A landing now checks both kinds. `test/calendar-reports-browser.js` case 1 covers it (fails before, passes now).
+- **Way back:** revert the PR.
 
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
 

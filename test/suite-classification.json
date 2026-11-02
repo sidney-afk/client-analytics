@@ -79,6 +79,7 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "trial-version-fields-migration.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -2056,6 +2057,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_GAUNTLET_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, with the database's copy of a native status onto its card), fictional client, cards and people, no hosted credentials and no live data. Kasper's review board (second layout, fast boot) and the client link under his conditions: three approves in a row on one card all reach the server (failed on main), a double click, a slow line, a lost answer, a reload during a save (re-read after the reload; failed on main), two tabs, a tab open five hours, a nearly full browser store, an uncaught error, and the client link's double tap and refusal; every report carries ids, codes and the store's fill, never names, titles or words.",
       "reproduce": "node test/review-board-gauntlet-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
+      "file": "calendar-reports-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared staff-Calendar harness (docs/syncview-design/tests/lost-work-lib.js, fictional client, card and staff member), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 639: the content Calendar reports a refused card save with board calendar and its later landing (landed_after_retry), a reload during a card save, a press dropped while the same part is saving, and an uncaught error, ids and the client slug only; failed without the change.",
+      "reproduce": "node test/calendar-reports-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

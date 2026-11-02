@@ -33,7 +33,7 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  // OPEN_REPAIRS 638: a v3 that refuses for another reason (a board its table does not take yet) still records through v2.
  globalThis.__wr101db.rpc=async(name,args)=>{calls.push({name,args});return name==='production_write_refusal_record_browser_v3'?{error:{code:'23514',message:'check constraint'}}:{data:{recorded:true},error:null};};
  assert.equal((await handler(request({action:'browser_claim',code:'write_conflict',status:409,env:{code:'save_in_flight',board:'workload'}}))).status,202);assert.deepEqual(calls.map(c=>c.name),['production_write_refusal_record_browser_v3','production_write_refusal_record_browser_v2'],'a refused v3 falls back to v2, so the report is kept');globalThis.__wr101db.rpc=realRpc;calls=[];
- // OPEN_REPAIRS 641: a Workload report is stored as surface workload, not unknown; a table that does not take it yet
+ // OPEN_REPAIRS 642: a Workload report is stored as surface workload, not unknown; a table that does not take it yet
  // (before migration 20261102180000) gets the same report as unknown, so none is lost.
  await handler(request({action:'browser_claim',surface:'workload',operation:'workload_plan_save',code:'write_conflict',status:409,env:{code:'save_in_flight',board:'workload'}}));assert.equal(calls[0].args.p_receipt.surface,'workload','a Workload report keeps its surface');calls=[];
  await handler(request({action:'browser_claim',surface:'not-a-surface',code:'write_conflict',status:409}));assert.equal(calls[0].args.p_receipt.surface,'unknown','any other surface is still unknown');calls=[];

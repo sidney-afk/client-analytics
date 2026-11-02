@@ -1,5 +1,5 @@
 -- ef-auto-deploy: functions-cope-without-this
--- OPEN_REPAIRS 641 (session Reviewguard, 2026-11-02): a report from the Workload calendar is stored as surface
+-- OPEN_REPAIRS 642 (session Reviewguard, 2026-11-02): a report from the Workload calendar is stored as surface
 -- 'workload' instead of 'unknown'.
 --   1. write_refusal_diagnostics.receipts_v1.surface also takes 'workload';
 --   2. the staff "Save problems" list (production_write_refusal_list_v1) can filter by it.

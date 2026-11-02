@@ -26,7 +26,7 @@ export function browserDetail(body,agent,staffRole){
 //  - a save that never reached a server is 'network_failure' with NO status.
 //    The builder would otherwise call it 'browser_refusal' and invent 500.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-// OPEN_REPAIRS 641: a report from the Workload calendar is stored as surface 'workload', not 'unknown' (the shared
+// OPEN_REPAIRS 642: a report from the Workload calendar is stored as surface 'workload', not 'unknown' (the shared
 // receipt maker keeps only the Production surfaces, and it is also production-write's, so it stays as it is).
 export const BROWSER_ONLY_SURFACES=['workload'];
 export function shapeBrowserReceipt(receipt,body){

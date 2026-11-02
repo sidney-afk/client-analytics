@@ -35965,7 +35965,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
 
-## 641. [2026-11-02 UTC, BUILT, NOT MERGED] A Workload report is stored as surface `workload`, not `unknown` (session Reviewguard)
+## 642. [2026-11-02 UTC, BUILT, NOT MERGED] A Workload report is stored as surface `workload`, not `unknown` (session Reviewguard)
 
 - **Seen:** the live check after #2514 (OPEN_REPAIRS 638) on the test client. The Workload report landed with board `workload`, but its receipt's `surface` read `unknown`. The shared receipt maker (`_shared/write-refusal-diagnostics.mjs`) keeps only `calendar`, `sxr` and `production`, and the receipts table's check takes only those and `unknown`. The watcher's signature read uses the board, so nothing was lost, but the staff "Save problems" list could not tell a Workload report from any other unknown one.
 - **Asked:** the supervisor, as its own small PR after the Calendar logging (639), with a test that fails on the old surface list.

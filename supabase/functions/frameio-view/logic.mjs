@@ -242,17 +242,13 @@ async function resolveView(ctx, accounts, link) {
 
 // ---------------------------------------------------------------- part "list": the videos a link points at
 
-const durationOf = (f) => {
-  const d = Number(f && f.duration);
-  if (d > 0) return d;
-  for (const m of ((f && f.metadata) || [])) if (m && m.field_definition_name === 'Duration' && Number(m.value) > 0) return Number(m.value);
-  return null;
-};
+// Assumed from the V4 reference, not yet measured on a real listing (the live check after merge does): a listed file
+// carries `duration` in seconds, and `include=media_links.thumbnail` gives `media_links.thumbnail.download_url`.
+// Either missing leaves that field null; the row is still listed.
+const durationOf = (f) => (Number(f && f.duration) > 0 ? Number(f.duration) : null);
 const thumbOf = (f) => {
-  const l = (f && f.media_links) || {};
-  const t = l.thumbnail || l.thumbnail_high_quality || {};
-  const u = clean(t.download_url || t.url || t.inline_url);
-  return /^https:\/\/[a-z0-9.-]+\.frame\.io\//i.test(u) ? u : '';
+  const u = clean(f && f.media_links && f.media_links.thumbnail && f.media_links.thumbnail.download_url);
+  return FRAME_HOST.test(u) ? u : '';
 };
 const THUMB = 'include=media_links.thumbnail';
 

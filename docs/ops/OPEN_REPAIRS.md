@@ -36114,7 +36114,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
 - **Now:**
   - **New function `post-source`** (`index.ts` wires; `handler.mjs` holds the whole flow and runs under Node). POST `{ client, post_id, letter?, side? }` with a staff role key.
-  - **The link is read on the server**, never taken from the request: from `calendar_posts.asset_url` (matched on client and id, so another client's card is not found), or from `studio_trial_versions.frame_url` for letters B to G (A is the card).
+  - **The link is read on the server**, never taken from the request: from `calendar_posts.asset_url` (matched on client and id, so another client's card is not found), or from `studio_trial_versions.frame_url` for letters B to G (A is the card). A letter with two rows uses the one trial-reels shows (`oneRowPerLetter`: earliest, then smallest id; Codex P1 on #2543).
   - **Frame is read through frameio-view's own lookup with `strict`:** a folder link is refused (`folder_link`) and a missing file too (`file_not_in_share`). There is no Frame code of its own (plan, settled row 3).
   - **Which file (D2), `pickPostRendition`:**
     - the Original, when Frame says `media_type` is `video/mp4` AND its video codec names H.264/AVC;

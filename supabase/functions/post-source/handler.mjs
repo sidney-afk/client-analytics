@@ -5,7 +5,9 @@
 // deps:
 //   allowedClients        the INSTAGRAM_UPLOAD_ALLOWED_CLIENTS setting ("*" = every client, empty = nobody)
 //   readCard(client, id)  -> { id, client, asset_url } | null      the card, matched on client AND id
-//   readVersion(client, postId, letter) -> { frame_url } | null    a trial version (B..G; A is the card itself)
+//   readVersions(client, postId) -> [{ id, letter, frame_url, created_at }]   the card's stored version rows (B..G; A
+//                            is the card itself). A letter can have more than one row; the one used is the one
+//                            trial-reels shows (oneRowPerLetter: earliest, then smallest id), never whichever came back.
 //   lookupVideo(link)     -> { name, file_id, duration_seconds, renditions:{ original?, high_quality?, efficient? } }
 //                            frameio-view's strict lookup; throws { code, status, message } to refuse
 //   fileFacts(video)      -> { media_type, codec, width, height } | null   what Frame says about the upload itself
@@ -15,6 +17,7 @@
 // Nothing is written to any table. A Frame address is never returned, stored or logged: it is fetched right before
 // the copy and used once.
 import { clientAllowed } from '../instagram-upload/logic.mjs';
+import { oneRowPerLetter } from '../trial-reels/logic.mjs';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const reply = (status, body) => ({ status, body });
@@ -64,7 +67,7 @@ export async function handlePostSource({ body, deps }) {
     if (!card || clean(card.client) !== client) return refuse(404, 'card_not_found', 'That card was not found for this client.');
     link = clean(card.asset_url);
   } else {
-    const version = await deps.readVersion(client, postId, letter);
+    const version = oneRowPerLetter(await deps.readVersions(client, postId)).find((v) => clean(v.letter).toUpperCase() === letter);
     if (!version) return refuse(404, 'version_not_found', 'Version ' + letter + ' was not found on this card.');
     link = clean(version.frame_url);
   }

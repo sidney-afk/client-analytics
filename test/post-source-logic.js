@@ -38,8 +38,10 @@ function world(over = {}) {
     allowedClients: 'test-client',
     readCard: async (client, postId) => (over.cards || [{ id: 'p_1', client: 'test-client', asset_url: CARD_LINK }])
       .find((c) => c.client === client && c.id === postId) || null,
-    readVersion: async (client, postId, letter) => (over.versions || [{ client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: B_LINK }])
-      .find((v) => v.client === client && v.post_id === postId && v.letter === letter) || null,
+    // Every stored row for the card, as the table holds them (duplicates of a letter are allowed: the table is unique
+    // on client, batch, video and letter, not on the card and letter).
+    readVersions: async (client, postId) => (over.versions || [{ id: 'v_b', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: B_LINK, created_at: '2026-10-01T00:00:00Z' }])
+      .filter((v) => v.client === client && v.post_id === postId),
     lookupVideo: async (link) => {
       calls.lookups.push(link);
       if (over.lookupError) throw over.lookupError;
@@ -110,9 +112,25 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
     let w = world();
     let r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'C' });
     assert.equal(r.status, 404); assert.equal(r.body.error, 'version_not_found');
-    w = world({ versions: [{ client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: '' }] });
+    w = world({ versions: [{ id: 'v_b', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: '', created_at: '2026-10-01T00:00:00Z' }] });
     r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
     assert.equal(r.status, 409); assert.equal(r.body.error, 'no_link');
+  });
+  await ok('two rows for the same letter: the one trial-reels shows (earliest, then smallest id) is the one copied', async () => {
+    const LATE = 'https://next.frame.io/share/late/view/late';
+    const w = world({ versions: [
+      { id: 'v_9', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: LATE, created_at: '2026-10-05T00:00:00Z' },
+      { id: 'v_2', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: B_LINK, created_at: '2026-10-01T00:00:00Z' },
+      { id: 'v_1', client: 'test-client', post_id: 'p_1', letter: 'C', frame_url: LATE, created_at: '2026-09-01T00:00:00Z' },
+    ] });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
+    assert.equal(r.status, 200); assert.deepEqual(w.calls.lookups, [B_LINK]);
+    const tie = world({ versions: [
+      { id: 'v_8', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: LATE, created_at: '2026-10-01T00:00:00Z' },
+      { id: 'v_3', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: B_LINK, created_at: '2026-10-01T00:00:00Z' },
+    ] });
+    await run(tie, { client: 'test-client', post_id: 'p_1', letter: 'B' });
+    assert.deepEqual(tie.calls.lookups, [B_LINK], 'same time: the smallest id');
   });
   await ok("a Frame refusal (a folder link under the strict lookup) is passed on as it is, and nothing is copied", async () => {
     const err = Object.assign(new Error('This link opens a folder. Paste the video’s own link.'), { code: 'folder_link', status: 422 });

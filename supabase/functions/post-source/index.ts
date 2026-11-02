@@ -13,7 +13,7 @@
 //        and frameio-view's own refusals (folder_link 422, file_not_in_share 404, still_processing 409, ...)
 //
 // The Frame link is read here from calendar_posts.asset_url (the card, matched on client and id) or
-// studio_trial_versions.frame_url (a version), never taken from the request. Frame is read through frameio-view's own
+// studio_trial_versions.frame_url (a version; trial-reels' own row per letter), never taken from the request. Frame is read through frameio-view's own
 // lookup, strict: a folder link is refused, never "the first video". Which file goes is D2: the Original when Frame
 // says it is an H.264 MP4, else the full-size H.264 proxy, else the small one (handler.mjs, pickPostRendition). The
 // file is streamed straight from Frame into one Post for Me upload address; it is never buffered or stored here.
@@ -27,6 +27,7 @@
 
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import { lookup, tokenSource } from "../frameio-view/logic.mjs";
+import { likeExact } from "../trial-reels/logic.mjs";
 import { handlePostSource } from "./handler.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
@@ -66,6 +67,12 @@ Deno.serve(async (req) => {
     const rows = await r.json();
     return Array.isArray(rows) && rows.length ? rows[0] : null;
   };
+  const restAll = async (path: string) => {
+    const r = await fetch(supabaseUrl + "/rest/v1/" + path, { headers: { apikey: serviceKey, Authorization: "Bearer " + serviceKey, Accept: "application/json" } });
+    if (!r.ok) throw new Error("read_failed");
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows : [];
+  };
   const eq = (v: string) => "eq." + encodeURIComponent(v);
   const body = await req.json().catch(() => ({}));
 
@@ -75,8 +82,10 @@ Deno.serve(async (req) => {
       deps: {
         allowedClients: env("INSTAGRAM_UPLOAD_ALLOWED_CLIENTS"),
         readCard: (client: string, id: string) => rest("calendar_posts?select=id,client,asset_url&client=" + eq(client) + "&id=" + eq(id) + "&limit=1"),
-        readVersion: (client: string, postId: string, letter: string) =>
-          rest("studio_trial_versions?select=frame_url&client=" + eq(client) + "&post_id=" + eq(postId) + "&letter=" + eq(letter) + "&limit=1"),
+        // Every row of the card, matched as trial-reels matches them (client case-insensitively, exactly); the handler
+        // keeps the one trial-reels shows for each letter.
+        readVersions: (client: string, postId: string) =>
+          restAll("studio_trial_versions?select=id,letter,frame_url,created_at&post_id=" + eq(postId) + "&client=ilike." + encodeURIComponent(likeExact(client))),
         lookupVideo: async (link: string) =>
           (await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now }, { part: "video", strict: true })).video,
         fileFacts: async (video: { media_type?: string; codec?: string; width?: number; height?: number }) =>

@@ -36108,3 +36108,27 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (160 pass in all).
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
+
+## 658. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V2: import several versions' videos from a Frame folder in one write (plan combined.md row V2; session Vbuild)
+
+- **Asked:** Sidney's item 1: a Frame folder import with a matching step. Built on F1 (#2537), where `frameio-view` gained `part: "list"`.
+- **Before:** every version's link was pasted one at a time.
+- **Now:**
+  - **`trial-reels`:** new action `versions_import` (admin, SMM, editor, like pasting a link). `logic.mjs` `importPlan` decides everything before anything is written:
+    - a new letter becomes a new row;
+    - an existing letter takes the link by today's rules, so a replaced link on an answered version starts it again;
+    - refused: the version on the card (`version_is_card`: it changes from its own row through today's attach), a dropped version, one letter twice, one video twice, a link another version has, a bad link, more than seven, and anything once the trial has started.
+    - The updates go first, because they can be put back. Then every new row goes in one insert. If that insert is refused, the updates are put back. The table has no delete grant, so a row is never inserted and then removed.
+    - One ledger row per version, `trial_versions_import`.
+  - **Page (189, behind `trial_versions_v2`):** "Import from Frame" beside "+ Add version". It opens a sheet on the Calendar import's own dialog.
+    - **Step 1** takes the link and has a Back button.
+    - **Step 2** shows the folder's name and the card's name, then one letter picker per video. Letters are pre-set only from clear file names. The version on the card and still-processing videos are disabled, and one letter never sits on two videos.
+    - Back keeps the link. Cancel writes nothing.
+    - Replacing an answered version asks first.
+    - A refused import writes nothing and says why.
+- **Not built (cut by combined.md):** the filter box, paging past 50, and project (non-share) folder links. Frame's own message covers those.
+- **Proof:**
+  - `test/trial-versions-import-logic.js` (21 checks; on main `importPlan is not a function`).
+  - `test/trial-versions-import-browser.js` (42 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
+  - A Deno case in `test/trial-reels-function-deno.ts` (card `pv2`).
+- **Way back:** turn `trial_versions_v2` off (no Import button), or revert the PR.

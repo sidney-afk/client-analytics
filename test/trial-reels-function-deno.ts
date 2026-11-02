@@ -570,6 +570,30 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   ok((kWait.body.stages_done as Row).kasper === false, "C still waits for Kasper: he is not done");
 }
 
+// V2 (plan combined.md): several versions from a Frame folder in one write, through the real function. Own card id pv2.
+{
+  tables.calendar_posts.push({ id: "pv2", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/pv2-a", video_deliverable_id: null });
+  tables.studio_trial_versions.push({ ...v("A"), id: "pv2A", letter: "A", post_id: "pv2", status: "waiting", frame_url: "https://f.io/pv2-a", revision: 0,
+    smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null,
+    updated_at: "2026-11-02T09:00:00.000Z" });
+  await step({ action: "switch_set", enabled: true, post_id: "pv2" });
+  const rowsOf = () => tables.studio_trial_versions.filter((r) => r.post_id === "pv2");
+  const F = (n: number) => "https://next.frame.io/share/fixture-share/view/fixture-pv2-" + n;
+  const ev0 = tables.calendar_post_events.filter((e) => e.post_id === "pv2" && e.action === "trial_versions_import").length;
+  const bad = await step({ action: "versions_import", post_id: "pv2", items: [{ letter: "B", link: F(1) }, { letter: "C", link: "https://example.com/x" }] }, "creative");
+  ok(bad.status === 400 && bad.body.error === "link_host_unsupported" && rowsOf().length === 1, "V2: one bad row refuses the whole import and writes nothing (" + bad.status + " " + bad.body.error + ")");
+  const onCard = await step({ action: "versions_import", post_id: "pv2", items: [{ letter: "A", link: F(9) }] });
+  ok(onCard.status === 409 && onCard.body.error === "version_is_card", "V2: the version on the card is not changed by an import");
+  const imp = await step({ action: "versions_import", post_id: "pv2", items: [{ letter: "B", link: F(1) }, { letter: "C", link: F(2) }] }, "creative");
+  ok(imp.body.ok === true && rowsOf().map((r) => r.letter + "=" + r.frame_url).sort().join() === ["A=https://f.io/pv2-a", "B=" + F(1), "C=" + F(2)].join(),
+    "V2: an editor imports B and C in one write (" + imp.status + " " + imp.body.error + ")");
+  ok(((imp.body.versions || []) as Row[]).map((r) => r.letter).join() === "A,B,C", "V2: the answer lists A, B and C");
+  ok(tables.calendar_post_events.filter((e) => e.post_id === "pv2" && e.action === "trial_versions_import").length === ev0 + 2, "V2: one ledger row per version imported");
+  const client = await step({ action: "versions_import", post_id: "pv2", items: [{ letter: "D", link: F(3) }] }, "client-token");
+  ok(client.status === 403 && client.body.error === "staff_only" && rowsOf().length === 3, "V2: a client link may not import");
+  ok(tables.calendar_posts.find((c) => c.id === "pv2")!.asset_url === "https://f.io/pv2-a", "V2: the card's link is never written by an import");
+}
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

@@ -1,4 +1,5 @@
 import { hideToast, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -6,7 +7,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
 import { _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
-import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialReelsOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE STAFF CARD (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
 
@@ -69,6 +70,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         role_not_allowed: 'Your key cannot do this. Ask the SMM.',
         no_letter_left: 'This card already has seven versions, Video A to Video G.',
         post_id_too_long: 'This card cannot take versions. Tell the SyncView team.',
+        version_is_card: 'This version is the one on the card. Change its link from its own row.',
+        version_dropped: 'This version was dropped. Bring it back first.',
+        letter_twice: 'Each letter can take one video only.',
+        link_twice: 'Each video can go to one letter only.',
+        letter_invalid: 'Versions go from Video A to Video G.',
+        too_many_versions: 'A card takes at most seven versions, Video A to Video G.',
+        nothing_to_import: 'Give at least one video a letter first.',
     };
 
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
@@ -723,7 +731,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         // A minimal "+ Add version" that opens the paste field (owner, 2026-10-28: no "Video E  Paste the Frame.io link").
         // No hover tip: the button says what it does, and the tip covered the row above (Trialeyes E6, 2026-10-29).
-        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" aria-label="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button></div>';
+        // V2 (switch trial_versions_v2): "Import from Frame" beside it, once the card has its first version.
+        const imp = _trlImportOn(_trlPost(pid), vs) ? '<span class="trl-add-sep" aria-hidden="true">·</span><button type="button" class="trl-paste trl-addbtn" onclick="svTrialImportOpen(\'' + p + '\')">Import from Frame</button>' : '';
+        return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" aria-label="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button>' + imp + '</div>';
     }
 
     // ---- actions -----------------------------------------------------------------------------------------------
@@ -958,6 +968,197 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlNextLive(vs, letter) {
         return (vs || []).find(x => x.letter !== letter && x.status !== 'dropped' && x.frame_url) || null;
     }
+    /* V2 (plan docs/plans/2026-11-trial-and-posting/combined.md row V2, variants.md 4.3; switch trial_versions_v2): import
+       several versions' video links from one Frame share link. Step 1 takes the link; step 2 lists the folder's videos
+       (frameio-view part "list": newest first, up to 50) under the folder's name and the card's name, so a wrong folder
+       shows before anything is added, with one letter picker per video. Two videos never hold one letter. Nothing is
+       written until "Add"; then every link goes in one write (trial-reels versions_import), all or nothing. The version
+       on the card changes from its own row, never here. Staff only, like pasting a link. */
+    const TRL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    const TRL_FRAME_VIEW_URL = CAL_SUPABASE_URL + '/functions/v1/frameio-view';
+    let _trlImp = null;   // { pid, step: 'link' | 'list', link, busy, err, name, videos, truncated, picks: { file_id: letter } }
+    function _trlImportOn(post, vs) {
+        return !!post && _trlStaffOn(post) && svTrialVersionsV2On(post.client || calState.client)
+            && (vs || []).some(v => v.status !== 'dropped') && !(vs || []).some(v => ['on trial', 'winner', 'lost'].includes(v.status));
+    }
+    /* A letter only when the file name clearly says one ("_A", " B.", "v2", "hook 3"); anything else starts on Skip. */
+    function _trlGuessLetter(name) {
+        const stem = String(name || '').replace(/\.[a-z0-9]{2,4}$/i, '');
+        const n = stem.match(/(?:^|[\s_\-(])(?:v|ver|version|hook|take)[\s_\-]?([1-7])(?=$|[^0-9])/i);
+        if (n) return TRL_LETTERS[Number(n[1]) - 1];
+        const l = stem.match(/(?:^|[\s_\-(])([A-G])(?=$|[\s_\-.)])/);
+        return l ? l[1] : '';
+    }
+    function _trlImpVersions() {
+        const post = _trlImp && _trlPost(_trlImp.pid);
+        const shape = post && _trlShape(post);
+        return (shape && shape.versions) || [];
+    }
+    function svTrialImportOpen(pid) {
+        _trlImp = { pid, step: 'link', link: '', busy: false, err: '', name: '', videos: [], truncated: false, picks: {} };
+        let ovl = document.getElementById('trlImportOverlay');
+        if (!ovl) {
+            ovl = document.createElement('div');
+            ovl.id = 'trlImportOverlay';
+            ovl.className = 'cal-import-overlay';
+            ovl.innerHTML = '<div class="cal-import-modal trl-imp" role="dialog" aria-modal="true" aria-labelledby="trlImpTitle"></div>';
+            ovl.addEventListener('mousedown', e => { ovl._down = e.target === ovl; });
+            ovl.addEventListener('click', e => { if (e.target === ovl && ovl._down) svTrialImportClose(); });
+            document.body.appendChild(ovl);
+        }
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        svLayerOverlay('trl-import', '#trlImportOverlay', '#trlImportOverlay > *', () => svTrialImportClose());
+        _trlImpRender();
+        const input = document.getElementById('trlImpLink');
+        if (input) input.focus();
+    }
+    function svTrialImportClose() {
+        svLayerRelease('trl-import', { focus: true });
+        const ovl = document.getElementById('trlImportOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        _trlImp = null;
+    }
+    function svTrialImportBack() {
+        if (!_trlImp) return;
+        if (_trlImp.step === 'list' && !_trlImp.busy) { _trlImp.step = 'link'; _trlImp.err = ''; _trlImpRender(); return; }
+        svTrialImportClose();
+    }
+    const TRL_IMP_BACK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>';
+    function _trlImpDuration(sec) {
+        const n = Number(sec);
+        if (!Number.isFinite(n) || n <= 0) return '';
+        const t = Math.round(n);
+        return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    }
+    function _trlImpRender() {
+        const box = document.querySelector('#trlImportOverlay .trl-imp');
+        if (!box || !_trlImp) return;
+        const st = _trlImp;
+        const post = _trlPost(st.pid);
+        const head = (title, sub) => '<div class="cal-import-head trl-imp-head">'
+            + '<button type="button" class="trl-imp-back" onclick="svTrialImportBack()">' + TRL_IMP_BACK + 'Back</button>'
+            + '<button class="cal-import-x" type="button" onclick="svTrialImportClose()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>'
+            + '<h3 id="trlImpTitle">' + _calEsc(title) + '</h3>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>';
+        const err = st.err ? '<div class="cal-import-err" role="alert">' + _calEsc(st.err) + '</div>' : '';
+        if (st.step === 'link') {
+            box.innerHTML = head('Import versions from Frame', 'Paste the Frame share link of the folder that holds the versions.')
+                + '<div class="cal-import-body trl-imp-body">'
+                + '<input id="trlImpLink" class="trl-imp-link" type="url" placeholder="https://f.io/..." value="' + _calEscAttr(st.link) + '" aria-label="Frame share link"'
+                + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();svTrialImportList();}"' + (st.busy ? ' disabled' : '') + '>' + err
+                + (st.busy ? _trlImpSkeleton() : '') + '</div>'
+                + '<div class="cal-import-foot"><button type="button" class="cal-import-btn-ghost" onclick="svTrialImportClose()">Cancel</button>'
+                + '<button type="button" class="cal-import-btn-primary" onclick="svTrialImportList()"' + (st.busy ? ' disabled' : '') + '>Show videos</button></div>';
+            return;
+        }
+        const vs = _trlImpVersions();
+        const onCard = (vs.find(v => v.on_card) || {}).letter || '';
+        const taken = new Set(vs.map(v => v.letter));
+        const count = Object.values(st.picks).filter(Boolean).length;
+        const rows = st.videos.map(f => {
+            const id = _calEscAttr(f.file_id);
+            const pick = st.picks[f.file_id] || '';
+            const opts = '<option value="">Skip</option>' + TRL_LETTERS.map(l => {
+                const label = l === onCard ? l + ' · on the card' : taken.has(l) ? l + ' · replaces' : l;
+                return '<option value="' + l + '"' + (pick === l ? ' selected' : '') + (l === onCard ? ' disabled' : '') + '>' + label + '</option>';
+            }).join('');
+            const thumb = f.thumbnail_url ? '<img class="trl-imp-thumb" alt="" loading="lazy" src="' + _calEscAttr(f.thumbnail_url) + '" onerror="this.hidden=true">' : '<span class="trl-imp-thumb" aria-hidden="true"></span>';
+            const meta = f.processing ? 'Still processing in Frame' : _trlImpDuration(f.duration_seconds);
+            return '<div class="trl-imp-row">' + thumb + '<div class="trl-imp-text"><div class="trl-imp-name" title="' + _calEscAttr(f.name || '') + '">' + _calEsc(f.name || 'Untitled video') + '</div>'
+                + (meta ? '<div class="trl-imp-meta">' + _calEsc(meta) + '</div>' : '') + '</div>'
+                + '<select class="trl-imp-pick" data-file="' + id + '" aria-label="' + _calEscAttr('Version for ' + (f.name || 'this video')) + '" onchange="svTrialImportPick(this)"' + (f.processing || st.busy ? ' disabled' : '') + '>' + opts + '</select></div>';
+        }).join('');
+        const sub = 'Card: ' + _calEsc((post && post.name) || 'this card');
+        box.innerHTML = head('Folder "' + (st.name || 'Frame') + '" · ' + st.videos.length + (st.videos.length === 1 ? ' video' : ' videos'), sub)
+            + '<div class="cal-import-body trl-imp-body">'
+            + (st.videos.length ? rows : '<div class="cal-import-info">This folder has no videos.</div>')
+            + (st.truncated ? '<div class="trl-imp-note">Showing the 50 newest.</div>' : '') + err + '</div>'
+            + '<div class="cal-import-foot"><button type="button" class="cal-import-btn-ghost" onclick="svTrialImportClose()">Cancel</button>'
+            + '<button type="button" class="cal-import-btn-primary" onclick="svTrialImportAdd()"' + (!count || st.busy ? ' disabled' : '') + '>'
+            + (st.busy ? 'Adding…' : count ? 'Add ' + count + (count === 1 ? ' version' : ' versions') : 'Add versions') + '</button></div>';
+    }
+    /* Loading: rows of the real shape (a thumbnail, two text bars, a picker). */
+    function _trlImpSkeleton() {
+        return '<div class="trl-imp-skel" role="status" aria-label="Reading the folder">' + Array.from({ length: 4 }, () =>
+            '<div class="trl-imp-row"><span class="trl-imp-thumb sv-skeleton"></span><div class="trl-imp-text"><span class="trl-imp-bar sv-skeleton"></span><span class="trl-imp-bar trl-imp-bar-s sv-skeleton"></span></div><span class="trl-imp-pick sv-skeleton"></span></div>').join('') + '</div>';
+    }
+    async function svTrialImportList() {
+        if (!_trlImp || _trlImp.busy) return;
+        const input = document.getElementById('trlImpLink');
+        const link = String((input && input.value) || _trlImp.link || '').trim();
+        _trlImp.link = link;
+        if (!/^https:\/\/[^\s<>"']+$/i.test(link)) { _trlImp.err = 'Paste a Frame share link (it starts with https://).'; _trlImpRender(); return; }
+        Object.assign(_trlImp, { busy: true, err: '' });
+        _trlImpRender();
+        const st = _trlImp;
+        let json = null, status = 0;
+        try {
+            const resp = await fetch(TRL_FRAME_VIEW_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, TRL_FRAME_VIEW_URL),
+                body: JSON.stringify({ link, part: 'list' }),
+            });
+            status = resp.status;
+            json = await resp.json().catch(() => null);
+        } catch (e) { json = null; }
+        if (_trlImp !== st) return;   // closed or reopened meanwhile
+        st.busy = false;
+        if (!json || json.ok !== true || !Array.isArray(json.videos)) {
+            st.err = (json && typeof json.message === 'string' && json.message) || 'SyncView could not read this folder. In Frame, make a share link for it and paste that.';
+            if (!json || json.ok !== true) _writeUiRecordFailure('calendar', 'trial_reels_import_list', Object.assign(new Error(String((json && json.error) || 'request_failed')), { code: String((json && json.error) || 'request_failed') }), { http_status: status });
+            _trlImpRender();
+            return;
+        }
+        const vs = _trlImpVersions();
+        const onCard = (vs.find(v => v.on_card) || {}).letter || '';
+        const picks = {};
+        const used = new Set();
+        for (const f of json.videos) {
+            const g = f.processing ? '' : _trlGuessLetter(f.name);
+            if (g && g !== onCard && !used.has(g)) { picks[f.file_id] = g; used.add(g); }
+        }
+        // One video: it takes the first free letter (variants.md 4.3).
+        if (json.videos.length === 1 && !Object.keys(picks).length && !json.videos[0].processing) {
+            const free = TRL_LETTERS.find(l => !vs.some(v => v.letter === l));
+            if (free) picks[json.videos[0].file_id] = free;
+        }
+        Object.assign(st, { step: 'list', name: String(json.name || ''), videos: json.videos, truncated: !!json.truncated, picks });
+        _trlImpRender();
+    }
+    /* Two videos never hold one letter: picking a taken letter moves it, and the other video goes back to Skip. */
+    function svTrialImportPick(sel) {
+        if (!_trlImp) return;
+        const id = sel.dataset.file, letter = sel.value;
+        for (const k of Object.keys(_trlImp.picks)) if (letter && _trlImp.picks[k] === letter) delete _trlImp.picks[k];
+        if (letter) _trlImp.picks[id] = letter; else delete _trlImp.picks[id];
+        _trlImpRender();
+    }
+    function svTrialImportAdd() {
+        const st = _trlImp;
+        if (!st || st.busy) return;
+        const items = st.videos.filter(f => st.picks[f.file_id]).map(f => ({ letter: st.picks[f.file_id], link: f.link }))
+            .sort((a, b) => a.letter.localeCompare(b.letter));
+        if (!items.length) return;
+        const vs = _trlImpVersions();
+        const answered = items.map(i => vs.find(v => v.letter === i.letter))
+            .filter(v => v && v.frame_url && v.status !== 'change asked' && (v.status === 'approved' || v.smm_ok_at || v.kasper_ok_at || v.client_ok_at || v.client_pass_at));
+        const go = async () => {
+            st.busy = true; st.err = '';
+            _trlImpRender();
+            const json = await _trlRun(st.pid, 'import', { action: 'versions_import', items }, 'The import');
+            if (_trlImp !== st) return;
+            st.busy = false;
+            if (!json) { _trlImpRender(); return; }
+            svTrialImportClose();
+            _trlOpen.add(st.pid);
+            _trlRepaintField(st.pid);
+            showToast(items.length === 1 ? 'Video ' + items[0].letter + ' added from Frame' : items.length + ' versions added from Frame');
+        };
+        if (!answered.length) return go();
+        const names = answered.map(v => 'Video ' + v.letter).join(', ');
+        showConfirm('Replace answered versions?', names + (answered.length === 1 ? ' was' : ' were') + ' already answered. With a new video, ' + (answered.length === 1 ? 'it goes' : 'they go') + ' back to the SMM, then Kasper.', go, 'Replace and add');
+    }
     /* Dropping the version on the card (default (c), awaiting the owner): today's attach first puts the next live
        version's link on the card, so it becomes the one on the card, then the old one drops. */
     function svTrialDrop(pid, letter, restore) {
@@ -1188,8 +1389,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svTrialDrop, svTrialEdit, svTrialLinkKey, svTrialLinkSave, svTrialNewCut, svTrialNotesPick,
-        svTrialOpen, svTrialPick, svTrialToggle
+        svTrialDrop, svTrialEdit, svTrialImportAdd, svTrialImportBack, svTrialImportClose, svTrialImportList,
+        svTrialImportOpen, svTrialImportPick, svTrialLinkKey, svTrialLinkSave, svTrialNewCut,
+        svTrialNotesPick, svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
   svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,

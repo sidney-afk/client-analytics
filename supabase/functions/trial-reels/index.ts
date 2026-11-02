@@ -59,6 +59,7 @@ import {
   undoWinnerPatches,
   winnerPatches,
   autoTrialPatches,
+  importPlan,
 } from "./logic.mjs";
 
 const FN = "trial-reels";
@@ -535,6 +536,41 @@ Deno.serve(async (req: Request) => {
       outcome = "ok";
       announce(client, postId);
       return json({ ok: true, changed: [r.letter], winner_letter: sw.winner_letter || null,
+        ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
+    }
+
+    if (action === "versions_import") {
+      // V2: several letters' links from a Frame folder, all or nothing (logic.mjs importPlan). The updates go first
+      // (they can be put back); then every new row in one insert. If that insert is refused, the updates are put back.
+      const plan = importPlan(versions, body.items, link);
+      if (plan.error) throw new Refusal(plan.error === "attach_first" || plan.error === "version_is_card" ? 409 : 400, plan.error);
+      if (postId.length > 80) throw new Refusal(400, "post_id_too_long");
+      const updates = (plan.updates || []) as Change[];
+      const inserts = (plan.inserts || []) as { letter: string; link: string }[];
+      await applyChanges(supabase, versions, updates, now);
+      if (inserts.length) {
+        const rows = inserts.map((x) => ({
+          id: crypto.randomUUID(), client, batch: postId, video: "card", letter: x.letter, post_id: postId,
+          deliverable_id: deliverableUuid(card.video_deliverable_id), frame_url: x.link, status: "waiting", revision: 0,
+          member: clean(principal!.actor, 80) || "syncview", created_at: now, updated_at: now,
+        }));
+        const { error } = await supabase.from("studio_trial_versions").insert(rows);
+        if (error) {
+          await undoWritten(supabase, versions, [...updates], now);
+          // Two staff adding the same letter at once: the table's unique key refuses the second.
+          throw (error as { code?: string }).code === "23505" ? new Refusal(409, "conflict") : new Refusal(500, "write_failed");
+        }
+      }
+      const added = inserts.map((x) => ({ id: "", letter: x.letter, from: "", patch: { status: "waiting" } }));
+      const ledger = async () => {
+        if (!updates.length && !added.length) return;
+        const { error } = await supabase.from("calendar_post_events").insert(ledgerRows(client, postId, [...updates, ...added], principal!, now, "versions_import"));
+        if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
+      };
+      const [after] = await Promise.all([readVersions(supabase, client, postId, sw.winner_letter), ledger()]);
+      outcome = "ok";
+      if (updates.length || added.length) announce(client, postId);
+      return json({ ok: true, changed: [...updates, ...added].map((c) => c.letter), restarted: plan.replacesAnswered || [], winner_letter: sw.winner_letter || null,
         ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
     }
 

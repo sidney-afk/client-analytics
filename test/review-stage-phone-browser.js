@@ -104,9 +104,24 @@ async function disconnectDuring(t, action) {
   await action();
   await until(() => t.state.writeAttempts > n, 'save never started');
   t.state.writeOffline = true;
-  await t.ctx.setOffline(true);
+  await goOffline(t);
 }
-async function reconnect(t) { t.state.writeDelay = 0; t.state.networkDelay = 0; t.state.writeOffline = false; await t.ctx.setOffline(false); }
+async function reconnect(t) { t.state.writeDelay = 0; t.state.networkDelay = 0; t.state.writeOffline = false; await goOnline(t); }
+
+/* Page-error diagnostics (session Trialchange, 2026-11-02). review-stage-phones went red on #2498, #2481 and #2507 with
+   "no page errors: Fetch API cannot load .../frameio-view due to access control checks" (WebKit, iPhone 15 Pro Max
+   landscape, client, dark) while the page's own error / unhandledrejection listeners saw nothing. Nothing is excused
+   here: every page error still fails the case. When one does, the suite now prints each report with whether the suite
+   held the browser offline at that moment (the flag is set after setOffline(true) has answered and cleared after
+   setOffline(false) has answered; the protocol delivers events in order), when it arrived, and the page's URL, so the
+   next red names its cause. */
+async function goOffline(t) { await t.ctx.setOffline(true); t.offlineHeld = true; }
+async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = false; }
+function watchPageErrors(t) {
+  // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event.
+  t.pageErrors = [];
+  t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0].slice(0, 300), offline: !!t.offlineHeld, at: new Date().toISOString(), url: (() => { try { return t.page.url(); } catch (x) { return ''; } })() }));
+}
 async function media(t, label) {
   await step(t, 'video');
   await t.page.waitForFunction(() => { const v = document.getElementById('svReviewStage').shadowRoot.querySelector('video'); return v && v.readyState >= 2 && v.videoWidth > 0; });
@@ -277,6 +292,7 @@ async function kasperJourney(t, label) {
         console.log('RUN ' + label);
         const t = await open(browser, origin, { phone: true, flags: 'on', stage: role, staff: role === 'kasper' ? STAFF : null, dark: theme === 'dark', phoneMedia: engine === 'webkit', context: { ...devices[profile], colorScheme: theme } });
         t.page.setDefaultTimeout(10000);
+        watchPageErrors(t);
         try {
           if (role === 'client') t.state.postsDelay = 1800;
           await boot(t, origin, role);
@@ -301,6 +317,7 @@ async function kasperJourney(t, label) {
             if (role === 'client') await clientJourney(t, origin, label, profile); else await kasperJourney(t, label);
           }
           if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
+          if (t.errors.length) console.log('PAGE_ERRORS_SEEN ' + JSON.stringify(t.pageErrors));
           check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
           cases++;
         } catch (e) {

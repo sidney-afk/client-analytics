@@ -35965,19 +35965,31 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
 
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address for a video nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
 
-- **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs. The case was iPhone 15 Pro Max landscape, client view, light or dark, and the error was "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks".
-  - The diagnostics from #2507 and #2513 show the report arrives online, about 1.3 s after the last approval, as the review page moves on to the next card.
-  - The stack is the player's own video-error path: 187 `_fvStageFailed` → `_fvStageLoad(true)` → `_fvRequest`. The page's own error listeners saw nothing.
-- **Cause:** `_fvStageFailed` re-asked frameio-view for a fresh address whenever the stage's video errored. It did this even when that video had already been taken out of the page with its player, so nobody was watching it. That is wasted work, and it is the request WebKit reported.
-  - It is expected, not yet proven, that this stops the WebKit red. The #2513 trace on main will confirm it or refute it on the next runs.
-- **Change (187 only):**
-  - `_fvStageFailed` returns without re-asking when the video, or the stage's host, is no longer in the page. It also returns when the video belongs to a card other than the one on stage, which `_fvStageAttach` now records on the video.
-  - The video on stage still tries the smaller file first and then re-asks once, as before.
+- **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
+  - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
+  - The stack is the player's own video-error path: 187 `_fvStageFailed` → `_fvStageLoad(true)` → `_fvRequest`.
+  - The page's own error listeners saw nothing.
+- **Cause:** 450 ms after Finish opens the next post, the suite navigates away (its "later visit reads all four saved approvals" check) while that post's video is still loading.
+  - The browser aborts the load as the page unloads.
+  - The player took the abort for a failed video and re-asked frameio-view for a fresh address.
+  - WebKit cancelled that cross-origin fetch along with the page and reported it as an access-control failure.
+  - A navigation (a real document load) right after Finish was measured on Chromium.
+  - A real person who reloads or leaves the page while a video loads sends the same wasted request.
+  - It also re-asked for a video already taken out of the page with its player.
+  - A first guard for that last case alone (an earlier head of this PR) left the WebKit red in place, because the erroring video was still the stage's own.
+- **Change (187 only):** `_fvStageFailed` no longer re-asks in any of these cases:
+  - the page is leaving (`beforeunload`, `pagehide`; cleared when the page stays or is restored);
+  - the error is an aborted load (`MEDIA_ERR_ABORTED`);
+  - the video or the stage host is no longer in the page;
+  - the video belongs to a card other than the one on stage.
+  - The video on stage still tries the smaller file and then re-asks once, as before.
 - **Proof:** `node test/review-stage-player-leaving-browser.js` (new, offline, Chromium, in `calendar-unit-tests`).
   - A: a video taken out of the page asks for no new address. On main it asks once.
-  - B: the previous card's video asks for none after the stage moved. This already passed on main and guards the "another card" rule.
-  - C: control, the video on stage still re-asks once.
-  - `review-stage-browser`, `review-stage-curtain-ten-browser` and `review-stage-finish-polish-browser` pass.
+  - B: after a card switch, the previous card's video asks for none. This already passed on main.
+  - C: control, the stage video still re-asks once.
+  - D: while the page is leaving, no re-ask. On main it asks once.
+  - E: control, the page stays after all, and it re-asks once again.
+  - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.

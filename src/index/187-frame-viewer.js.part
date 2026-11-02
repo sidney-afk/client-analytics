@@ -567,6 +567,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        from a play button starts playing at once (_fvAutoIntent, session Curtain Seven). */
     // rate: the playback speed, kept for as long as the dialog is open (across a smaller file or a fresh address).
     const FV_STAGE = { host: null, pid: '', link: '', ask: false, client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 };
+    /* The page is going away (a reload, a link, the tab closing): the browser aborts every media load as it unloads,
+       which a <video> reports as an error. That is not a failed video, and a re-ask for a new address then is cancelled
+       with the page; WebKit reports such a cancelled cross-origin fetch as "cannot load ... due to access control
+       checks" (the phone review lane's red, session Trialchange 2026-11-02). Cleared again if the page stays after all,
+       or is restored from the back/forward cache. */
+    let _fvPageLeaving = false;
+    if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('pagehide', () => { _fvPageLeaving = true; });
+        // beforeunload can be answered "stay" (a leave-page prompt): then the page is still here a moment later.
+        window.addEventListener('beforeunload', () => { _fvPageLeaving = true; setTimeout(() => { if (!document.hidden) _fvPageLeaving = false; }, 1500); });
+        window.addEventListener('pageshow', () => { _fvPageLeaving = false; });
+    }
 
     // The Frame.io link the card's player would play, or '' when this card gets no player (no Frame.io link, or the
     // switch is off for its client).
@@ -936,6 +948,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // after the last approval, is the request WebKit reported as "cannot load ... due to access control checks"
         // in the phone review lane (session Trialchange, 2026-11-02; expected, not yet proven, to stop that red).
         if (!v.isConnected || !FV_STAGE.host.isConnected || !FV_STAGE.host.contains(v) || (v._fvPid && v._fvPid !== FV_STAGE.pid)) return;
+        // An aborted load (MEDIA_ERR_ABORTED, code 1: the page or the browser stopped it) and any error while the page is
+        // leaving are not a failed video: never re-ask for them.
+        if (_fvPageLeaving || (v.error && v.error.code === 1)) return;
         if (_fvTryEfficient(v)) return;
         if (!FV_STAGE.retried) {
             FV_STAGE.retried = true;

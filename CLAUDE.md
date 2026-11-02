@@ -181,13 +181,6 @@ are **per function**, so two PRs re-pinning different functions do not conflict.
   through roster-write, or call its `copy_to_sheet` afterwards. Test clients
   never reach the Sheet by design, and both parity checks skip them except the
   main test client.
-- **Never hard-code a month in a fixture that feeds the Month or Week view.**
-  Both open on today's month, so a card dated `2026-10-06` vanished from every
-  November run and turned main red on 1 Nov (staff-phone, trial reels). Date it
-  relative to today, open the view on the card's own month (`calState.monthCursor`),
-  or pin the page clock (`context.clock.setFixedTime`). Six-week months (a month
-  that starts on a Sunday) also make every row shorter, so a shape test needs a
-  pinned clock, not just relative dates.
 - **A byte-order mark in an Edge Function source deploys fine and then fails
   the attestation.** Those three invisible leading bytes are stripped by the
   deploy tooling on upload, while the fingerprint hashes the committed bytes,

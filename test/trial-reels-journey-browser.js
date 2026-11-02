@@ -234,7 +234,32 @@ const DID = 'del_vid_1';
     }
     return route.fallback();
   });
-  const heightOf = page => page.evaluate(() => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent); return c ? Math.round(c.getBoundingClientRect().height * 10) / 10 : 0; });
+  // The card's height once its layout has settled: after the fonts are ready and once it reads the same for three
+  // frames in a row (at most a second). A read straight after a click or a page load could catch the card mid-layout
+  // on a busy runner (CI once read 750 for a card that settles at 751; not reproduced here, even with the CPU slowed
+  // six times). heightParts names what each part of the card measured, for the message when two heights differ.
+  const heightOf = page => page.evaluate(async () => {
+    try { await document.fonts.ready; } catch (e) {}
+    const measure = () => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent); return c ? Math.round(c.getBoundingClientRect().height * 10) / 10 : 0; };
+    const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+    let last = measure(), same = 0;
+    for (let i = 0; i < 60 && same < 3; i++) { await frame(); const h = measure(); same = h === last ? same + 1 : 0; last = h; }
+    return last;
+  });
+  const heightParts = page => page.evaluate(() => {
+    const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent);
+    if (!c) return 'no card';
+    const hOf = e => Math.round(e.getBoundingClientRect().height * 10) / 10;
+    const parts = [...c.querySelectorAll('.cal-link-field')].map(f => (f.className.match(/cal-link-[a-z]+(?=\s|$)/g) || ['field']).pop() + ' ' + hOf(f));
+    return 'fonts ' + document.fonts.status + '; ' + parts.join(', ');
+  });
+  let todayParts = '';
+  const sameHeight = async (page, base, label) => {
+    const h = await heightOf(page);
+    const same = Math.abs(h - base) < 0.5;
+    ok(same, `${label} (${base} → ${h})` + (same ? '' : ` [today: ${todayParts}] [now: ${await heightParts(page)}]`));
+    return h;
+  };
   const rowText = page => page.evaluate(() => { const f = [...document.querySelectorAll('.cal-link-field.cal-link-post')].find(n => n.offsetParent); return f ? f.innerText.replace(/\s+/g, ' ').trim() : ''; });
   const listRows = page => page.$$eval('.trl-list .trl-v:not(.trl-add)', ns => ns.map(n => ({ t: n.innerText.replace(/\s+/g, ' ').trim(), lab: ((n.querySelector('.trl-lab') || {}).textContent || '').trim(),
     href: (n.querySelector('.trl-go') || {}).href || '', pick: !!n.querySelector('.trl-pick') })));
@@ -374,6 +399,7 @@ const DID = 'del_vid_1';
     card.asset_url = 'https://f.io/fixture-journey-baseline';
     page = await openCal();
     const todayH = await heightOf(page);
+    todayParts = await heightParts(page);
     await page.close();
     card.asset_url = '';
     console.log('     (today\'s card: ' + todayNoLinkH + ' px with no video link, ' + todayH + ' px with one)');
@@ -401,8 +427,8 @@ const DID = 'del_vid_1';
     ok(!!(await page.$('.trl-list')), '2 switched on, the versions list opens at once');
     await page.click('.cal-link-post .trl-chev');
     await sleep(300);
-    let hNow = await heightOf(page);
-    ok(!(await page.$('.trl-list')) && Math.abs(hNow - todayH) < 0.5, `2 collapsed, the card keeps today's height (${todayH} → ${hNow})`);
+    ok(!(await page.$('.trl-list')), '2 collapsed: the versions list is closed');
+    let hNow = await sameHeight(page, todayH, '2 collapsed, the card keeps today\'s height');
     let l0 = W.ledger.length;
     await pasteOnCard(page, 'A', LINK('A'));
     ok(W.attaches.length === 1 && W.attaches[0].file_url === LINK('A') && V('A').frame_url === LINK('A'), '2 Video A (on the card): today\'s attach first, then its own link');
@@ -536,8 +562,7 @@ const DID = 'del_vid_1';
     page = await openCal();
     txt = await rowText(page);
     ok(/On trial · 2[34] h left/.test(txt) && !(await page.$('.cal-link-post .trl-state-ico')), `7 the timer, inside the Video row (${txt})`);
-    hNow = await heightOf(page);
-    ok(Math.abs(hNow - todayH) < 0.5, `7 on trial, collapsed: today's height (${todayH} → ${hNow})`);
+    hNow = await sameHeight(page, todayH, '7 on trial, collapsed: today\'s height');
     await shot(page, 'journey-trial');
     await page.close();
     // 24 h later.
@@ -547,8 +572,7 @@ const DID = 'del_vid_1';
     txt = await rowText(page);
     const trophy = await page.$('.cal-link-post .trl-state-ico[title="Trial over: pick the winner"]');
     ok(!!trophy && !/winner|pick|on trial/i.test(txt), `7 24 h up: only the muted trophy, no words (${txt})`);
-    hNow = await heightOf(page);
-    ok(Math.abs(hNow - todayH) < 0.5, `7 due, collapsed: today's height (${todayH} → ${hNow})`);
+    hNow = await sameHeight(page, todayH, '7 due, collapsed: today\'s height');
     await trophy.click();
     await sleep(300);
     rows = await listRows(page);

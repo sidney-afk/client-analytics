@@ -58,6 +58,33 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(c.validatePatch({ lost_reason: 'price' }).ok && c.validatePatch({ lost_reason: 'bored' }).error === 'bad_lost_reason', 'lost reasons are the five');
   ok(JSON.stringify(c.validatePatch({ tags: ['Bench', 'bench', ' hot '] }).patch.tags) === '["bench","hot"]', 'tags deduped and lowered');
   ok(c.validatePatch({ tags: 'bench' }).error === 'bad_tags', 'tags must be a list');
+  // ── booked-call tracking ──
+  ok(c.validatePatch({ source_ad: ' Spring Static ' }).patch.source_ad === 'Spring Static' && c.validatePatch({ source_ad: 'x'.repeat(201) }).error === 'bad_source_ad' && c.validatePatch({ source_ad: 5 }).error === 'bad_source_ad', 'source ad is trimmed text up to 200');
+  ok(c.validatePatch({ call_showed: true }).patch.call_showed === true && c.validatePatch({ call_showed: null }).patch.call_showed === null && c.validatePatch({ call_showed: 'yes' }).error === 'bad_call_showed', 'showed is yes, no or not known');
+  ok(c.validatePatch({ call_outcome: 'follow_up' }).ok && c.validatePatch({ call_outcome: '' }).patch.call_outcome === '' && c.validatePatch({ call_outcome: 'maybe' }).error === 'bad_call_outcome', 'outcome is one of a short fixed list');
+  ok(c.validatePatch({ cash_collected: 1500.456 }).patch.cash_collected === 1500.46 && c.validatePatch({ cash_collected: null }).patch.cash_collected === null && c.validatePatch({ cash_collected: -1 }).error === 'bad_cash_collected' && c.validatePatch({ cash_collected: '5' }).error === 'bad_cash_collected', 'cash is a non-negative number, cents kept');
+  const was = { source_ad: '', call_showed: null, call_outcome: '', cash_collected: null };
+  ok(c.changeEvents(was, { call_showed: null, cash_collected: null, call_outcome: '', source_ad: '' }).length === 0, 'tracking fields that did not move write nothing');
+  const tev = c.changeEvents(was, { call_showed: false, cash_collected: 250 });
+  ok(tev.length === 1 && tev[0].kind === 'call_tracking_set' && tev[0].detail.changes.call_showed.to === false && tev[0].detail.changes.cash_collected.to === 250, 'tracking changes log one timeline row');
+  const eff = c.effectivePatch({ call_showed: false, cash_collected: '250.00', call_outcome: 'won', source_ad: 'A' }, { call_showed: false, cash_collected: 250, call_outcome: 'won', source_ad: 'A' });
+  ok(Object.keys(eff).length === 0, 'unchanged tracking values are dropped from the write');
+  const tcard = c.cardOf({ id: 'x', lead_type: 'ad_lead', stage: 'won', source_ad: 'A', call_showed: true, call_outcome: 'won', cash_collected: '99.50', state_version: 1 }, '2026-11-02');
+  ok(tcard.source_ad === 'A' && tcard.call_showed === true && tcard.call_outcome === 'won' && tcard.cash_collected === 99.5, 'the list card carries the four fields');
+  const pageSrc = read('src/index/328-crm-leads.js.part');
+  const exportBlock = (pageSrc.match(/Object\.assign\(window, \{([^}]*)\}\)/g) || []).join(' ');
+  for (const fn of ['_crmSetShowed', '_crmSetOutcome', '_crmSetReason']) {
+    ok(new RegExp('onclick=\\"' + fn + '\\(|\\' + "'" + fn + '\\(').test(pageSrc) || pageSrc.includes(fn + '(true)'), fn + ' is used from a handler');
+    ok(new RegExp('\\b' + fn + '\\b').test(exportBlock), fn + ' is exported on window for its inline onclick');
+  }
+  ok(/source_ad: person\.source_ad/.test(pageSrc) && /cash_collected: person\.cash_collected/.test(pageSrc), 'a saved person repaints the list with the four tracking fields');
+  ok(/'crmPAd', 'crmPCash'/.test(pageSrc), 'Source ad and Cash drafts survive a repaint');
+  const trackMig = fs.readdirSync(path.join(ROOT, 'supabase/migrations')).find((f) => /_crm_booked_call_tracking\.sql$/.test(f));
+  const tm = trackMig ? read('supabase/migrations/' + trackMig) : '';
+  ok(/^-- ef-auto-deploy-applied-when: select count\(\*\) = 4 from information_schema\.columns/.test(tm) && /call_outcome in \('won', 'lost', 'follow_up', 'pending'\)/.test(tm) && /'call_tracking_set'/.test(tm), 'tracking migration: probe, outcome check, event kind');
+  ok(/revoke all on function public\.crm_apply_change\(uuid, integer, jsonb, text, jsonb\) from public, anon, authenticated, service_role;\s*grant execute on function public\.crm_apply_change\(uuid, integer, jsonb, text, jsonb\) to service_role;/.test(tm), 'tracking migration keeps the four-role revoke and service_role grant');
+  ok(/source_ad = case when p_patch \? 'source_ad'/.test(tm) && /cash_collected = case when p_patch \? 'cash_collected'/.test(tm), 'apply change sets the new columns');
+  ok(/call_at,source_ad,call_showed,call_outcome,cash_collected,/.test(read('supabase/functions/crm-leads/index.ts')), 'the function reads the new columns');
   ok(c.validatePatch([]).error === 'patch_required' && c.validatePatch(null).error === 'patch_required', 'patch must be an object');
   ok(c.validatePatch({ owner: 'x'.repeat(81) }).error === 'bad_owner', 'owner length bounded');
   ok(c.validateNote('  ').error === 'note_required' && c.validateNote('x'.repeat(4001)).error === 'note_too_long' && c.validateNote(' hi ').note === 'hi', 'notes validated');

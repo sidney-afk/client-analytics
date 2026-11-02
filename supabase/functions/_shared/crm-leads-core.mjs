@@ -5,6 +5,9 @@
 export const LEAD_TYPES = ['dream100', 'ad_lead', 'past_call', 'email', 'referral'];
 export const STAGES = ['to_contact', 'contacted', 'replied', 'call1_booked', 'no_show', 'call1_done', 'call2_done', 'nurture', 'won', 'lost'];
 export const LOST_REASONS = ['price', 'trust', 'timing', 'budget', 'no_show'];
+export const CALL_OUTCOMES = ['won', 'lost', 'follow_up', 'pending'];
+export const SOURCE_AD_MAX = 200;
+export const CASH_MAX = 10000000;
 export const NOTE_MAX = 4000;
 export const LIST_MAX = 500;
 
@@ -142,6 +145,22 @@ export function validatePatch(input) {
     } else if (key === 'opted_out') {
       if (typeof v !== 'boolean') return { ok: false, error: 'bad_opted_out' };
       patch.opted_out = v;
+    } else if (key === 'source_ad') {
+      if (v !== null && typeof v !== 'string') return { ok: false, error: 'bad_source_ad' };
+      const s = String(v || '').trim();
+      if (s.length > SOURCE_AD_MAX) return { ok: false, error: 'bad_source_ad' };
+      patch.source_ad = s;
+    } else if (key === 'call_showed') {
+      if (v !== null && typeof v !== 'boolean') return { ok: false, error: 'bad_call_showed' };
+      patch.call_showed = v;
+    } else if (key === 'call_outcome') {
+      if (v === null || v === '') patch.call_outcome = '';
+      else if (CALL_OUTCOMES.includes(v)) patch.call_outcome = v;
+      else return { ok: false, error: 'bad_call_outcome' };
+    } else if (key === 'cash_collected') {
+      if (v === null || v === '') patch.cash_collected = null;
+      else if (typeof v === 'number' && isFinite(v) && v >= 0 && v <= CASH_MAX) patch.cash_collected = Math.round(v * 100) / 100;
+      else return { ok: false, error: 'bad_cash_collected' };
     } else if (key === 'tags') {
       if (!Array.isArray(v) || v.length > 30 || v.some((t) => typeof t !== 'string' || !t.trim() || t.length > 40)) return { ok: false, error: 'bad_tags' };
       patch.tags = Array.from(new Set(v.map((t) => t.trim().toLowerCase())));
@@ -160,6 +179,10 @@ export function validateNote(v) {
 }
 
 function norm(v) { return v == null ? '' : String(v); }
+function sameCash(a, b) {
+  const x = a == null ? null : Number(a), y = b == null ? null : Number(b);
+  return x === y;
+}
 
 /** The timeline rows one change writes. A field that did not change writes
  *  nothing, so a save that changes nothing writes no events (and the
@@ -186,6 +209,13 @@ export function changeEvents(before, patch, note) {
   if ('call_at' in p && !sameInstant(p.call_at, b.call_at)) out.push({ kind: 'call_at_set', channel: 'call', detail: { from: b.call_at || null, to: p.call_at || null } });
   if ('timezone' in p && p.timezone !== norm(b.timezone)) out.push({ kind: 'timezone_set', channel: 'system', detail: { from: b.timezone || null, to: p.timezone || null } });
   if ('opted_out' in p && p.opted_out !== !!b.opted_out_at) out.push({ kind: 'opted_out', channel: 'system', detail: { opted_out: p.opted_out } });
+  /* One timeline row for the booked-call tracking fields, only for what moved. */
+  const track = {};
+  if ('source_ad' in p && p.source_ad !== norm(b.source_ad)) track.source_ad = { from: b.source_ad || null, to: p.source_ad || null };
+  if ('call_showed' in p && p.call_showed !== (b.call_showed == null ? null : b.call_showed)) track.call_showed = { from: b.call_showed == null ? null : b.call_showed, to: p.call_showed };
+  if ('call_outcome' in p && p.call_outcome !== norm(b.call_outcome)) track.call_outcome = { from: b.call_outcome || null, to: p.call_outcome || null };
+  if ('cash_collected' in p && !sameCash(p.cash_collected, b.cash_collected)) track.cash_collected = { from: b.cash_collected == null ? null : Number(b.cash_collected), to: p.cash_collected };
+  if (Object.keys(track).length) out.push({ kind: 'call_tracking_set', channel: 'system', detail: { changes: track } });
   if (note) out.push({ kind: 'note', channel: null, detail: { text: note } });
   return out;
 }
@@ -203,6 +233,10 @@ export function effectivePatch(before, patch) {
       if (!sameInstant(v, b.call_at)) out.call_at = v;
     } else if (k === 'opted_out') {
       if (v !== !!b.opted_out_at) out.opted_out = v;
+    } else if (k === 'call_showed') {
+      if (v !== (b.call_showed == null ? null : b.call_showed)) out.call_showed = v;
+    } else if (k === 'cash_collected') {
+      if (!sameCash(v, b.cash_collected)) out.cash_collected = v;
     } else if (v !== norm(b[k])) out[k] = v;
   }
   return out;
@@ -226,6 +260,10 @@ export function cardOf(row, today) {
     source_id: row.source_id || null,
     tags: Array.isArray(row.tags) ? row.tags : [],
     call_at: row.call_at || null,
+    source_ad: row.source_ad || '',
+    call_showed: row.call_showed == null ? null : !!row.call_showed,
+    call_outcome: row.call_outcome || '',
+    cash_collected: row.cash_collected == null ? null : Number(row.cash_collected),
     opted_out: !!row.opted_out_at,
     state_version: row.state_version,
     updated_at: row.updated_at || null,

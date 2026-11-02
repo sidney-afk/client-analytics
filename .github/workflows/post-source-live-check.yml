@@ -3,7 +3,7 @@ name: post-source live check (manual)
 # The live check for post-source (plan row F4, OPEN_REPAIRS 649): one test-client card's video copied from Frame.io
 # into Post for Me storage. Storage only: no post is ever created (D6). Prints only the measured numbers (which Frame
 # file went, its size, shape and length, how long the copy took, whether the storage address answers), never an
-# address, a file name or a key (qa/post-source-live-check.js, safeSummary). Run by hand after post-source deploys.
+# address, a file name or a key (scripts/post-source-live-check.js, safeSummary). Run by hand after post-source deploys.
 
 on:
   workflow_dispatch:
@@ -46,4 +46,4 @@ jobs:
           POST_SOURCE_CARD: ${{ inputs.card }}
           POST_SOURCE_LETTER: ${{ inputs.letter }}
           POST_SOURCE_SIDE: ${{ inputs.side }}
-        run: node qa/post-source-live-check.js
+        run: node scripts/post-source-live-check.js

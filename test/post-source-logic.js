@@ -223,7 +223,7 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
 
   // ---- 5. the live check prints numbers only
   await ok('the live check\'s log line carries no address, file name or key', async () => {
-    const { safeSummary } = require('../qa/post-source-live-check.js');
+    const { safeSummary } = require('../scripts/post-source-live-check.js');
     const r = await run(world(), { client: 'test-client', post_id: 'p_1' });
     const line = JSON.stringify(safeSummary({ ...r.body, key: 'secret-key-value' }));
     assert.doesNotMatch(line, /postforme|frame\.io|Final cut|secret-key-value|media_url|file_name/i);

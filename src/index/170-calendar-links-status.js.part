@@ -2138,6 +2138,12 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         Object.keys(edits || {}).forEach(k => { if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) rec.vals[k] = edits[k]; });
         if (!Object.keys(rec.vals).length) delete _calUnsentKeys[id];
     }
+    /* The fields of a card whose failed save is still waiting to be resent (the outbox), so the background merge
+       never paints the server's value over them (OPEN_REPAIRS 636). */
+    function _calUnsentFields(id) {
+        const rec = _calUnsentKeys[id];
+        return rec ? Object.keys(rec.vals) : [];
+    }
     function _calForgetUnsent(id, pid, edits) {
         [id, pid].forEach(key => {
             const rec = _calUnsentKeys[key];
@@ -3683,7 +3689,7 @@ export {
   _calNativePostCountMax, _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState,
   _calNativeReceiptHtml, _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calOnCaptionInput,
   _calOnFieldBlur, _calOnFieldInput, _calOpenStatusMenu, _calRefreshCaption, _calRefreshCardThumb,
-  _calRefreshMediaWarning, _calRenderInlineCard, _calRestoreParkedEdits, _calReviewBlockReason,
+  _calRefreshMediaWarning, _calRenderInlineCard, _calRestoreParkedEdits, _calReviewBlockReason, _calUnsentFields,
   _calSetNativeBatchOptionsHtml, _calSetNativePostState, _calSetOpenStatusMenu, _calSmmApproveTo,
   _calStatusSlug, _calThumbSrcBase, _svSaveIndApply, _svSaveIndHtml
 };

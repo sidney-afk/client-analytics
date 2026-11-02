@@ -10,11 +10,13 @@
  * so a field someone else changed in that window was dropped until it ended.
  *
  * The rule now: inside the window, a newer server row's value is taken for every plain field this browser did not
- * write and has not queued; the fields it wrote, and anything typed but not yet sent, still keep the local value.
+ * write and does not hold unsaved; the fields it wrote, and anything typed, queued or waiting in the outbox for a
+ * resend, still keep the local value. It was a stale VIEW, never a lost write: a save sends only its own fields, and
+ * the last part proves the client's next save leaves the SMM's values in the database.
  */
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
-const { openClient, sleep } = require('./fixtures/review-stage-fixture.js');
+const { CLIENT, STAFF, open, openClient, sleep } = require('./fixtures/review-stage-fixture.js');
 
 const failures = [];
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else console.log('  ok  ' + message); }
@@ -81,8 +83,58 @@ async function local(page, pid) { return page.evaluate(id => { const p = (calSta
     expect(p && p.cta === 'Typed, not sent', 'a queued edit is not replaced by the server (' + JSON.stringify(p && p.cta) + ')');
     await t.page.evaluate(id => { delete _calPendingEdits[id]; }, pid);
 
-    expect(t.errors.length === 0, 'no page errors (' + t.errors.join(' | ') + ')');
+    // A failed save waiting in the outbox for its resend keeps its value too.
+    await t.page.evaluate(id => { _calNoteUnsent(id, { name: 'Held in the outbox' }, true); calState.posts.find(x => x.id === id).name = 'Held in the outbox'; }, pid);
+    Object.assign(row, { name: 'A server title', updated_at: later() });
+    await reread(t.page);
+    p = await local(t.page, pid);
+    expect(p && p.name === 'Held in the outbox', 'a field waiting in the outbox for its resend is not replaced (' + JSON.stringify(p && p.name) + ')');
+    await t.page.evaluate(id => { _calDropUnsent(id, 'name'); }, pid);
+    Object.assign(row, { name: 'Behind the scenes, part one', updated_at: later() });
+    await reread(t.page);
+
+    // Never a lost write: the client's next caption save carries only the caption, and the SMM's values stay.
+    const n1 = t.state.upserts.length;
+    const CAP2 = 'The client changed it once more.';
+    await t.page.evaluate(([id, text]) => { const el = { dataset: { pid: id, fld: 'caption' }, value: text }; _calOnFieldInput(el); _calOnFieldBlur(el); }, [pid, CAP2]);
+    for (let i = 0; i < 40 && !t.state.upserts.slice(n1).some(u => u.id === pid && u.caption === CAP2); i++) await sleep(150);
+    const sent = t.state.upserts.slice(n1).filter(u => u.id === pid);
+    expect(sent.length > 0 && sent.every(u => !('caption_alt' in u) && !('cta' in u) && !('name' in u)), 'the client\'s next save sends no alt caption, call to action or title (' + JSON.stringify(sent.map(u => Object.keys(u).sort())) + ')');
+    expect(row.caption === CAP2 && row.caption_alt === '' && row.cta === 'Another server value' && row.name === 'Behind the scenes, part one', 'the database keeps the SMM\'s values after the client\'s save (' + JSON.stringify([row.caption_alt, row.cta, row.name]) + ')');
+
+    expect(t.errors.length === 0, 'client: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+
+    // ---------- staff Calendar: the same rule, with a field open in its editor ----------
+    console.log('--- staff Calendar ---');
+    const s = await open(browser, origin, { stage: 'smm', staff: STAFF, finished: true });
+    await s.page.goto(origin + '/index.html?v=calendar', { waitUntil: 'domcontentloaded' });
+    await s.page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+    await s.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} _calSavePins([name]); calState.client = name; navTo('calendar'); }, CLIENT);
+    await s.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
+    await s.page.evaluate(() => onCalViewChange('organizer'));
+    await s.page.waitForFunction(() => calState.view === 'organizer', null, { timeout: 15000 });
+    await sleep(1500);
+    const srow = s.state.cards.find(c => c.id === pid);
+    const sn0 = s.state.upserts.length;
+    const SCAP = 'Saved by this staff tab.';
+    await s.page.evaluate(([id, text]) => { const el = { dataset: { pid: id, fld: 'caption' }, value: text }; _calOnFieldInput(el); _calOnFieldBlur(el); }, [pid, SCAP]);
+    for (let i = 0; i < 40 && !s.state.upserts.slice(sn0).some(u => u.id === pid && u.caption === SCAP); i++) await sleep(150);
+    expect(srow.caption === SCAP, 'staff: the caption is saved');
+    await sleep(800);
+    // Typing in the call to action, not yet blurred or sent.
+    const ctaBox = s.page.locator(`.cal-card[data-pid="${pid}"] input[data-fld="cta"]`).first();
+    await ctaBox.click(); await ctaBox.fill('Typing this now');
+    Object.assign(srow, { cta: 'A teammate\'s call to action', caption_alt: 'A teammate\'s alt caption', caption_alt_platform: 'linkedin', caption: 'An older caption', updated_at: later() });
+    await reread(s.page);
+    p = await local(s.page, pid);
+    expect(p && p.caption_alt === 'A teammate\'s alt caption', 'staff: a teammate\'s alt caption arrives inside the window (' + JSON.stringify(p && p.caption_alt) + ')');
+    expect(p && p.cta === 'Typing this now', 'staff: the call to action being typed is not replaced (' + JSON.stringify(p && p.cta) + ')');
+    const boxNow = await ctaBox.inputValue();
+    expect(boxNow === 'Typing this now', 'staff: the open call-to-action box still holds the typing (' + JSON.stringify(boxNow) + ')');
+    expect(p && p.caption === SCAP, 'staff: the caption this tab saved does not flip back (' + JSON.stringify(p && p.caption) + ')');
+    expect(s.errors.length === 0, 'staff: no page errors (' + s.errors.join(' | ') + ')');
+    await s.ctx.close();
   } finally {
     await browser.close();
     server.close();

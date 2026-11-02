@@ -1196,8 +1196,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        and exercise the real shipped code.
        Every OTHER plain field (caption, alt caption, call to action, title,
        date, links...) is taken from the newer server row too, unless this
-       browser wrote it in the window (`rsf.fields`) or has it queued (`pend`):
-       only those can be a stale echo of our own write. Before this, the guard
+       browser wrote it in the window (`rsf.fields`) or holds it unsaved (`pend`:
+       typed or queued, a failed save waiting for its resend, a source repair):
+       a written field can be a stale echo of our own write, a held one is work
+       the person has not saved yet. Before this, the guard
        kept our whole copy, so an SMM's alt-caption removal stayed on a client
        link for 90 s after the client's own caption save (OPEN_REPAIRS 636,
        nightly probe p52). Arrays, comment cells, ordering and local-only

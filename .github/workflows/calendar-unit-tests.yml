@@ -639,6 +639,7 @@ jobs:
           Instagram also to Facebook (box on by default, off for a trial, a video carousel or no Page; results apart)|node test/instagram-facebook-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
+          TikTok keeps its press key across a reload while the post's outcome is unknown (dropped on success, a 4xx or after 20 hours)|node test/tiktok-press-key-reload-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
           Staff gate seed answers trial-reels reads sent with an invented key in the browser (no live 401s)|node test/staff-gate-trial-reels-stub-local.js

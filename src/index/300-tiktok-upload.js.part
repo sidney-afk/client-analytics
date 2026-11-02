@@ -631,6 +631,39 @@ import {
             if (d.mediaType === 'photo' || d.mediaType === 'video') tkState.mediaType = d.mediaType;
             if (Array.isArray(d.photosMeta)) tkState.photosMeta = d.photosMeta;
         } catch (e) { console.warn('[SyncView] TikTok draft load error:', e); }
+        _tkLoadRetryCreate();
+    }
+
+    // A create whose answer was lost is kept in this browser as well as in memory, so a reload does not lose its
+    // key: the same draft pressed again after a reload sends the same key and the video already in storage, and
+    // the function adopts the first post instead of making a second (plan row P0, OPEN_REPAIRS 647). Post for Me
+    // deletes an upload no post uses after 24 hours, so an attempt older than TK_RETRY_MAX_AGE_MS is dropped and
+    // the next press uploads again.
+    const TK_RETRY_KEY = 'syncview_tiktokRetryCreate_v1';
+    const TK_RETRY_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+    function _tkRetryFresh(r) {
+        return !!(r && r.key && r.sig && r.media && Date.now() - (Number(r.savedAt) || 0) < TK_RETRY_MAX_AGE_MS);
+    }
+    function _tkSetRetryCreate(next) {
+        const prev = tkState.retryCreate;
+        // A retry of the same attempt keeps the time its video was uploaded.
+        if (next) next.savedAt = (prev && prev.key === next.key && prev.savedAt) || next.savedAt || Date.now();
+        tkState.retryCreate = next;
+        try {
+            if (next) localStorage.setItem(TK_RETRY_KEY, JSON.stringify(next));
+            else localStorage.removeItem(TK_RETRY_KEY);
+        } catch (e) {
+            // quota or private mode: the in-memory copy still works for this page
+        }
+    }
+    function _tkLoadRetryCreate() {
+        try {
+            const r = JSON.parse(localStorage.getItem(TK_RETRY_KEY) || 'null');
+            if (_tkRetryFresh(r)) tkState.retryCreate = r;
+            else localStorage.removeItem(TK_RETRY_KEY);
+        } catch (e) {
+            // unreadable: nothing kept
+        }
     }
 
     function _tkSaveDraft() {
@@ -1460,7 +1493,7 @@ import {
         // A create whose answer was lost may have reached Post For Me. The same draft is sent again with the
         // SAME key and the media already in storage, so the server finds the first attempt instead of posting twice.
         const again = tkState.retryCreate;
-        if (source === 'supabase' && again && again.sig === _tkDraftSig()) {
+        if (source === 'supabase' && _tkRetryFresh(again) && again.sig === _tkDraftSig()) {
             const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
             tkState.submitting = true;
             tkState.error = null;
@@ -1469,7 +1502,7 @@ import {
             _tkCreateViaFunction(again.media, again.key, again.scheduledAtWall, again.scheduledAtUTC, target, again.what);
             return;
         }
-        tkState.retryCreate = null;
+        _tkSetRetryCreate(null);
 
         if (tkState.mediaType === 'photo') {
             _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
@@ -1973,7 +2006,7 @@ import {
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
-            tkState.retryCreate = ambiguous;
+            _tkSetRetryCreate(ambiguous);
             if (e && e.name === 'AbortError') {
                 // Cancel at this point only stops the browser waiting. The
                 // request to create the post may already be with the server,
@@ -1993,7 +2026,7 @@ import {
         }
         _tkActivePhotoAbort = null;
         tkState.submitting = false;
-        tkState.retryCreate = _tkCreateAnswerKeepsKey(out) ? ambiguous : null;
+        _tkSetRetryCreate(_tkCreateAnswerKeepsKey(out) ? ambiguous : null);
         if (!out.ok) {
             tkState.progress = 0;
             _tkRecordFailure('tiktok_upload', out.json && out.json.ok === false && out.status < 300 ? 0 : out.status);

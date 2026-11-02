@@ -54,7 +54,7 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 const PERSON_COLUMNS =
-  "id,display_name,email,phone,instagram_handle,lead_type,niche,source_id,stage,owner,next_step,next_step_due,lost_reason,tags,timezone,call_at,opted_out_at,state_version,created_at,updated_at";
+  "id,display_name,email,phone,instagram_handle,lead_type,niche,source_id,stage,owner,next_step,next_step_due,lost_reason,tags,timezone,call_at,source_ad,call_showed,call_outcome,cash_collected,opted_out_at,state_version,created_at,updated_at";
 const STEP_COLUMNS =
   "id,sequence_id,step_key,position,day_offset,hour_offset,send_hour,channel,audience,subject,template,version,is_current,approval_state,approved_by,approved_at,edited_by,created_at";
 const SEQ_COLUMNS = "id,key,name,description,lead_type,stay_stages,active,toggled_by,updated_at";

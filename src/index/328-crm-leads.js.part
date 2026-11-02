@@ -41,6 +41,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     ];
     const CRM_LEAD_TYPES = [['dream100', 'Dream 100'], ['ad_lead', 'Ad lead'], ['past_call', 'Past call'], ['email', 'Email list'], ['referral', 'Referral']];
     const CRM_LOST_REASONS = [['price', 'Price'], ['trust', 'Trust'], ['timing', 'Timing'], ['budget', 'Budget'], ['no_show', 'No-show']];
+    const CRM_OUTCOMES = [['won', 'Won'], ['lost', 'Lost'], ['follow_up', 'Follow-up'], ['pending', 'Pending']];
     const CRM_TYPE_HINTS = { dream100: 'Someone we picked to reach out to', ad_lead: 'Filled in the form on an ad', past_call: 'Had a call with Kasper before', email: 'On our email list', referral: 'Came to us by word of mouth' };
     const CRM_TABS = [['today', 'Today'], ['pipeline', 'Leads'], ['report', 'Report']];
     const CRM_PAGE_NAMES = { today: 'Today', pipeline: 'Leads', report: 'Report', sequences: 'Automations', seq: 'Automations' };
@@ -63,7 +64,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const CRM_ICON_SEARCH = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
     const CRM_ICON_X = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
     const _crmState = {
-        tab: 'home', seqKey: '', col: { stage: '', src: '', niche: '', due: '' }, sort: '', colMenu: '', tempFold: {}, show: 'all', loading: false, loaded: false, error: '', people: [], sources: [], truncated: false,
+        tab: 'home', seqKey: '', col: { stage: '', src: '', ad: '', showed: '', outcome: '', niche: '', due: '' }, sort: '', colMenu: '', tempFold: {}, show: 'all', loading: false, loaded: false, error: '', people: [], sources: [], truncated: false,
         filters: { lead_type: '', niche: '', owner: '', source_id: '', due_this_week: false },
         openId: '', person: null, events: [], source: null, personLoading: false, personError: '', saving: false,
         dragId: '', drafts: {}, gen: 0, editing: false,
@@ -592,12 +593,20 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         return '<span class="crm-lead-from" data-crm-type="' + _calEscAttr(p.lead_type || '') + '"><span class="crm-from-type" title="' + _calEscAttr(CRM_TYPE_HINTS[p.lead_type] || '') + '">' + _calEsc(type) + '</span>'
             + (src ? '<span class="crm-from-src">' + _calEsc(src) + '</span>' : '') + '</span>';
     }
+    function _crmMoney(v) {
+        if (v == null || v === '' || isNaN(Number(v))) return '';
+        return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
     function _crmLeadHtml(p) {
         const overdue = _crmOverdue(p);
         return '<div class="crm-lead' + (overdue ? ' is-overdue' : '') + '" role="listitem" draggable="true" tabindex="0" data-crm-card="' + _calEscAttr(p.id) + '" aria-label="' + _calEscAttr(_crmName(p) + ', ' + _crmLabel(CRM_STAGES, p.stage) + (overdue ? ', overdue' : '')) + '">'
             + '<span class="crm-lead-name">' + _calEsc(_crmName(p)) + '</span>'
             + '<span class="crm-lead-stage" data-crm-stage-tone="' + _calEscAttr(p.stage) + '" title="' + _calEscAttr(CRM_STAGE_HINTS[p.stage] || '') + '">' + _calEsc(_crmLabel(CRM_STAGES, p.stage)) + '</span>'
             + _crmFromHtml(p)
+            + '<span class="crm-lead-ad" title="' + _calEscAttr(p.source_ad || '') + '">' + _calEsc(p.source_ad || '') + '</span>'
+            + '<span class="crm-lead-showed">' + _calEsc(p.call_showed === true ? 'Yes' : p.call_showed === false ? 'No' : '') + '</span>'
+            + '<span class="crm-lead-outcome">' + _calEsc(p.call_outcome ? _crmLabel(CRM_OUTCOMES, p.call_outcome) : '') + '</span>'
+            + '<span class="crm-lead-cash">' + _calEsc(_crmMoney(p.cash_collected)) + '</span>'
             + '<span class="crm-lead-niche">' + _calEsc(p.niche || '') + '</span>'
             + (p.next_step ? '<span class="crm-lead-step" title="' + _calEscAttr(p.next_step) + '">' + _calEsc(p.next_step) + '</span>'
                 : '<span class="crm-lead-step is-auto" title="Suggested from the stage; set your own in the person panel">' + _calEsc(p.next_step_due ? 'Next step' : (CRM_AUTO_STEP[p.stage] || '')) + '</span>')
@@ -619,17 +628,23 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
     function _crmToggleTemp(t) { _crmState.tempFold[t] = !_crmState.tempFold[t]; _crmPaintBoard(); const b = document.querySelector('[data-crm-temp="' + t + '"] .crm-stage-toggle'); if (b) b.focus({ preventScroll: true }); }
     /* Column headers: Stage, Where they came from and Niche filter; Name and Due sort. */
-    const CRM_COLS = [['name', 'Name', 'sort'], ['stage', 'Stage', 'filter'], ['src', 'Where they came from', 'filter'], ['niche', 'Niche', 'filter'], ['step', 'Next step', ''], ['due', 'Due', 'filter']];
+    const CRM_COLS = [['name', 'Name', 'sort'], ['stage', 'Stage', 'filter'], ['src', 'Where they came from', 'filter'], ['ad', 'Source ad', 'filter'], ['showed', 'Showed', 'filter'], ['outcome', 'Outcome', 'filter'], ['cash', 'Cash', ''], ['niche', 'Niche', 'filter'], ['step', 'Next step', ''], ['due', 'Due', 'filter']];
     function _crmColValue(p, key) {
         if (key === 'stage') return p.stage || '';
         if (key === 'src') return p.source_id || ('type:' + (p.lead_type || ''));
         if (key === 'niche') return p.niche || 'none:';
+        if (key === 'ad') return p.source_ad || 'none:';
+        if (key === 'showed') return p.call_showed === true ? 'yes' : p.call_showed === false ? 'no' : 'unknown';
+        if (key === 'outcome') return p.call_outcome || 'none:';
         if (key === 'due') return _crmOverdue(p) ? 'overdue' : _crmSoon(p) ? 'soon' : p.next_step_due ? 'later' : 'none';
         return '';
     }
     function _crmColLabel(key, v) {
         if (key === 'stage') return _crmLabel(CRM_STAGES, v);
         if (key === 'src') return v.startsWith('type:') ? _crmLabel(CRM_LEAD_TYPES, v.slice(5)) || 'Unknown' : (_crmSourceName(v) || 'Unknown');
+        if (key === 'showed') return { yes: 'Yes', no: 'No', unknown: 'Not known' }[v] || v;
+        if (key === 'outcome') return v === 'none:' ? 'Not set' : _crmLabel(CRM_OUTCOMES, v);
+        if (key === 'ad' && v === 'none:') return 'Not set';
         if (key === 'due') return { overdue: 'Overdue', soon: 'Due in the next 2 days', later: 'Due later', none: 'No date' }[v] || v;
         return (v && v !== 'none:') ? v : 'None';
     }
@@ -638,6 +653,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         _crmState.people.forEach(p => { const v = _crmColValue(p, key); seen.set(v, (seen.get(v) || 0) + 1); });
         let vals = Array.from(seen.keys());
         if (key === 'stage') vals.sort((a, b) => CRM_STAGES.findIndex(x => x[0] === a) - CRM_STAGES.findIndex(x => x[0] === b));
+        else if (key === 'showed') vals.sort((a, b) => ['yes', 'no', 'unknown'].indexOf(a) - ['yes', 'no', 'unknown'].indexOf(b));
         else if (key === 'due') vals.sort((a, b) => ['overdue', 'soon', 'later', 'none'].indexOf(a) - ['overdue', 'soon', 'later', 'none'].indexOf(b));
         else vals.sort((a, b) => _crmColLabel(key, a).localeCompare(_crmColLabel(key, b)));
         return vals.map(v => ({ v, n: seen.get(v) }));
@@ -798,6 +814,14 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (e.kind === 'owner_changed') return d.to ? 'Owner set to ' + d.to : 'Owner cleared';
         if (e.kind === 'next_step_set') return d.next_step || d.due ? 'Next step: ' + (d.next_step || 'no text') + (d.due ? ', due ' + _crmDue(d.due) : '') : 'Next step cleared';
         if (e.kind === 'lost_reason_set') return d.to ? 'Why it didn\'t close: ' + _crmLabel(CRM_LOST_REASONS, d.to).toLowerCase() : 'Why it didn\'t close cleared';
+        if (e.kind === 'call_tracking_set') {
+            const c = d.changes || {}, out = [];
+            if (c.source_ad) out.push(c.source_ad.to ? 'Source ad: ' + c.source_ad.to : 'Source ad cleared');
+            if (c.call_showed) out.push(c.call_showed.to === true ? 'Showed: yes' : c.call_showed.to === false ? 'Showed: no' : 'Showed cleared');
+            if (c.call_outcome) out.push(c.call_outcome.to ? 'Outcome: ' + _crmLabel(CRM_OUTCOMES, c.call_outcome.to).toLowerCase() : 'Outcome cleared');
+            if (c.cash_collected) out.push(c.cash_collected.to != null ? 'Cash collected: ' + _crmMoney(c.cash_collected.to) : 'Cash collected cleared');
+            return out.join('. ') || 'Call tracking changed';
+        }
         if (e.kind === 'tags_changed') return 'Tags: ' + ((d.to || []).join(', ') || 'none');
         if (e.kind === 'note') return d.text || '';
         if (e.kind === 'imported') return 'Imported from a list';
@@ -863,6 +887,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             const lastTouch = _crmLastTouch(_crmState.events);
             const facts = [['Stage', _crmLabel(CRM_STAGES, p.stage) + (p.stage !== 'won' && p.lost_reason ? ' (' + _crmLabel(CRM_LOST_REASONS, p.lost_reason).toLowerCase() + ')' : '')],
                 ['Next step', p.next_step || p.next_step_due ? (p.next_step || 'Next step') + (p.next_step_due ? ', ' + (_crmOverdue(p) ? 'overdue since ' : 'due ') + _crmDue(p.next_step_due) : '') : 'None yet'],
+                ['Source ad', p.source_ad || 'Not set'],
+                ['Showed', p.call_showed === true ? 'Yes' : p.call_showed === false ? 'No' : 'Not known'],
+                ['Outcome', p.call_outcome ? _crmLabel(CRM_OUTCOMES, p.call_outcome) : 'Not set'],
+                ['Cash collected', p.cash_collected != null ? _crmMoney(p.cash_collected) : 'None yet'],
                 ['Last touch', lastTouch ? _crmDue(lastTouch.slice(0, 10)) : 'None yet']];
             const edit = _crmState.editing
                 ? '<form class="crm-form" onsubmit="event.preventDefault();_crmSavePanel()">'
@@ -870,9 +898,12 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                 + '<label class="crm-field" id="crmLostWrap"' + (CRM_REASON_STAGES.includes(p.stage) ? '' : ' hidden') + '><span>Why it didn\'t close</span>' + _svSelectHtml('crmPLost', [{ value: '', label: 'Not set' }].concat(CRM_LOST_REASONS.map(r => ({ value: r[0], label: r[1] }))), p.lost_reason || '', 'Not set') + '</label>'
                 + '<label class="crm-field crm-field-wide"><span>Next step</span><input id="crmPStep" class="crm-input" maxlength="500" autocomplete="off" placeholder="Send the follow-up DM" value="' + _calEscAttr(keep.crmPStep != null ? keep.crmPStep : (p.next_step || '')) + '"></label>'
                 + '<div class="crm-field"><span>Due</span>' + _svDateHtml('crmPDue', p.next_step_due || '', { placeholder: 'No date' }) + '</div>'
+                + '<label class="crm-field crm-field-wide"><span>Source ad</span><input id="crmPAd" class="crm-input" maxlength="200" autocomplete="off" placeholder="Ad or campaign name" value="' + _calEscAttr(p.source_ad || '') + '"></label>'
+                + '<label class="crm-field"><span>Cash collected ($)</span><input id="crmPCash" class="crm-input" inputmode="decimal" autocomplete="off" placeholder="0" value="' + _calEscAttr(p.cash_collected != null ? String(p.cash_collected) : '') + '"></label>'
                 + '<div class="crm-form-actions"><button type="button" class="crm-btn" onclick="_crmEditPanel(false)">Cancel</button><button type="submit" class="crm-btn crm-btn-primary"' + (_crmState.saving ? ' disabled' : '') + '>Save changes</button></div>'
                 + '</form>'
                 : '<dl class="crm-facts">' + facts.map(f => '<div><dt>' + _calEsc(f[0]) + '</dt><dd>' + _calEsc(f[1]) + '</dd></div>').join('') + '</dl>'
+                + _crmCallHtml(p)
                 + _crmReasonHtml(p)
                 + '';
             panel.innerHTML = '<div class="crm-panel-head"><div><h2 id="crmPanelTitle">' + _calEsc(_crmName(p)) + '</h2>'
@@ -906,6 +937,32 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!CRM_REASON_STAGES.includes(p.stage)) return '';
         return '<div class="crm-reason" role="group" aria-label="Why it didn\u2019t close"><span class="crm-reason-label">Why it didn\u2019t close</span><div class="crm-reason-opts">'
             + CRM_LOST_REASONS.map(r => '<button type="button" class="crm-chip-btn" aria-pressed="' + (p.lost_reason === r[0]) + '"' + (_crmState.saving ? ' disabled' : '') + ' onclick="_crmSetReason(' + _jsAttrArg(r[0]) + ')">' + _calEsc(r[1]) + '</button>').join('') + '</div></div>';
+    }
+    /* Booked-call tracking: one tap for Showed and for the outcome. Tapping the
+       chosen one again clears it back to not known / not set. */
+    function _crmCallHtml(p) {
+        const dis = _crmState.saving ? ' disabled' : '';
+        const chip = (label, on, fn) => '<button type="button" class="crm-chip-btn" aria-pressed="' + on + '"' + dis + ' onclick="' + fn + '">' + _calEsc(label) + '</button>';
+        return '<div class="crm-reason" role="group" aria-label="Showed for the call"><span class="crm-reason-label">Showed for the call</span><div class="crm-reason-opts">'
+            + chip('Yes', p.call_showed === true, '_crmSetShowed(true)') + chip('No', p.call_showed === false, '_crmSetShowed(false)') + '</div></div>'
+            + '<div class="crm-reason" role="group" aria-label="Call outcome"><span class="crm-reason-label">Outcome</span><div class="crm-reason-opts">'
+            + CRM_OUTCOMES.map(o => chip(o[1], p.call_outcome === o[0], '_crmSetOutcome(' + _jsAttrArg(o[0]) + ')')).join('') + '</div></div>';
+    }
+    async function _crmSetShowed(value) {
+        const p = _crmState.person;
+        if (!p || _crmState.saving) return;
+        _crmState.saving = true; _crmPaintPanel();
+        const ok = await _crmSave(p.id, { call_showed: p.call_showed === value ? null : value }, '', 'update');
+        _crmState.saving = false; _crmPaintPanel();
+        if (ok) showToast('Saved');
+    }
+    async function _crmSetOutcome(value) {
+        const p = _crmState.person;
+        if (!p || _crmState.saving) return;
+        _crmState.saving = true; _crmPaintPanel();
+        const ok = await _crmSave(p.id, { call_outcome: p.call_outcome === value ? '' : value }, '', 'update');
+        _crmState.saving = false; _crmPaintPanel();
+        if (ok) showToast('Saved');
     }
     async function _crmSetReason(reason) {
         const p = _crmState.person;
@@ -952,6 +1009,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const val = id => { const n = document.getElementById(id); return n ? n.value : ''; };
         const patch = { stage: val('crmPStage') || p.stage, next_step: val('crmPStep').trim(), next_step_due: val('crmPDue') || '' };
         if (CRM_REASON_STAGES.includes(patch.stage)) patch.lost_reason = val('crmPLost') || '';
+        patch.source_ad = val('crmPAd').trim();
+        const cashText = val('crmPCash').replace(/[$,\s]/g, '');
+        if (cashText && !/^\d+(\.\d{1,2})?$/.test(cashText)) { showToast('Cash collected needs a number, like 1500 or 1500.50.'); return; }
+        patch.cash_collected = cashText ? Number(cashText) : null;
         _crmState.saving = true; _crmPaintPanel();
         const ok = await _crmSave(p.id, patch, '', 'update');
         _crmState.saving = false;
@@ -1565,12 +1626,13 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             + '/* Round 8: timeline automations, back button, quiet hovers. */.crm-auto-head{padding:12px 0 36px;max-width:1120px;margin:0 auto}.crm-auto-line{list-style:none;margin:0 auto 40px;padding:0;max-width:1120px;display:grid;grid-template-columns:repeat(var(--crm-steps),minmax(0,340px));gap:48px;position:relative}.crm-auto-line::before{content:"";position:absolute;left:0;right:0;top:15px;height:1px;background:var(--crm-hair)}.crm-auto-step{position:relative;min-width:0}.crm-auto-pin{position:relative;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:1.5px solid var(--crm-c-auto);background:var(--white);color:var(--crm-c-auto);font-size:0.8rem;font-weight:700}.crm-auto-title{margin:16px 0 12px;font-size:1.1rem;font-weight:700;letter-spacing:-0.01em;color:var(--text-primary)}.crm-auto-sub{margin:14px 0 4px;font-size:0.74rem;font-weight:600;color:var(--text-muted)}.crm-auto-item{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:calc(100% + 20px);margin:0 -10px;padding:9px 10px;border:0;border-radius:8px;background:transparent;font:inherit;text-align:left;color:var(--text-primary);cursor:pointer;transition:background-color .15s ease-out}.crm-auto-item:hover{background:color-mix(in srgb,var(--crm-c-auto) 8%,transparent)}.crm-auto-item:focus-visible{outline:2px solid var(--focus-ring)}.crm-auto-name{font-size:0.9rem;font-weight:600;min-width:0}.crm-auto-item.is-off .crm-auto-name{font-weight:500;color:var(--text-muted)}.crm-auto-n{font-size:0.76rem;color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums}.crm-auto-more{max-width:1120px;margin:0 auto 32px;padding-top:24px;border-top:1px solid var(--crm-hair)}.crm-auto-more .crm-auto-title{margin-top:0}.crm-auto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));column-gap:40px}@media (max-width:800px){.crm-auto-line{grid-template-columns:minmax(0,1fr);gap:24px}.crm-auto-line::before{display:none}}.crm-up{display:inline-flex;align-items:center;gap:6px;min-height:34px;margin-right:8px;padding:6px 12px 6px 8px;border:1px solid var(--crm-hair);border-radius:999px;background:transparent;font:inherit;font-size:0.78rem;font-weight:600;color:var(--text-primary);cursor:pointer;transition:background-color .15s ease-out}.crm-up:hover{background:var(--surface-hover)}.crm-up:focus-visible{outline:2px solid var(--focus-ring)}.crm-up svg{width:14px;height:14px}.crm-stage-toggle{width:auto;padding:8px 10px;margin-left:-2px;transition:background-color .15s ease-out}.crm-sheet .crm-stage-head{display:flex}.crm-skel-cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.5fr) 150px;padding:10px 0 10px 28px;gap:0}.crm-skel-cols>*{margin-right:24px}.crm-skel .crm-auto-line{margin-top:8px}.crm-auto-tiles{margin:0 auto 12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}.crm-auto-tile{color:var(--text-primary);background:linear-gradient(150deg,color-mix(in srgb,var(--crm-c-auto) var(--crm-tint,20%),var(--white)),color-mix(in srgb,var(--crm-c-auto) calc(var(--crm-tint,20%) + 10%),var(--white)))}.crm-auto-tile:hover{filter:none;background:color-mix(in srgb,var(--crm-c-auto) calc(var(--crm-tint,20%) + 14%),var(--white))}.crm-auto-tile .crm-tile-desc{opacity:1;color:var(--text-secondary)}.crm-auto-tile .crm-auto-step-n{color:color-mix(in srgb,var(--crm-c-auto) 70%,var(--text-primary));opacity:1}.crm-auto-tile.is-off{background:var(--surface-subtle);color:var(--text-muted)}.crm-auto-step-n{font-size:0.78rem;font-weight:700;opacity:.85}.crm-auto-tile .crm-tile-fact b{font-size:1.9rem;font-weight:700;line-height:1.1}.crm-auto-more{border-top:0;padding-top:28px}.crm-tree-head,.crm-tree-sub{text-transform:none;letter-spacing:0}'
             + '/* Round 9: one style everywhere. */.crm-auto-run{max-width:1120px;margin:0 auto 28px}.crm-auto-run .crm-auto-title{margin:0 0 12px}.crm-auto-flow{position:relative}.crm-auto-flow>.crm-auto-tile{position:relative;min-height:170px}.crm-auto-flow>.crm-auto-tile+.crm-auto-tile::before{content:"";position:absolute;left:-18px;top:50%;width:18px;height:2px;background:color-mix(in srgb,var(--crm-c-auto) 45%,transparent)}.crm-cols .crm-col:first-child .crm-col-btn{padding-left:8px;margin-left:-8px;width:calc(100% + 8px)}.crm-seq-detail-tint{max-width:1120px;margin:0 auto}.crm-seq-detail-tint .crm-seq-head{display:block;text-align:center}.crm-seq-detail-tint .crm-seq-head p{display:flex;justify-content:center;align-items:center;gap:6px}.crm-seq-detail-tint .crm-seq-stop{text-align:center;padding-left:0}.crm-seq-detail-tint .crm-mail,.crm-seq-detail-tint .crm-bubble{background:color-mix(in srgb,var(--crm-c-auto) 10%,var(--white));border-color:color-mix(in srgb,var(--crm-c-auto) 22%,transparent)}.crm-home-tile,.crm-auto-tile{transition:transform .18s cubic-bezier(.2,.8,.2,1),background-color .18s ease-out,filter .18s ease-out}.crm-main>#crmBody>*{animation:crmFade .18s ease-out}@keyframes crmFade{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){.crm-main>#crmBody>*{animation:none}}'
             + '/* Round 10: one look for every section. */.crm-page [class*="crm-"]{text-transform:none!important;letter-spacing:normal}.crm-view-head.crm-home-head{padding-right:0;text-align:center}.crm-view-head.crm-home-head h1{margin:8px 0 6px}/* Report stage colours. */.crm-c-auto{--crm-c:var(--crm-c-auto)}.crm-c-leads{--crm-c:var(--crm-c-leads)}.crm-report .crm-dot{display:inline-block;margin-right:6px;vertical-align:middle}.crm-report thead th{white-space:nowrap}.crm-report td.crm-rep-auto{background:color-mix(in srgb,var(--crm-c-auto) 7%,transparent)}.crm-report td.crm-rep-leads{background:color-mix(in srgb,var(--crm-c-leads) 7%,transparent)}.crm-report td.crm-rep-today{background:color-mix(in srgb,var(--crm-c-today) 7%,transparent)}.crm-report td.crm-rep-report{background:color-mix(in srgb,var(--crm-c-report) 7%,transparent)}.crm-report .crm-rep-total{font-weight:700}/* Round 11: calm hover (lift and shadow, colour never changes) and current step in the side list. */.crm-page .crm-tile,#crmToday .crm-row.crm-agenda{transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s cubic-bezier(.2,.8,.2,1)}.crm-page .crm-tile:hover,#crmToday .crm-row.crm-agenda:hover{filter:none;transform:translateY(-2px);box-shadow:0 10px 24px -14px color-mix(in srgb,var(--text-primary) 45%,transparent)}.crm-page .crm-tile:not(.crm-home-tile):not(.crm-auto-tile):not(.crm-seq-tile):hover{background:var(--surface-subtle)}.crm-page .crm-auto-tile:hover{background:linear-gradient(150deg,color-mix(in srgb,var(--crm-c-auto) var(--crm-tint,20%),var(--white)),color-mix(in srgb,var(--crm-c-auto) calc(var(--crm-tint,20%) + 10%),var(--white)))}.crm-page .crm-auto-tile.is-off:hover{background:var(--surface-subtle)}.crm-page .crm-seq-tile:hover{background:color-mix(in srgb,var(--crm-c-auto) 9%,transparent)}@media (prefers-reduced-motion:reduce){.crm-page .crm-tile:hover,#crmToday .crm-row.crm-agenda:hover{transform:none}}.crm-tree-head[aria-current="page"]{background:var(--surface-subtle);color:var(--text-primary);padding-left:6px;margin-left:-6px;width:calc(100% + 6px)}.crm-view-head.crm-home-head .crm-sub{display:block;margin:0 auto;padding:0;text-align:center;max-width:none}.crm-leads-head.crm-home-head{display:flex;flex-direction:column;align-items:center;gap:14px}.crm-col-btn,.crm-col-label{font-size:0.74rem;font-weight:600}.crm-page .crm-group-title,.crm-page .crm-panel-sec h3,.crm-page .crm-sec-title{font-size:0.95rem;font-weight:700;color:var(--text-primary)}#crmToday .crm-day{max-width:1120px;margin:0 auto 28px;padding:0;border:0}#crmToday .crm-day .crm-group-title{margin:0 0 12px;padding:0;font-size:1.05rem;border:0}#crmToday .crm-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:16px;border:0;margin:0;padding:0}#crmToday .crm-row.crm-agenda{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-height:150px;padding:20px 22px;border:0;border-radius:20px;background:linear-gradient(150deg,color-mix(in srgb,var(--crm-c-today) 12%,var(--white)),color-mix(in srgb,var(--crm-c-today) 20%,var(--white)));transition:background-color .18s ease-out,transform .18s cubic-bezier(.2,.8,.2,1)}#crmToday .crm-row.crm-agenda:hover{transform:translateY(-2px)}#crmToday .crm-row.crm-agenda .crm-when{order:3;flex:none;margin-top:auto;font-size:0.8rem}#crmToday .crm-row.crm-agenda .crm-row-main{order:1;width:100%;min-height:0;padding:0;background:transparent;text-align:left}#crmToday .crm-row.crm-agenda .crm-row-main:hover{background:transparent}#crmToday .crm-row.crm-agenda .crm-row-name{font-size:1.1rem;font-weight:700}#crmToday .crm-row.crm-agenda .crm-row-meta{font-size:0.82rem;color:var(--text-secondary)}#crmToday .crm-row-actions.is-always{order:2;margin:0;display:flex;gap:8px}#crmToday .crm-row .crm-tag{order:4;position:absolute;right:18px;bottom:18px}#crmToday .crm-day:nth-of-type(3) .crm-row.crm-agenda{background:var(--surface-subtle)}'
+            + '/* Round 12: booked-call columns. */.crm-cols{grid-template-columns:minmax(0,1.2fr) minmax(0,.75fr) minmax(0,1.1fr) minmax(0,1fr) 84px minmax(0,.8fr) 84px minmax(0,.7fr) minmax(0,1.3fr) 130px}.crm-lead{grid-template-columns:minmax(0,1.2fr) minmax(0,.75fr) minmax(0,1.1fr) minmax(0,1fr) 84px minmax(0,.8fr) 84px minmax(0,.7fr) minmax(0,1.3fr) 130px}.crm-skel-cols{grid-template-columns:minmax(0,1.2fr) minmax(0,.75fr) minmax(0,1.1fr) minmax(0,1fr) 84px minmax(0,.8fr) 84px minmax(0,.7fr) minmax(0,1.3fr) 130px}.crm-lead-ad,.crm-lead-outcome,.crm-lead-showed,.crm-lead-cash{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}.crm-lead-cash{font-variant-numeric:tabular-nums}@media (max-width:1280px){.crm-cols,.crm-lead,.crm-skel-cols{grid-template-columns:minmax(0,1.2fr) minmax(0,.75fr) minmax(0,1.1fr) minmax(0,1fr) 84px minmax(0,.8fr) 84px minmax(0,1.3fr) 130px}.crm-col-niche,.crm-lead-niche{display:none}}'
             + '@media (max-width:720px){'
             + '.crm-app{flex-direction:column;align-items:stretch;gap:10px}.crm-main{width:100%}.crm-side{position:static;width:100%;flex-direction:column;gap:8px}.crm-side .crm-search{width:100%;margin:0}.crm-side .crm-search .search-bar-pill{min-height:40px}.crm-side-nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}.crm-side-nav::-webkit-scrollbar{display:none}.crm-report .crm-num{width:52px}.crm-report thead th{position:static}.crm-side-title,.crm-side-group,.crm-side-skel,.crm-tree-head,.crm-tree-line,.crm-side-chev{display:none}.crm-side{max-height:none;overflow:visible}.crm-side-section,.crm-tree,.crm-tree-g,.crm-tree-body{display:flex;flex-direction:row;margin:0;padding:0;border:0;gap:4px}.crm-cols{position:static}.crm-side-parent:not([aria-current]){font-weight:500;color:var(--text-secondary)}.crm-side-item{width:auto;min-height:34px;flex-shrink:0;white-space:nowrap;border-radius:999px;padding:6px 12px}.crm-view-head{padding-right:84px}.crm-seq .crm-step{grid-template-columns:1fr}.crm-seq-facts{gap:20px}'
             + '.crm-step{grid-template-columns:1fr;gap:4px}.crm-step-when{flex-direction:row;gap:8px;align-items:baseline}.crm-sys-table,.crm-sys-table tbody,.crm-sys-table tr,.crm-sys-table td{display:block;width:auto}.crm-sys-table thead{display:none}.crm-sys-table tr{padding:10px 4px;border-top:1px solid var(--crm-hair)}.crm-sys-table tbody tr:first-child{border-top:0}.crm-sys-table td{border:0;padding:3px 4px}.crm-sys-table td:not(.crm-sys-c-name)::before{content:attr(data-label);display:block;font-size:0.62rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}'
             + '.crm-cols{display:none}.crm-lead{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name due" "from from" "step step";row-gap:2px;column-gap:10px;padding:9px 8px}.crm-stage-hint{display:none}'
             + '.crm-lead-name{grid-area:name}.crm-due{grid-area:due}.crm-lead-from{grid-area:from;font-size:0.7rem}.crm-lead-step{grid-area:step;font-size:0.7rem}'
-            + '.crm-lead-niche,.crm-lead-owner{display:none}'
+            + '.crm-lead-niche,.crm-lead-owner,.crm-lead-ad,.crm-lead-showed,.crm-lead-outcome,.crm-lead-cash{display:none}'
             + '.crm-sheet{padding:8px 6px 10px}.crm-panel{width:100vw;border-left:0}.crm-form{grid-template-columns:1fr}'
             + '.crm-row{flex-wrap:wrap;padding:0 4px 4px 0}.crm-row-actions.is-always{width:100%;justify-content:flex-start;padding-left:4px}.crm-row-actions .crm-btn{min-height:40px}'
             + '.crm-row>.crm-due{padding-right:4px}.crm-when{flex-basis:76px;white-space:normal}.crm-agenda{gap:10px}.crm-row-actions.is-always{margin-top:-8px}'

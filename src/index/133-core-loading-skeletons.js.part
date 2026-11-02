@@ -505,8 +505,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + [0, 1, 2, 3].map(i => '<div class="crm-ev">' + line(i % 2 ? '64%' : '82%', 12) + line('30%', 10) + '</div>').join('') + '</div>');
         }
         /* The Leads table: its column headers, then rows with one cell per column. */
-        const lead = i => '<div class="crm-lead crm-skel-row">' + [i % 2 ? '62%' : '74%', '58%', i % 3 ? '70%' : '80%', '50%', i % 2 ? '66%' : '76%', '60px'].map((w, c) => '<span>' + line(w, c ? 11 : 13) + '</span>').join('') + '</div>';
-        return wrap('<div class="crm-sheet"><div class="crm-skel-cols">' + ['40px', '36px', '120px', '36px', '64px', '28px'].map(w => line(w, 10)).join('') + '</div><div class="crm-stage-body">'
+        const lead = i => '<div class="crm-lead crm-skel-row">' + [i % 2 ? '62%' : '74%', '58%', i % 3 ? '70%' : '80%', '60%', '40%', '50%', '40%', '50%', i % 2 ? '66%' : '76%', '60px'].map((w, c) => '<span>' + line(w, c ? 11 : 13) + '</span>').join('') + '</div>';
+        return wrap('<div class="crm-sheet"><div class="crm-skel-cols">' + ['40px', '36px', '100px', '60px', '36px', '48px', '36px', '36px', '64px', '28px'].map(w => line(w, 10)).join('') + '</div><div class="crm-stage-body">'
             + Array.from({ length: 9 }, (_, i) => lead(i)).join('') + '</div></div>');
     }
     function _svLoadingSkeletonHtml(kind, opts) {

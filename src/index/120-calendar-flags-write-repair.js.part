@@ -1642,6 +1642,11 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
                an error object, so it cannot ride along. */
             const message = String(error && error.message || '').slice(0, 200);
             if (message) claim.message = message;
+            /* OPEN_REPAIRS 626: how full this browser's store is, on every report (a full store
+               refused Kasper's tweaks in October, OPEN_REPAIRS 615, and nothing on the server
+               could see it), and, from the review boards, the page's own code for what happened. */
+            const env = Object.assign({}, _writeUiStorageUse() || {}, error && error.reviewEnv || {});
+            if (Object.keys(env).length) claim.env = env;
             const version = _writeRefusalAppVersion();
             if (version) claim.app_version = version;
             const headers = { 'content-type': 'application/json' };
@@ -1674,6 +1679,77 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
                 code: String(error && error.code || error && error.message || '').slice(0, 80)
             }, _writeUiDiagnosticIds(item)));
             localStorage.setItem(WRITE_UI_QUEUE_DIAG_KEY, JSON.stringify(list.slice(-50)));
+        } catch (e) {}
+    }
+    /* THE REVIEW BOARDS' OWN REPORTS (OPEN_REPAIRS 626, session Reviewguard, 2026-11-01).
+       Kasper said he sometimes has to approve twice, and the refusal log had nothing from his
+       board to say why. The client link and Kasper's review board now also report what a save
+       log cannot see: a press the page dropped because the same action was already sent, a
+       reload while a save was running, a save the stage shows as failed, and an uncaught error.
+
+       What goes, as a signature a watcher can group by and paste into a public fix PR:
+       the board (`kasper` or `client`), the action (`review_approve`, `review_tweak`,
+       `review_comment`, `review_reload_mid_save`, `review_double_click`, `review_uncaught`),
+       a short code, the part (video, graphic, caption, title), how full the browser's store
+       is, and, when a failed save later lands on a retry, a second report with the code
+       `landed_after_retry`. Card and client ids go along for grouping and are hashed by the
+       function before they are stored (the card id is kept readable, as for every report);
+       for a page error only the error's kind and file:line. Never a client name, a card title
+       or any typed words. The function reads browser and OS from the user agent.
+
+       Cheap and never in the way: a report is built after the action is over, on a timer, and
+       sent fire-and-forget through the same capped beacon; at most 20 a page, and the same
+       report once a minute. Read by signature with production_write_refusal_review_signatures_v1
+       (docs/ops/OPEN_REPAIRS.md 626). */
+    const WRITE_UI_REVIEW_MAX = 20;
+    let _writeUiReviewBudget = WRITE_UI_REVIEW_MAX;
+    const _writeUiReviewSeen = new Map();
+    let _writeUiStorageMemo = null;
+    /* The browser store as Chrome and Safari count it: characters, keys included. They stop
+       taking writes at about 5.2 million (measured: 5,242,878 in Chromium). Read at most once
+       every 30 seconds, and only when a report is being made. */
+    const WRITE_UI_STORE_CAP_CHARS = 5242880;
+    function _writeUiStorageUse() {
+        const now = Date.now();
+        if (_writeUiStorageMemo && now - _writeUiStorageMemo.at < 30000) return _writeUiStorageMemo.v;
+        let chars = 0, v = null;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i) || '';
+                chars += k.length + String(localStorage.getItem(k) || '').length;
+            }
+            v = { storage_kc: Math.round(chars / 1000), storage_pct: Math.min(100, Math.round(chars / WRITE_UI_STORE_CAP_CHARS * 100)) };
+        } catch (e) { v = null; }
+        _writeUiStorageMemo = { at: now, v };
+        return v;
+    }
+    function _writeUiReviewCode(value) {
+        return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'unknown';
+    }
+    /* `ids`: card, component, client_slug (ids, never words) and board ('kasper' or 'client');
+       `where` is used only for a page error ("TypeError at sv-12-reviewstage.js:120:7") and for
+       the action a dropped press was. */
+    const WRITE_UI_REVIEW_PARTS = ['video', 'graphic', 'caption', 'title'];
+    function _writeUiReviewEvent(surface, action, code, ids, where) {
+        try {
+            if (_writeUiReviewBudget <= 0) return;
+            const c = _writeUiReviewCode(code);
+            const sig = [surface, action, c, ids && ids.card, ids && ids.component, where].join('|');
+            if (Date.now() - (_writeUiReviewSeen.get(sig) || 0) < 60000) return;
+            _writeUiReviewSeen.set(sig, Date.now());
+            _writeUiReviewBudget--;
+            setTimeout(() => {
+                try {
+                    const item = { kind: String(action || 'review_other').slice(0, 40) };
+                    if (ids && ids.card) item.card = String(ids.card);
+                    if (ids && ids.component) item.component = String(ids.component);
+                    if (ids && ids.client_slug) item.client_slug = String(ids.client_slug).slice(0, 120);
+                    const env = { code: c, board: ids && ids.board === 'client' ? 'client' : 'kasper' };
+                    if (ids && WRITE_UI_REVIEW_PARTS.indexOf(ids.component) >= 0) env.part = ids.component;
+                    _writeRefusalBeacon(surface === 'sxr' ? 'sxr' : 'calendar', 'ui_write_failure', item,
+                        { code: c, message: where ? String(where).slice(0, 120) : '', reviewEnv: env });
+                } catch (e) {}
+            }, 0);
         } catch (e) {}
     }
     window.peekWriteUiQueueDiagnostics = function () {
@@ -3756,7 +3832,7 @@ export {
   _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom,
   _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice,
   _writeUiMarkRepairCommitted, _writeUiMergeCommittedBatch, _writeUiCommentRound, _writeUiNativeId, _writeUiNativeStatus,
-  _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRecordFailure,
+  _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiReviewEvent,
   _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions,
   _writeUiRepairJournalRead, _writeUiReportFailure, _writeUiRerouteUseGateway,
   _writeUiWithRepairFlight,

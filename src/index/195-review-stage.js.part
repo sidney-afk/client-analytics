@@ -7,13 +7,13 @@ import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
 import { svRsCalOn, svRsClientPolishOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsKasperPolishOn, svRsToolsEl } from './188-review-stage-switch.js';
-import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
+import { _writeUiRefreshAuthority, _writeUiReviewEvent } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
+import { _kasperPersistPost, _kasperReloadReview, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
 import { svTrialReviewWanted } from './189-trial-reels-card.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -1355,6 +1355,160 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         q.forEach(x => { const d = edits[x.id]; if (d && Number(d.at || 0) > at) { best = x; at = Number(d.at || 0); } });
         return best;
     }
+    /* REPORTS FROM THE CLIENT LINK AND KASPER'S REVIEW BOARD (OPEN_REPAIRS 626, session Reviewguard). The refusal log
+       had nothing from these pages when Kasper said he sometimes has to approve twice. They now report, through the
+       shared beacon (120, _writeUiReviewEvent), with a signature a scheduled watcher can group by: the board (kasper or
+       client), the action (approve, tweak, comment, reload_mid_save, double_click, uncaught), a code, the part. What
+       goes: a save the stage shows as not saved; the same save landing later on a retry (`landed_after_retry`); a press
+       dropped because that part was already answered; a reload while a save was running (reported by the next page);
+       and an uncaught error. Ids, codes and the error's kind only, never words, titles or names. Built after the fact,
+       on a timer, fire-and-forget: nothing here sits in a save's path. The SMM's Review tab is not part of this. */
+    function _rsBoardOn() { return !!(R.host && R.host.isConnected && !R.host.hidden && R.S && (R.mode === 'client' || R.mode === 'kasper')); }
+    function _rsReport(action, code, m, comp, where) {
+        if (!_rsBoardOn()) return;
+        try { _writeUiReviewEvent(m && m.sample ? 'sxr' : 'calendar', action, code, _rsReportIds(m, comp), where || ''); } catch (e) {}
+    }
+    // Ids for a report: the card, the part, the board, and on Kasper's board the card's client (hashed by the function;
+    // the client link's own client is added by the beacon).
+    function _rsReportIds(m, comp) {
+        const ids = { board: R.mode === 'client' ? 'client' : 'kasper' };
+        if (!m) return ids;
+        ids.card = String(m.id); ids.component = String(comp || '');
+        if (R.mode === 'kasper' && m.item && m.item.slug) ids.client_slug = String(m.item.slug);
+        return ids;
+    }
+    // The last action pressed on each part this visit: names a save's failure, and finds the saves still running.
+    function _rsActed(m, comp, act) { const S = R.S; (S.lastAct || (S.lastAct = {}))[m.id + '|' + comp] = act; _rsInflightTrack(m, comp, act); }
+    // A save's error as a code: the code the sentence carries, else what the sentence says happened.
+    function _rsErrCode(err) {
+        const t = String(err || ''), c = /\(code: ([A-Za-z0-9_]+)\)/.exec(t);
+        if (c) return c[1];
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+        if (/recovery copy/i.test(t)) return 'repair_storage_unavailable';
+        if (/not answered|never got an answer|did not answer|no answer/i.test(t)) return 'no_answer';
+        if (/changed (this card|after your screen)|someone else changed/i.test(t)) return 'conflict';
+        return 'save_failed';
+    }
+    let _rsIssueTimer = 0;
+    function _rsReportIssuesSoon() {
+        if (_rsIssueTimer || !R.S || !R.S.lastAct) return;
+        _rsIssueTimer = setTimeout(() => { _rsIssueTimer = 0; try { _rsReportIssues(); } catch (e) {} }, 400);
+    }
+    // One report per part and error: the same refusal on screen is not reported again on every redraw.
+    function _rsReportIssues() {
+        if (!_rsBoardOn()) return;
+        const S = R.S, seen = S.reported || (S.reported = {});
+        Object.keys(S.lastAct || {}).forEach(key => {
+            const i = key.lastIndexOf('|'), m = _rsModelById(key.slice(0, i)), k = key.slice(i + 1);
+            const err = m ? _rsError(m, k) : '';
+            if (!err) { delete seen[key]; return; }
+            if (seen[key] === err) return;
+            seen[key] = err;
+            (S.failedAct || (S.failedAct = {}))[key] = S.lastAct[key];
+            _rsReport('review_' + S.lastAct[key], _rsErrCode(err), m, k);
+        });
+    }
+    /* A reload while a save on this page was still running. The server still finishes a request it has received, but
+       Kasper's board, read again at once after a reload (and painted from his browser's copy before that), could show
+       the part waiting before the server was done, and he approved it again (OPEN_REPAIRS 626, test 5 of
+       review-board-gauntlet-browser.js). So this tab keeps a short note of the saves running on this page (ids and the
+       action only, in sessionStorage), written when an action is pressed and taken off when its save ends; the next
+       page in the tab reports what was still on it, and his board reads the cards again a few seconds after it opens.
+       Kept while the save runs, not written as the page goes: WebKit (Safari) did not keep a note written at
+       pagehide (CI, 2026-11-02), and a request from a page being unloaded is not reliably delivered either. */
+    const RS_INFLIGHT_KEY = 'syncview_rs_inflight_v1';
+    function _rsInflightWrite() {
+        try {
+            const S = R.S, saving = Object.keys((S && S.inflight) || {}).map(k => S.inflight[k]).slice(0, 10)
+                .map(e => ({ card: e.card, component: e.component, client_slug: e.client_slug, board: e.board, act: e.act, sxr: e.sxr }));
+            // The tab's own store first; the shared one too, as a fallback where a reload starts a fresh session store.
+            for (const store of [sessionStorage, localStorage]) {
+                try {
+                    if (saving.length) store.setItem(RS_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), mode: R.mode, saving }));
+                    else store.removeItem(RS_INFLIGHT_KEY);
+                } catch (e) {}
+            }
+        } catch (e) {}
+    }
+    let _rsInflightTimer = 0;
+    // An entry leaves once its save has been seen running and has stopped, or after 3 s if it never started.
+    function _rsInflightTrack(m, comp, act) {
+        try {
+            if (!_rsBoardOn()) return;
+            const S = R.S;
+            (S.inflight || (S.inflight = {}))[m.id + '|' + comp] = Object.assign(_rsReportIds(m, comp), { act, sxr: !!m.sample, t: Date.now(), seen: false });
+            _rsInflightWrite();
+            if (_rsInflightTimer) return;
+            const tick = () => {
+                _rsInflightTimer = 0;
+                const S2 = R.S;
+                if (!S2 || !S2.inflight) return;
+                let changed = false;
+                Object.keys(S2.inflight).forEach(key => {
+                    const e = S2.inflight[key], i = key.lastIndexOf('|'), mm = _rsModelById(key.slice(0, i));
+                    const running = !!(mm && _rsSaving(mm, key.slice(i + 1)));
+                    if (running) e.seen = true;
+                    else if (e.seen || Date.now() - e.t > 3000) { delete S2.inflight[key]; changed = true; }
+                });
+                if (changed) _rsInflightWrite();
+                if (Object.keys(S2.inflight).length) _rsInflightTimer = setTimeout(tick, 400);
+            };
+            _rsInflightTimer = setTimeout(tick, 400);
+        } catch (e) {}
+    }
+    let _rsInflightChecked = false;
+    function _rsAfterReload() {
+        if (_rsInflightChecked) return;
+        _rsInflightChecked = true;
+        let note = null;
+        const read = store => { try { const v = JSON.parse(store.getItem(RS_INFLIGHT_KEY) || 'null'); store.removeItem(RS_INFLIGHT_KEY); return v; } catch (e) { return null; } };
+        const own = read(sessionStorage), shared = read(localStorage);
+        // The shared copy only when it is a minute old at most (another tab could have written it).
+        note = own || (shared && Date.now() - Number(shared.at || 0) < 60000 ? shared : null);
+        if (!note || !(Date.now() - Number(note.at || 0) < 10 * 60000) || !Array.isArray(note.saving)) return;
+        note.saving.forEach(x => {
+            try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_mid_save', String(x.act || 'save'), { card: String(x.card || ''), component: String(x.component || ''), client_slug: String(x.client_slug || ''), board: x.board }); } catch (e) {}
+        });
+        if (note.mode !== 'kasper' || R.mode !== 'kasper' || !(Date.now() - Number(note.at) < 60000)) return;
+        /* Never while a save on his board is running: a re-read replaces the cards and would drop that save's
+           "saving" guard and its place in the card's chain of writes (Codex on PR 2485). It waits for the board to be
+           quiet, up to a minute. */
+        const busy = () => (_kasperState.items || []).some(it => it && it._saving && Object.keys(it._saving).some(k => it._saving[k]));
+        const reread = (until) => {
+            try {
+                if (busy() && Date.now() < until) { setTimeout(() => reread(until), 500); return; }
+                if (!busy()) _kasperReloadReview(true);
+            } catch (e) {}
+        };
+        [4000, 10000].forEach(ms => setTimeout(() => reread(Date.now() + 60000), ms));
+    }
+    // An uncaught error while one of these pages is open: its kind and where, never its message.
+    function _rsErrWhere(name, file, line, col) {
+        let f = '';
+        try { const u = new URL(String(file || ''), location.href); if (u.origin === location.origin) f = u.pathname.split('/').pop(); } catch (e) {}
+        return String(name || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) + (f ? ' at ' + f.slice(0, 60) + ':' + (Number(line) || 0) + ':' + (Number(col) || 0) : '');
+    }
+    function _rsStackWhere(err) {
+        const st = String(err && err.stack || ''), re = /((?:https?:)?\/\/[^\s)]+?):(\d+):(\d+)/g;
+        let mm;
+        while ((mm = re.exec(st))) { try { if (new URL(mm[1], location.href).origin === location.origin) return _rsErrWhere(err && err.name, mm[1], mm[2], mm[3]); } catch (e) {} }
+        return _rsErrWhere(err && err.name, '', 0, 0);
+    }
+    addEventListener('error', e => {
+        try {
+            if (!_rsBoardOn() || !e) return;
+            // Browser noise that is not a fault (a ResizeObserver loop), and cross-origin errors with nothing in them.
+            if (!e.error && (/ResizeObserver/.test(String(e.message || '')) || !e.filename)) return;
+            _rsReport('review_uncaught', 'uncaught_error', null, '', _rsErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
+        } catch (x) {}
+    });
+    addEventListener('unhandledrejection', e => {
+        try {
+            if (!_rsBoardOn() || !e) return;
+            const r = e.reason;
+            _rsReport('review_uncaught', 'unhandled_rejection', null, '', r && typeof r === 'object' ? _rsStackWhere(r) : 'NonError');
+        } catch (x) {}
+    });
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
             menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, noteQ: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '', cpOk: {}, cpSent: {}, chgQ: {}, cpBack: {}, cpDel: null, cpW: 0 };
@@ -1754,6 +1908,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.host.hidden = false;
         _rsSyncTheme();
         _rsSizeTop();
+        _rsAfterReload();
     }
     function _rsSizeTop() {
         if (!R.host) return;
@@ -1949,6 +2104,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsRender(opts) {
         if (!R.root || !R.S) return;
+        _rsReportIssuesSoon();
         if (R.skel) { _rsHeader(); _rsSkeleton(); return; }   // the client page's Review while its cards load
         _rsSkeletonOff();
         if (R.bar) { _rsHeader(); return; }   // Sheet, Month or Week under the client link's header: no stage
@@ -3247,6 +3403,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 }
                 delete S.slow[key]; delete S.pressed[key];
                 if (!_rsError(cur, comp) && landed) { delete S.retry[key]; delete S.retryText[key]; if (done) _rsFlash(done, comp, m.id, true); }
+                /* This part's save was reported as failed earlier in the visit and has now ended well (OPEN_REPAIRS 626).
+                   On Kasper's board an approved part can leave the card's list of parts, so "gone" counts as landed. */
+                if (S.failedAct && S.failedAct[key] && !_rsError(cur, comp) && (landed || !part)) {
+                    _rsReport('review_' + S.failedAct[key], 'landed_after_retry', cur, comp);
+                    delete S.failedAct[key];
+                }
                 _rsRender();
                 return;
             }
@@ -3287,7 +3449,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         /* The SMM's last version on a trial card in Tweaks Needed (another version's change still open): its answer just
            finished the SMM's stage, so the part no longer waits, yet the card goes on to Kasper (Nightreel, 2026-10-30). */
         const trialOn = trialDone && comp === 'video' && R.mode === 'smm' && fx && fx.st === 'chg' && fresh.post && fresh.post.video_status === 'Tweaks Needed';
-        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp) && !trialOn)) { _rsRender({ force: true }); return; }
+        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp) && !trialOn)) {
+            _rsReport('review_double_click', !fresh || fresh.gone || !fx ? 'card_gone' : 'already_answered', m, comp, 'approve');
+            _rsRender({ force: true });
+            return;
+        }
+        _rsActed(m, comp, 'approve');
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];   // an earlier refused caption edit must not stand in for this save's own result
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
@@ -3346,6 +3513,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             return;
         }
+        _rsActed(m, comp, 'tweak');
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };
@@ -3545,6 +3713,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSendNoteNow(m, comp, text, vis, parent) {
         delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
+        _rsActed(m, comp, 'comment');
         if (R.mode === 'kasper') {
             if (m.sample) { _sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);

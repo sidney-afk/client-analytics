@@ -521,6 +521,8 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         }
         // overall status rides along only when it actually moved (or no snapshot)
         if (!base || overall !== (base.status == null ? '' : String(base.status))) wire.status = overall;
+        // The part statuses this write committed natively (the database copies each onto the card at once).
+        const pushed = {};
         for (const comp of ['video', 'graphic']) {
             const statusKey = comp + '_status';
             const current = String(item.post[statusKey] || '');
@@ -546,6 +548,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                     && !(acknowledgement && acknowledgement.skipped === true && !companion)) {
                     throw _writeUiGatewayError(503, 'status_commit_required');
                 }
+                if (acknowledgement && acknowledgement.native_committed === true) pushed[statusKey] = current;
                 const adopted = _writeUiAdoptReplayStatus(item.post, comp, acknowledgement, recoveringWriteUiSource, 'calendar');
                 if (adopted) {
                     wire[statusKey] = adopted;
@@ -598,6 +601,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
            pruned, and ours still wins on a shared id because the server keeps
            the newer stamp. Raised as P1 by Codex review on PR 1493. */
         let retryIssued = false;
+        const serverSeen = {};
         /* A REFUSED SAVE IS RE-CHECKED, NEVER JUST REPORTED (OPEN_REPAIRS 316).
            calendar-upsert refuses a write when ANYTHING on the card changed
            after this screen loaded, even a column Kasper is not touching, so a
@@ -631,6 +635,10 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             }
             for (const k of verdict.applied) delete wire[k];
             _kasperAdoptServerFields(item.post, fresh, verdict.send);
+            // What the server holds now, for every column not sent: the next write diffs against it.
+            for (const k of KASPER_PATCH_SCALARS) {
+                if (verdict.send.indexOf(k) < 0 && Object.prototype.hasOwnProperty.call(fresh, k)) serverSeen[k] = fresh[k] == null ? '' : String(fresh[k]);
+            }
             overall = computeOverallStatus(item.post);
             wire.status = overall;
             for (const cell of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks', 'title_tweaks']) {
@@ -669,11 +677,28 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             }
             item.post._baseAt = String(echo.updated_at || item.post._baseAt || '');
         }
-        // The patch base now reflects the row we just persisted, so the NEXT
-        // Kasper write on this card diffs against the post-write state (sequential
-        // approvals on different components each patch only their own column).
-        item.post.status = overall;
-        item.post._patchBase = _kasperPatchSnapshot(item.post);
+        /* The patch base now reflects the row we just persisted, so the NEXT
+           Kasper write on this card diffs against the post-write state (sequential
+           approvals on different components each patch only their own column).
+
+           ONLY WHAT THIS WRITE SENT (OPEN_REPAIRS 626, Kasper's "I sometimes have to
+           approve twice"). The base used to be a snapshot of the card as it stood
+           when this write ENDED. A part he approved while it was in flight (his
+           second layout shows every part at once, and a write takes 1.5 to 3 s live)
+           was then in the snapshot though no request carried it, so the next
+           chained write saw no difference and sent nothing: the screen said
+           Approved, the card left his list, and the next refresh brought it back
+           waiting. Now the base moves only by the fields on the wire, and by the
+           part statuses committed natively above; anything changed meanwhile still
+           differs and goes with the next write. */
+        const sentBase = Object.assign({}, base || {}, serverSeen);
+        for (const k of KASPER_PATCH_SCALARS) {
+            if (Object.prototype.hasOwnProperty.call(wire, k)) sentBase[k] = wire[k] == null ? '' : String(wire[k]);
+        }
+        Object.keys(pushed).forEach(k => { sentBase[k] = String(pushed[k]); });
+        if (Object.prototype.hasOwnProperty.call(wire, 'status')) sentBase.status = String(wire.status == null ? '' : wire.status);
+        item.post.status = computeOverallStatus(item.post);
+        item.post._patchBase = sentBase;
     }
     const CC_ICON_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3"/></svg>';
     const CC_ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.7 9.5 3.5"/></svg>';
@@ -784,6 +809,8 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         return undefined;
     }
     function _kasperPaintReview(...args) { return _kasperForward('paintReview', args, false); }
+    // Only when Kasper is loaded: the board it re-reads is his (a re-read after a reload during a save, 195).
+    function _kasperReloadReview(...args) { return _kasperForward('loadReview', args, false); }
     function _kasperOpenLightbox(...args) { return _kasperForward('openLightbox', args, true); }
     function _kasperGotoTab(...args) { return _kasperForward('gotoTab', args, true); }
     function _kasperFallbackToReview(...args) { return _kasperForward('fallbackToReview', args, true); }
@@ -800,7 +827,7 @@ export {
   _ccEsc, _ccEscAttr, _ccOpenSelectId, _ccSelectHtml, _ccTogglePasswordField, _kasperCalCacheKey,
   _kasperCalCachePrune, _kasperFallbackToReview, _kasperGotoTab, _kasperIsFinished,
   _kasperLoadSMMMap, _kasperOnboardingStamp, _kasperOnboardingSubs, _kasperOnboardingUnreadCount,
-  _kasperOpenLightbox, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
+  _kasperOpenLightbox, _kasperPaintReview, _kasperReloadReview, _kasperPartitionItems, _kasperPatchSnapshot,
   KASPER_FRESH_COLUMNS, _kasperAdoptServerFields, _kasperLocalFlagLive, _kasperUrgentSupersedes,
   _kasperPersistCache, _kasperPersistPost, _kasperSetSaveAlert, _kasperResolveSubtab, _kasperResumeSourceRepairs,
   _kasperSampleOpenCount, _kasperSamplePartition, _kasperSamplesEnabled, _kasperSamplesMerged,

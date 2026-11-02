@@ -70,6 +70,10 @@ function grabConst(name) {
     grabFunc('_writeRefusalAttemptId'),
     grabConst('WRITE_REFUSAL_NETWORK_MESSAGE'),
     grabFunc('_writeRefusalIsNetworkFailure'),
+    // OPEN_REPAIRS 626: every claim also says how full the browser's store is.
+    grabConst('WRITE_UI_STORE_CAP_CHARS'),
+    'let _writeUiStorageMemo = null;',
+    grabFunc('_writeUiStorageUse'),
     grabFunc('_writeRefusalBeacon'),
     grabFunc('_writeUiQueueDiagnostic'),
     grabFunc('_writeUiTagDiagIds'),
@@ -120,7 +124,8 @@ function grabConst(name) {
   // it ignores `page` and still accepts the claim.
   // message and app_version joined 2026-09-27 (OPEN_REPAIRS 101 release A).
   // attempt joined 2026-09-28 (one record per click).
-  ok(Object.keys(claim).sort().join(',') === 'action,app_version,attempt,code,identifiers,message,operation,page,status,surface'
+  // env joined 2026-11-01 (OPEN_REPAIRS 626: the store's fill, numbers only).
+  ok(Object.keys(claim).sort().join(',') === 'action,app_version,attempt,code,env,identifiers,message,operation,page,status,surface'
     && (claim.page === 'client_link' || claim.page === 'staff_page'),
     'the beacon shape is the known set plus the page claim, which older write-diagnostics ignores');
 

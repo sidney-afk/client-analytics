@@ -338,6 +338,19 @@ PRs 2 and 3 can run in parallel. 4 needs 3. 5 needs 1. 6 needs 5. 7 is optional 
 - **Posting (Postplan's area).** A posted card carries the card's fields, i.e. the winner's once picked. Posting a
   trial version needs that version's video, thumbnail and caption: the `effective` read gives them in one call. After
   a trial post, marking the version "on trial" automatically is a meeting point with `posting.md`.
+- **Agreed with Postplan (`posting.md`, PR 2522).**
+  - A version's three fields live in `studio_trial_versions`: `frame_url`, `thumbnail_url` and `caption`, keyed by
+    (client, post_id, letter). The rule for empty is: `coalesce(version.thumbnail_url, card.thumbnail_url)`, and the
+    same for the caption. For version A, the card's own fields win, because A is the card. Postplan's `post-source`
+    may read the table server side (service role) with that rule, or call trial-reels `read` for its `effective` set.
+    Either gives the same answer, and the function's tests pin the rule.
+  - Trial versions post to Instagram only. The winner then goes to the other networks, with Instagram unticked.
+    Marking versions "on trial" stays as today (the card set to Posted). No disagreement.
+  - There is one matcher, the Frame one. It does not take a dropped local folder, because a version's video must be
+    a Frame link (the review boards play it from Frame). Local files are a Post tab source only.
+  - **One overlap to sequence:** my PR 3 changes `frameio-view/logic.mjs` (a new list part, plus the fix for a file
+    inside a folder share). `post-source` reuses that file. Whichever lands second rebases. The fix helps
+    `post-source` too: without it, a version link inside a folder share would post the folder's first video.
 - **Rate limits.** The import adds one Frame listing per click, staff only. The strip adds one thumbnail image per
   version, no extra function reads.
 

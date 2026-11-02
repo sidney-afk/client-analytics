@@ -217,7 +217,8 @@ async function launchWorkloadHarness(options) {
   }
 
   const server = await serve();
-  const browser = await chromium.launch({ headless: true });
+  // opts.engine: another Playwright engine (WebKit for test/workload-reports-browser.js); Chromium by default.
+  const browser = await (opts.engine || chromium).launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
   page.on('pageerror', error => state.pageErrors.push(error.stack || error.message));

@@ -2058,6 +2058,14 @@
       "ci": "representative"
     },
     {
+      "file": "workload-reports-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (WORKLOAD_REPORTS_REQUIRE_WEBKIT=1 in CI); the shared Workload harness (docs/syncview-design/tests/workload-harness-lib.js, fictional clients, cards and staff member), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 638: the Workload calendar reports a second move dropped while the first is saving, a refused move and the same card's later move that lands (landed_after_retry), a reload during a save, and an uncaught error, each with board workload, ids and the client slug only; failed on main.",
+      "reproduce": "node test/workload-reports-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "repair-checkpoint-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

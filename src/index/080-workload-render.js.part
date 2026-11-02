@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
-import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { _writeUiErrWhere, _writeUiReviewEvent, _writeUiStackWhere, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify } from './040-shared-briefs.js';
 import { svCalmHtml, svCalmSet } from './097-today.js';
 import { WL_DEADLINE_PREF_KEY, WL_VIEW_PREF_KEY, wlState } from './066-core-workload-state.js';
@@ -769,12 +769,88 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         }
     }
 
+    /* WORKLOAD REPORTS (OPEN_REPAIRS 638, session Reviewguard). The same reports Kasper's board and the client link
+       send (OPEN_REPAIRS 626), through the same beacon: a second move or due-date change dropped because the first is
+       still saving, a reload while a save was on its way, an uncaught error while Workload is open, and a save that
+       landed after an earlier failure on the same item. Refused saves were already reported by _writeUiTrackSave
+       (now tagged board 'workload'). Ids and the client slug only, never a name or a title; sent after the action has
+       been handled, capped per page, so a report never slows or blocks a save. */
+    const WL_INFLIGHT_KEY = 'syncview_wl_inflight_v1';
+    const _wlFailedSaves = new Set();
+    let _wlInflightCount = { plan: 0, due: 0 };
+    let _wlReportsMounted = false;
+    /* Leaving the page aborts a save that is still on its way, and its failure path would clear the note just before
+       the page goes. The note is written when the save starts; once the page is leaving, nothing clears it. */
+    let _wlLeaving = false;
+    const _wlMarkLeaving = () => { if (_wlInflightCount.plan + _wlInflightCount.due > 0) _wlLeaving = true; };
+    addEventListener('beforeunload', _wlMarkLeaving);
+    addEventListener('pagehide', _wlMarkLeaving);
+    addEventListener('pageshow', () => { _wlLeaving = false; });
+    function _wlReport(action, code, issue, where) {
+        try {
+            _writeUiReviewEvent('workload', action, code, {
+                board: 'workload',
+                id: String(issue && issue.id || ''),
+                client_slug: String(issue && issue.clientSlug || '')
+            }, where || '');
+        } catch (e) {}
+    }
+    function _wlInflightWrite() {
+        try {
+            const n = _wlInflightCount.plan + _wlInflightCount.due;
+            if (n > 0) sessionStorage.setItem(WL_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), plan: _wlInflightCount.plan, due: _wlInflightCount.due }));
+            else if (!_wlLeaving) sessionStorage.removeItem(WL_INFLIGHT_KEY);
+        } catch (e) {}
+    }
+    function _wlSaveStarted(kind) {
+        _wlInflightCount[kind] = (_wlInflightCount[kind] || 0) + 1;
+        _wlInflightWrite();
+    }
+    // landed: true (the server confirmed the save), false (it failed or was refused), null (neither: superseded).
+    function _wlSaveSettled(kind, issue, landed) {
+        _wlInflightCount[kind] = Math.max(0, (_wlInflightCount[kind] || 0) - 1);
+        _wlInflightWrite();
+        const key = kind + '|' + String(issue && issue.id || '');
+        if (landed === false) { _wlFailedSaves.add(key); return; }
+        if (landed === true && _wlFailedSaves.delete(key)) {
+            _wlReport(kind === 'plan' ? 'workload_plan_save' : 'workload_due_save', 'landed_after_retry', issue, kind);
+        }
+    }
+    // Once per page, when Workload first draws: the note a reload left, and the error listeners.
+    function _wlReportsMount() {
+        if (_wlReportsMounted) return;
+        _wlReportsMounted = true;
+        try {
+            const note = JSON.parse(sessionStorage.getItem(WL_INFLIGHT_KEY) || 'null');
+            sessionStorage.removeItem(WL_INFLIGHT_KEY);
+            if (note && Date.now() - Number(note.at || 0) < 60000) {
+                if (note.plan > 0) _wlReport('workload_reload_mid_save', 'plan', null, 'plan');
+                if (note.due > 0) _wlReport('workload_reload_mid_save', 'due', null, 'due');
+            }
+        } catch (e) {}
+        const on = () => !!document.querySelector('.workload-view');
+        addEventListener('error', e => {
+            try {
+                if (!on() || !e) return;
+                if (!e.error && (/ResizeObserver/.test(String(e.message || '')) || !e.filename)) return;
+                _wlReport('workload_uncaught', 'uncaught_error', null, _writeUiErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
+            } catch (x) {}
+        });
+        addEventListener('unhandledrejection', e => {
+            try {
+                if (!on() || !e) return;
+                const r = e.reason;
+                _wlReport('workload_uncaught', 'unhandled_rejection', null, r && typeof r === 'object' ? _writeUiStackWhere(r) : 'NonError');
+            } catch (x) {}
+        });
+    }
+
     async function _wlPlanWriteRequest(issue, planDate) {
         await _syncviewRequireStaffIdentity('workload-plan');
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || '') }), () => fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || ''), client_slug: String(issue.clientSlug || '') }), () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -1081,7 +1157,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || ''), client_slug: String(issue && issue.clientSlug || '') }), () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -1103,7 +1179,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     })
                 }));
             }
-            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || ''), client_slug: String(issue && issue.clientSlug || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -1131,7 +1207,11 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             renderWorkloadAll();
             return false;
         }
-        if (_wlDueWriteInFlight.has(key)) return false;
+        if (_wlDueWriteInFlight.has(key)) {
+            // OPEN_REPAIRS 638: this change is dropped (the item's previous due-date save is still on its way).
+            _wlReport('workload_double_click', 'save_in_flight', issue, 'due');
+            return false;
+        }
         const dueDate = value == null || value === '' ? null : String(value).slice(0, 10);
         try {
             if (dueDate !== null) wlNativeDueDate(dueDate);
@@ -1158,6 +1238,8 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         _wlDueWriteInFlight.set(key, token);
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
+        let landed = null;
+        _wlSaveStarted('due');
         try {
             const resp = await _wlDueWriteRequest(issue, dueDate, route);
             if (sessionGeneration !== _wlPlanSessionGeneration) return false;
@@ -1176,6 +1258,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     if (!wlAdoptNativeDueGatewayRow(row)) throw new Error('native_due_receipt_mismatch');
                     wlPublishNativeDueReceipt(row);
                     if (typeof _prodApplyGatewayRow === 'function') _prodApplyGatewayRow(row);
+                    landed = true;
                     return true;
                 }
                 const adoptedConflict = resp.status === 409 && json && json.error === 'write_conflict'
@@ -1219,9 +1302,11 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             if (mirrorPending && typeof showNotify === 'function') {
                 showNotify('Due date updated in Linear', 'Workload is catching up. The new due date is kept here in the meantime.');
             }
+            landed = true;
             return true;
         } catch (error) {
             if (sessionGeneration !== _wlPlanSessionGeneration) return false;
+            landed = false;
             wlApplyDueLocal(key, previousDate);
             const authorityErrorCode = String(error && error.code || '');
             const authorityStale = authorityErrorCode === 'authority_unavailable'
@@ -1252,6 +1337,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             }
             return false;
         } finally {
+            _wlSaveSettled('due', issue, landed);
             if (_wlDueWriteInFlight.get(key) === token) _wlDueWriteInFlight.delete(key);
             wlScheduleNativeDueReceiptRetry();
             if (document.querySelector('.workload-view')) renderWorkloadAll();
@@ -1263,6 +1349,18 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     // the precise previous value and tells the user.
     let _wlLastPlanWriteRefusal = 0;   // 401 or 403 from the last refused plan write
     async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration, quiet) {
+        _wlSaveStarted('plan');
+        let landed = null;
+        try {
+            const saved = await _wlPersistPlanDateOnce(issue, planDate, previousDate, sessionGeneration, quiet);
+            // A save abandoned because the session changed (sign-out, another identity) neither failed nor landed.
+            landed = sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration ? null : saved;
+            return saved;
+        } finally {
+            _wlSaveSettled('plan', issue, landed);
+        }
+    }
+    async function _wlPersistPlanDateOnce(issue, planDate, previousDate, sessionGeneration, quiet) {
         try {
             const resp = await _wlPlanWriteRequest(issue, planDate);
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
@@ -1348,6 +1446,8 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return false;
         }
         if (_wlPlanWriteInFlight.has(key)) {
+            // OPEN_REPAIRS 638: this move is dropped (the item's previous work-day save is still on its way).
+            _wlReport('workload_double_click', 'save_in_flight', issue, 'plan');
             wlResetPlanDisplay(key);
             return false;
         }
@@ -2278,6 +2378,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     }
 
     function renderWorkloadAll(opts) {
+        _wlReportsMount();
         // Background refreshes (the cache→network settle on mount, the
         // tab-focus silent refetch) must not yank an open popover out from
         // under the user — editors sit on it reading tweak comments. Queue

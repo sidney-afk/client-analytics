@@ -7,7 +7,7 @@ import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
 import { svRsCalOn, svRsClientPolishOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsKasperPolishOn, svRsToolsEl } from './188-review-stage-switch.js';
-import { _writeUiRefreshAuthority, _writeUiReviewEvent } from './120-calendar-flags-write-repair.js';
+import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiReviewEvent, _writeUiStackWhere } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
@@ -1500,18 +1500,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         };
         [4000, 10000].forEach(ms => setTimeout(() => reread(Date.now() + 60000), ms));
     }
-    // An uncaught error while one of these pages is open: its kind and where, never its message.
-    function _rsErrWhere(name, file, line, col) {
-        let f = '';
-        try { const u = new URL(String(file || ''), location.href); if (u.origin === location.origin) f = u.pathname.split('/').pop(); } catch (e) {}
-        return String(name || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) + (f ? ' at ' + f.slice(0, 60) + ':' + (Number(line) || 0) + ':' + (Number(col) || 0) : '');
-    }
-    function _rsStackWhere(err) {
-        const st = String(err && err.stack || ''), re = /((?:https?:)?\/\/[^\s)]+?):(\d+):(\d+)/g;
-        let mm;
-        while ((mm = re.exec(st))) { try { if (new URL(mm[1], location.href).origin === location.origin) return _rsErrWhere(err && err.name, mm[1], mm[2], mm[3]); } catch (e) {} }
-        return _rsErrWhere(err && err.name, '', 0, 0);
-    }
+    // An uncaught error while one of these pages is open: its kind and where, never its message (shared helpers in 120).
+    const _rsErrWhere = _writeUiErrWhere, _rsStackWhere = _writeUiStackWhere;
     addEventListener('error', e => {
         try {
             if (!_rsBoardOn() || !e) return;

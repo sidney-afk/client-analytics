@@ -1161,6 +1161,46 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (a && a.id === 'igTitle') return;
         _igRenderForm();
     }
+    /* What a dropped folder holds, sorted for the Post tab (plan row P2a, OPEN_REPAIRS 648; posting.md
+       section 2, "From files"). Pure: it reads only each entry's `path` ("Folder/name.ext", or "name.ext" for
+       a loose file) and hands the entries back as given. Not wired yet: the drop zones call it in plan row P2.
+       Hidden and system files are skipped without a word; any other file that is not a video, image or text
+       is named in `ignoredLine`, so nothing is dropped silently. `ask` is '' when nothing needs a person,
+       'video' when several videos need a pick, 'cover' when several images and one video need one. */
+    function svSortDroppedFiles(entries) {
+        const out = { error: '', video: null, cover: null, caption: null, videos: [], images: [], texts: [], carousel: [], ignored: [], ignoredLine: '', ask: '', askText: '', captionNote: '' };
+        const list = Array.isArray(entries) ? entries.filter(e => e && typeof e.path === 'string' && e.path) : [];
+        const folders = new Set(list.map(e => e.path.split('/')).filter(p => p.length > 1).map(p => p[0]));
+        if (folders.size > 1) { out.error = 'Drop one folder at a time.'; return out; }
+        const base = (e) => e.path.split('/').pop();
+        const ext = (e) => { const m = /\.([^.]+)$/.exec(base(e)); return m ? m[1].toLowerCase() : ''; };
+        const hidden = (e) => e.path.split('/').some(p => p.startsWith('.')) || /^(thumbs\.db|desktop\.ini)$/i.test(base(e));
+        const byName = (a, b) => base(a).localeCompare(base(b), undefined, { numeric: true, sensitivity: 'base' }) || a.path.localeCompare(b.path);
+        for (const e of list.filter(e => !hidden(e)).sort(byName)) {
+            const x = ext(e);
+            if (['mp4', 'mov', 'm4v', 'webm'].includes(x)) out.videos.push(e);
+            else if (['jpg', 'jpeg', 'png', 'webp'].includes(x)) out.images.push(e);
+            else if (['txt', 'md'].includes(x)) out.texts.push(e);
+            else out.ignored.push(e);
+        }
+        if (out.videos.length === 1) out.video = out.videos[0];
+        else if (out.videos.length > 1) { out.ask = 'video'; out.askText = 'This folder has ' + out.videos.length + ' videos. Pick one.'; }
+        if (out.videos.length) {
+            out.cover = out.images.length === 1 ? out.images[0] : (out.images.find(e => /^(thumbnail|thumb|cover)/i.test(base(e))) || null);
+            if (!out.cover && out.images.length > 1 && !out.ask) { out.ask = 'cover'; out.askText = 'This folder has ' + out.images.length + ' images. Pick the cover.'; }
+        } else if (out.images.length > 1) out.carousel = out.images.slice();
+        if (out.texts.length === 1) out.caption = out.texts[0];
+        else if (out.texts.length > 1) {
+            out.caption = out.texts.find(e => /^caption/i.test(base(e)) && ext(e) === 'txt') || null;
+            if (!out.caption) out.captionNote = 'This folder has ' + out.texts.length + ' text files and none is named caption, so the caption was not filled.';
+        }
+        if (out.ignored.length) {
+            const kinds = [...new Set(out.ignored.map(e => ext(e) ? '.' + ext(e) : base(e)))].sort();
+            out.ignoredLine = 'Ignored ' + out.ignored.length + ' file' + (out.ignored.length === 1 ? '' : 's') + ': ' + kinds.join(', ');
+        }
+        return out;
+    }
+
     function instagramResumePolling() { if (_igMounted) { Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); } }
 
 export {

@@ -35986,3 +35986,17 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Found while building, fixed here:** the reload check first ran on a timer set when 170 loaded. With the split build, the parts after 170 are written into the page and fetched one by one, and on a slow line the timer fired while the part that says whether this is a client link was still on its way. The board lookup then threw, inside a `try`, and the report was dropped without a trace (4 runs in 6 under load). The check now waits for `DOMContentLoaded`, by which point every written-in part has run, and `_writeUiPageBoard` reads the link's own address when that part has not run yet. `test/calendar-reports-browser.js` holds those later parts back on its reload, so this fails on the first version every run and passes here.
 - **Codex P2 on #2519, fixed:** a status that committed while the card's own save failed is logged as `status_committed_source_failed`, but a later landing was reported only as `status`, so that recovery never paired up and the signature read kept it as `no_retry_landed`. A landing now checks both kinds. `test/calendar-reports-browser.js` case 1 covers it (fails before, passes now).
 - **Way back:** revert the PR.
+
+## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
+
+- **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.
+- **Now (299):** `svSortDroppedFiles(entries)` takes `{ path }` entries ("Folder/name.ext", or "name.ext" for a loose file) and returns, without reading any file:
+  - the video, cover and caption;
+  - every video, image and text file in natural name order;
+  - a carousel when there are images and no video;
+  - `ask` / `askText` when a person must pick a video ("This folder has 3 videos. Pick one.") or a cover;
+  - `captionNote` when several text files leave the caption empty;
+  - `ignoredLine` ("Ignored 2 files: .prproj, .wav").
+  It refuses two folders ("Drop one folder at a time."). Hidden and system files (dot files, `._*`, `Thumbs.db`, `desktop.ini`) are skipped without a word. Nothing calls it yet, so it is not exported (`check-modules` refuses an export no fragment uses); P2 exports it when the drop zones use it.
+- **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
+- **Way back:** revert the PR. Nothing calls the function.

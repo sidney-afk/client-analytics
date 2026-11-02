@@ -1,6 +1,6 @@
 import { hideToast, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
@@ -720,8 +720,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))) return '';
         const used = new Set(vs.map(v => v.letter));
         const next = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].find(l => !used.has(l));
-        if (!next) return '';
         const p = _calEscAttr(pid);
+        // V2 (switch trial_versions_v2): "Import from Frame" beside it, once the card has its first version. It stays when
+        // all seven letters are taken: an import can still give existing versions their new cuts (Codex on #2545).
+        const impBtn = _trlImportOn(_trlPost(pid), vs) ? '<button type="button" class="trl-paste trl-addbtn" onclick="svTrialImportOpen(\'' + p + '\')">Import from Frame</button>' : '';
+        if (!next) return impBtn ? '<div class="trl-v trl-add">' + impBtn + '</div>' : '';
         if (_trlEditing[pid] === '+') {
             const dr = _trlDraft[pid] && _trlDraft[pid].letter === '+' ? _trlDraft[pid] : null;
             return '<div class="trl-v trl-editing trl-add"><span class="trl-l">Video ' + next + '</span>'
@@ -731,8 +734,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         // A minimal "+ Add version" that opens the paste field (owner, 2026-10-28: no "Video E  Paste the Frame.io link").
         // No hover tip: the button says what it does, and the tip covered the row above (Trialeyes E6, 2026-10-29).
-        // V2 (switch trial_versions_v2): "Import from Frame" beside it, once the card has its first version.
-        const imp = _trlImportOn(_trlPost(pid), vs) ? '<span class="trl-add-sep" aria-hidden="true">·</span><button type="button" class="trl-paste trl-addbtn" onclick="svTrialImportOpen(\'' + p + '\')">Import from Frame</button>' : '';
+        const imp = impBtn ? '<span class="trl-add-sep" aria-hidden="true">·</span>' + impBtn : '';
         return '<div class="trl-v trl-add"><button type="button" class="trl-paste trl-addbtn" aria-label="Add Video ' + next + ' by pasting its link" onclick="svTrialEdit(\'' + p + '\',\'+\')">+ Add version</button>' + imp + '</div>';
     }
 
@@ -1056,18 +1058,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const onCard = (vs.find(v => v.on_card) || {}).letter || '';
         const taken = new Set(vs.map(v => v.letter));
         const count = Object.values(st.picks).filter(Boolean).length;
-        const rows = st.videos.map(f => {
-            const id = _calEscAttr(f.file_id);
+        const rows = st.videos.map((f, i) => {
             const pick = st.picks[f.file_id] || '';
-            const opts = '<option value="">Skip</option>' + TRL_LETTERS.map(l => {
-                const label = l === onCard ? l + ' · on the card' : taken.has(l) ? l + ' · replaces' : l;
-                return '<option value="' + l + '"' + (pick === l ? ' selected' : '') + (l === onCard ? ' disabled' : '') + '>' + label + '</option>';
-            }).join('');
+            // The house picker (100 _svSelectHtml), never a browser-native select (AGENTS.md; Codex on #2545).
+            const items = [{ value: '', label: 'Skip' }].concat(TRL_LETTERS.map(l => ({
+                value: l, label: l === onCard ? l + ' · on the card' : taken.has(l) ? l + ' · replaces' : l, disabled: l === onCard,
+            })));
             const thumb = f.thumbnail_url ? '<img class="trl-imp-thumb" alt="" loading="lazy" src="' + _calEscAttr(f.thumbnail_url) + '" onerror="this.hidden=true">' : '<span class="trl-imp-thumb" aria-hidden="true"></span>';
             const meta = f.processing ? 'Still processing in Frame' : _trlImpDuration(f.duration_seconds);
             return '<div class="trl-imp-row">' + thumb + '<div class="trl-imp-text"><div class="trl-imp-name" title="' + _calEscAttr(f.name || '') + '">' + _calEsc(f.name || 'Untitled video') + '</div>'
                 + (meta ? '<div class="trl-imp-meta">' + _calEsc(meta) + '</div>' : '') + '</div>'
-                + '<select class="trl-imp-pick" data-file="' + id + '" aria-label="' + _calEscAttr('Version for ' + (f.name || 'this video')) + '" onchange="svTrialImportPick(this)"' + (f.processing || st.busy ? ' disabled' : '') + '>' + opts + '</select></div>';
+                + '<div class="trl-imp-pick" data-file="' + _calEscAttr(f.file_id) + '">' + _svSelectHtml('trlImpPick' + i, items, pick, 'Skip', { disabled: !!f.processing || st.busy, onchange: 'svTrialImportPick(' + i + ',this.value)' }) + '</div></div>';
         }).join('');
         const sub = 'Card: ' + _calEsc((post && post.name) || 'this card');
         box.innerHTML = head('Folder "' + (st.name || 'Frame') + '" · ' + st.videos.length + (st.videos.length === 1 ? ' video' : ' videos'), sub)
@@ -1127,9 +1128,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _trlImpRender();
     }
     /* Two videos never hold one letter: picking a taken letter moves it, and the other video goes back to Skip. */
-    function svTrialImportPick(sel) {
-        if (!_trlImp) return;
-        const id = sel.dataset.file, letter = sel.value;
+    function svTrialImportPick(index, value) {
+        if (!_trlImp || !_trlImp.videos[index]) return;
+        const id = _trlImp.videos[index].file_id, letter = String(value || '');
         for (const k of Object.keys(_trlImp.picks)) if (letter && _trlImp.picks[k] === letter) delete _trlImp.picks[k];
         if (letter) _trlImp.picks[id] = letter; else delete _trlImp.picks[id];
         _trlImpRender();
@@ -1151,6 +1152,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             st.busy = false;
             if (!json) { _trlImpRender(); return; }
             svTrialImportClose();
+            // The last asked-for new cut came in with the import: the card goes back to the SMM, as a pasted link does.
+            _trlBackToReview(st.pid, json);
             _trlOpen.add(st.pid);
             _trlRepaintField(st.pid);
             showToast(items.length === 1 ? 'Video ' + items[0].letter + ' added from Frame' : items.length + ' versions added from Frame');

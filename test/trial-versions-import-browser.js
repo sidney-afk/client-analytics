@@ -94,7 +94,20 @@ const SHARE = 'https://f.io/fixture-folder';
   };
   const importBtn = (page) => page.evaluateHandle(() => [...document.querySelectorAll('.trl-add .trl-addbtn')].find((b) => b.offsetParent && /Import from Frame/.test(b.textContent)) || null);
   const sheetText = (page) => page.$eval('#trlImportOverlay.open .trl-imp', (n) => n.innerText.replace(/\s+/g, ' ').trim()).catch(() => '');
-  const picks = (page) => page.$$eval('#trlImportOverlay .trl-imp-pick', (ns) => ns.map((n) => ({ v: n.value, disabled: n.disabled, onCard: [...n.options].find((o) => /on the card/.test(o.textContent))?.disabled })));
+  // The pickers are the house select (100 _svSelectHtml): its value sits in a hidden input, its options are buttons.
+  const picks = (page) => page.$$eval('#trlImportOverlay .trl-imp-pick', (ns) => ns.map((n) => ({
+    v: n.querySelector('input[type=hidden]').value,
+    disabled: !!n.querySelector('.sv-select.is-disabled'),
+    onCard: n.querySelector('[data-sv-select-option][data-label*="on the card"]')?.getAttribute('aria-disabled') === 'true',
+    native: !!n.querySelector('select'),
+  })));
+  const pick = async (page, file, letter) => {
+    const i = await page.$$eval('#trlImportOverlay .trl-imp-pick', (ns, f) => ns.findIndex((n) => n.dataset.file === f), file);
+    await page.click('#trlImpPick' + i + 'Btn');
+    await sleep(150);
+    await page.click('#trlImpPick' + i + 'Menu [data-value="' + letter + '"]');
+    await sleep(200);
+  };
   const listText = (page) => page.evaluate(() => { const l = [...document.querySelectorAll('.trl-list')].find((n) => n.offsetParent); return l ? l.innerText.replace(/\s+/g, ' ').trim() : ''; });
 
   try {
@@ -130,17 +143,21 @@ const SHARE = 'https://f.io/fixture-folder';
       let p = await picks(page);
       ok(p.map((x) => x.v).join() === 'B,C,,,', `${label}: letters pre-set only where the name says one (hook_B=B, v3=C, broll and hook_A (on the card) Skip, processing Skip): ${p.map((x) => x.v || '-').join()}`);
       ok(p.every((x) => x.onCard === true), `${label}: Video A, on the card, cannot be picked`);
+      ok(p.every((x) => !x.native), `${label}: every picker is the house select, never a browser-native one`);
       ok(p[4].disabled === true && /Still processing in Frame/.test(t2), `${label}: a still-processing video cannot be picked, and says so`);
       ok(/0:23/.test(t2), `${label}: the length shows`);
-      if (process.env.TRL_SHOTS) await page.screenshot({ path: path.join(process.env.TRL_SHOTS, 'v2-step2-' + label + '.png') });
+      if (process.env.TRL_SHOTS) {
+        await page.screenshot({ path: path.join(process.env.TRL_SHOTS, 'v2-step2-' + label + '.png') });
+        await page.click('#trlImpPick3Btn'); await sleep(250);
+        await page.screenshot({ path: path.join(process.env.TRL_SHOTS, 'v2-menu-' + label + '.png') });
+        await page.keyboard.press('Escape'); await sleep(200);
+      }
 
       // One letter never on two videos: giving broll C moves C off "Morning v3".
-      await page.selectOption('#trlImportOverlay .trl-imp-pick[data-file="f3"]', 'C');
-      await sleep(200);
+      await pick(page, 'f3', 'C');
       p = await picks(page);
       ok(p[2].v === 'C' && p[1].v === '', `${label}: picking a taken letter moves it, the other video goes back to Skip`);
-      await page.selectOption('#trlImportOverlay .trl-imp-pick[data-file="f2"]', 'D');
-      await sleep(200);
+      await pick(page, 'f2', 'D');
       ok(/Add 3 versions/.test(await sheetText(page)), `${label}: the button counts the picked videos`);
 
       // Back keeps the link; Cancel writes nothing.
@@ -157,8 +174,7 @@ const SHARE = 'https://f.io/fixture-folder';
       await page.fill('#trlImpLink', SHARE);
       await page.keyboard.press('Enter');
       await sleep(800);
-      await page.selectOption('#trlImportOverlay .trl-imp-pick[data-file="f3"]', 'C');
-      await sleep(150);
+      await pick(page, 'f3', 'C');
       await page.click('#trlImportOverlay .cal-import-btn-primary');
       await sleep(1200);
       const sent = T.calls.filter((c) => c.action === 'versions_import');
@@ -187,6 +203,28 @@ const SHARE = 'https://f.io/fixture-folder';
       ok(T.calls.filter((c) => c.action === 'versions_import').length === 1 && T.versions.find((x) => x.letter === 'B').frame_url === LINK('B'), `${label}: a refused import changes nothing`);
       ok(!!(await page.$('#trlImportOverlay.open')) && /changed this version a moment ago/.test(await page.evaluate(() => document.body.innerText)), `${label}: the sheet stays open and the refusal is said in words`);
       T.importFail = '';
+      await page.close();
+
+      // Codex on #2545: Import stays on a card whose seven letters are all taken (an import can still replace cuts).
+      T.versions = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((l) => ({ id: 'v' + l, letter: l, status: 'waiting', frame_url: LINK(l), revision: 0, updated_at: new Date().toISOString(), post_id: 'p_t1' }));
+      page = await open(w, h);
+      ok(!!(await importBtn(page)).asElement(), `${label}: a card with all seven letters still offers Import from Frame`);
+      await page.close();
+
+      // Codex on #2545: the last asked-for new cut arriving by import sends a Tweaks Needed card back to the SMM.
+      fresh({ status: 'change asked', change_by: 'client', change_note: 'Fixture note', change_at: '2026-11-02T08:00:00Z' });
+      card.video_status = 'Tweaks Needed'; T.calls = [];
+      page = await open(w, h);
+      await (await importBtn(page)).asElement().click();
+      await sleep(200);
+      await page.fill('#trlImpLink', SHARE);
+      await page.keyboard.press('Enter');
+      await sleep(800);
+      await page.click('#trlImportOverlay .cal-import-btn-primary');
+      await sleep(1500);
+      ok(T.versions.find((x) => x.letter === 'B').status === 'waiting', `${label}: B's new cut came in by import`);
+      ok(await page.evaluate(() => (calState.posts.find((x) => x.id === 'p_t1') || {}).video_status === 'For SMM Approval'), `${label}: and the card goes back to For SMM Approval, as a pasted link does`);
+      card.video_status = 'For SMM Approval';
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

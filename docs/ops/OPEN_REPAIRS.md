@@ -36126,9 +36126,13 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     - Back keeps the link. Cancel writes nothing.
     - Replacing an answered version asks first.
     - A refused import writes nothing and says why.
+- **Codex on #2545, fixed:**
+  - **The letter pickers are the house select** (100 `_svSelectHtml`), never a browser-native one (AGENTS.md). The house select also now measures against the box that scrolls around it, not only the window, so its menu is no longer cut off inside a dialog's body. This is a small change to `_svSelectPlace`.
+  - **Import stays on a card whose seven letters are all taken,** because an import can still give existing versions their new cuts.
+  - **The last asked-for new cut** arriving by import sends a Tweaks Needed card back to For SMM Approval (`_trlBackToReview`), as a pasted link does.
 - **Not built (cut by combined.md):** the filter box, paging past 50, and project (non-share) folder links. Frame's own message covers those.
 - **Proof:**
   - `test/trial-versions-import-logic.js` (21 checks; on main `importPlan is not a function`).
-  - `test/trial-versions-import-browser.js` (42 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
+  - `test/trial-versions-import-browser.js` (50 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
   - A Deno case in `test/trial-reels-function-deno.ts` (card `pv2`).
 - **Way back:** turn `trial_versions_v2` off (no Import button), or revert the PR.

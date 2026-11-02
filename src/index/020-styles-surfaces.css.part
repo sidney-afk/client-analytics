@@ -1902,8 +1902,8 @@
         .trl-imp .trl-imp-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
         .trl-imp .trl-imp-name { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trl-imp .trl-imp-meta, .trl-imp .trl-imp-note { font-size: 0.72rem; color: var(--text-muted); }
-        .trl-imp .trl-imp-pick { flex: none; width: 140px; font: inherit; font-size: 0.78rem; padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px;
-            background: var(--white); color: var(--text-primary); }
+        .trl-imp .trl-imp-pick { flex: none; width: 140px; }
+        .trl-imp .trl-imp-pick .sv-select { width: 100%; }
         .trl-imp span.trl-imp-pick { height: 28px; }
         .trl-imp .trl-imp-bar { display: block; height: 10px; width: 70%; border-radius: 4px; }
         .trl-imp .trl-imp-bar-s { width: 30%; }

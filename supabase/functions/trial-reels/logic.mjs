@@ -21,6 +21,23 @@ export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "versi
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
+/* Many clients' lists in one request (session Trialchange, OPEN_REPAIRS 631). Kasper's queue asked once per client
+   (48 at once on 2 Nov), and the platform refused part of such a burst (RATE_LIMIT_EXCEEDED). Staff only: a client link
+   reads its own client. At most LIST_MANY_MAX clients a request; the browser sends more as several. */
+export const LIST_MANY_ACTION = "list_many";
+export const LIST_MANY_MAX = 50;
+
+/** Which of the asked clients a list_many answers: the slugs (already normalised by the caller), each once, and only
+ *  those the page switch names, exactly as a single list checks (flagAllows). A client the switch leaves out gets
+ *  nothing at all, not an empty list. */
+export function listManyPlan(requested, flagValue) {
+  if (!Array.isArray(requested)) return { error: "invalid_clients" };
+  const slugs = [...new Set(requested.map((c) => clean(c, 80).toLowerCase()).filter(Boolean))];
+  if (!slugs.length) return { error: "invalid_clients" };
+  if (slugs.length > LIST_MANY_MAX) return { error: "too_many_clients" };
+  return { clients: slugs.filter((slug) => flagAllows(flagValue, slug)) };
+}
+
 export const clean = (v, max = 200) => String(v == null ? "" : v).trim().slice(0, max);
 
 /*
@@ -28,7 +45,7 @@ export const clean = (v, max = 200) => String(v == null ? "" : v).trim().slice(0
  * since whoever uploads a version to Frame.io pastes its link (Q9). The automation key: read only.
  */
 export function staffAllows(role, action) {
-  if (action === "list" || action === "read") return true;
+  if (action === "list" || action === "list_many" || action === "read") return true;
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
   // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.

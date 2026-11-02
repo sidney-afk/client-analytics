@@ -43,6 +43,7 @@ function matches(row: Row, params: URLSearchParams): boolean {
     const val = String(row[k] ?? "");
     if (v.startsWith("eq.") && val !== v.slice(3)) return false;
     if (v.startsWith("ilike.") && !ilike(val, v.slice(6))) return false;
+    if (v.startsWith("in.(") && !v.slice(4, -1).split(",").map((x) => x.replace(/^"|"$/g, "")).includes(val)) return false;
   }
   return true;
 }
@@ -144,6 +145,27 @@ ok(readStaff.body.ok === true && (readStaff.body.versions as Row[]).length === 5
   console.log = q;
   const b = await r.json() as Row;
   ok(r.status === 403 && b.error === "not_enabled", "a client the switch does not list is refused");
+}
+// list_many (OPEN_REPAIRS 631): many clients' lists in one request, the same auth and switch check as one list.
+{
+  const many = await step({ action: "list_many", clients: ["fixtureclient", "otherclient"] });
+  const got = (many.body.clients || {}) as Row;
+  ok(many.status === 200 && many.body.ok === true && Object.keys(got).join() === "fixtureclient",
+    "list_many: a client the switch does not list gets nothing at all (" + Object.keys(got).join() + ")");
+  ok(JSON.stringify((got.fixtureclient as Row || {}).cards) === JSON.stringify(listed.body.cards),
+    "list_many: each client's cards are exactly what its own list answers");
+  const none = await step({ action: "list_many", clients: ["otherclient"] });
+  ok(none.status === 200 && Object.keys((none.body.clients || {}) as Row).length === 0, "list_many: only clients the switch leaves out: an empty answer, nothing read");
+  const byToken = await step({ action: "list_many", clients: ["fixtureclient"] }, "client-token");
+  ok(byToken.status === 403 && byToken.body.error === "staff_only", "list_many: a client link's token cannot read many lists (" + byToken.status + " " + byToken.body.error + ")");
+  const noKey = await step({ action: "list_many", clients: ["fixtureclient"] }, "client-none");
+  ok(noKey.status === 401 || noKey.status === 403, "list_many: no key at all is refused (" + noKey.status + ")");
+  const tooMany = await step({ action: "list_many", clients: Array.from({ length: 51 }, (_, i) => "c" + i) });
+  ok(tooMany.status === 400 && tooMany.body.error === "too_many_clients", "list_many: at most 50 clients a request");
+  const empty = await step({ action: "list_many", clients: [] });
+  ok(empty.status === 400 && empty.body.error === "invalid_clients", "list_many: no client asked is refused");
+  const creative = await step({ action: "list_many", clients: ["fixtureclient"] }, "creative");
+  ok(creative.status === 200 && Object.keys((creative.body.clients || {}) as Row).join() === "fixtureclient", "list_many: any staff role may read, as with one list");
 }
 const clientWrite = await step({ action: "version_drop", letter: "D" }, "client-none");
 ok(clientWrite.status === 401 || (clientWrite.status === 403 && clientWrite.body.error === "staff_only"), "a client link with no token cannot drop a version (" + clientWrite.status + " " + clientWrite.body.error + ")");

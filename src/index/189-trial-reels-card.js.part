@@ -27,6 +27,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRIAL_REELS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/trial-reels';
     const TRL_PROD_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
     const TRL_LIST_TTL_MS = 30000;
+    /* Reads the platform refused (429) or that never reached it (OPEN_REPAIRS 631): retried with backoff, honouring
+       Retry-After; a read that still fails keeps the last good answer and is tried again after TRL_FAIL_COOL_MS. */
+    const TRL_RETRIES = 2;
+    const TRL_RETRY_MS = 500;
+    const TRL_RETRY_MAX_MS = 4000;
+    const TRL_FAIL_COOL_MS = 10000;
+    // Many clients in one read (list_many), at most this many a request; 'no' once the function says it does not know it.
+    const TRL_BATCH_MAX = 50;
+    let _trlBatch = '';
     const TRL_TROPHY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2.5h6v3.5a3 3 0 0 1-6 0z"/><path d="M5 3.5H3a2 2 0 0 0 2 2.5M11 3.5h2a2 2 0 0 1-2 2.5"/><path d="M8 9v2.5M5.5 13.5h5M6.5 11.5h3"/></svg>';
     const TRL_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
     const TRL_GO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M12 9.5V13H3V4h3.5"/></svg>';
@@ -36,6 +45,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRL_BACK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6H11a2.5 2.5 0 0 1 0 5H8"/><path d="M7 4 5 6l2 2"/></svg>';
     // What the function's refusals mean, in a sentence a person can act on.
     const TRL_ERRORS = {
+        network: 'The connection dropped before the server answered. Check your connection, reload, and try again.',
         attach_first: 'The card still carries another link for this version. Save the card\'s Video link first, then try again.',
         not_enabled: 'Trial reels are not switched on for this client.',
         trial_reels_off: 'Turn Trial reels on for this card first.',
@@ -111,18 +121,31 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return !_isClientLink && !!post && !!post.id && svTrialReelsOn(post.client || calState.client);
     }
     async function svTrialCall(body, surface) {
-        const resp = await fetch(TRIAL_REELS_EF_URL, {
+        let resp;
+        try {
+            resp = await fetch(TRIAL_REELS_EF_URL, {
             method: 'POST', cache: 'no-store',
             headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, TRIAL_REELS_EF_URL),
             body: JSON.stringify(body),
-        });
+            });
+        } catch (netErr) {
+            // Never reached the function (offline, a dropped connection): worth a retry for a read.
+            const err = new Error('network');
+            err.code = 'network'; err.status = 0; err.transient = true;
+            throw err;
+        }
         let json = {};
         try { json = await resp.json(); } catch (e) { json = {}; }
         if (!resp.ok || !json || json.ok !== true) {
             const err = new Error(String((json && json.error) || ('http_' + resp.status)));
             err.code = String((json && json.error) || 'request_failed');
+            err.status = resp.status;
+            // The platform's own refusal (429 RATE_LIMIT_EXCEEDED) and a gateway that could not answer are worth a retry.
+            err.transient = resp.status === 429 || resp.status === 502 || resp.status === 503 || resp.status === 504;
+            const after = Number(resp.headers && resp.headers.get ? resp.headers.get('retry-after') : NaN);
+            if (after > 0) err.retryAfterMs = after * 1000;
             // Every refused trial-reels write lands in the write-refusal log, like the Calendar's saves (a read does not).
-            if (body.action !== 'list' && body.action !== 'read') _writeUiRecordFailure(surface || 'calendar', 'trial_reels_' + body.action, err, { http_status: resp.status });
+            if (body.action !== 'list' && body.action !== 'list_many' && body.action !== 'read') _writeUiRecordFailure(surface || 'calendar', 'trial_reels_' + body.action, err, { http_status: resp.status });
             throw err;
         }
         return json;
@@ -184,18 +207,42 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // The card the tag asked the Review page to open ('' when none); `done` clears it once the page is on it (195).
     function svTrialReviewWanted(done) { const p = _trlWantPid; if (done) _trlWantPid = ''; return p; }
-    /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. */
-    function _trlLoad(slug, force) {
-        const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
-        if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
+    /* A read (list or list_many), retried when the platform refused it or it never arrived (OPEN_REPAIRS 631): after
+       Retry-After when the answer says, otherwise 0.5 s, then 1 s; never longer than 4 s. Any other refusal is final. */
+    async function _trlRead(body) {
+        for (let attempt = 0; ; attempt++) {
+            try { return await svTrialCall(body); }
+            catch (err) {
+                if (!err || !err.transient || attempt >= TRL_RETRIES) throw err;
+                const wait = Math.min(TRL_RETRY_MAX_MS, err.retryAfterMs || TRL_RETRY_MS * Math.pow(2, attempt));
+                await new Promise(r => setTimeout(r, wait));
+            }
+        }
+    }
+    const svTrialRead = body => _trlRead(body);
+    function _trlSignedIn() {
         /* The staff list needs a verified staff key: without one the function answers 401 and the page logs an error.
            Not read, so no versions, as with Trial reels off; the next draw after sign-in reads it (OPEN_REPAIRS 630). */
-        let signedIn = false;
-        try { signedIn = !!_syncviewStaffIdentityForHeaders(); } catch (err) { signedIn = false; }
-        if (!signedIn) return Promise.resolve(e);
+        try { return !!_syncviewStaffIdentityForHeaders(); } catch (err) { return false; }
+    }
+    // Does this client's list need a read now (none in flight, older than 30 s, not cooling off after a failed read)?
+    function _trlDue(e, force) {
+        if (e.promise) return false;
+        if (e.failedAt && Date.now() - e.failedAt < TRL_FAIL_COOL_MS) return false;
+        return !!force || Date.now() - e.at >= TRL_LIST_TTL_MS;
+    }
+    const _trlEntry = slug => _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
+    /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. `fetchList`
+       answers { cards } for this client: its own list read, or its share of a list_many (_trlLoadMany). A read the
+       platform refused or that never arrived keeps the cards already held and does not count as read (the client is
+       read again after TRL_FAIL_COOL_MS); any other refusal counts as read, as before. */
+    function _trlLoad(slug, force, fetchList) {
+        const e = _trlEntry(slug);
+        if (!_trlDue(e, force)) return e.promise || Promise.resolve(e);
+        if (!_trlSignedIn()) return Promise.resolve(e);
         const began = Date.now(), first = !e.at;
         let changed = null, moved = [];
-        e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+        e.promise = (fetchList ? fetchList() : _trlRead({ action: 'list', client: slug, post_id: '' }))
             .then(json => {
                 const cards = (json && json.cards) || {};
                 // A card with a write in flight, or one answered after this read began, keeps its newer answer.
@@ -208,9 +255,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 const all = [...new Set(Object.keys(cards).concat(Object.keys(e.cards)))];
                 moved = all.filter(pid => JSON.stringify(cards[pid] || null) !== JSON.stringify(e.cards[pid] || null));
                 changed = all.filter(pid => onTrial(cards[pid]) || moved.includes(pid));
-                e.cards = cards; e.at = Date.now(); return e;
+                e.cards = cards; e.at = Date.now(); e.failedAt = 0; return e;
             })
-            .catch(() => { e.at = Date.now(); return e; })
+            .catch(err => {
+                if (err && err.transient) { e.failedAt = Date.now(); changed = []; return e; }
+                e.at = Date.now(); return e;
+            })
             .finally(() => {
                 e.promise = null;
                 _trlListen();
@@ -220,6 +270,31 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 moved.forEach(pid => _trlNotesChanged(pid));
             });
         return e.promise;
+    }
+    /* The lists of many clients (OPEN_REPAIRS 631): one list_many request for up to TRL_BATCH_MAX clients, instead of
+       one request each (Kasper's queue asked 48 at once, and the platform refused part of such a burst with 429). A
+       client the page switch leaves out comes back with no list, read as no trial cards, as a single list's 403 is. A
+       function from before list_many answers 400 unknown_action: this page then asks one client at a time, as before
+       (the deploy window). */
+    function _trlLoadMany(slugs, force) {
+        const due = [...new Set((slugs || []).filter(Boolean))].filter(slug => _trlDue(_trlEntry(slug), force));
+        const rest = (slugs || []).filter(Boolean).map(slug => _trlCards[slug] && _trlCards[slug].promise).filter(Boolean);
+        if (!due.length || !_trlSignedIn()) return Promise.all(rest).then(() => undefined);
+        if (_trlBatch === 'no' || due.length === 1) return Promise.all(due.map(slug => _trlLoad(slug, force)).concat(rest)).then(() => undefined);
+        const reads = [];
+        for (let i = 0; i < due.length; i += TRL_BATCH_MAX) {
+            const chunk = due.slice(i, i + TRL_BATCH_MAX);
+            const many = _trlRead({ action: 'list_many', clients: chunk });
+            many.catch(() => {});
+            chunk.forEach(slug => reads.push(_trlLoad(slug, true, () => many.then(
+                json => (json && json.clients && json.clients[slug]) || { cards: {} },
+                err => {
+                    if (!err || err.transient || (err.status !== 400 && err.code !== 'unknown_action')) throw err;
+                    _trlBatch = 'no';
+                    return _trlRead({ action: 'list', client: slug, post_id: '' });
+                }))));
+        }
+        return Promise.all(reads.concat(rest)).then(() => undefined);
     }
     /* A change said at once (owner, 2026-10-28: "if a client does something on the trial, like approves, it shows
        immediately on the calendar"). trial-reels broadcasts every change on the one channel trial-reels with only the
@@ -294,11 +369,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        page (194) then reads from this same list (svTrialListShared), so a staff page asks once per client. */
     function svTrialPrime(clients) {
         if (_isClientLink) return;
-        const seen = new Set();
-        (clients || []).forEach(c => {
-            const slug = _trlSlug(c);
-            if (slug && !seen.has(slug) && svTrialReelsOn(slug)) { seen.add(slug); _trlLoad(slug); }
-        });
+        const slugs = [...new Set((clients || []).map(c => _trlSlug(c)).filter(slug => slug && svTrialReelsOn(slug)))];
+        _trlLoadMany(slugs).catch(() => {});
     }
     /* Per-version routing (plan section 5): Kasper's queue reads its trial clients' versions before it is cut, so a card
        already with the client still reaches him while one of its versions waits for him. Resolves when every read has
@@ -306,7 +378,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialPrimeWait(clients) {
         if (_isClientLink) return Promise.resolve();
         const slugs = [...new Set((clients || []).map(c => _trlSlug(c)).filter(slug => slug && svTrialReelsOn(slug)))];
-        return Promise.all(slugs.map(slug => Promise.resolve(_trlLoad(slug)).catch(() => null))).then(() => undefined);
+        return _trlLoadMany(slugs).catch(() => undefined);
     }
     /* Does a version of this staff card wait for this reviewer (`smm` or `kasper`), by the function's own `place`? False
        when the card is not a trial card, its versions are not read yet, or a winner is picked. */
@@ -319,7 +391,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // The staff list of one client, shared with the review page: { at, cards } once read (a failed read has no cards).
     function svTrialListShared(slug, force) {
-        return Promise.resolve(_trlLoad(slug, !!force)).then(e => ({ at: e.at, cards: Object.assign({}, e.cards) }));
+        return Promise.resolve(_trlLoad(slug, !!force)).then(e => {
+            // Never read, and the last try was refused or lost: say so, so the review page keeps what it holds (631).
+            if (!e.at && e.failedAt) { const err = new Error('list_unavailable'); err.code = 'list_unavailable'; err.transient = true; throw err; }
+            return { at: e.at, cards: Object.assign({}, e.cards) };
+        });
+    }
+    // Many clients' lists at once (Today): one list_many request, then each client's { at, cards } as above.
+    function svTrialListSharedMany(slugs, force) {
+        return _trlLoadMany(slugs, !!force).catch(() => undefined).then(() => {
+            const out = {};
+            (slugs || []).forEach(slug => { const e = _trlCards[slug]; if (e) out[slug] = { at: e.at, cards: Object.assign({}, e.cards) }; });
+            return out;
+        });
     }
     /* The card reads its versions again by itself (owner, 2026-10-28: "I approved one of them, but in the SMM's
        calendar I don't see that it's approved"). A client's answer on the review link writes only the versions, which
@@ -1109,6 +1193,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialHash, svTrialOnChange, svTrialListShared, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
+  svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

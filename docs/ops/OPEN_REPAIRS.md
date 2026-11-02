@@ -35762,3 +35762,37 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/trial-reels-everyone-browser.js`, new part `signedout`: switch on for every client, the function answering 401 as live. Unverified: zero trial-reels requests, no console error. Verified: still reads. On main 31 requests and 31 console 401s (2 of 4 fail); all 24 checks of the file pass here.
   - Client link and verified staff unchanged: the rest of the everyone, production and nightreel suites pass.
 - **Way back:** revert the PR.
+
+## 631. [2026-11-02 UTC, BUILT, NOT MERGED] Kasper's queue asked trial-reels once per client, and the platform refused part of the burst (found by the supervisor in the logs; fixed by session Trialchange)
+
+- **Seen (live logs, 2 Nov):** after the switch went to `"all": true` (00:49 UTC), one staff browser's Kasper queue load sent 48 trial-reels reads in one second (01:03:24, all 200). Its next load, at 01:05:04, sent about 50 more, and 13 POSTs plus 1 preflight came back 429. These were the only 429s from 00:49 to 03:32.
+  - The refusal is the platform's, not the function's: `sb-error-code: RATE_LIMIT_EXCEEDED`, served by the edge runtime in about 30 ms, before any of our code ran (the preflight was refused too).
+  - Supabase documents that code only for one function calling another; trial-reels calls none. So this is an undocumented limit on incoming requests, and its numbers are not known. About 350 headless reads from another machine between 00:51 and 00:53 drew none, so it is per caller, not per project.
+- **Why it mattered:** a refused read counted as read with no cards. That client's trial cards drew as ordinary cards for 30 s, Kasper's per-version routing missed them for that load, and nothing said so.
+- **Fix, two parts:**
+  - **One read for many clients.** trial-reels takes `{ action: 'list_many', clients: [...] }`, at most 50 clients a request.
+    - Same shared auth, but staff key only: a client link reads its own client.
+    - The page switch is read once and checked per client exactly as a single list does: a client it leaves out is not read and is not in the answer.
+    - Each client is answered by the same code as a single list (`listCards`).
+    - The browser (189 `_trlLoadMany`) sends it from Kasper's queue (`svTrialPrime`, `svTrialPrimeWait`) and from Today's trial asks (097), in chunks of 50. One Kasper queue load now makes one request instead of one per client.
+  - **Refused reads are retried, never taken as an answer.** A 429, a 502/503/504 or a lost connection is retried twice with backoff (0.5 s, then 1 s, or the answer's Retry-After, at most 4 s; 189 `_trlRead`, also used by the review page's own reads, 194).
+    - A read still refused keeps the cards already held and does not count as read; the client is asked again after 10 s.
+    - Any other refusal is final, as before.
+- **The deploy window:** trial-reels deploys through the merge lane. Until the new function is live, the old one answers `list_many` with 400 `unknown_action`. The page then asks one client at a time, exactly as before this change, so there is no gap. The function needs no migration and is not one of the Section 4 three.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts` (the real function under Deno, in-memory database) has 8 new checks, all 104 passing:
+    - a client the switch does not list gets nothing;
+    - each client's cards are exactly what its own list answers;
+    - a client token is refused `staff_only`;
+    - no key is refused;
+    - 51 clients and no clients are refused;
+    - any staff role may read.
+  - `test/trial-reels-logic.js`: `listManyPlan` and the source checks (171 pass).
+  - `test/trial-reels-batch-browser.js` (new) has 4 parts:
+    - one Kasper load makes one request covering every client of the queue;
+    - an old function makes the page fall back to one read per client;
+    - a 429 with Retry-After: 1 on the read carrying the trial card's client is retried about 1 s later and the card shows its versions;
+    - a read refused every time is tried 3 times, keeps the card as today, and is not counted as read.
+    - On #2492's browser code it fails 7 of the 13 checks in its `new`, `retry` and `lost` parts (31 requests; the 429 left the card plain; the refused read was counted as read).
+  - `prod-test-utils` `trialReelsReadAction` counts `list_many` as a read.
+- **Way back:** revert the PR. The function's `list` is unchanged, and the page's fallback covers either order of revert.

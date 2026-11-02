@@ -499,6 +499,7 @@ jobs:
           Trial reels, Nightreel's live walk: Not this one stays said in Tweaks Needed, the SMM gets a new cut in Tweaks Needed, Kasper's Client dropped tile and undated header|node test/trial-reels-nightreel-browser.js
           Trial reels timing: the winner toast shows on the click, and a card set to Posted shows On trial in about a second|node test/trial-reels-timing-browser.js
           Trial reels switched on for everyone: non-trial cards unchanged on the client link, and Kasper's queue not held back by the trial reads|node test/trial-reels-everyone-browser.js
+          Trial reels, many clients in one read: one Kasper queue load makes one trial-reels request, an old function falls back to one per client, and a 429 is retried after Retry-After|node test/trial-reels-batch-browser.js
           LANES
 
 

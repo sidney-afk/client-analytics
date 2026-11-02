@@ -2393,6 +2393,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-batch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Kasper's queue reads every client's trial cards in one list_many request instead of one per client; that a function from before list_many (400 unknown_action) makes the page ask one client at a time, as before; that a 429 with Retry-After is retried after it and the trial card still shows; and that a read refused every time keeps the card as today and is not counted as read.",
+      "reproduce": "node test/trial-reels-batch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-today-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

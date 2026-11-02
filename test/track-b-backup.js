@@ -318,11 +318,21 @@ try {
   const afterReadbackFailure = selectAuthenticatedCandidates([priorCandidate], HMAC_KEY, currentMs);
   ok(afterReadbackFailure.latest && afterReadbackFailure.latest.file.id === 'prior-lkg',
     'a readback mismatch leaves the prior last-known-good package selected');
-  const olderGeneratedAt = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  // Half-way through its second, never the clock's own millisecond: a file named in the winner's own second can be
+  // later than the winner only while the winner is not at .999 of that second (a skip there is correct, and is
+  // pinned below). Taken from Date.now(), the "own second" check failed whenever the clock read .999 (1 run in 1000;
+  // unit (3) on 49896f2).
+  const olderGeneratedAt = new Date(Math.floor((Date.now() - 2 * 3600 * 1000) / 1000) * 1000 + 500).toISOString();
   const olderPackageFile = path.join(tempDir, 'older.snapshot');
   const olderManifest = packSnapshot(dumpFile, olderPackageFile, olderGeneratedAt, productionDirect, HMAC_KEY);
   const olderPackageBytes = fs.readFileSync(olderPackageFile);
   const olderDriveName = snapshotName(olderManifest.generated_at);
+  // A snapshot generated at .999 of its second, for the boundary check below.
+  const edgeGeneratedAt = new Date(Math.floor((Date.now() - 3 * 3600 * 1000) / 1000) * 1000 + 999).toISOString();
+  const edgePackageFile = path.join(tempDir, 'edge.snapshot');
+  packSnapshot(dumpFile, edgePackageFile, edgeGeneratedAt, productionDirect, HMAC_KEY);
+  const edgeBytes = fs.readFileSync(edgePackageFile);
+  const edgeName = snapshotName(edgeGeneratedAt);
   let incrementalDone = false;
   process.on('exit', () => {
     if (!incrementalDone) {
@@ -392,6 +402,15 @@ try {
       && listedLate.latest && listedLate.latest.file.id === 'inc-newer-valid'
       && listedLate.skippedOlderCount === 0 && listedLate.invalidCount === 1,
       'a file named in the winner\'s own second, and a later-named one listed after it, are still downloaded; the later one wins');
+    // The boundary: a winner generated at .999 of its second cannot be beaten by any file named in that second (the
+    // best it could do is tie, and only a later snapshot replaces the winner), so that file is skipped unread.
+    const edgeOrder = [];
+    const edge = await selectLatestAuthenticatedFromDrive('token', [
+      { id: 'edge-valid', name: edgeName },
+      { id: 'edge-same-second', name: edgeName },
+    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download: async (_token, fileId) => { edgeOrder.push(fileId); return fileId === 'edge-valid' ? edgeBytes : corruptCandidate; } });
+    ok(edgeOrder.join(',') === 'edge-valid' && edge.latest && edge.latest.file.id === 'edge-valid' && edge.skippedOlderCount === 1,
+      'a winner at .999 of its second skips a file named in that same second without a download (it could only tie)');
     const corruptFirst = await selectLatestAuthenticatedFromDrive('token', [
       { id: 'inc-newest-corrupt', name: driveName },
       { id: 'inc-newer-valid', name: driveName },

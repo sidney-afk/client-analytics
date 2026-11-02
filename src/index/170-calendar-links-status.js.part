@@ -1412,7 +1412,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
     // Status columns a whole-card save may only send when this save edited them.
     const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
-    /* CALENDAR REPORTS (OPEN_REPAIRS 638, session Reviewguard). The same reports the review boards and Workload send,
+    /* CALENDAR REPORTS (OPEN_REPAIRS 639, session Reviewguard). The same reports the review boards and Workload send,
        through the same beacon: a reload while a card save was on its way, an uncaught error while the Calendar is
        open, and (in _calFlushCardSave) a save that landed after an earlier refused save on the same card. Refused
        saves already reported through _writeUiReportFailure / _writeUiRecordFailure, now with board 'calendar' ('client'
@@ -1439,9 +1439,11 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         } catch (e) {}
     }
     (function _calReportsMount() {
-        // After every part of the page has loaded (this file loads before the one that says whether this is a client
-        // link, which the report's board reads), so the reload check runs once the page is whole.
-        setTimeout(() => {
+        // Once every part of the page has run: this file loads before the one that says whether this is a client link
+        // (the report's board reads it), and with the split build a timer set here can fire while that part is still
+        // downloading, which dropped the report. Every part is written in before DOMContentLoaded.
+        const whenWhole = fn => { if (document.readyState === 'loading') addEventListener('DOMContentLoaded', () => setTimeout(fn, 0), { once: true }); else setTimeout(fn, 0); };
+        whenWhole(() => {
             try {
                 const note = JSON.parse(sessionStorage.getItem(CAL_INFLIGHT_KEY) || 'null');
                 if (!note) return;
@@ -1450,7 +1452,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 sessionStorage.removeItem(CAL_INFLIGHT_KEY);
                 if (Date.now() - Number(note.at || 0) < 60000) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
             } catch (e) {}
-        }, 0);
+        });
         const on = () => {
             const cv = document.getElementById('calView');
             return !!(cv && cv.isConnected && cv.offsetParent !== null) && !document.querySelector('.workload-view');
@@ -1959,7 +1961,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // that basis (the recent-save guard now covers it).
             _calFailedNewCards.delete(realId);
             _calSyncRetryState.delete(realId);
-            // OPEN_REPAIRS 638: this card's earlier save was refused on this page; this one landed.
+            // OPEN_REPAIRS 639: this card's earlier save was refused on this page; this one landed.
             _writeUiRecordLanded('calendar', 'status', pid);
             if (realId !== pid) _writeUiRecordLanded('calendar', 'status', realId);
             const _okPost = calState.posts.find(p => p.id === realId);

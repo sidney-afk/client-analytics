@@ -13,6 +13,8 @@
  *   3. a press dropped because the same part is still saving is reported (calendar_double_click / save_in_flight);
  *   4. an uncaught error while the Calendar is open is reported by kind and place, never by its message;
  *   5. no report carries the card's title or any words (ids and the client slug only).
+ * Case 2 holds back the split build's later parts on the reload: the reload check once ran before the part that says
+ * whether this is a client link, and the report was dropped.
  * On main every case fails (no Calendar report carries a board, and 1's landing, 2, 3 and 4 send nothing).
  */
 const assert = require('assert/strict');
@@ -50,6 +52,14 @@ function noWords(reports) {
   }
 }
 const ok = m => console.log('  ok  ' + m);
+// The split build's parts written in after the one holding the Calendar's own code (none in a single-file build).
+// The list is the page's own (self.__svLoad), not index.html's: the test helper serves Node a single-file index.
+async function laterParts(page) {
+  const fs = require('fs'), path = require('path'), root = path.join(__dirname, '..');
+  const parts = await page.evaluate(() => (self.__svLoad && self.__svLoad.mode === 'parts' && self.__svLoad.files) || []);
+  const at = parts.findIndex(f => { try { return fs.readFileSync(path.join(root, f), 'utf8').includes('syncview_cal_inflight_v1'); } catch (e) { return false; } });
+  return at < 0 ? [] : parts.slice(at + 1);
+}
 
 (async () => {
   // 1. A refused card save, then the same card's save that lands.
@@ -82,7 +92,15 @@ const ok = m => console.log('  ok  ' + m);
       S.behave['cal-upsert'] = { delay: 8000 };
       page.evaluate(() => { _calPendingEdits.p_t1 = { caption: 'slow words' }; _calFlushCardSave('p_t1'); }).catch(() => {});
       await until(() => S.upserts.length >= 1 || null, 'the card save is sent');
+      // With the split build the parts after the Calendar's own arrive later than it on a slow line, and the reload
+      // check once ran before the part that says whether this is a client link, so the report was dropped (seen under
+      // load: 4 runs in 6). Hold those later parts back on the reload so this case shows it every run.
+      const later = await laterParts(page); let held = 0;
+      if (later.length) {
+        await page.route(u => later.some(f => u.pathname.endsWith("/" + f)), async route => { held++; await sleep(1500); try { await route.fallback(); } catch (e) {} });
+      }
       await S.openCalendar(page);
+      assert(!later.length || held > 0, "the later parts were held back on the reload");
       const r = await until(() => ops(reports, 'calendar_reload_mid_save')[0], 'the reload during the save is reported');
       assert.equal(r.env && r.env.board, 'calendar');
       assert.equal(r.env.code, 'card_save');

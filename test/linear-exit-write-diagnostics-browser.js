@@ -95,7 +95,7 @@ const names = ['_writeUiStorageUse', '_writeUiPageBoard', '_writeUiDiagnosticIds
         + constant('WRITE_REFUSAL_NETWORK_MESSAGE')
         + 'let _writeUiStorageMemo = null;'
         + constant('WRITE_UI_STORE_CAP_CHARS')
-        // OPEN_REPAIRS 638: the board a refusal comes from, and the refused saves a later landing can name.
+        // OPEN_REPAIRS 639: the board a refusal comes from, and the refused saves a later landing can name.
         + constant('WRITE_UI_REVIEW_BOARDS') + 'let _writeUiBoardHint = null; const _isClientLink = false; const _writeUiFailedSaves = new Set();'
         // A page with no verified staff identity: the beacon sends no role key.
         + 'function _syncviewStaffIdentityForHeaders() { return null; }'

@@ -1645,7 +1645,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             /* OPEN_REPAIRS 626: how full this browser's store is, on every report (a full store
                refused Kasper's tweaks in October, OPEN_REPAIRS 615, and nothing on the server
                could see it), and, from the review boards, the page's own code for what happened. */
-            /* OPEN_REPAIRS 638: a Workload or Calendar save's refusal names its board, so the watcher's signature read
+            /* OPEN_REPAIRS 639: a Workload or Calendar save's refusal names its board, so the watcher's signature read
                lists it (the review boards pass their own). */
             const pageBoard = _writeUiPageBoard(surface, claim.page);
             const env = Object.assign({}, _writeUiStorageUse() || {}, pageBoard ? { board: pageBoard } : {},
@@ -1674,7 +1674,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
     }
     function _writeUiQueueDiagnostic(surface, outcome, item, error) {
         _writeRefusalBeacon(surface, outcome, item, error);
-        // OPEN_REPAIRS 638: a refused Calendar save is remembered by card, so the card's next save that lands can say so.
+        // OPEN_REPAIRS 639: a refused Calendar save is remembered by card, so the card's next save that lands can say so.
         try {
             if (outcome === 'ui_write_failure' && surface === 'calendar' && item && item.card && item.kind) {
                 _writeUiFailedSaves.add(surface + '|' + String(item.kind) + '|' + String(item.card));
@@ -1741,7 +1741,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
        the action a dropped press was. */
     const WRITE_UI_REVIEW_PARTS = ['video', 'graphic', 'caption', 'title'];
     const WRITE_UI_REVIEW_BOARDS = ['kasper', 'client', 'workload', 'calendar'];
-    /* Which board a report comes from when the caller does not say (OPEN_REPAIRS 638): the review stage, while it is
+    /* Which board a report comes from when the caller does not say (OPEN_REPAIRS 639): the review stage, while it is
        showing, registers its own (kasper or client); otherwise a Workload save is 'workload', and a Calendar save is
        'client' on a client link and 'calendar' on a staff page. Samples and the rest name none. */
     let _writeUiBoardHint = null;
@@ -1751,7 +1751,12 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
     function _writeUiPageBoard(surface, page) {
         try { const hinted = _writeUiBoardHint && _writeUiBoardHint(); if (WRITE_UI_REVIEW_BOARDS.indexOf(hinted) >= 0) return hinted; } catch (e) {}
         if (surface === 'workload') return 'workload';
-        if (surface === 'calendar') return (page || (_isClientLink ? 'client_link' : '')) === 'client_link' ? 'client' : 'calendar';
+        // _isClientLink is declared by a later part of the page; until it has run, read the link's own address.
+        if (surface === 'calendar') {
+            let client = false;
+            try { client = typeof _isClientLink !== 'undefined' ? !!_isClientLink : new URLSearchParams(location.search).has('c'); } catch (e) {}
+            return (page || (client ? 'client_link' : '')) === 'client_link' ? 'client' : 'calendar';
+        }
         return null;
     }
     /* A save that landed on a card whose earlier save of the same kind was refused on this page: reported once as

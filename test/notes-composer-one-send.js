@@ -100,7 +100,7 @@ function buildCal() {
     const showNotify = () => {};
     const document = { getElementById: () => null };
     const setTimeout = () => 0;
-    // OPEN_REPAIRS 638: a dropped second send is reported; counted here, test/calendar-reports-browser.js runs the real one.
+    // OPEN_REPAIRS 639: a dropped second send is reported; counted here, test/calendar-reports-browser.js runs the real one.
     const _calReportDropped = (action, pid, part) => { (env.dropped = env.dropped || []).push([action, pid, part]); };
     ${liftAsync('_calSubmitComposerNow')}
     ${liftAsync('_calSubmitComposer')}

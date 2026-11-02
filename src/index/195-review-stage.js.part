@@ -1502,7 +1502,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     // An uncaught error while one of these pages is open: its kind and where, never its message (shared helpers in 120).
     const _rsErrWhere = _writeUiErrWhere, _rsStackWhere = _writeUiStackWhere;
-    // While this stage shows, a save refused from it is reported as from its own board, not the Calendar's (OPEN_REPAIRS 638).
+    // While this stage shows, a save refused from it is reported as from its own board, not the Calendar's (OPEN_REPAIRS 639).
     _writeUiSetBoardHint(() => (_rsBoardOn() ? R.mode : null));
     addEventListener('error', e => {
         try {

@@ -1585,6 +1585,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                     return p;
                 });
             calState.fromCache = true;
+            calState.postsClient = calState.client;
             // The shell put a loader in #calBody — paint the cached cards
             // now so the user sees their calendar instead of a spinner
             // while we revalidate. Without this, when the network response
@@ -1883,6 +1884,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             _calV2RtReadStamps = new Map(fetchedPosts.map(fp => [String(fp.id), Date.parse(fp.updated_at || '') || 0]));
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
+            calState.postsClient = calState.client;   // whose posts these are (180 _calUndatedMemoNote)
             _thumbRefreshChangedCards('calendar', prevPosts, newPosts);
             calState.error = null;
             calState.fromCache = false;

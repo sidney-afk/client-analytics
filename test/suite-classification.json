@@ -63,6 +63,7 @@
     "client-onboarding-handler.js",
     "client-review-alert-handler.js",
     "client-create-migration.js",
+    "slack-channel-stall-guard.js",
     "client-resource-match.js",
     "client-hubspot-sync-handler.js",
     "client-hubspot-sync-migration.js",

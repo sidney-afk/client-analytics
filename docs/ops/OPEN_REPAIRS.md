@@ -35964,3 +35964,17 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
+
+## 642. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
+
+- **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - a link that names a file pages through every page of the share's assets (`links.next`, 50 per page), then looks inside shared folders (at any depth, paged), then inside version stacks for an older version named by its own id;
+  - if the named file is still not found, it refuses with the new code `file_not_in_share` (404, plain sentence in the MESSAGES table). The page shows the server's message for any refusal, so it is handled exactly like `link_not_found`; no page change;
+  - the search is capped (20 pages per list, 40 Frame.io calls in all); hitting the cap can only refuse, never swap;
+  - a bare share (no file named) keeps today's "first video" behaviour, with the same single request;
+  - the answer shape is unchanged.
+- **Also redeploys:** `higgsfield-mcp` imports the same `logic.mjs` for its "Watch here" lookup, so the merge lane redeploys it with the same fix. No model or setting change.
+- **Proof:** `test/frameio-view-source.js` gains a mocked share (a stack and a folder on page 1, another stack on page 2 reached only through `links.next`). On main, a file inside the folder, a stack inside the folder, the page-2 stack, an older version and a missing file all get the first video; with the fix each plays its own file and the missing one is refused. A top-level stack and a bare share pass on both. Every existing check is unchanged (142 pass).
+- **Live check after merge:** on a test-client (`sidneylaruel`) folder share with two videos, the second video's link plays the second video.
+- **Way back:** revert the PR.

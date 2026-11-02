@@ -255,6 +255,55 @@ function deps(f, over = {}) {
     eq(order, ['media-start', 'meta-start'], 'the address and the metadata are asked for together, not one after the other');
   }
 
+  // ---- a share link that names a file plays THAT file, or refuses; it never swaps in another video (F0)
+  // The share holds, on its first page, a version stack and a folder (a stack and a loose file inside); a second
+  // page (reached only through links.next) holds another stack. All ids are made up.
+  {
+    const SH = 'bbbbbbbb-0000-4000-8000-000000000002';
+    const id = (n) => 'ffffffff-0000-4000-8000-0000000000' + String(n).padStart(2, '0');
+    const S1 = id(1), F1 = id(2), F1_OLD = id(3), DIR = id(4), S3 = id(5), F3 = id(6), F4 = id(7), S2 = id(8), F2 = id(9), GONE = id(99);
+    const vid = (fid, name) => ({ id: fid, name, type: 'file', status: 'transcoded', media_type: 'video/mp4', created_at: '2026-10-05T00:00:00Z' });
+    const files = { [F1]: vid(F1, 'One.mp4'), [F1_OLD]: vid(F1_OLD, 'One old.mp4'), [F3]: vid(F3, 'Three.mp4'), [F4]: vid(F4, 'Four.mp4'), [F2]: vid(F2, 'Two.mp4') };
+    const shareFake = () => {
+      const log = [];
+      const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => data });
+      const fn = async (url) => {
+        log.push({ url });
+        const m = url.replace('https://api.frame.io/v4', '');
+        const B = '/accounts/' + ACCT_B;
+        if (m === '/accounts') return reply(200, { data: [{ id: ACCT_B }] });
+        if (m === B + '/shares/' + SH) return reply(200, { data: { id: SH, enabled: true, expiration: null } });
+        if (m.startsWith(B + '/shares/' + SH + '/assets')) {
+          if (/after=p2/.test(m)) return reply(200, { data: [{ id: S2, type: 'version_stack', head_version: files[F2] }], links: { next: null } });
+          return reply(200, { data: [{ id: S1, type: 'version_stack', head_version: files[F1] }, { id: DIR, type: 'folder' }],
+            links: { next: 'https://api.frame.io/v4' + B + '/shares/' + SH + '/assets?page_size=50&after=p2' } });
+        }
+        if (m.startsWith(B + '/folders/' + DIR + '/children')) return reply(200, { data: [{ id: S3, type: 'version_stack', head_version: files[F3] }, files[F4]], links: { next: null } });
+        if (m.startsWith(B + '/version_stacks/' + S1 + '/children')) return reply(200, { data: [files[F1_OLD], files[F1]], links: { next: null } });
+        if (m.startsWith(B + '/version_stacks/' + S2 + '/children')) return reply(200, { data: [files[F2]], links: { next: null } });
+        if (m.startsWith(B + '/version_stacks/' + S3 + '/children')) return reply(200, { data: [files[F3]], links: { next: null } });
+        const fm = m.match(/^\/accounts\/[^/]+\/files\/([0-9a-f-]{36})(\/metadata|\?include=media_links.*)?$/);
+        if (fm && files[fm[1]]) {
+          if (fm[2] === '/metadata') return reply(200, { data: { metadata: [] } });
+          return reply(200, { data: Object.assign({}, files[fm[1]], { media_links: { high_quality: { download_url: 'https://cdn.frame.io/' + fm[1] + '.mp4' } } }) });
+        }
+        return reply(404, {});
+      };
+      return { fn, log };
+    };
+    const play = async (tail) => (await lookup('https://next.frame.io/share/' + SH + tail, deps(shareFake()), { part: 'video' })).video.file_id;
+    const named = async (tail) => { try { return await play(tail); } catch (e) { return e instanceof ViewError ? e.code : 'other:' + e.message; } };
+    eq(await named('/view/' + F4), F4, 'a file inside a shared folder plays that file, not the first video');
+    eq(await named('/view/' + S3), F3, 'a version stack inside a shared folder plays its newest version');
+    eq(await named('/view/' + S2), F2, 'a file on the second page of the share plays that file');
+    eq(await named('/view/' + F1_OLD), F1_OLD, 'an older version named by its own id plays that version');
+    eq(await named('/view/' + S1), F1, 'a top-level stack still plays its newest version');
+    eq(await named('/view/' + GONE), 'file_not_in_share', 'a named file that is not in the share is refused, never swapped for another video');
+    eq(await named(''), F1, 'a bare share (no file named) still plays its first video');
+    const refusal = logic.fail('file_not_in_share');
+    ok(refusal.status === 404 && refusal.message.length > 10 && !/token|api|exception/i.test(refusal.message), 'the refusal is a 404 in plain words, like link_not_found');
+  }
+
   // ---- the client side: one client's token plays that client's own card, nothing else
   {
     const cc = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/frameio-view/client-card.mjs')).href);

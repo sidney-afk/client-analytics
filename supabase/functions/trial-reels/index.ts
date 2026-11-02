@@ -46,6 +46,8 @@ import {
   ledgerRows,
   oneRowPerLetter,
   staffAllows,
+  LIST_MANY_ACTION,
+  listManyPlan,
   likeExact,
   linkPatch,
   probeHostAllowed,
@@ -118,10 +120,64 @@ function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
-async function assertSwitchOn(supabase: SupabaseClient, client: string): Promise<void> {
+async function readFlag(supabase: SupabaseClient): Promise<unknown> {
   const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", FLAG_KEY).maybeSingle();
   if (error) throw new Refusal(503, "switch_unreadable");
-  if (!flagAllows(data && (data as JsonMap).value, client)) throw new Refusal(403, "not_enabled");
+  return data && (data as JsonMap).value;
+}
+
+async function assertSwitchOn(supabase: SupabaseClient, client: string): Promise<void> {
+  if (!flagAllows(await readFlag(supabase), client)) throw new Refusal(403, "not_enabled");
+}
+
+/* Every card of one client whose switch is on (rows: its trial_reel_cards rows with enabled = true), as the list
+   answers it. The cards are read side by side; a card that cannot be read is left out, as before. */
+async function listCards(supabase: SupabaseClient, client: string, rows: JsonMap[], who: Principal): Promise<JsonMap> {
+  const listed = await Promise.all(rows.map(async (sw) => {
+    const id = clean(sw.post_id, 120);
+    const versionsP = begun(readVersions(supabase, client, id, sw.winner_letter));
+    const card = await readCard(supabase, client, id).catch(() => null);
+    if (!card) return null;
+    const [read, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
+    if (who.kind === "staff") await healMain(supabase, client, id, read, link, who);
+    const { versions, winner } = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter, link);
+    return [id, { enabled: true, winner_letter: winner || null,
+      ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
+  }));
+  const cards: JsonMap = {};
+  for (const entry of listed) if (entry) cards[entry[0]] = entry[1];
+  return cards;
+}
+
+/* list_many (OPEN_REPAIRS 631): the lists of many clients in one request, for Kasper's queue and the staff pages that
+   read every client. Staff key only (the same shared auth; a staff key is not tied to one client). The page switch is
+   read once and checked per client exactly as a single list does: a client it leaves out is not read and not in the
+   answer. One query for the switch rows of every client asked, then each client as a single list answers it. A
+   function from before this answers 400 unknown_action, and the page then asks one client at a time. */
+async function listMany(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
+  const requested = Array.isArray(body.clients) ? (body.clients as unknown[]).map((c) => normalizeBrowserWriteClient(c)) : null;
+  const first = requested && requested.find(Boolean);
+  if (!first) throw new Refusal(400, "invalid_clients");
+  const flagP = begun(readFlag(supabase));
+  const principal = await principalFor(supabase, req, first, LIST_MANY_ACTION);
+  if (principal.kind !== "staff") throw new Refusal(403, "staff_only");
+  if (!staffAllows(principal.role, LIST_MANY_ACTION)) throw new Refusal(403, "role_not_allowed");
+  const plan = listManyPlan(requested, await flagP);
+  if (plan.error) throw new Refusal(400, plan.error);
+  const allowed = plan.clients as string[];
+  const clients: JsonMap = {};
+  if (!allowed.length) return json({ ok: true, clients });
+  const { data: rows, error } = await supabase.from("trial_reel_cards").select("*").in("client", allowed).eq("enabled", true);
+  if (error) throw new Refusal(503, "switch_row_unreadable");
+  const byClient: Record<string, JsonMap[]> = {};
+  for (const slug of allowed) byClient[slug] = [];
+  for (const row of (rows || []) as JsonMap[]) {
+    const slug = clean(row.client, 80).toLowerCase();
+    if (byClient[slug]) byClient[slug].push(row);
+  }
+  const answers = await Promise.all(allowed.map(async (slug) => [slug, await listCards(supabase, slug, byClient[slug], principal)] as const));
+  for (const [slug, cards] of answers) clients[slug] = { cards };
+  return json({ ok: true, clients });
 }
 
 /* Staff key, or a client review token, through the shared auth. A client link with no token at all is let through
@@ -387,6 +443,11 @@ Deno.serve(async (req: Request) => {
   const supabase = db();
 
   try {
+    if (action === LIST_MANY_ACTION) {
+      const res = await listMany(supabase, req, body);
+      outcome = "ok";
+      return res;
+    }
     if (!ACTIONS.includes(action)) throw new Refusal(400, "unknown_action");
     if (!client) throw new Refusal(400, "invalid_client");
     if (!postId && action !== "list") throw new Refusal(400, "post_id_required");
@@ -410,20 +471,7 @@ Deno.serve(async (req: Request) => {
     if (action === "list") {
       const { data: rows, error } = await listP!;
       if (error) throw new Refusal(503, "switch_row_unreadable");
-      const who = principal;
-      const listed = await Promise.all(((rows || []) as JsonMap[]).map(async (sw) => {
-        const id = clean(sw.post_id, 120);
-        const versionsP = begun(readVersions(supabase, client, id, sw.winner_letter));
-        const card = await readCard(supabase, client, id).catch(() => null);
-        if (!card) return null;
-        const [read, link] = await Promise.all([versionsP, mainLink(supabase, card)]);
-        if (who.kind === "staff") await healMain(supabase, client, id, read, link, who);
-        const { versions, winner } = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter, link);
-        return [id, { enabled: true, winner_letter: winner || null,
-          ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
-      }));
-      const cards: JsonMap = {};
-      for (const entry of listed) if (entry) cards[entry[0]] = entry[1];
+      const cards = await listCards(supabase, client, (rows || []) as JsonMap[], principal);
       outcome = "ok";
       return json({ ok: true, cards });
     }

@@ -36010,6 +36010,33 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
+## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+
+- **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
+  - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
+  - The stack is the player's own video-error path: 187 `_fvStageFailed` → `_fvStageLoad(true)` → `_fvRequest`.
+  - The page's own error listeners saw nothing.
+- **Cause:** 450 ms after Finish opens the next post, the suite navigates away (its "later visit reads all four saved approvals" check) while that post's video is still loading.
+  - The browser aborts the load as the page unloads.
+  - The player took the abort for a failed video and re-asked frameio-view for a fresh address.
+  - WebKit cancelled that cross-origin fetch along with the page and reported it as an access-control failure.
+  - A navigation (a real document load) right after Finish was measured on Chromium.
+  - A real person who reloads or leaves the page while a video loads sends the same wasted request.
+  - It also re-asked for a video already taken out of the page with its player.
+  - A first guard for that last case alone (an earlier head of this PR) left the WebKit red in place, because the erroring video was still the stage's own.
+- **Change (187 only):** `_fvStageFailed` no longer re-asks in any of these cases:
+  - the page is leaving (`beforeunload`, `pagehide`; cleared when the page stays or is restored);
+  - the error is an aborted load (`MEDIA_ERR_ABORTED`);
+  - the video or the stage host is no longer in the page;
+  - the video belongs to a card other than the one on stage.
+  - The video on stage still tries the smaller file and then re-asks once, as before.
+- **Proof:** `node test/review-stage-player-leaving-browser.js` (new, offline, Chromium, in `calendar-unit-tests`).
+  - A: a video taken out of the page asks for no new address. On main it asks once.
+  - B: after a card switch, the previous card's video asks for none. This already passed on main.
+  - C: control, the stage video still re-asks once.
+  - D: while the page is leaving, no re-ask. On main it asks once.
+  - E: control, the page stays after all, and it re-asks once again.
+  - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.
 
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
@@ -36040,6 +36067,25 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/review-board-diagnostics-postgres.js` runs the migration's own applied-when check (false before, true after), applies it twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
   - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
 - **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.
+## 647. [2026-11-02 UTC, BUILT, NOT MERGED] TikTok kept a lost create's key in memory only, so a reload and a re-press could post twice (plan row P0; session Pbuild)
+
+- **Plan's wording, corrected:** the plan (posting.md, combined.md row P0) said TikTok "mints a fresh key on every press". In a page that stays open it already does what Instagram does: a create whose answer is lost (no answer, a 5xx, a cancel during the create, or a 200 with a failed row) keeps its key and storage address in `tkState.retryCreate`, and an unchanged re-press sends them again (OPEN_REPAIRS 404). The real gap was a **reload**: that attempt lived in memory only, while the TikTok draft (client, caption, options, schedule) survives a reload. After the reload, attaching the same file and pressing again minted a new key and a new upload, so the function could not adopt the first post.
+- **Now (300):** the attempt is also kept in this browser (`syncview_tiktokRetryCreate_v1`) and read back with the draft. After a reload, an unchanged form (same client, account, caption, options, schedule and the same file by name, size and modified time) re-sends the same key and the video already in storage, and mints nothing. It is dropped on a success, on a clear no (4xx), and when the form is pressed changed; never for age, because only the key lets the function find a first post that did land (Codex P1 on #2532: an age limit on the key would have made a second post). Only the video ages: Post for Me deletes an upload no post uses after 24 hours, so once the kept upload is 20 hours old the file is uploaded again under the same key (the function then finds the first post by that key, or sends this one).
+- **Instagram:** left as it is. It keeps no draft across a reload (nothing in browser storage), so a reload starts an empty form and the gap does not exist there.
+- **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
+- **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
+- **Way back:** revert the PR. A kept entry left in a browser is then never read.
+## 673. [2026-11-02 UTC, BUILT, NOT APPLIED, NOT MERGED] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
+
+Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
+
+- **What happened.** The onboarding form landed at 04:26 UTC; provisioning queued the Slack job at 04:27. At 04:33 the Slack Creative Channel Finalizer (n8n `udkwwzdFuPW3K2CE`, version `aedcda8b`) found the client's profile but with no email (Create client allows that since 385), and its readiness code treats an empty email as `client_email_mismatch`: status `manual`, one Slack DM to the owner (delivered, Slack `ok: true`), done. The email was added later that day; the 15 minute timer, the daily check and the nudge all read `status = pending` only, so nobody looked again. The supervisor made both channels by hand at about 20:55.
+- **The earlier cases (the queue, data table `SLpem4MfCeVoli4G`, all 5 rows ever written):** 25 Aug `unexpected_failure`, 2 Sep `slack_kickoff_delivery_failed` (creative channel made, kickoff unconfirmed), 3 Sep `existing_private_channel_requires_reconciliation`, 26 Oct `unexpected_failure`, 2 Nov `client_email_mismatch`. **Every row is `manual`; not one job has ever completed (`complete`).** The causes differ; what they share is the same dead end: a `manual` row is final and the only signal is one DM. The email gap itself was foreseen in 385 ("Slack would send the job to the owner to sort out by hand") and accepted.
+- **Every status and code** (from the live readiness code): `pending` + `waiting_for_readiness` (no Clients Info row, no SMM row, SMM without a Slack id, no filming plan) is retried by the timer, the daily check and every nudge. `manual` is never retried: `invalid_queue_snapshot`, `ambiguous_client_row`, `client_email_mismatch`, `existing_channel_requires_reconciliation`, `existing_private_channel_requires_reconciliation`, `invalid_channel_name`, `ambiguous_smm_row`, `ambiguous_filming_plan`, `invalid_slack_identity`, and any failed Slack or roster step (`unexpected_failure`, `slack_kickoff_delivery_failed`, and the per-step codes). `processing` is a claimed run. `complete` is done.
+- **Built (SyncView side), `migrations/2026-11-02-slack-channel-stall-guard.sql`, source only:** (1) a form row in `client_onboarding` / `ai_client_onboarding` fills the email of the one real, active, channel-less client with that name and no email, through `client_profile_service_write` with "email still empty" as its expectation (history row, Sheet copy queued); a profile created after its form gets the same at the end of its transaction (deferred trigger); (2) an email going from empty to set on a real client nudges the finalizer (`slack_finalizer_nudge`, not for a profile made in the same transaction, since Create client already nudges); (3) view `client_slack_channel_stalls_v1`, owner-only, lists every real client created (or with a form) in the last 30 days still missing a channel, hours waiting, and `waiting_for`; an empty `waiting_for` means the finalizer gave up. Test clients are never filled, nudged or listed; every trigger body is inside an exception handler. Found while building: the live form tables keep `id` and `created_at` as TEXT; the file reads them through a safe cast.
+- **Proof:** `test/slack-channel-stall-guard.js` + `scripts/slack-channel-stall-proof.sql` (disposable PostgreSQL, on top of the Create client proof): both orders (profile then form, form then profile), a typed email never overwritten, a test client and a channelled client left alone, a refusing roster and a broken web call never fail the write, one nudge per new email, the view's rows and its privileges. Fails without the file; mutation-checked. The view's query was run read-only on live: one row today (a client created 29 Oct, waiting for its form and email).
+- **Not done here, n8n (proposed on the PR, for the supervisor and owner):** make an empty profile email WAIT instead of park, so a job also recovers on its own when the email is typed by hand; and stop the manual-reconcile DM from carrying the form answers (it holds the account-access lines). Never applied by this session.
+- **Owner steps:** Lighthouse applies the migration; the supervisor adds the watcher query from the PR. Rollback is in the file's header.
 
 ## 670. [2026-11-02 UTC, BUILT, NOT MERGED] frameio-view lists the videos in a Frame.io folder, and has a strict lookup (session Framefix, plan item F1)
 

@@ -72,7 +72,7 @@ const LAZY_VIEWS = {
   ],
   workload: [{ route: 'workload', drawn: '.workload-view' }],
   kasper: [
-    { route: 'kasper', drawn: '.kasper-head' },
+    { route: 'kasper', drawn: '.kasper-wrap:not(.boot-page-skeleton) > .kasper-head' },   // the boot placeholder has a .kasper-head too: on a busy runner it matched before the code was even asked for ("saw 0" downloads, CI split-preview (2) on 49896f2)
     { route: 'client-credentials', drawn: '.sv-staff-page' },
   ],
 };
@@ -126,6 +126,9 @@ async function lazyChecks(browser, origin, failures) {
       await page.evaluate(r => navTo(r), view.route);
       const drew = await page.waitForSelector(view.drawn, { timeout: 15000 }).then(() => true, () => false);
       if (!drew) failures.push(`${name}: opening ${view.route} never drew it`);
+      // What it waited for must be drawn by the area's own code: a selector that also matches the page's static shell
+      // (a boot placeholder) is seen before the code is even asked for, and the download count below races.
+      else if (!(await page.evaluate(n => (self.__svParts || []).some(f => f.includes('-' + n + '-')), name))) failures.push(`${name}: "${view.drawn}" was on screen before its code ran; it must name something only that code draws`);
       if (fetched.length !== 1) failures.push(`${name}: expected one download of its code for ${view.route}, saw ${fetched.length}`);
       console.log(`split-load: ${name} on demand (${view.route}): ${drew ? 'drawn' : 'NOT drawn'} after ${fetched.length} download(s)`);
       await context.close();

@@ -2049,6 +2049,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-recent-save-adopts-others-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, Collaborative mode on), no hosted credentials and no live data. Checks that after a browser saves a card, a newer server value for a field it did not write (alt caption, call to action, title) arrives inside the 90-second recent-save window, on the client link and on the staff Calendar, while the field it saved never flips back and a typed, queued or outbox field is not replaced; and that the client's next save sends only its own field (OPEN_REPAIRS 636).",
+      "reproduce": "node test/calendar-recent-save-adopts-others-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-smooth-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

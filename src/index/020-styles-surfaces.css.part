@@ -2338,9 +2338,16 @@
 
         /* Month */
         .cal-month-wrap { padding: 4px 0; }
-        .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .cal-month-head { background: var(--bg); padding: 8px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-align: center; letter-spacing: 0.05em; text-transform: uppercase; }
-        .cal-month-cell { background: var(--white); min-height: 196px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; transition: background 0.12s; }
+        /* An empty day is as tall as a day holding one tile (padding 12 + date row 22 + gap 4 + the tile: its square
+           thumbnail, var(--cal-month-w), plus 22 for its name, state and border), and never under 196, so the loading
+           skeleton (the same grid with no posts) has the loaded rows' height and posts land without moving the weeks
+           below (OPEN_REPAIRS 629; test/calendar-month-week-skeleton-shape-browser.js). The date row keeps 22 on every
+           day, the height of today's circled date, so today's week is no taller than another. The columns are
+           minmax(0, 1fr): at the largest card size a tile is wider than a day at 1440, and a plain 1fr column grew to
+           hold it, so the loaded grid was wider than its skeleton; the tile (max-width 100%) now shrinks to its day. */
+        .cal-month-cell { background: var(--white); min-height: max(196px, calc(60px + var(--cal-month-w, 112px))); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; transition: background 0.12s; }
         .cal-month-cell:hover { background: var(--sv-bg-fafaf9); }
         .cal-month-cell.out { background: var(--sv-bg-fafafa); }
         .cal-month-cell.out .cal-month-num { color: var(--sv-fg-c5c5c2); }
@@ -2348,7 +2355,7 @@
         .cal-month-cell.today { background: var(--sv-bg-eff3ff); }
         .cal-month-cell.today:hover { background: var(--sv-bg-e7edff); }
         .cal-month-cell.today .cal-month-num { background: var(--sv-bg-4f46e5); color: var(--text-inverse); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
-        .cal-month-cellhead { display: flex; align-items: center; gap: 5px; }
+        .cal-month-cellhead { display: flex; align-items: center; gap: 5px; min-height: 22px; }
         .cal-month-dow { font-size: 0.6rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .cal-month-num { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-month-pill { position: relative; display: flex; flex-direction: column; align-items: stretch; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 0; font-family: inherit; cursor: pointer; text-align: left; width: var(--cal-month-w, 112px); max-width: 100%; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }

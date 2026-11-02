@@ -12,9 +12,11 @@
  * How: fixture cards, every backend call answered locally; the cards' read is
  * held back, the skeleton measured, then released and the loaded view measured
  * at the same size. Checked on desktop, light and dark: the header (previous,
- * title, next, Today), the day-name row and the first two weeks of cells in
- * Month, the seven visible columns in Week. Tolerance 1px, except a Month row
- * holding a post may grow by up to 4px (its tile is taller than an empty day).
+ * title, next, Today), the day-name row and every day cell in Month (1440,
+ * plus 1280 and 1920 in light), the seven visible columns in Week, on two
+ * pinned days: 15 Oct 2026 (five weeks) and 1 Nov 2026 (six weeks, posts in
+ * the first rows). Tolerance 1px, except a Month row holding a post may grow
+ * by up to 4px.
  *
  * Fully offline, fictional test client. Set SKELETON_SHAPE_SHOT_DIR to save
  * skeleton and loaded screenshots.
@@ -35,10 +37,12 @@ let checks = 0;
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else { checks++; } }
 
 // Dates around a fixed "today" (three days before to four after), so the posts are in the week and month the
-// views open on. The page's clock is pinned to the same day (TODAY): a six-week month (November 2026 starts on a
-// Sunday) makes every row shorter than a cell with a post needs, so a row with posts grows by about 10px and the
-// comparison failed from 1 Nov whatever the skeleton did. 15 Oct 2026 sits in a five-week month.
-const TODAY = new Date(2026, 9, 15, 12, 0, 0);
+// views open on, and the page's clock pinned to the same day. Two days are proven: 15 Oct 2026 (a five-week month,
+// the posts in its middle rows) and 1 Nov 2026 (a six-week month, a Sunday, the posts in its first two rows).
+// Until 1 Nov this test measured only the first two weeks, which in mid-October held no post, so it never saw that
+// a day with one post is taller than an empty day (main red from 1 Nov; OPEN_REPAIRS 625).
+const DAYS = [['oct', new Date(2026, 9, 15, 12, 0, 0)], ['nov', new Date(2026, 10, 1, 12, 0, 0)]];
+let TODAY = DAYS[0][1];
 const isoFromToday = days => { const d = new Date(TODAY); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const card = (id, order) => ({
@@ -46,7 +50,8 @@ const card = (id, order) => ({
   scheduled_date: isoFromToday(order - 4), video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
   caption: 'Short test caption.', cta: '', thumbnail_url: '', asset_url: '', comments: [], graphic_comments: [], caption_comments: [],
 });
-const CARDS = [1, 2, 3, 4, 5, 6, 7, 8].map(i => card('c' + i, i));
+const cards = () => [1, 2, 3, 4, 5, 6, 7, 8].map(i => card('c' + i, i));
+let CARDS = cards();
 
 function sameBox(a, b) { return a && b && ['x', 'y', 'w', 'h'].every(k => Math.abs(a[k] - b[k]) <= TOL); }
 function show(b) { return b ? `${b.x},${b.y} ${b.w}x${b.h}` : 'missing'; }
@@ -60,7 +65,7 @@ function measure() {
   const b = document.getElementById('calBody');
   if (!b) return { header: [], cells: [] };
   const header = [...b.querySelectorAll('.cal-month-header > *')].map(box);
-  const cells = [...b.querySelectorAll('.cal-month-head, .cal-month-cell')].slice(0, 21)
+  const cells = [...b.querySelectorAll('.cal-month-head, .cal-month-cell')]
     .concat([...b.querySelectorAll('.cal-week-col')].filter(e => { const r = e.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth; }))
     .map(box);
   return { header, cells };
@@ -106,8 +111,8 @@ async function shot(page, name) {
   await page.screenshot({ path: path.join(SHOTS, name + '.png') });
 }
 
-async function view(browser, origin, label, which, theme) {
-  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
+async function view(browser, origin, label, which, theme, viewport, zoom) {
+  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: viewport || { width: 1440, height: 900 } });
   await ctx.clock.setFixedTime(TODAY);
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
   const page = await ctx.newPage();
@@ -118,7 +123,7 @@ async function view(browser, origin, label, which, theme) {
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _calSavePins === 'function' && typeof onCalViewChange === 'function', null, { timeout: 30000 });
   backend.hold = true;
-  await page.evaluate(([n, v]) => { _syncviewStaffIdentityVerified = true; _calSavePins([n]); calState.client = n; navTo('calendar'); onCalViewChange(v); }, [NAME, which]);
+  await page.evaluate(([n, v, z]) => { _syncviewStaffIdentityVerified = true; _calSavePins([n]); calState.client = n; navTo('calendar'); if (z) calState.zoom = z; onCalViewChange(v); }, [NAME, which, zoom || '']);
   await page.waitForTimeout(900);
   const skel = await page.evaluate(measure);
   await shot(page, `${label}-skeleton`);
@@ -136,6 +141,7 @@ async function view(browser, origin, label, which, theme) {
     const ok = s && Math.abs(s.x - b.x) <= TOL && Math.abs(s.w - b.w) <= TOL && Math.abs(s.y - b.y) <= 4 && b.h - s.h >= -TOL && b.h - s.h <= 4;
     expect(ok, `${label} cell #${i + 1}: skeleton ${show(s)}, loaded ${show(b)}`);
   });
+  if (zoom) expect(await page.evaluate(z => (document.querySelector('.cal-view') || {}).dataset?.zoom === z, zoom), `${label}: the Month view is at card size ${zoom}`);
   expect(errors.length === 0, `${label}: no page errors (${errors.join(' | ')})`);
   await ctx.close();
 }
@@ -145,7 +151,14 @@ async function view(browser, origin, label, which, theme) {
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
   try {
-    for (const which of ['month', 'week']) for (const theme of ['light', 'dark']) await view(browser, origin, `${which}-${theme}`, which, theme);
+    for (const [day, today] of DAYS) {
+      TODAY = today; CARDS = cards();
+      for (const which of ['month', 'week']) for (const theme of ['light', 'dark']) await view(browser, origin, `${day} ${which}-${theme}`, which, theme);
+      // Month at the other desktop sizes: its tile is as wide as a day, so a day's height follows the window width.
+      for (const vp of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) await view(browser, origin, `${day} month-light ${vp.width}`, 'month', 'light', vp);
+      // And at the smaller and larger tile sizes: the tile's height follows the card size (--cal-month-w).
+      for (const zoom of ['s', 'l']) await view(browser, origin, `${day} month-light zoom ${zoom}`, 'month', 'light', null, zoom);
+    }
   } finally {
     await browser.close();
     server.close();

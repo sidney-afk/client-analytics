@@ -110,7 +110,9 @@ async function shots(browser, origin) {
           return { ok: (row || stack) && cb.right - b.right < 16 && cb.bottom - b.bottom < 16, at: [a.left, a.top, a.right, b.left, b.top, b.right, cb.right, cb.bottom].map(Math.round).join(',') }; })(),
       }));
       expect(!typing.prompt && !typing.sugg, 'typing shows no "Is this a change?" prompt');
-      expect(typing.cmt && !typing.chg, 'with no part picked, "Send comment" is on and "Ask for a change" is off');
+      // Since 2026-11-01 (owner, session Linkpolish): "Ask for a change" is on as soon as there are words; with no part
+      // picked it asks what should change (test/review-stage-client-ask-change-browser.js).
+      expect(typing.cmt && typing.chg, 'with words typed, "Send comment" and "Ask for a change" are both on');
       expect(typing.order.ok, 'the two buttons sit at the bottom right of the box, comment first (' + typing.order.at + ')');
       await inS(t.page, '[data-pc="graphic"]').click();
       await sleep(200);
@@ -120,7 +122,7 @@ async function shots(browser, origin) {
       await inS(t.page, '[data-pc="graphic"]').click();
       await sleep(200);
       st = await R(t.page, (r) => ({ pressed: r.querySelector('[data-pc="graphic"]').getAttribute('aria-pressed'), on: !r.getElementById('sendBtn').disabled }));
-      expect(st.pressed === 'false' && !st.on, 'picking it again clears it');
+      expect(st.pressed === 'false' && st.on, 'picking it again clears it ("Ask for a change" stays on: it asks what should change)');
 
       // a comment on a chosen part: a plain note, no status change
       await inS(t.page, '[data-pc="video"]').click();

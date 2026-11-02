@@ -203,6 +203,18 @@ async function checkAccounts(changes: Record<string, string>): Promise<{ error: 
   return { error: "" };
 }
 
+// The account field in `changes` that another client (archived included) already holds, or null. The unique
+// indexes are the real guard; this read lets the Sheet-first lane refuse BEFORE it writes the Sheet.
+async function accountTakenBy(supabase: SupabaseClient, slug: string, changes: Record<string, string>): Promise<string | null> {
+  for (const { field, value } of accountChecks(changes) as { field: string; value: string }[]) {
+    const col = (EDITABLE_FIELDS as readonly string[]).includes(field) ? field : "extra->>" + field;
+    const { data, error } = await supabase.from("client_profiles").select("slug").eq(col, value).neq("slug", slug).limit(1);
+    if (error) throw error;
+    if ((data || []).length) return field;
+  }
+  return null;
+}
+
 // client_profiles_<field>_uniq -> <field>, for the unique index that refused a save.
 function takenField(message: string): string | null {
   const m = message.match(/client_profiles_(postforme_[a-z_]+?)_uniq/);
@@ -424,6 +436,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // A field kept in extra is not a Sheet column: it can only be saved once SyncView is the main copy.
     const extraKeys = Object.keys(splitChanges(norm.changes).extra);
     if (extraKeys.length) return json({ ok: false, error: "authority_not_syncview", field: extraKeys[0] }, 409);
+    const heldField = await accountTakenBy(supabase, slug, norm.changes as Record<string, string>);
+    if (heldField) return json({ ok: false, error: "postforme_account_taken", field: heldField }, 409);
     const accountCheck = await checkAccounts(norm.changes as Record<string, string>);
     if (accountCheck.error) return json({ ok: false, error: accountCheck.error, field: accountCheck.field || null }, accountCheck.error === "postforme_unreachable" ? 502 : accountCheck.error === "postforme_not_configured" ? 503 : 400);
     const changes = norm.changes as Record<string, string>;

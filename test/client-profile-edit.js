@@ -134,6 +134,14 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
     && m.accountPlatformProblem({ platform: 'facebook' }, 'facebook') === '', 'the platform check takes one network or a list');
   ok((fn.match(/checkAccounts\(norm\.changes/g) || []).length === 2 && !/checkExtraAccounts/.test(fn), 'both saves (native and Sheet-first) check every account field, columns included');
   ok(/"23505"/.test(fn) && /postforme_account_taken/.test(fn), 'the unique index refusal answers postforme_account_taken, not write_failed');
+  // Codex P2 on #2533: the Sheet-first lane writes the Sheet before the database, so the index alone would leave a
+  // duplicate account in the Sheet. It asks first, and refuses before any Sheet write.
+  const sheetLane = fn.slice(fn.indexOf('const extraKeys = Object.keys(splitChanges(norm.changes).extra);'), fn.indexOf('await writeCells(sheetId, token, updates);'));
+  ok(/await accountTakenBy\(supabase, slug, norm\.changes/.test(sheetLane) && /error: "postforme_account_taken"/.test(sheetLane),
+    'the Sheet-first lane refuses an account on another client before it writes the Sheet');
+  const taken = fn.slice(fn.indexOf('async function accountTakenBy'), fn.indexOf('async function accountTakenBy') + 1200);
+  ok(/accountChecks\(changes\)/.test(taken) && /\.neq\("slug", slug\)/.test(taken) && /extra->>/.test(taken) && !/\.(insert|update|upsert|delete)\(/.test(taken),
+    'accountTakenBy reads every account slot of the other clients (archived included) and writes nothing');
 
   const cfg = read('supabase/config.toml');
   ok(/\[functions\.client-profile-write\]\s*\nverify_jwt = false/.test(cfg), 'client-profile-write has an explicit transport posture in config.toml');

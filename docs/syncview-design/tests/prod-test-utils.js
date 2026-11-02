@@ -682,6 +682,7 @@ module.exports = { productionAppIdle, waitForProductionIdle, legacyPageUrl, page
   root,
   serveStatic,
   isWriteLikeRequest,
+  trialReelsReadAction,
   isNonReadRequest,
   installReadConsoleAudit,
   installProductionInit,

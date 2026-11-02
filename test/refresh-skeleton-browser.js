@@ -103,7 +103,11 @@ async function newContext(browser, viewport) {
         const m = /boot-skeleton-([a-z-]+)/.exec(Array.from(el.classList).filter(c => c !== 'boot-skeleton-variant').join(' '));
         if (m && seen.indexOf(m[1]) < 0) seen.push(m[1]);
       });
-      if ((document.body && !de.hasAttribute('data-boot-nav') && frames > 5) || ++frames > 600) { window.__svSkeletonsDone = true; return; }
+      // What the recorder saw, printed only when a reading paints no skeleton (one such failure on main, 1 Nov, 1 of 336,
+      // not reproduced in 43 local runs): the first sampled frame, and the frame where the boot tag went.
+      if (frames === 0) window.__svFirstFrame = { ms: Math.round(performance.now()), body: !!document.body, boot: de.getAttribute('data-boot-nav'), sub: de.getAttribute('data-boot-subtab') };
+      if (window.__svBootGoneAt == null && !de.hasAttribute('data-boot-nav')) window.__svBootGoneAt = frames;
+      if ((document.body && !de.hasAttribute('data-boot-nav') && frames > 5) || ++frames > 600) { window.__svSkeletonsDone = { frames, ms: Math.round(performance.now()) }; return; }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -140,10 +144,10 @@ function identity(at) {
 }
 
 async function skeletons(page) {
-  await page.waitForFunction(() => window.__svSkeletonsDone === true, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForFunction(() => !!window.__svSkeletonsDone, null, { timeout: 30000 }).catch(() => {});
   await sheetAnswered;
   await settledAddress(page);
-  return page.evaluate(() => ({ seen: window.__svSkeletons || [], nav: typeof currentNav !== 'undefined' ? currentNav : null, at: location.pathname }));
+  return page.evaluate(() => ({ diag: { first: window.__svFirstFrame || null, bootGoneAt: window.__svBootGoneAt, done: window.__svSkeletonsDone || null, href: location.pathname + location.search }, seen: window.__svSkeletons || [], nav: typeof currentNav !== 'undefined' ? currentNav : null, at: location.pathname }));
 }
 
 (async () => {
@@ -176,7 +180,7 @@ async function skeletons(page) {
           const label = `${device} ${addr.replace(C, '<client>')} ${how}`;
           const wrong = r.seen.filter(s => s !== want && s !== 'neutral');
           check(wrong.length === 0, `${label}: painted ${r.seen.join(' > ') || 'nothing'}, expected ${want}`);
-          check(r.seen.length > 0, `${label}: painted no skeleton at all`);
+          check(r.seen.length > 0, `${label}: painted no skeleton at all (recorder: ${JSON.stringify(r.diag)})`);
           const tab = a => a.split('/')[1] || '';
           check(tab(r.at) === tab(addr), `${label}: the tab moved to ${r.at}`);
           check(r.nav === first.nav && identity(r.at) === identity(first.at), `${label}: tab changed from ${first.nav} ${first.at} to ${r.nav} ${r.at}`);

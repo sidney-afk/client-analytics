@@ -13,7 +13,7 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit, legacyPageUrl, pagesFallback, holdBackgroundRefresh } = require('./prod-test-utils');
+const { installReadConsoleAudit, legacyPageUrl, pagesFallback, holdBackgroundRefresh, trialReelsReadAction } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const mime = {
@@ -164,8 +164,13 @@ async function assertNoWriteRequests(requests) {
   // writes nothing; it is authentication, not a mutation. Same exemption as
   // isWriteLikeRequest in prod-test-utils.js.
   const isEntryGateVerify = r => /\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(r.url || '');
+  // Trial reels answer their reads by POST: since #2486 a Production video sub-issue asks trial-reels
+  // {action:'read'} before it shows a whole-video answer. The same exemption, and the same exact-action check, as
+  // isWriteLikeRequest in prod-test-utils.js; every other trial-reels action still counts as a write.
+  const isTrialReelsRead = r => /\/functions\/v1\/trial-reels(?:[/?#]|$)/i.test(r.url || '') && trialReelsReadAction(r);
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isEntryGateVerify(r)
+    && !isTrialReelsRead(r)
     && !isCommentRead(r)
     && !isLabelsRead(r)
     && !isAssetAccessRead(r)
@@ -211,6 +216,17 @@ async function assertNoWriteRequests(requests) {
     contentType: 'application/json',
     body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
   }));
+  // Since #2486 a Production video sub-issue reads its trial reels before it shows a whole-video answer. This
+  // structure test signs in with a stub staff key the live function refuses (401), so its read is answered here,
+  // as the comment and label reads above and below are: no trial on this card. Any other trial-reels action is
+  // left to the network, so the write check below still catches it.
+  await page.route('**/functions/v1/trial-reels', async route => {
+    if (trialReelsReadAction(route.request()) && (() => { try { return JSON.parse(route.request().postData() || 'null').action === 'read'; } catch (e) { return false; } })()) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, enabled: false }) });
+      return;
+    }
+    await route.continue();
+  });
   await page.route('**/functions/v1/production-write', async route => {
     let body = null;
     try { body = JSON.parse(route.request().postData() || 'null'); } catch (e) {}

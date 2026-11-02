@@ -35,6 +35,7 @@ const fails = (sql, pattern, message) => {
 const MIGRATION = 'supabase/migrations/20261101220000_review_board_diagnostics.sql';
 // OPEN_REPAIRS 638: the Workload calendar (and next the content Calendar) send the same reports.
 const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diagnostics.sql';
+const MIGRATION_643 = 'supabase/migrations/20261102180000_workload_surface.sql';
 
 (async () => {
   psql(`create database ${db}`, 'postgres');
@@ -54,6 +55,13 @@ const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diag
     file(MIGRATION);
     file(MIGRATION_638);
     file(MIGRATION_638);
+    // OPEN_REPAIRS 643: the migration's own "applied-when" probe answers false before it and true after it.
+    const probe = (/^--\s*ef-auto-deploy-applied-when:\s*(.+?)\s*$/m.exec(require('fs').readFileSync(path.join(root, MIGRATION_643), 'utf8')) || [])[1];
+    assert(probe, 'the migration says how to tell it is applied');
+    assert.equal(psql(`select * from (${probe}) as probe`), 'f', 'the probe answers false before the migration');
+    file(MIGRATION_643);
+    file(MIGRATION_643);
+    assert.equal(psql(`select * from (${probe}) as probe`), 't', 'the probe answers true after it');
     const api = await import(path.join(root, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
     const shape = await import(path.join(root, 'supabase/functions/write-diagnostics/browser-detail.mjs'));
     const q = v => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
@@ -131,6 +139,17 @@ const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diag
     rec(await claim(wlLanded), detail(wlLanded), shape.browserEnv(wlLanded));
     const wlDrop = { operation: 'workload_double_click', code: 'save_in_flight', card: 'wl_issue_2', env: { code: 'save_in_flight', board: 'workload', storage_kc: 900, storage_pct: 17 } };
     rec(await claim(wlDrop), detail(wlDrop), shape.browserEnv(wlDrop));
+    // OPEN_REPAIRS 643: a Workload report is stored as surface workload (it read unknown before), and the staff list
+    // filters by it. Any other surface the table does not know is still refused.
+    const wlSurface = shape.shapeBrowserReceipt(await api.makeRefusalReceipt({ surface: 'workload', operation: 'workload_double_click', identifiers: { card: 'wl_issue_3', client_slug: 'fixture-real-client' } }, 'save_in_flight', 409, 'browser_claim', { traffic: 'person', claimed_page: 'staff_page' }), { surface: 'workload' });
+    assert.equal(wlSurface.surface, 'workload');
+    rec(wlSurface, detail({ operation: 'workload_double_click', card: 'wl_issue_3' }), { ui_code: 'save_in_flight', board: 'workload', part: null, storage_kc: 900, storage_pct: 17 });
+    assert.equal(psql(`select surface from write_refusal_diagnostics.receipts_v1 where attempt_id='${wlSurface.attempt_id}'`), 'workload', 'a Workload report keeps its surface');
+    const wlList = JSON.parse(psql(`set role service_role; select public.production_write_refusal_list_v1(7, true, 50, 'workload', null)`).split('\n').pop());
+    assert(wlList.rows.length >= 1 && wlList.rows.every(r => r.surface === 'workload'), 'the staff list filters by workload: ' + JSON.stringify(wlList));
+    fails(`set role service_role; select public.production_write_refusal_record_browser_v3(${q(Object.assign({}, wlSurface, { attempt_id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', surface: 'some_board' }))}, '{}'::jsonb, null)`, /check constraint/, 'a surface is calendar, sxr, production, workload or unknown');
+    fails(`set role service_role; select public.production_write_refusal_list_v1(7, true, 50, 'nope', null)`, /refusal_list_surface/, 'the list still refuses a surface it does not know');
+    for (const role of ['anon', 'authenticated']) fails(`set role ${role}; select public.production_write_refusal_list_v1(7, true, 50, 'workload', null)`, /permission denied/, role + ' cannot read the staff list');
     const sigs = JSON.parse(psql(`set role service_role; select coalesce(jsonb_agg(s),'[]'::jsonb) from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now()) s`).split('\n').pop());
     const sig = (signature, tc, tr) => sigs.filter(r => r.signature === signature && r.test_client === tc && (!tr || r.traffic === tr));
     const real = sig('kasper|approve|save_failed|safari|mac|80-94|retry_landed', false, 'person');
@@ -166,7 +185,7 @@ const MIGRATION_638 = 'supabase/migrations/20261102130000_workload_calendar_diag
     }
     const grants = psql(`select coalesce(string_agg(grantee||':'||privilege_type, ','),'') from information_schema.role_table_grants where table_schema='write_refusal_diagnostics' and table_name='review_env_v1' and grantee in ('public','anon','authenticated','service_role')`);
     assert.equal(grants, '', 'no role holds a table privilege');
-    const pub = psql(`select string_agg(p.proname||':'||coalesce(array_to_string(p.proacl,' '),'(default)'),',') from pg_proc p where p.proname in ('production_write_refusal_record_browser_v3','production_write_refusal_review_daily_v1','production_write_refusal_review_signatures_v1')`);
+    const pub = psql(`select string_agg(p.proname||':'||coalesce(array_to_string(p.proacl,' '),'(default)'),',') from pg_proc p where p.proname in ('production_write_refusal_record_browser_v3','production_write_refusal_review_daily_v1','production_write_refusal_review_signatures_v1','production_write_refusal_list_v1')`);
     assert(!/(^|[ ,{])=X/.test(pub) && !/anon=|authenticated=/.test(pub), 'no public, anon or authenticated EXECUTE: ' + pub);
     console.log('review-board-diagnostics-postgres: codes and store fill recorded, read per day, cleaned with their rows, all private ✅');
   } finally {

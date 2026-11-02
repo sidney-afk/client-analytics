@@ -57,6 +57,10 @@
             "app_version": "<ts>",
             "attempt": "<uuid>",
             "code": "legacy_tweak_confirmation_pending",
+            "env": {
+              "storage_kc": "<n>",
+              "storage_pct": "<n>"
+            },
             "identifiers": {
               "client_slug": "reviewfixtureclient"
             },
@@ -126,6 +130,10 @@
             "app_version": "<ts>",
             "attempt": "<uuid>",
             "code": "legacy_tweak_confirmation_pending",
+            "env": {
+              "storage_kc": "<n>",
+              "storage_pct": "<n>"
+            },
             "identifiers": {
               "client_slug": "reviewfixtureclient"
             },

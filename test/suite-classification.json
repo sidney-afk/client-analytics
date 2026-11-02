@@ -835,6 +835,15 @@
       "required_for_release": true
     },
     {
+      "file": "review-board-diagnostics-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/review-board-diagnostics-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "write-refusal-detail-viewer-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 16,
@@ -2041,6 +2050,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-board-gauntlet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_GAUNTLET_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, with the database's copy of a native status onto its card), fictional client, cards and people, no hosted credentials and no live data. Kasper's review board (second layout, fast boot) and the client link under his conditions: three approves in a row on one card all reach the server (failed on main), a double click, a slow line, a lost answer, a reload during a save (re-read after the reload; failed on main), two tabs, a tab open five hours, a nearly full browser store, an uncaught error, and the client link's double tap and refusal; every report carries ids, codes and the store's fill, never names, titles or words.",
+      "reproduce": "node test/review-board-gauntlet-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "repair-checkpoint-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2414,6 +2431,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels switched on for every client with no card using it: the client link draws the same review as with the switch off, as fast with a normal trial read and at most about 2 s later for the video answer with a very slow one, and nothing of trial reels shows; Kasper's queue, in both layouts, is up as fast with the trial reads held, because they run beside the card read.",
       "reproduce": "node test/trial-reels-everyone-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-batch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Kasper's queue reads every client's trial cards in one list_many request instead of one per client; that a function from before list_many (400 unknown_action) makes the page ask one client at a time, as before; that a 429 with Retry-After is retried after it and the trial card still shows; and that a read refused every time keeps the card as today and is not counted as read.",
+      "reproduce": "node test/trial-reels-batch-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

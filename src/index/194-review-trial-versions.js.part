@@ -3,7 +3,7 @@ import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
-import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
+import { svTrialAttachBack, svTrialCall, svTrialRead, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
        in PR 2352).
@@ -55,14 +55,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
         svTrialOnChange(_trvOnChange);
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
+        // After a read the platform refused (429) or that never arrived, wait a little before asking again (631).
+        if (!force && e.failedAt && Date.now() - e.failedAt < TRV_FAIL_COOL_MS) return Promise.resolve(e);
         // A staff page's first read is the Calendar's list of this client (189), which Kasper's queue starts as it
-        // arrives; every later one is this page's own, so it never takes back an answer given here since.
-        const read = !_isClientLink && !e.at ? svTrialListShared(slug, false) : svTrialCall({ action: 'list', client: slug, post_id: '' });
+        // arrives; every later one is this page's own, so it never takes back an answer given here since. Its own reads
+        // are retried with backoff on a 429 or a lost connection (svTrialRead, OPEN_REPAIRS 631).
+        const read = !_isClientLink && !e.at ? svTrialListShared(slug, false) : svTrialRead({ action: 'list', client: slug, post_id: '' });
         if (!e.at && !e.started) { e.started = Date.now(); setTimeout(_trvRepaint, TRV_HOLD_MS + 20); }
+        let lost = false;
         e.promise = read
-            .then(json => { e.cards = (json && json.cards) || {}; _trvFlush(slug); })
-            .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
-            .finally(() => { e.at = Date.now(); e.promise = null; _trvRepaint(); });
+            .then(json => { e.cards = (json && json.cards) || {}; e.failedAt = 0; _trvFlush(slug); })
+            // Keep what was read; a page never hides versions on a read it could not make. A refused or lost read does
+            // not count as read either: the client is asked again after TRV_FAIL_COOL_MS (OPEN_REPAIRS 631).
+            .catch(err => { if (err && err.transient) { lost = true; e.failedAt = Date.now(); } })
+            .finally(() => { if (!lost) e.at = Date.now(); e.promise = null; _trvRepaint(); });
         return e.promise;
     }
     const _trvLive = v => v.status !== 'dropped';
@@ -73,6 +79,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        waits on any card of a client trial reels is on for (svTrialReviewPending). After that the page is today's, as on
        a read that failed. */
     const TRV_HOLD_MS = 2000;
+    const TRV_FAIL_COOL_MS = 10000;
     // After every module has loaded (_isClientLink is declared in 260, which loads after this one).
     setTimeout(() => {
         try {

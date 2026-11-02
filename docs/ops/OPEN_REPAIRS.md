@@ -35734,6 +35734,28 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **With the switch on for everyone** (`{"all": true}`, set live on 31 Oct about 22:40 UTC): the same test opens the client link's review stage with the switch on for all and finds nothing watching `#calBody` there, before and after opening a change, and no ResizeObserver error; on the staff side the watcher comes with the Sheet, goes on the Review tab and below 768 px, and comes back on the Sheet (4 of these fail on main, all pass here; 252 checks in all). ATLAS now shows the switch on for all staff and clients.
 - **Way back:** revert the PR (the switch-off page then carries the observer again).
 
+## 626. [2026-11-01 UTC, BUILT, NOT MERGED] Kasper's "I sometimes have to approve twice": a second Approve on the same card within the first one's save was never sent; reports from his board and the client link (session Reviewguard)
+
+- **Seen:** Kasper, on his review board (the Review Session, second layout, fast boot, Safari on a Mac): he sometimes has to approve a part twice. The refusal log had nothing from his board in the 14 days before (read-only SQL, 1 Nov): none of his presses reported anything.
+- **Cause 1, the main one (305):** each card save Kasper makes is chained after the one before it on that card. When a save ended, the page recorded the card's whole current state as "already saved" (`_patchBase = _kasperPatchSnapshot(item.post)`), including a part he had approved while that save was still running (1.5 to 3 s live). The next save compared against that, found nothing new and sent nothing. The screen said Approved, the card left his list, the server still had the part at Kasper Approval, and the next refresh brought the card back waiting. His second layout shows every part at once, so Approve, Approve, Approve in a row is the normal way to use it. Reproduced offline: video, graphic, caption 250 ms apart left the caption at Kasper Approval; caption then video left the video there (a linked part's status is only saved by the chain once it is in the wire).
+- **Fix 1 (305):** the base moves only by what the save actually sent (the fields on the wire, the part statuses committed natively, and, after a conflict re-read, what the server holds for the fields not sent). A part changed meanwhile still differs and goes with the next save. `item.post.status` is recomputed from the parts instead of the value computed when the save started.
+- **Cause 2 (195):** a reload while an approve was saving. The server still finishes the request, but his board, painted from the browser's copy and read again at once, could show the part waiting before the server was done; he approved it again.
+- **Fix 2 (195):** as the page goes, the tab notes which saves were running (ids and the action only, in sessionStorage); the next page reports them and, on his board, reads the cards again 4 s and 10 s after it opens.
+- **Reports (120, 195, 330; write-diagnostics; migration `20261101220000_review_board_diagnostics.sql`):** on the client link and Kasper's board only, the shared refusal beacon now also sends a report with a stable signature: **board** (`kasper` or `client`), **action** (`approve`, `tweak` (a change request or Approve after tweaks), `comment`, `reload_mid_save`, `double_click`, `uncaught`, sent as `review_<action>`), **code**, **part** (video, graphic, caption, title). What is reported: a save the stage shows as not saved (code from the refusal: `save_failed`, `offline`, `no_answer`, `conflict`, `repair_storage_unavailable` or the gateway's own code); the same save ending well later (`landed_after_retry`); a press dropped because the part was already answered, still saving, or the card was no longer in his list (`double_click` with `already_answered`, `save_in_flight`, `card_not_in_list`, `card_gone`); a reload while a save was running (`reload_mid_save`, code = the action; noted as the page goes and sent by the next page, since a request from a page being unloaded is not reliably delivered); an uncaught error (`uncaught`, `uncaught_error` or `unhandled_rejection`, with only the error's kind and file:line). Every browser report also carries the browser store's fill (`storage_kc`, thousands of characters, and `storage_pct` of the ~5.2 million where Chrome and Safari stop). Browser and OS come from the user agent. Card ids go as every report's do; the card's client goes as an identifier the function hashes (it is never stored as text). Never a client name, card title or typed words, so a signature can go into a public fix PR as it is. The client's own approve and request-changes functions (190) are untouched, so `client-review-requests-unchanged-browser.js` keeps its source hashes; only its two recorded refusal reports gained `env`. Built after the action on a timer, fire-and-forget through the existing capped beacon (20 per page, the same report once a minute); nothing sits in a save's path. The new fields are kept in `write_refusal_diagnostics.review_env_v1` beside each refusal row (removed with it by the 30-day cleanup), through `production_write_refusal_record_browser_v3`; the function falls back to v2 until the migration is applied (`functions-cope-without-this`). Revoked from public, anon, authenticated and service_role; service_role may execute the three functions.
+- **The watcher's read (SQL as owner; run every 3 hours by the scheduled watcher):**
+
+  ```sql
+  select signature, traffic, test_client, reports, cards, tries, first_at, last_at, app_version
+  from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now())
+  where traffic = 'person' and not test_client;
+  ```
+
+  One row per signature `board|action|code|browser|os|store bucket|retry landed` (store bucket `0-49`, `50-79`, `80-94`, `95-100` or `unknown`; `retry_landed` when the same card, part and action reported `landed_after_retry` within the hour after). Drop the `where` line to see automation (`traffic = 'automation'`: headless browsers, scripts, the morning check) and the test client (`test_client`, matched by the hash of every client whose kind is `test`) as their own rows. Mocked runs (CI, the offline fixtures) answer every request locally and never reach the log. Counts and fixed words only: no client, no card, no text.
+- **Read per day:** `select * from public.production_write_refusal_review_daily_v1(14);` gives day, page, action, code, browser, OS, reports, tries, cards and the fullest store, for every browser report (people only).
+- **Proof:** `test/review-board-gauntlet-browser.js` (new; Chromium, and WebKit in CI with `REVIEW_GAUNTLET_REQUIRE_WEBKIT=1`; offline fixture with the database's copy of a native status onto its card, `project`). On main it fails 1 (approves in a row: the caption, then the video, never reach the server), 5 (the part waits again after a reload during a save), and the four report checks. Passes here, with: a double click (one status write, one card write), a slow line (6 s per write), a lost answer, two tabs, a tab open five hours, a nearly full store (the approve lands; a refused one is reported at 100 %), an uncaught error (kind and place only), a Try again that lands (`landed_after_retry`), the client link's double tap and a lasting refusal; every report checked for board, part and no names or words. `test/review-board-diagnostics-postgres.js` (new, PostgreSQL 16): v3 records through v2, replays keep the first values, bad values refused, the daily read, the signature read (retry landed, the test client and automation apart, fixed words only, no card or client), the cleanup, the grants; the migration applies twice.
+- **Not reproduced:** the client link has no lost approve in the same burst (its saves go through its own queue, 185). A full store did not refuse an approve in Chromium after OPEN_REPAIRS 615. Two tabs and an old tab behave. Two of the live journal's fast reverts (a part back to Kasper Approval 3 to 5 s after his approve, then a change request) are Undo presses; the reporting above will say whether anything else is going on.
+- **Way back:** revert the PR. The migration only adds a table and two functions; leaving it applied changes nothing.
+
 ## 624. [2026-11-01 UTC, BUILT, NOT MERGED] Calendar card: the thumbnail's folder opens from the Files menu, not its own icon on the Thumbnail row (session Sheetzoom)
 
 - **Asked:** the owner, 1 Nov: "can we move the 'open this folder' link, the button for the thumbnail to open the folder of the thumbnail, into the files button, next to the thumbnail file."
@@ -35812,6 +35834,40 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/trial-reels-everyone-browser.js`, new part `signedout`: switch on for every client, the function answering 401 as live. Unverified: zero trial-reels requests, no console error. Verified: still reads. On main 31 requests and 31 console 401s (2 of 4 fail); all 24 checks of the file pass here.
   - Client link and verified staff unchanged: the rest of the everyone, production and nightreel suites pass.
 - **Way back:** revert the PR.
+
+## 631. [2026-11-02 UTC, BUILT, NOT MERGED] Kasper's queue asked trial-reels once per client, and the platform refused part of the burst (found by the supervisor in the logs; fixed by session Trialchange)
+
+- **Seen (live logs, 2 Nov):** after the switch went to `"all": true` (00:49 UTC), one staff browser's Kasper queue load sent 48 trial-reels reads in one second (01:03:24, all 200). Its next load, at 01:05:04, sent about 50 more, and 13 POSTs plus 1 preflight came back 429. These were the only 429s from 00:49 to 03:32.
+  - The refusal is the platform's, not the function's: `sb-error-code: RATE_LIMIT_EXCEEDED`, served by the edge runtime in about 30 ms, before any of our code ran (the preflight was refused too).
+  - Supabase documents that code only for one function calling another; trial-reels calls none. So this is an undocumented limit on incoming requests, and its numbers are not known. About 350 headless reads from another machine between 00:51 and 00:53 drew none, so it is per caller, not per project.
+- **Why it mattered:** a refused read counted as read with no cards. That client's trial cards drew as ordinary cards for 30 s, Kasper's per-version routing missed them for that load, and nothing said so.
+- **Fix, two parts:**
+  - **One read for many clients.** trial-reels takes `{ action: 'list_many', clients: [...] }`, at most 50 clients a request.
+    - Same shared auth, but staff key only: a client link reads its own client.
+    - The page switch is read once and checked per client exactly as a single list does: a client it leaves out is not read and is not in the answer.
+    - Each client is answered by the same code as a single list (`listCards`).
+    - The browser (189 `_trlLoadMany`) sends it from Kasper's queue (`svTrialPrime`, `svTrialPrimeWait`) and from Today's trial asks (097), in chunks of 50. One Kasper queue load now makes one request instead of one per client.
+  - **Refused reads are retried, never taken as an answer.** A 429, a 502/503/504 or a lost connection is retried twice with backoff (0.5 s, then 1 s, or the answer's Retry-After, at most 4 s; 189 `_trlRead`, also used by the review page's own reads, 194).
+    - A read still refused keeps the cards already held and does not count as read; the client is asked again after 10 s.
+    - Any other refusal is final, as before.
+- **The deploy window:** trial-reels deploys through the merge lane. Until the new function is live, the old one answers `list_many` with 400 `unknown_action`. The page then asks one client at a time, exactly as before this change, so there is no gap. The function needs no migration and is not one of the Section 4 three.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts` (the real function under Deno, in-memory database) has 8 new checks, all 104 passing:
+    - a client the switch does not list gets nothing;
+    - each client's cards are exactly what its own list answers;
+    - a client token is refused `staff_only`;
+    - no key is refused;
+    - 51 clients and no clients are refused;
+    - any staff role may read.
+  - `test/trial-reels-logic.js`: `listManyPlan` and the source checks (171 pass).
+  - `test/trial-reels-batch-browser.js` (new) has 4 parts:
+    - one Kasper load makes one request covering every client of the queue;
+    - an old function makes the page fall back to one read per client;
+    - a 429 with Retry-After: 1 on the read carrying the trial card's client is retried about 1 s later and the card shows its versions;
+    - a read refused every time is tried 3 times, keeps the card as today, and is not counted as read.
+    - On #2492's browser code it fails 7 of the 13 checks in its `new`, `retry` and `lost` parts (31 requests; the 429 left the card plain; the refused read was counted as read).
+  - `prod-test-utils` `trialReelsReadAction` counts `list_many` as a read.
+- **Way back:** revert the PR. The function's `list` is unchanged, and the page's fallback covers either order of revert.
 
 ## 634. [2026-11-02 UTC, BUILT, NOT MERGED] A note sent close to another one could vanish from the open Notes thread and from the card's calendar copy (found and fixed by session Trialchange)
 

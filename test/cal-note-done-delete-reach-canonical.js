@@ -14,15 +14,17 @@ require('./helpers/single-file-index.js');
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const { extractFunction } = require('./helpers/extract-function.js');
 
-function world({ linked = true, crosswalkInFlight = false } = {}) {
+function world({ linked = true, crosswalkInFlight = false, unlooked = false } = {}) {
   const canonical = new Map([
     ['n1', { id: 'n1', canonical: true, can_resolve: true, can_delete: true, done: false, deleted: false, is_tweak: true }],
     ['n2', { id: 'n2', canonical: true, can_resolve: true, can_delete: true, done: false, deleted: false, is_tweak: true }],
   ]);
   const legacy = new Map([...canonical].map(([k, v]) => [k, { ...v, canonical: false }]));
   const post = { id: 'card-1', video_deliverable_id: 'del-1', _canonicalCrosswalkInFlight: crosswalkInFlight };
-  const state = { linked };
-  const reload = () => [...(state.linked ? canonical : legacy).values()].map(c => ({ ...c }));
+  // unlooked: the card IS linked to its work item, but nothing on this page has looked the link up yet (the SMM's
+  // Review tab never opened or pointed at Notes), so the gate answers crosswalk_unresolved until a projection runs.
+  const state = { linked, looked: !unlooked };
+  const reload = () => [...(state.linked && state.looked ? canonical : legacy).values()].map(c => ({ ...c }));
   let view = reload();
   const notices = [];
   let confirmCb = null;
@@ -66,8 +68,9 @@ function world({ linked = true, crosswalkInFlight = false } = {}) {
     showConfirm: (t, m, cb) => { confirmCb = cb; },
     _writeUiNativeId: (p, comp) => comp === 'video' ? p.video_deliverable_id : '',
     _prodCrosswalkInFlight: p => !!(p && p._canonicalCrosswalkInFlight),
-    _prodCanonicalCommentGate: () => state.linked && !post._canonicalCrosswalkInFlight
-      ? { linked: true, ready: true } : { linked: false, ready: false, status: 'crosswalk_unresolved' },
+    _prodCanonicalCommentGate: () => state.linked && state.looked && !post._canonicalCrosswalkInFlight
+      ? { linked: true, ready: true }
+      : { linked: false, ready: false, status: state.looked && !post._canonicalCrosswalkInFlight ? 'crosswalk_absent' : 'crosswalk_unresolved' },
     _writeUiCommitCardCommentLifecycle: async (surface, p, comp, comment, action) => {
       const row = canonical.get(comment.id);
       if (action === 'resolve') row.done = true;
@@ -77,7 +80,8 @@ function world({ linked = true, crosswalkInFlight = false } = {}) {
     },
     _writeUiPersistCanonicalCommentProjection: async () => {},
     _prodComments: { readCanonical: async () => {} },
-    _prodProjectCanonicalCardComments: async () => { view = reload(); },
+    _prodProjectCanonicalCardComments: async () => { state.projections = (state.projections || 0) + 1; state.looked = true; view = reload(); return true; },
+    _calNotesWarm: () => ctx._prodProjectCanonicalCardComments('calendar', 'card-1'),
   };
   vm.createContext(ctx);
   for (const name of ['_calReviewApprove', '_calReviewResolveCanonical', '_calCanonicalCrosswalkPending',
@@ -147,6 +151,45 @@ const tick = () => new Promise(r => setImmediate(r));
     w.ctx._calReviewApprove('card-1', 'video', 'kasper');
     await tick(); await tick();
     assert.equal(applies, 2, 'the hold is released once the send has taken over (a later press with nothing open sends directly)');
+  }
+  // 6. OPEN_REPAIRS 635 (Reviewguard, 2026-11-02): the SMM approves from the Review tab on a card whose link to its work
+  //    item nothing has looked up yet. The approve used to read that as "not linked" and mark the requests done on the
+  //    card's legacy copy only, so production_comments.resolved_at stayed empty and the requests showed open again on
+  //    every canonical read. It must look the link up first and resolve the canonical rows.
+  {
+    const w = world({ unlooked: true });
+    let applies = 0;
+    w.ctx._calReviewApplyApprove = () => { applies++; };
+    w.ctx._calReviewApprove('card-1', 'video', 'client');
+    for (let i = 0; i < 6; i++) await tick();
+    assert(w.canonical.get('n1').done && w.canonical.get('n2').done,
+      'an approve before the link was looked up resolves the canonical rows (resolved_at is set)');
+    assert(w.reloadPanel().every(c => c.done), 'after reload, the requests stay done');
+    assert.equal(applies, 1, 'the part is sent once');
+    assert.equal(w.state.projections, 1, 'the link is looked up once');
+  }
+  // 7. The same press twice while the link is being looked up sends once and resolves each request once.
+  {
+    const w = world({ unlooked: true });
+    let applies = 0, resolves = 0;
+    w.ctx._calReviewApplyApprove = () => { applies++; };
+    const base = w.ctx._writeUiCommitCardCommentLifecycle;
+    w.ctx._writeUiCommitCardCommentLifecycle = async (...a) => { resolves++; return base(...a); };
+    w.ctx._calReviewApprove('card-1', 'video', 'kasper');
+    w.ctx._calReviewApprove('card-1', 'video', 'kasper');
+    for (let i = 0; i < 8; i++) await tick();
+    assert.equal(resolves, 2, 'each open request is resolved once');
+    assert.equal(applies, 1, 'the part is sent once');
+  }
+  // 8. A card that turns out not to be linked keeps the legacy path once the lookup has answered.
+  {
+    const w = world({ linked: false, unlooked: true });
+    let applies = 0;
+    w.ctx._calReviewApplyApprove = () => { applies++; };
+    w.ctx._calReviewApprove('card-1', 'video', 'client');
+    for (let i = 0; i < 6; i++) await tick();
+    assert(w.reloadPanel().every(c => c.done), 'an unlinked card still marks its legacy requests done');
+    assert.equal(applies, 1, 'and sends the part once');
   }
   console.log('cal-note-done-delete-reach-canonical: done and delete reach the canonical thread ✅');
 })().catch(e => { console.error(e); process.exit(1); });

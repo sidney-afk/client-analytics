@@ -752,6 +752,25 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             if (open.length) {
                 const key = pid + '|' + comp;
                 if (_calReviewState.saving[key]) return;
+                /* OPEN_REPAIRS 635 (Reviewguard): on the Review tab nothing has looked up the card's link to its work
+                   item unless Notes was opened or pointed at, so the gate below answered "not linked" for a card that
+                   is, and the requests were marked done on the card's legacy copy only (production_comments.resolved_at
+                   stayed empty, and they read as open again everywhere the canonical thread is shown). Look the link
+                   up first (the same read Notes starts), then decide; the part is held so a second press waits. */
+                if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved' && _writeUiNativeId(post, comp)) {
+                    const closing = _calReviewState.closing || (_calReviewState.closing = {});
+                    if (closing[key]) return;
+                    closing[key] = true;
+                    Promise.resolve(_calNotesWarm(pid)).catch(() => false).then(() => {
+                        delete closing[key];
+                        if (_prodCanonicalCommentGate(post, comp).status === 'crosswalk_unresolved') {
+                            showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
+                            return;
+                        }
+                        _calReviewApprove(pid, comp, dest);
+                    });
+                    return;
+                }
                 const pickDest = dest === 'client' ? 'client' : 'kasper';
                 const ids = open.map(t => t.id);
                 /* Refuse BEFORE anything is mutated. _calReviewApplyApprove

@@ -80,6 +80,28 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.staffAllows('admin', 'version_fields_set') && L.staffAllows('smm', 'version_fields_set') && L.staffAllows('creative', 'version_fields_set') && !L.staffAllows('automation', 'version_fields_set'),
     'admin, SMM and an editor may set a version\'s thumbnail and caption; never the automation key');
 
+  // Supervisor's guard 3: every letter's effective fields before the pick, after it (the card now carries the winner's)
+  // and after Undo (the card's own back). A version that lost never reads the winner's fields as if they were its own.
+  {
+    const CARD_B = { thumbnail_url: 'https://e.example/b.jpg', caption: 'B words' };
+    const base = (st) => [v('A', { status: st }), v('B', { status: st, thumbnail_url: CARD_B.thumbnail_url, caption: CARD_B.caption }), v('C', { status: st })];
+    const eff = (vs, card, winner, client) => {
+      const shape = L.readShape(L.settleWinner(vs, winner), { client: !!client, mainLink: winner ? LINK(winner) : LINK('A'), cardStatus: 'Posted', card });
+      return Object.fromEntries(shape.versions.map((x) => [x.letter, x.effective]));
+    };
+    const before = eff(base('on trial'), CARD, null);
+    ok(JSON.stringify(before.A) === JSON.stringify(CARD) && JSON.stringify(before.B) === JSON.stringify(CARD_B) && JSON.stringify(before.C) === JSON.stringify(CARD),
+      'before the pick: A and C read the card, B its own');
+    const after = eff(base('on trial'), CARD_B, 'B');
+    ok(JSON.stringify(after.B) === JSON.stringify(CARD_B), 'after B wins (the card now carries B\'s): B reads its own');
+    ok(JSON.stringify(after.A) === JSON.stringify({ thumbnail_url: null, caption: null }) && JSON.stringify(after.C) === JSON.stringify({ thumbnail_url: null, caption: null }),
+      'and A and C, which lost, never read B\'s as their own');
+    const cliAfter = eff(base('on trial'), CARD_B, 'B', true);
+    ok(Object.keys(cliAfter).join() === 'B' && JSON.stringify(cliAfter.B) === JSON.stringify(CARD_B), 'the client link sees only the winner, with its own fields');
+    const undone = eff(base('on trial'), CARD, null);
+    ok(JSON.stringify(undone) === JSON.stringify(before), 'after Undo (the card\'s own back): every letter reads as before the pick');
+  }
+
   // trial-reels still never writes the card itself: the page copies through today's card save.
   const code = fs.readFileSync(path.join(ROOT, 'supabase/functions/trial-reels/logic.mjs'), 'utf8') + fs.readFileSync(path.join(ROOT, 'supabase/functions/trial-reels/index.ts'), 'utf8');
   ok(!/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'trial-reels never writes calendar_posts');

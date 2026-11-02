@@ -552,8 +552,9 @@ export function readShape(versions, { client, mainLink, cardStatus, card }) {
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
       ready: client ? throughTeam(v, sorted, cardStatus) || whole : !!v.smm_ok_at || whole,
-      // V3: the thumbnail and caption this version shows and posts with (its own, else the card's).
-      effective: effectiveFields(v, card),
+      // V3: the thumbnail and caption this version shows and posts with (its own, else the card's). Once a winner is
+      // picked the card carries the winner's, so a version that lost reads only its own (never the winner's as its own).
+      effective: effectiveFields(v, winner && v.letter !== winner.letter ? null : card),
     };
     if (client) return base;
     return Object.assign(base, {

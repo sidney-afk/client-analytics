@@ -975,7 +975,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _trlFieldsHtml(pid, v) {
         const post = _trlPost(pid);
-        if (!_trlFieldsOn(post)) return '';
+        // A version that lost has nothing left to set or show: the card carries the winner's.
+        if (!_trlFieldsOn(post) || v.status === 'lost') return '';
         if (v.on_card) return '<div class="trl-fields"><span class="trl-f-note">Thumbnail and caption: the card\'s own</span></div>';
         const p = _calEscAttr(pid), l = _calEscAttr(v.letter);
         const frozen = ['on trial', 'winner', 'lost'].includes(v.status);
@@ -1028,7 +1029,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* The winner's thumbnail and caption go on the card (its effective fields), through today's card save, as its video
        goes on through today's attach. Undo (the pick's toast, on this page only) puts back the card's own from before. */
-    const _trlCardFieldsBefore = {};   // pid -> { thumbnail_url, caption } the card had before the pick
+    const _trlCardFieldsBefore = {};   // pid -> { before, wrote }: the card's fields before the pick, and what the pick wrote
     async function _trlSetCardFields(post, f) {
         const edits = {};
         for (const k of ['thumbnail_url', 'caption']) {
@@ -1155,7 +1156,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             await _trlPutBack(post, mine, v.frame_url);
             return null;
         }
-        if (fieldsOn) _trlCardFieldsBefore[pid] = before;
+        if (fieldsOn) _trlCardFieldsBefore[pid] = { before, wrote: { thumbnail_url: v.effective.thumbnail_url || '', caption: v.effective.caption || '' } };
         return json;
     }
     function _trlStale(pid) {
@@ -1207,7 +1208,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         try { mine = await _trlSetCardLink(post, link); }
         catch (e) { _trlSay(e, 'Undo'); return; }
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
-        if (json && _trlCardFieldsBefore[pid]) { await _trlSetCardFields(post, _trlCardFieldsBefore[pid]); delete _trlCardFieldsBefore[pid]; }
+        const kept = _trlCardFieldsBefore[pid];
+        delete _trlCardFieldsBefore[pid];
+        if (json && kept) {
+            // Someone edited the card's thumbnail or caption since the pick: theirs stands, nothing is overwritten.
+            const now = { thumbnail_url: String(post.thumbnail_url || ''), caption: String(post.caption || '') };
+            if (now.thumbnail_url !== kept.wrote.thumbnail_url || now.caption !== kept.wrote.caption) {
+                showNotify('The card\'s thumbnail and caption were not put back', 'The card was edited after the winner was picked; check its thumbnail and caption by hand.');
+            } else await _trlSetCardFields(post, kept.before);
+        }
         if (json) showToast('Back on trial');
         else await _trlPutBack(post, mine, link);   // the winner stands, so its link does too
         return json;

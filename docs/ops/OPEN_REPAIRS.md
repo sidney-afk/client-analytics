@@ -36007,10 +36007,15 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - A "Thumbnail · Caption" line under each version, reading "Same as the card" when empty, with inline editing.
     - Picking the winner also copies its effective thumbnail and caption onto the card through today's card save, and puts them back if the winner is refused.
     - The pick's Undo puts back the card's own fields, which this page kept from before the pick. Undo exists only on that toast.
+  - **The supervisor's guards:**
+    - **Undo after the card was edited since the pick** overwrites nothing. It says "The card was edited after the winner was picked; check its thumbnail and caption by hand."
+    - **Once a winner is picked,** a version that lost reads only its own fields, never the winner's (now on the card) as its own. Its field line is hidden.
+    - **The effective fields of every letter** are tested before the pick, after it and after Undo.
+  - **Where versions and cards differ (on purpose, the supervisor's ruling):** editing an approved card's caption or thumbnail leaves its status as it is. On a card only a tweak note moves a status (190 `_calApplyAutoStatus`). On a version, the same edit restarts it through the SMM.
   - **Never writes the card:** `trial-reels` still writes no row of `calendar_posts`. Copying onto the card is the page's job, through `calendar-card-write` and its `updated_at` check.
 - **Proof:**
-  - `test/trial-version-fields-logic.js` (31 checks; on main `effectiveFields is not a function`).
-  - `test/trial-version-fields-browser.js` (28 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
+  - `test/trial-version-fields-logic.js` (36 checks; on main `effectiveFields is not a function`).
+  - `test/trial-version-fields-browser.js` (34 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` unchanged and passing.
 - **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.

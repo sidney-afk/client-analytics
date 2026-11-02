@@ -187,6 +187,28 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
         if (undo) { await undo.click(); await sleep(2200); }
         ok(!T.winner && T.saves.some((t) => t.includes('fixture-card-thumb.jpg') && t.includes('The card caption, fixture.')), `${label}: Undo puts the card's own thumbnail and caption back`);
       }
+      await page.close();
+
+      // Undo after someone edited the card since the pick: theirs stands, nothing is put back, and the page says so.
+      fresh('on trial'); Object.assign(T.versions[1], { caption: 'Winner words, fixture.', thumbnail_url: 'https://e.example/fixture-win.jpg' });
+      Object.assign(card, CARD0, { video_status: 'Posted' }); vid.file_url = LINK('A'); card.asset_url = LINK('A'); T.saves = [];
+      page = await open(w, h);
+      const trophy2 = (await page.evaluateHandle(() => {
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /Video B\b/.test(n.innerText));
+        return row ? row.querySelector('.trl-pick') : null;
+      })).asElement();
+      if (trophy2) {
+        await trophy2.click();
+        await sleep(2000);
+        ok(T.winner === 'B' && !(await page.$$eval('.trl-list .trl-fields', (ns) => ns.some((n) => n.offsetParent && /Same as the card/.test(n.innerText)))),
+          `${label}: after the pick, the versions that lost show no field line`);
+        await page.evaluate(() => { const p = calState.posts.find((x) => x.id === 'p_t1'); p.caption = 'Edited by someone else, fixture.'; });
+        const savesBefore = T.saves.length;
+        const undo2 = await page.$('.sv-toast button');
+        if (undo2) { await undo2.click(); await sleep(2200); }
+        ok(!T.winner && !T.saves.slice(savesBefore).some((t) => t.includes('The card caption, fixture.')), `${label}: Undo after a card edit overwrites nothing`);
+        ok(/edited after the winner was picked/.test(await page.evaluate(() => document.body.innerText)), `${label}: and says so in plain words`);
+      } else ok(false, `${label}: B offers the trophy again`);
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

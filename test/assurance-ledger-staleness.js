@@ -71,13 +71,18 @@ function ledger({ stamp = '2026-08-22', rows = [], header = true } = {}) {
 
 // --- 1. green on the ledger as it actually stands ----------------------------
 // Read the real ledger's own State stamp rather than pinning a date, so a new
-// run that restates the ledger does not break this test; judge it a day later.
+// run that restates the ledger does not break this test. Judge it ON that day:
+// every claim must hold the day it is written. Judging it a day later (as this
+// once did) turned the unit lane red for an honest row that expires the next
+// morning, which is exactly what the daily gate exists to page on (a Tier 0 row
+// whose last full proof is 7 days old is NEAR on the stamp day and EXPIRED the
+// day after; 2026-11-02).
 const REAL_STAMP = REAL.match(/\|\s*State \((20\d\d-\d\d-\d\d)\)\s*\|/)[1];
-const TODAY_ISO = new Date(parseDay(REAL_STAMP).getTime() + 86400000).toISOString().slice(0, 10);
+const TODAY_ISO = REAL_STAMP;
 const today = parseDay(TODAY_ISO);
 const live = stalenessReport(REAL, today);
 ok(live.ok === true,
-  'the real ledger is green today — 15 of 19 rows are past their window and all 15 already say so'
+  'the real ledger is green on its own State stamp day — every row past its window already says so'
     + (live.ok ? '' : ' — ' + live.reason + ': ' + gateLines(live).join(' / ')));
 ok(live.total_rows >= 15, 'and it parsed the real tier tables rather than finding nothing (' + live.total_rows + ' rows)');
 ok(live.stated_as_of === REAL_STAMP, 'anchored to the State column stamp, not the header refresh stamp');

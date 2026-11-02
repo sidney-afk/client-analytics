@@ -264,7 +264,7 @@ function deps(f, over = {}) {
     const S1 = id(1), F1 = id(2), F1_OLD = id(3), DIR = id(4), S3 = id(5), F3 = id(6), F4 = id(7), S2 = id(8), F2 = id(9), GONE = id(99);
     const vid = (fid, name) => ({ id: fid, name, type: 'file', status: 'transcoded', media_type: 'video/mp4', created_at: '2026-10-05T00:00:00Z' });
     const files = { [F1]: vid(F1, 'One.mp4'), [F1_OLD]: vid(F1_OLD, 'One old.mp4'), [F3]: vid(F3, 'Three.mp4'), [F4]: vid(F4, 'Four.mp4'), [F2]: vid(F2, 'Two.mp4') };
-    const shareFake = () => {
+    const shareFake = (o = {}) => {
       const log = [];
       const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => data });
       const fn = async (url) => {
@@ -274,6 +274,7 @@ function deps(f, over = {}) {
         if (m === '/accounts') return reply(200, { data: [{ id: ACCT_B }] });
         if (m === B + '/shares/' + SH) return reply(200, { data: { id: SH, enabled: true, expiration: null } });
         if (m.startsWith(B + '/shares/' + SH + '/assets')) {
+          if (/after=p2/.test(m) && o.page2Down) return reply(500, {});
           if (/after=p2/.test(m)) return reply(200, { data: [{ id: S2, type: 'version_stack', head_version: files[F2] }], links: { next: null } });
           return reply(200, { data: [{ id: S1, type: 'version_stack', head_version: files[F1] }, { id: DIR, type: 'folder' }],
             links: { next: 'https://api.frame.io/v4' + B + '/shares/' + SH + '/assets?page_size=50&after=p2' } });
@@ -300,6 +301,9 @@ function deps(f, over = {}) {
     eq(await named('/view/' + S1), F1, 'a top-level stack still plays its newest version');
     eq(await named('/view/' + GONE), 'file_not_in_share', 'a named file that is not in the share is refused, never swapped for another video');
     eq(await named(''), F1, 'a bare share (no file named) still plays its first video');
+    { const sf = shareFake({ page2Down: true });
+      const out = await lookup('https://next.frame.io/share/' + SH + '/view/' + S1, deps(sf), { part: 'video' });
+      ok(out.video.file_id === F1 && !sf.log.some((e) => /after=p2/.test(e.url)), 'a named file found on page 1 plays without asking for page 2 (a later page that fails cannot stop it)'); }
     const refusal = logic.fail('file_not_in_share');
     ok(refusal.status === 404 && refusal.message.length > 10 && !/token|api|exception/i.test(refusal.message), 'the refusal is a 404 in plain words, like link_not_found');
   }

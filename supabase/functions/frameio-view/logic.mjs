@@ -143,46 +143,51 @@ async function fileFromAsset(ctx, acct, asset) {
   return null;
 }
 
-// Every item of a Frame.io list, following links.next. Each page spends one call from `budget`; when the budget or
-// the page cap runs out the list is cut short, which can only make a named file be refused, never swapped.
-async function listAll(ctx, path, budget) {
+// The items of a Frame.io list, following links.next, stopping at the first page that holds an item `found` accepts
+// (so a named file on page 1 never waits on, or fails because of, a later page). Each page spends one call from
+// `budget`; when the budget or the page cap runs out the list is cut short, which can only make a named file be
+// refused, never swapped.
+async function listAll(ctx, path, budget, found) {
   const out = [];
   for (let page = 0; path && page < MAX_LIST_PAGES && budget.left > 0; page++) {
     budget.left--;
     const got = await api(ctx, path);
     if (got.missing) break;
     for (const x of (got.data || [])) if (x) out.push(x);
+    if (out.some(found)) break;
     const next = clean(got.links && got.links.next).replace(/^https:\/\/api\.frame\.io\/v4/i, '');
     path = next.startsWith('/accounts/') ? next : '';
   }
   return out;
 }
 
-const names = (a, id) => !!a && (a.id === id || (!!a.head_version && a.head_version.id === id));
-
 // The share's item that a /share/<id>/view/<file> link names: on any page of the share, inside a shared folder (at
 // any depth), or as an older version inside a version stack. { pick, file? } or null when it is not there.
 async function findInShare(ctx, acct, shareId, id) {
   const budget = { left: MAX_SEARCH_CALLS };
-  let level = await listAll(ctx, '/accounts/' + acct + '/shares/' + shareId + '/assets?page_size=' + LIST_PAGE, budget);
+  const names = (a) => !!a && (a.id === id || (!!a.head_version && a.head_version.id === id));
+  let level = await listAll(ctx, '/accounts/' + acct + '/shares/' + shareId + '/assets?page_size=' + LIST_PAGE, budget, names);
   const stacks = [];
   const seen = new Set();
   while (level.length) {
-    const hit = level.find((a) => names(a, id));
+    const hit = level.find(names);
     if (hit) return { pick: hit };
     const below = [];
     for (const a of level) {
       if (a.type === 'version_stack') stacks.push(a);
       if (a.type === 'folder' && !seen.has(a.id)) {
         seen.add(a.id);
-        below.push(...await listAll(ctx, '/accounts/' + acct + '/folders/' + a.id + '/children?page_size=' + LIST_PAGE, budget));
+        const kids = await listAll(ctx, '/accounts/' + acct + '/folders/' + a.id + '/children?page_size=' + LIST_PAGE, budget, names);
+        const inside = kids.find(names);
+        if (inside) return { pick: inside };
+        below.push(...kids);
       }
     }
     level = below;
   }
+  const isFile = (k) => k.type === 'file' && k.id === id;
   for (const s of stacks) {
-    const kids = await listAll(ctx, '/accounts/' + acct + '/version_stacks/' + s.id + '/children', budget);
-    const file = kids.find((k) => k.type === 'file' && k.id === id);
+    const file = (await listAll(ctx, '/accounts/' + acct + '/version_stacks/' + s.id + '/children', budget, isFile)).find(isFile);
     if (file) return { pick: s, file };
   }
   return null;

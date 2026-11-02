@@ -228,7 +228,7 @@ async function run(browser, origin, viewport) {
   await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
   expect(await page.locator('[data-crm-temp="all"] [data-crm-card]').count() === 4 && !(await page.locator('[data-crm-temp="cold"], [data-crm-temp="warm"]').count()), label + ': All shows cold and warm leads mixed in one list');
   expect(!(await page.locator('.crm-stage-hint').count()) && !/We have not reached out yet/.test(await page.locator('.crm-board').innerText()), label + ': no explainer lines next to the section titles');
-  if (viewport.width >= 500) expect(/Name\s+Stage\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': Leads has Name, Stage, Where they came from, Niche, Next step and Due columns');
+  if (viewport.width >= 500) expect(/Name\s+Stage\s+Where they came from\s+Source ad\s+Showed\s+Outcome\s+Cash\s+(Niche\s+)?Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': Leads has Name, Stage, Where they came from, Source ad, Showed, Outcome, Cash, Niche, Next step and Due columns');
   expect(!(await page.locator('.crm-lead-owner').count()), label + ': no owner on the lines');
   await page.click('#crmTempSeg [data-crm-show="cold"]');
   await page.waitForSelector('[data-crm-temp="cold"] .crm-stage-body');

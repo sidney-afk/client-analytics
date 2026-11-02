@@ -349,6 +349,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Change my mind** on an approved part. The client cannot reopen it; this sends a note to the team ("Your team will reopen it").
   - **Finish reviewing** saves nothing (each answer is already saved). It opens the next waiting post. It stays off with "Saving…" while an answer is still sending. When all is done: "All done. Your team has everything."
 - **Enter key:** with a mouse or trackpad, Enter sends a message; on a phone or tablet touch screen, Enter starts a new line and only the Send button sends (since 31 Oct; staff keep Enter = send).
+- **"Ask for a change" in the message box (since 1 Nov):** always clickable once words are typed. With no part picked it asks "What should change?" right in the panel (one part left: it sends at once). Once words are typed, a line by the buttons says a comment is only a message.
 - **Conversation panel ("Message your team"):** plain notes go to the team, attached to the part on screen. The client never sees team-only notes. "Is this a change?" lets them turn a note into a change on a chosen part, or send it as **Just a note**.
 - **Never lost:** an Approve or change is kept in the browser until the server confirms it. Lost connections are retried for up to 30 minutes. Unsent words are kept per post for 7 days.
 - **Polish (`review_client_polish`, on for all clients since 28 Oct, watched until 31 Oct).** Approve shows its check at the click and is undone, with a reason, if refused. A spinner replaces "Sending". A bare × deletes your own note, after "Delete this note?". Notes appear as quiet rows with day lines. Client replies sit under the team message they answer. Notes have unread badges.
@@ -828,7 +829,7 @@ Switch values below are the live values read on 2026-10-28.
 **Home page:** a search bar and four colour tiles, each with its key number: **Today**, **Leads**, **Report**, **Automations**. Every other page has a fixed menu row with these sections and search. Browser Back, Forward and reload keep your place.
 
 **Leads (the list):**
-- One table with the columns Name, Stage, Where they came from, Niche, Next step and Due.
+- One table with the columns Name, Stage, Where they came from, Source ad, Showed, Outcome, Cash, Niche, Next step and Due. Source ad, Showed and Outcome can be filtered from their titles. On narrow screens Niche is hidden, and on phones the four booked-call columns are hidden (open the person to see them).
 - Click a column title to filter (Stage, Source, Niche, Due) or sort (Name). "Show everyone" clears the filters.
 - People are split into **Cold leads** (Dream 100, people we picked to reach out to) and **Warm leads** (ad leads, past calls, email list, referrals). Each section folds.
 - An **All / Cold / Warm** toggle shows one or both.
@@ -840,7 +841,8 @@ Switch values below are the live values read on 2026-10-28.
 
 **Person page:**
 - Opens from a row or a search result.
-- **Edit** changes the stage, next step and due date. If they were lost, you also pick why it didn't close (Price, Trust, Timing, Budget, No-show).
+- **Edit** changes the stage, next step, due date, **Source ad** (which ad or campaign the booking came from, free text) and **Cash collected** (dollars). If they were lost, you also pick why it didn't close (Price, Trust, Timing, Budget, No-show).
+- **Showed for the call** has one-tap **Yes** and **No** buttons, and **Outcome** has **Won**, **Lost**, **Follow-up** and **Pending**. Tap the chosen one again to clear it. They are always visible on the person page (no Edit needed), only admins see them like the rest of Leads, and they only record what happened: they do not move the stage, send anything or start or stop an automation (unlike Today's Showed / No-show buttons). Each change shows in the timeline. Sidney's good-lead and ad tags are the existing tags.
 - "What's happened" is the timeline. Use **Add a note** to write down what happened on a call or in a message.
 - Lists the automations they are in, with pause and resume, **Skip next**, **Stop**, and adding them to one.
 - "Also in Leads as" offers **Merge** for a same-name duplicate.

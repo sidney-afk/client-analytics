@@ -154,7 +154,7 @@ async function run(engineName, engine) {
       assert.equal(err.env.board, 'workload'); assert.equal(rej.env.board, 'workload');
       assert(!JSON.stringify([err, rej]).includes('boom-secret'), 'the error message is not in the report');
       ok('an uncaught error and an unhandled rejection are reported by kind, never by message');
-      // OPEN_REPAIRS 643: the live case. A frameless "Failed to fetch" used to read "TypeError at workload:0:0" (the
+      // OPEN_REPAIRS 645: the live case. A frameless "Failed to fetch" used to read "TypeError at workload:0:0" (the
       // page's own address); an off-site frame keeps only its scheme, host and file name.
       await h.page.evaluate(() => { const e = new TypeError('Failed to fetch'); e.stack = 'TypeError: Failed to fetch'; Promise.reject(e); });
       await h.page.evaluate(() => { const e = new TypeError('x is not a function boom-secret'); e.stack = 'TypeError: x\n    at Object.f (https://cdn.example.net/npm/lib/dist/lib.min.js?token=boom-secret#frag:2:3)'; Promise.reject(e); });

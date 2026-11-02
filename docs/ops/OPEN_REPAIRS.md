@@ -35965,7 +35965,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
 
-## 643. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
+## 645. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
 
 - **Seen (live, read-only):** 20 reports from board `workload` between 18:03 and 18:31 UTC on 2 Nov: `workload_uncaught` / `unhandled_rejection`, one staff session (role creative, Chrome on Windows, build 2026-11-02T17:13), all "TypeError at workload:0:0". No other uncaught report on any board in 3 days. The gaps (60 or 120 s) are the reports' own 60-second repeat filter, not a timer, so the error itself was at least once a minute.
 - **Cause (in the logging, OPEN_REPAIRS 626 and 638):** the rejection's stack had no frame from this site, so `_writeUiStackWhere` fell back to an empty file, and `_writeUiErrWhere` ran `new URL('', location.href)`, which is the page's own address. So every such report read "<page>:0:0" and said nothing about the error. The helper is shared by Kasper's board, the client link, Workload and the Calendar.

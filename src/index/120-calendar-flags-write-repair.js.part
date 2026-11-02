@@ -1734,7 +1734,7 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
     const WRITE_UI_REVIEW_PARTS = ['video', 'graphic', 'caption', 'title'];
     const WRITE_UI_REVIEW_BOARDS = ['kasper', 'client', 'workload', 'calendar'];
     /* An uncaught error's kind and where, never its message: shared by the review boards, Workload and the Calendar
-       (OPEN_REPAIRS 626, 638, 639). OPEN_REPAIRS 643: also what KIND of error it was, as one fixed word, and where it
+       (OPEN_REPAIRS 626, 638, 639). OPEN_REPAIRS 645: also what KIND of error it was, as one fixed word, and where it
        came from even when that is not this site, so a report can be acted on:
        - this site's file (its build hash dropped: app_version already says which build), :line:col, and the function
          name when it is a plain identifier;

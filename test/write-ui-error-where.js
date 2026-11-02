@@ -1,6 +1,6 @@
 'use strict';
 /*
- * OPEN_REPAIRS 643 (session Reviewguard, 2026-11-02): an uncaught error's report says what kind of error it was and
+ * OPEN_REPAIRS 645 (session Reviewguard, 2026-11-02): an uncaught error's report says what kind of error it was and
  * where it came from, even when that is not this site, and never its message.
  *
  * Seen: 20 Workload reports in half an hour (2 Nov, 18:03 to 18:31 UTC) all read "TypeError at workload:0:0". The

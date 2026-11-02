@@ -216,7 +216,7 @@ async function runEngine(browserType, origin) {
     const r9 = t.beacons.find(x => x.operation === 'review_uncaught') || {};
     expect(rep9 >= 0 && r9.env && r9.env.code === 'uncaught_error' && /^TypeError/.test(String(r9.message || '')), '9: the error is reported by kind and place (' + JSON.stringify({ message: r9.message, env: r9.env }) + ')');
     expect(noWords(t.beacons), '9: its message is not in the report');
-    // OPEN_REPAIRS 643: the same shared helper on this board. A frameless rejection used to read "TypeError at
+    // OPEN_REPAIRS 645: the same shared helper on this board. A frameless rejection used to read "TypeError at
     // <page>:0:0"; now it says what it is, and an off-site frame keeps only its scheme, host and file name.
     await t.page.evaluate(() => { const e = new TypeError('Failed to fetch'); e.stack = 'TypeError: Failed to fetch'; Promise.reject(e); });
     await t.page.evaluate(() => { const e = new TypeError('secret words from a card title'); e.stack = 'TypeError: x\n    at Object.f (https://cdn.example.net/npm/lib/dist/lib.min.js?token=secret#frag:2:3)'; Promise.reject(e); });

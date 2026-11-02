@@ -140,6 +140,9 @@ column or table it needs. Two lines near the top of a migration file change that
 - `-- ef-auto-deploy: functions-cope-without-this` says the functions in this
   merge work without it (for example a new index, or a column the code checks
   for). Reviewers see it in the diff. The functions deploy at once.
+  **Except `pto`:** the PTO rule still holds `pto` whenever a merge that
+  changes it also changes a `migrations/*pto*.sql` file, marker or not, until
+  the lane is run by hand with `migrations_applied=true` (#2488, 2 Nov 2026).
 - `-- ef-auto-deploy-applied-when: select to_regclass('public.new_table') is not null`
   gives a one-statement read that answers `true` once it is applied. The gate
   runs it read-only (the same screen `scripts/repo-vs-live.js` uses); if every

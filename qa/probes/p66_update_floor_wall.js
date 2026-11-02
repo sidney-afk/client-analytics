@@ -90,9 +90,16 @@ const MIN = 60 * 1000;
   S.ok(!(await barOn(page)) && !(await wallOn(page)), 'a current tab shows neither banner nor wall');
 
   // ---- B. a deploy lands: banner, flag read begins ------------------------
+  // Since #2389 (OPEN_REPAIRS 552, owner 2026-10-27) a visible tab is asked only
+  // after it has known about a newer build for an hour (BAR_AFTER_MS), so a
+  // burst of publishes is one quiet prompt. The probe used to expect the bar
+  // on the first poll, and was red every night from 28 Oct.
   phase.headEtag = '"v2"'; phase.headLm = T0; // newer than the doc by a day
   await tick(page, 6 * MIN);
-  S.ok(await barOn(page), 'a stale tab gets the polite banner first');
+  S.ok(!(await barOn(page)) && !(await wallOn(page)), 'a stale visible tab is not asked within the first hour');
+  await tick(page, 56 * MIN); // fastForward fires a due timer at most once per jump,
+  await tick(page, 6 * MIN);  // so a second jump lets the next poll see the hour passed
+  S.ok(await barOn(page), 'a stale tab gets the polite banner first (after the hour)');
   S.ok(!(await wallOn(page)), 'and no wall inside the grace window');
   S.ok(flagFetches >= 1, 'the floor flag was actually fetched over the network (' + flagFetches + 'x)');
 

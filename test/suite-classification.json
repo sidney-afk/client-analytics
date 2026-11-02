@@ -8,6 +8,7 @@
     "workflow-plain-scalars.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
+    "supabase-cli-pinned.js",
     "loading-family.js",
     "pages-build-inputs.js",
     "messages-inbox-scope.js",
@@ -835,6 +836,15 @@
       "required_for_release": true
     },
     {
+      "file": "review-board-diagnostics-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/review-board-diagnostics-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "write-refusal-detail-viewer-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 16,
@@ -1440,6 +1450,14 @@
       "ci": "representative"
     },
     {
+      "file": "staff-gate-trial-reels-stub-local.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Proves the shared gate seed answers trial-reels reads (list, list_many, read) sent with an invented staff key in the browser with an empty answer, lets writes, other keys and client tokens through, and yields to a suite's own trial-reels mock.",
+      "reproduce": "node test/staff-gate-trial-reels-stub-local.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-preview-empty-clearance-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1801,6 +1819,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-thumb-folder-in-files-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar card's Thumbnail row has no folder icon of its own and the card's Files menu lists Thumbnail folder right after Thumbnail file (the same link, new tab, keyboard focus, not linked yet when unknown), on the desktop Sheet and the staff phone card.",
+      "reproduce": "node test/calendar-thumb-folder-in-files-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-sheet-fit-window-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2025,6 +2051,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-board-gauntlet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_GAUNTLET_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, with the database's copy of a native status onto its card), fictional client, cards and people, no hosted credentials and no live data. Kasper's review board (second layout, fast boot) and the client link under his conditions: three approves in a row on one card all reach the server (failed on main), a double click, a slow line, a lost answer, a reload during a save (re-read after the reload; failed on main), two tabs, a tab open five hours, a nearly full browser store, an uncaught error, and the client link's double tap and refusal; every report carries ids, codes and the store's fill, never names, titles or words.",
+      "reproduce": "node test/review-board-gauntlet-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "repair-checkpoint-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2038,6 +2072,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, with Collaborative mode and an undated card switched on by the test), no hosted credentials and no live data. Checks that on a client link the Sheet's caption, call to action and date are read only (Collaborative mode on or off, review page on or off, at 1440 and 390) and that typing, pasting, dropping, blurring or calling the page's handlers saves nothing, that Month and Week offer no dragging and no Unscheduled list, that Notes still send, that the Sheet's Video button opens the in-app viewer (video left, notes right) when the viewer switch is on and the old link when it is off, and that the staff Calendar is unchanged.",
       "reproduce": "node test/client-calendar-read-only-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "calendar-recent-save-adopts-others-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, Collaborative mode on), no hosted credentials and no live data. Checks that after a browser saves a card, a newer server value for a field it did not write (alt caption, call to action, title) arrives inside the 90-second recent-save window, on the client link and on the staff Calendar, while the field it saved never flips back and a typed, queued or outbox field is not replaced; and that the client's next save sends only its own field (OPEN_REPAIRS 636).",
+      "reproduce": "node test/calendar-recent-save-adopts-others-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {
@@ -2398,6 +2440,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels switched on for every client with no card using it: the client link draws the same review as with the switch off, as fast with a normal trial read and at most about 2 s later for the video answer with a very slow one, and nothing of trial reels shows; Kasper's queue, in both layouts, is up as fast with the trial reads held, because they run beside the card read.",
       "reproduce": "node test/trial-reels-everyone-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-batch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Kasper's queue reads every client's trial cards in one list_many request instead of one per client; that a function from before list_many (400 unknown_action) makes the page ask one client at a time, as before; that a 429 with Retry-After is retried after it and the trial card still shows; and that a read refused every time keeps the card as today and is not counted as read.",
+      "reproduce": "node test/trial-reels-batch-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

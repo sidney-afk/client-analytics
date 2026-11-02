@@ -188,7 +188,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 
 - Switch `pto_v1` is on. Open from the account menu (no tab). Every staff member: balances (Wellness available, Sick left, floating holiday), **Request time off** (Wellness, Sick, Floating holiday, Unpaid; SyncView counts business days; half-day option), **My requests** (cancel while pending), a **Team calendar** of approved absences and paid holidays, and who is away today.
 - Rules (server side): paid leave starts 60 days after the start date; wellness is earned monthly (capped per year, resets 1 January); 3 sick days a year; one floating holiday a year; only sick leave can be today or in the past; a warning when the start is under 14 days away.
-- **Kasper › Time Off** (Admin): **Pending requests** (**Approve** / **Deny** with a note), team calendar, member balances, **Add adjustment**, and **Member setup** (start date, enabled).
+- **Kasper › Time Off** (Admin): **Pending requests** (**Approve** / **Deny** with a note), team calendar, member balances, **Log time off** (put leave on someone's record: member, type, dates, half day, note; a line shows what it uses from their balance; it is saved as approved, shows on the team calendar, and the member sees "Logged by" with no Cancel), **Add adjustment** (changes a balance only, never on the calendar), and **Member setup** (start date, enabled).
 
 #### SMM weekly reports
 
@@ -253,7 +253,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - Staff only on the card; the client approves the title on their Review page.
 - **Date chip:** "Add date" / the date. Opens a date picker (staff).
 - **Thumbnail URL** and **Video URL (Frame.io / Drive)** fields:
-  - Once filled, each shows an open pill, a pencil to edit and, for thumbnails, "Open the folder this link is in".
+  - Once filled, each shows an open pill and a pencil to edit. The thumbnail's Drive folder opens from the card's **Files** button (the folder button on the thumbnail): **Thumbnail folder**, right under **Thumbnail file** (moved there from its own icon on the row, 2026-11-01).
   - A **Compare** icon shows the previous and current thumbnail after a thumbnail has been replaced (switch `thumbnail_revision_v2`, on).
   - Changing a thumbnail refreshes it for every viewer without a hard refresh.
 - **Caption box:**
@@ -1961,6 +1961,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261021180000_hf_tools.sql -->[`supabase/migrations/20261021180000_hf_tools.sql`](../supabase/migrations/20261021180000_hf_tools.sql) | `public.hf_tools` |
 | <!-- atlas:migration supabase/migrations/20261026200000_studio_trial_versions.sql -->[`supabase/migrations/20261026200000_studio_trial_versions.sql`](../supabase/migrations/20261026200000_studio_trial_versions.sql) | `public.studio_trial_versions` |
 | <!-- atlas:migration supabase/migrations/20261027090000_trial_reels.sql -->[`supabase/migrations/20261027090000_trial_reels.sql`](../supabase/migrations/20261027090000_trial_reels.sql) | `public.studio_trial_versions` (SyncView's columns), `public.trial_reel_cards` |
+| <!-- atlas:migration supabase/migrations/20261101220000_review_board_diagnostics.sql -->[`supabase/migrations/20261101220000_review_board_diagnostics.sql`](../supabase/migrations/20261101220000_review_board_diagnostics.sql) | `write_refusal_diagnostics.review_env_v1`, `public.production_write_refusal_record_browser_v3`, `public.production_write_refusal_review_daily_v1`, `public.production_write_refusal_review_signatures_v1` (OPEN_REPAIRS 626) |
 
 ## Verification limits and keeping this map true
 

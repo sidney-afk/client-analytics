@@ -69,7 +69,7 @@ const REAL = [
   grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'), grabFunc('_calCommentStamp'),
   grabFunc('_calMergeCommentLists'), grabFunc('_calMergePostComments'), grabFunc('_calPostsEqualForRender'),
   grabFunc('_calMsgIsTweak'), grabFunc('_calReconcileHasGenuineTweak'), grabFunc('_calIsStaleLinearRegress'),
-  grabFunc('_calRecentSaveReconcile'),
+  grabConst('CAL_RECONCILE_SKIP_FIELDS'), grabFunc('_calRecentSaveReconcile'),
 ].join('\n\n');
 
 // Stubs for globals the extracted code touches but we don't model.

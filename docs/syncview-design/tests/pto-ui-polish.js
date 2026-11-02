@@ -45,6 +45,8 @@ const KASPER_EXPLAIN_KEYS = Object.freeze([
   'member-balances',
   'member-setup',
   'pto-enabled',
+  'log-time-off',
+  'log-type',
   'add-adjustment',
   'adjustment-days',
   'adjustment-effective-date',

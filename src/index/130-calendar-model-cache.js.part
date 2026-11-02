@@ -1194,13 +1194,36 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        round-trip) is NOT adopted, so a fresh local edit still rides those out.
        Returns null when there is nothing to adopt (caller then keeps `lp`).
        Pure (besides computeOverallStatus) so the regression harness can extract
-       and exercise the real shipped code. */
-    function _calRecentSaveReconcile(lp, fp, rsf) {
+       and exercise the real shipped code.
+       Every OTHER plain field (caption, alt caption, call to action, title,
+       date, links...) is taken from the newer server row too, unless this
+       browser wrote it in the window (`rsf.fields`) or holds it unsaved (`pend`:
+       typed or queued, a failed save waiting for its resend, a source repair):
+       a written field can be a stale echo of our own write, a held one is work
+       the person has not saved yet. Before this, the guard
+       kept our whole copy, so an SMM's alt-caption removal stayed on a client
+       link for 90 s after the client's own caption save (OPEN_REPAIRS 636,
+       nightly probe p52). Arrays, comment cells, ordering and local-only
+       underscore keys are left to their own merges. */
+    const CAL_RECONCILE_SKIP_FIELDS = new Set(['id', 'client', 'updated_at', 'created_at', 'order_index', 'status', 'video_status', 'graphic_status', 'caption_status', 'title_status', 'comments']);
+    function _calRecentSaveReconcile(lp, fp, rsf, pend) {
         if (!lp || !fp || !rsf) return null;
         const lT = Date.parse(lp.updated_at || '');
         const fT = Date.parse(fp.updated_at || '');
         if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
         let merged = null;
+        let statusAdopted = false;
+        const wroteFields = new Set(Array.isArray(rsf.fields) ? rsf.fields : []);
+        for (const f of Object.keys(fp)) {
+            if (CAL_RECONCILE_SKIP_FIELDS.has(f) || f.charAt(0) === '_' || /_(tweaks|comments)$/.test(f)) continue;
+            if (wroteFields.has(f) || (pend && Object.prototype.hasOwnProperty.call(pend, f))) continue;
+            const sv = fp[f];
+            if (sv !== null && typeof sv === 'object') continue;
+            if (sv === undefined || sv === lp[f]) continue;
+            if (!merged) merged = Object.assign({}, lp);
+            merged[f] = sv;
+            _calV2Log('RECONCILE adopt remote field →', fp.id, '|', f);
+        }
         for (const f of ['video_status', 'graphic_status', 'caption_status', 'title_status']) {
             const sv = fp[f];
             if (sv == null) continue;
@@ -1227,10 +1250,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 }
                 if (!merged) merged = Object.assign({}, lp);
                 merged[f] = sv;
+                statusAdopted = true;
                 _calV2Log('RECONCILE adopt remote →', fp.id, '|', f, ':', lp[f], '→', sv, '(wrote:', wrote, '| base:', base, ')');
             }
         }
-        if (merged) merged.status = computeOverallStatus(merged);
+        if (statusAdopted) merged.status = computeOverallStatus(merged);
         return merged;
     }
     /* Is the server's value for `comp` a stale Linear status-sync round-trip of a

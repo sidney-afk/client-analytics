@@ -99,7 +99,8 @@ function trialReelsReadAction(req) {
   } catch (_) {
     return false;
   }
-  return !!body && typeof body === 'object' && (body.action === 'read' || body.action === 'list');
+  // list_many (OPEN_REPAIRS 631) is many clients' lists in one read: a staff page that reads every client asks it.
+  return !!body && typeof body === 'object' && (body.action === 'read' || body.action === 'list' || body.action === 'list_many');
 }
 
 function isWriteLikeRequest(req) {

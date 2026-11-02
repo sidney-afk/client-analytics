@@ -220,6 +220,13 @@ async function open(browser, origin, opt) {
         if (state.nativeReceipts[b.request_id]) return json(state.nativeReceipts[b.request_id]);
         row.updated_at = stamp();
         if (b.operation === 'status') { row.status = b.status; row.status_at = row.updated_at; }
+        // opt.project: the live database copies a native status onto its card at once (the trigger
+        // production_native_calendar_status_project), so a card read after the status write already shows it.
+        if (opt.project && b.operation === 'status') {
+          const card = state.cards.find(c => c.id === row.card_id), comp = row.team === 'graphics' ? 'graphic' : 'video';
+          const word = { smm_approval: 'For SMM Approval', kasper_approval: 'Kasper Approval', client_approval: 'Client Approval', tweak: 'Tweaks Needed', approved: 'Approved' }[b.status];
+          if (card && word) { card[comp + '_status'] = word; card.updated_at = row.updated_at; }
+        }
         const result = { ok: true, native_committed: true, complete: true, row: { ...row }, ...(b.operation === 'comment' ? { comment: { ...b.comment, id: b.comment.native_comment_id, created_at: b.source_edited_at, updated_at: b.source_edited_at, source_created_at: b.source_edited_at, source_updated_at: b.source_edited_at } } : {}) };
         state.nativeReceipts[b.request_id] = result;
         return json(result);

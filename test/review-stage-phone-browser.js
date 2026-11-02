@@ -120,7 +120,8 @@ async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = fals
 function watchPageErrors(t) {
   // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event.
   t.pageErrors = [];
-  // Attempt 3 (draft): every frameio-view request's life, so a red names which request WebKit blocked and how.
+  // Every frameio-view request's life (request, finish with status, failure with its text, console lines naming it,
+  // page errors), timed from the case start, so a red names which request WebKit blocked and how.
   t.fvTrace = []; const t0 = Date.now(); const fv = r => /\/functions\/v1\/frameio-view/.test(r.url());
   t.page.on('request', r => { if (fv(r)) t.fvTrace.push({ ev: 'request', ms: Date.now() - t0, method: r.method(), offline: !!t.offlineHeld, body: String(r.postData() || '').slice(0, 120), headers: Object.keys(r.headers()).filter(h => /^x-|authorization|content-type/i.test(h)).join(',') }); });
   t.page.on('requestfinished', async r => { if (fv(r)) { let st = 0; try { st = (await r.response()).status(); } catch (e) {} t.fvTrace.push({ ev: 'finished', ms: Date.now() - t0, method: r.method(), status: st }); } });
@@ -325,7 +326,7 @@ async function kasperJourney(t, label) {
           }
           if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
           if (t.errors.length) console.log('PAGE_ERRORS_SEEN ' + JSON.stringify(t.pageErrors));
-          if (t.errors.length || /iPhone 15 Pro Max landscape\/client/.test(label)) console.log('FRAMEIO_TRACE ' + label + ' ' + JSON.stringify(t.fvTrace));
+          if (t.errors.length) console.log('FRAMEIO_TRACE ' + label + ' ' + JSON.stringify(t.fvTrace));
           check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
           cases++;
         } catch (e) {

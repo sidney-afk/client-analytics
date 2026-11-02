@@ -104,6 +104,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // Replies.
   const shown = p.profileReply('Test Client', p.profileJson(stamped));
+  assert.ok(shown.includes(p.SAVE_REMINDER) && /without asking/.test(p.SAVE_REMINDER), "a profile read reminds SyncMate to save as it goes");
   assert.ok(shown.startsWith('Test Client, video profile from the Synchro Brain') && shown.includes('"accent": "#ff0000"'));
   const broken = p.profileReply('Test Client', '{oops');
   assert.ok(broken.startsWith('Could not read'));

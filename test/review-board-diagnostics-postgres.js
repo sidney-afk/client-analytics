@@ -55,8 +55,13 @@ const MIGRATION_643 = 'supabase/migrations/20261102180000_workload_surface.sql';
     file(MIGRATION);
     file(MIGRATION_638);
     file(MIGRATION_638);
+    // OPEN_REPAIRS 643: the migration's own "applied-when" probe answers false before it and true after it.
+    const probe = (/^--\s*ef-auto-deploy-applied-when:\s*(.+?)\s*$/m.exec(require('fs').readFileSync(path.join(root, MIGRATION_643), 'utf8')) || [])[1];
+    assert(probe, 'the migration says how to tell it is applied');
+    assert.equal(psql(`select * from (${probe}) as probe`), 'f', 'the probe answers false before the migration');
     file(MIGRATION_643);
     file(MIGRATION_643);
+    assert.equal(psql(`select * from (${probe}) as probe`), 't', 'the probe answers true after it');
     const api = await import(path.join(root, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
     const shape = await import(path.join(root, 'supabase/functions/write-diagnostics/browser-detail.mjs'));
     const q = v => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";

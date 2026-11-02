@@ -1,10 +1,10 @@
--- ef-auto-deploy: functions-cope-without-this
+-- ef-auto-deploy-applied-when: select exists (select 1 from pg_catalog.pg_constraint where conname = 'receipts_v1_surface_check' and conrelid = to_regclass('write_refusal_diagnostics.receipts_v1') and pg_catalog.pg_get_constraintdef(oid) like '%''workload''%') as applied
 -- OPEN_REPAIRS 643 (session Reviewguard, 2026-11-02): a report from the Workload calendar is stored as surface
 -- 'workload' instead of 'unknown'.
 --   1. write_refusal_diagnostics.receipts_v1.surface also takes 'workload';
 --   2. the staff "Save problems" list (production_write_refusal_list_v1) can filter by it.
--- write-diagnostics copes without this: a receipt the table refuses for its surface is recorded again as 'unknown',
--- as before, so no report is lost before this is applied.
+-- write-diagnostics is held until this is applied (the first line tells the deploy lane how to check). It would cope
+-- without it anyway: a receipt the table refuses for its surface is recorded again as 'unknown', as before.
 -- Rows already stored are left as they are (Workload reports before this read 'unknown'; their board says workload).
 
 alter table write_refusal_diagnostics.receipts_v1 drop constraint if exists receipts_v1_surface_check;

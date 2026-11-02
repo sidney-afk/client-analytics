@@ -296,6 +296,7 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
     }
 
 
+    const KASPER_TRIAL_WAIT_MS = 4000;            // the trial reads, at most this long once the cards are in (_kasperFetchAllRelevantPosts)
     const KASPER_CAL_CONCURRENCY = 5;             // Sheets-backed calendar-get hits Google's per-user quota beyond ~5 in flight.
     function _kasperCalCacheRead(slug) {
         try {
@@ -471,7 +472,7 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
             const slug = wlNormalizeClient(client);
             if (!forceRefresh) {
                 const cached = _kasperCalCacheRead(slug);
-                if (cached && cached.ok) return extract(client, cached);
+                if (cached && cached.ok) return { client, json: cached };
             }
             /* n8n exit step F: the per-client read is Supabase (one retry, then it throws into the
                rejection path below, which names the client). A zero-row answer from Supabase is a
@@ -479,11 +480,17 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
                empty on failure, so it is cached like any other. */
             const json = await _calV2FetchPosts(slug);
             _kasperCalCacheWrite(slug, json);
-            return extract(client, json);
+            return { client, json };
         };
-        // Per-version routing (189): the trial clients' versions are read first, so a card already with the client
-        // still lands in this queue while one of its versions waits for Kasper (the test client only today).
-        try { await svTrialPrimeWait(WL_CLIENT_NAMES); } catch (e) {}
+        /* Per-version routing (189): a card already with the client still lands in this queue while one of its versions
+           waits for Kasper, so each card is sorted only once its client's trial versions are read. The trial reads run
+           BESIDE the card reads, never before them: with trial reels on for every client (trial_reels_pages "all"), the
+           queue waited for one trial-reels read per client before it started reading the cards (41 live clients: 0.6 to
+           2.6 s more on every load, measured 2026-11-01, session Trialchange). They are waited for at most
+           KASPER_TRIAL_WAIT_MS after the cards are in; a read still out by then, or failed, leaves its cards as their
+           status says (as a failed read always did). Every card read below answers { client, json }; the queue is cut
+           from them once both reads are in. */
+        const trialRead = Promise.resolve().then(() => svTrialPrimeWait(WL_CLIENT_NAMES)).catch(() => {});
         // Fast path: ONE batched webhook call covers every client needing a
         // network read (two Google API calls server-side) instead of a
         // calendar-get round trip per client. The 5-min cache is honoured
@@ -496,7 +503,7 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
             remaining = [];
             for (const client of WL_CLIENT_NAMES) {
                 const cached = _kasperCalCacheRead(wlNormalizeClient(client));
-                if (cached && cached.ok) settled.push({ status: 'fulfilled', value: extract(client, cached) });
+                if (cached && cached.ok) settled.push({ status: 'fulfilled', value: { client, json: cached } });
                 else remaining.push(client);
             }
         }
@@ -537,7 +544,7 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
                 for (const client of remaining) {
                     const shaped = { ok: true, posts: byClient.get(wlNormalizeClient(client)) || [] };
                     _kasperCalCacheWrite(wlNormalizeClient(client), shaped);
-                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    settled.push({ status: 'fulfilled', value: { client, json: shaped } });
                     covered.push(client);
                 }
                 remaining = remaining.filter(c => !covered.includes(c));
@@ -565,6 +572,13 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
         };
         const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
         if (workerCount > 0) await Promise.all(Array.from({ length: workerCount }, worker));
+        await Promise.race([trialRead, new Promise(r => setTimeout(r, KASPER_TRIAL_WAIT_MS))]);
+        for (const s of settled) {
+            if (s.status !== 'fulfilled' || !s.value || !s.value.json) continue;
+            const client = s.value.client;
+            try { s.value = extract(client, s.value.json); }
+            catch (reason) { console.warn('[Kasper] client load failed:', client, reason); s.status = 'rejected'; s.reason = reason; s.client = client; s.value = null; }
+        }
         const queueOut = [];
         const historyOut = [];
         const repliesOut = [];

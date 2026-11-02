@@ -85,7 +85,15 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
         run.then(clear, clear);
         return run;
     }
+    // How many loads are running. Two overlap on every open of the tab (the tab's mount runs twice), and whichever
+    // takes the older generation is discarded when its answer lands (which one that is depends on who leaves the
+    // client-list wait first, not on who started first). A discarded load ended the other one's "loading": the SMM
+    // sheet arriving while the live load was still reading then drew the empty queue ("All caught up") over the
+    // skeleton, mounted the whole review page for it, and the first video was asked for only after that
+    // (OPEN_REPAIRS 635). Loading is over only when no load is running.
+    let _kasperReviewRunsOpen = 0;
     async function _kasperLoadReviewRun(forceRefresh) {
+        _kasperReviewRunsOpen++;
         const body = document.getElementById('kasperReviewBody');
         const btn  = document.getElementById('kasperReviewRefresh');
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
@@ -258,10 +266,14 @@ import { svTrialPrime, svTrialPrimeWait } from './189-trial-reels-card.js';
             const body2 = document.getElementById('kasperReviewBody');
             if (body2) body2.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Couldn't load the queue</div><div class="kasper-empty-sub">${_calEsc(_kasperState.error)}</div></div>`;
         } finally {
-            _kasperState.loading = false;
-            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
-            const pill = document.getElementById('kasperReviewRefreshPill');
-            if (pill) pill.hidden = true;
+            // Another load is still running: the loading flag, the spinning button and the pill are its to end.
+            if (--_kasperReviewRunsOpen <= 0) {
+                _kasperReviewRunsOpen = 0;
+                _kasperState.loading = false;
+                if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+                const pill = document.getElementById('kasperReviewRefreshPill');
+                if (pill) pill.hidden = true;
+            }
         }
     }
 

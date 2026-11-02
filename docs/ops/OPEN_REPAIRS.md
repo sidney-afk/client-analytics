@@ -36108,3 +36108,26 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (160 pass in all).
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
+
+## 649. [2026-11-02 UTC, BUILT, NOT MERGED] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
+
+- **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
+- **Now:**
+  - **New function `post-source`** (`index.ts` wires; `handler.mjs` holds the whole flow and runs under Node). POST `{ client, post_id, letter?, side? }` with a staff role key.
+  - **The link is read on the server**, never taken from the request: from `calendar_posts.asset_url` (matched on client and id, so another client's card is not found), or from `studio_trial_versions.frame_url` for letters B to G (A is the card).
+  - **Frame is read through frameio-view's own lookup with `strict`:** a folder link is refused (`folder_link`) and a missing file too (`file_not_in_share`). There is no Frame code of its own (plan, settled row 3).
+  - **Which file (D2), `pickPostRendition`:**
+    - the Original, when Frame says `media_type` is `video/mp4` AND its video codec names H.264/AVC;
+    - else the full-size H.264 proxy (`high_quality`), else the small one (`efficient`), so never a smaller proxy while a bigger one exists;
+    - facts Frame did not give never pick the Original;
+    - a 403 on the Original falls to the largest proxy, and the answer says so (`fell_back_from_original`);
+    - no H.264 copy at all is refused (`no_h264_copy`).
+  - **The copy:** Frame's response body is streamed straight into one Post for Me upload address (`duplex: "half"`, Content-Length from Frame). It is never buffered.
+  - **Refusals:** over 287 MB is refused before any upload (both sides, until P1 measures Instagram). A failed upload says "Download it from Frame and drop the file on the Post tab instead". The client must be in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (currently "*").
+  - **Writes no table, creates no post.** A signed Frame address is never returned, stored or logged.
+- **frameio-view (shared logic, also redeploys higgsfield-mcp):** the staff `video` answer now also carries the upload's `media_type`, video `codec`, `width` and `height`, read from the file and the metadata Frame already returns. The field names are not measured yet: a codec is any metadata field named "... Codec" other than the audio one, and a size is "Width"/"Height" with or without "Video ". The client's answer is unchanged. The live check confirms which fields Frame really sends.
+- **Live check (by hand, after merge):** `.github/workflows/post-source-live-check.yml` copies one test-client card. It uses the `ROBOT_ROLE_KEY_SMM` repository secret, never printed. It is storage only, with no post (D6). It prints only which file went, size, shape, length and copy time, and whether the storage address answers with the same size (`qa/post-source-live-check.js`, `safeSummary`). Those numbers decide route (a), streaming, against (b) and (c) in posting.md. Not built unless (a) fails: route (b), and the thumbnail copy (P1).
+- **Proof:**
+  - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
+  - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
+- **Way back:** revert the PR. Nothing calls the function yet.

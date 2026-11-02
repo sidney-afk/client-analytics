@@ -79,7 +79,9 @@ function fakeFrameio(opts = {}) {
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE) return reply(200, { data: file });
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE + '/metadata') {
       if (opts.noMeta) return reply(404, {});
-      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 }] } });
+      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 },
+        { field_definition_name: 'Video Codec', value: 'H.264' }, { field_definition_name: 'Audio Codec', value: 'AAC' },
+        { field_definition_name: 'Width', value: 1080 }, { field_definition_name: 'Height', value: 1920 }] } });
     }
     if (m.startsWith('/accounts/' + ACCT_B + '/files/' + FILE + '/comments?')) {
       if (opts.commentsDown) return reply(500, {});
@@ -230,6 +232,10 @@ function deps(f, over = {}) {
     const only = await lookup('https://f.io/abc123', deps(pf), { part: 'video' });
     ok(only.ok && only.video.url && only.video.name && only.open_url && !('comments' in only), 'part "video" answers with the addresses and no comments');
     ok(pf.log.every((e) => !/\/comments/.test(e.url)), 'part "video": Frame.io is not asked for comments at all');
+    // post-source (plan row F4, D2) decides which file to copy from what Frame says about the upload itself.
+    eq([only.video.media_type, only.video.codec, only.video.width, only.video.height], ['video/mp4', 'H.264', 1080, 1920], 'part "video" carries the upload\'s type, video codec and size');
+    const asClient = await lookup('https://f.io/abc123', deps(fakeFrameio()), { client: true });
+    ok(!['media_type', 'codec', 'width', 'height'].some((k) => k in asClient.video), 'a client lookup gets none of those facts');
     const cf = fakeFrameio();
     const com = await lookup('https://f.io/abc123', deps(cf), { part: 'comments' });
     ok(com.ok && com.comments.length === 3 && !('video' in com) && com.open_url, 'part "comments" answers with the comments only');

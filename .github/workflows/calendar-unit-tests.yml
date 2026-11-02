@@ -396,6 +396,7 @@ jobs:
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
+          Two notes sent close together both stay in the thread and in the card's calendar copy, whichever the server answers first (desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-overlap-browser.js
           Notes reopen without a needless skeleton, and a reply sent while loading goes at once (staff; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
@@ -500,6 +501,7 @@ jobs:
           Trial reels, Nightreel's live walk: Not this one stays said in Tweaks Needed, the SMM gets a new cut in Tweaks Needed, Kasper's Client dropped tile and undated header|node test/trial-reels-nightreel-browser.js
           Trial reels timing: the winner toast shows on the click, and a card set to Posted shows On trial in about a second|node test/trial-reels-timing-browser.js
           Trial reels switched on for everyone: non-trial cards unchanged on the client link, and Kasper's queue not held back by the trial reads|node test/trial-reels-everyone-browser.js
+          Trial reels, many clients in one read: one Kasper queue load makes one trial-reels request, an old function falls back to one per client, and a 429 is retried after Retry-After|node test/trial-reels-batch-browser.js
           LANES
 
 
@@ -639,6 +641,7 @@ jobs:
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
+          Staff gate seed answers trial-reels reads sent with an invented key in the browser (no live 401s)|node test/staff-gate-trial-reels-stub-local.js
           TikTok upload layout|node --require ./test/helpers/single-file-index.js test/tiktok-upload-redesign-browser.js
           TikTok preview clears when the form empties|node test/tiktok-preview-empty-clearance-browser.js
           Kasper's With the editors rows: Client · Title on one line, a small grey date below|node test/review-stage-with-editors-row-browser.js

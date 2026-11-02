@@ -252,6 +252,35 @@ async function answerStubKeyStaffReads(target) {
   });
 }
 
+// Trial reels, a third service (session Trialchange, 2026-11-02). Since trial_reels_pages went to {"all": true}
+// (2 Nov 00:49 UTC), a verified staff page asks the trial-reels function for every client's versions (the Calendar,
+// Kasper's queue, Today, Production's video sub-issues), sending the page's staff key. The live function refuses an
+// invented key with 401, and the gate seed makes every harness page "verified", so the guard in the app (OPEN_REPAIRS
+// 630: no read without a verified key) cannot tell: Calendar E2E (nightly) sent 1,110 of these 401s between 08:03 and
+// 08:27 UTC on 2 Nov, one per client per staff page load. A harness key can never read trial reels, so its READS are
+// answered here with an empty, valid answer (no trial cards; the card's switch off), which the page draws as Trial
+// reels off. Only a POST with an invented key and a read action (list, list_many, read) is answered: a write, any
+// other key, a client link's review token and the preflight go on exactly as before, and a suite that mocks
+// trial-reels itself (registered after the seed) still answers first.
+const TRIAL_REELS_READ_ACTIONS = { list: { cards: {} }, list_many: { clients: {} }, read: { enabled: false } };
+async function answerStubKeyTrialReelsReads(target) {
+  await target.route('**/functions/v1/trial-reels', route => {
+    const request = route.request();
+    if (request.method() !== 'POST' || !isFakeStaffKey(request.headers()['x-syncview-key'])) return route.fallback();
+    let body = null;
+    try { body = JSON.parse(request.postData() || 'null'); } catch (e) { body = null; }
+    const answer = body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(TRIAL_REELS_READ_ACTIONS, body.action)
+      ? TRIAL_REELS_READ_ACTIONS[body.action] : null;
+    if (!answer) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': request.headers().origin || '*', 'cache-control': 'no-store' },
+      body: JSON.stringify(Object.assign({ ok: true }, answer))
+    });
+  });
+}
+
 // The answer above still counts as a request: prod-structure-subset and
 // prod-comments-browser fail on ANY write-like request, and a POST to
 // functions/v1/analytics-read is one even when answered locally (diagnosed
@@ -286,6 +315,7 @@ async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
   if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
   await refuseStubKeyProductionWrite(target);
+  await answerStubKeyTrialReelsReads(target);
   if (options && options.answerStaffReads) await answerStubKeyStaffReads(target);
   if (!(options && options.keepAnalyticsRead)) {
     await answerStubKeyAnalyticsRead(target);
@@ -331,4 +361,4 @@ async function signCalendarCardWrites(target, staffKey) {
   return true;
 }
 
-module.exports = { seedStaffGate, signCalendarCardWrites, refuseStubKeyProductionWrite, markProductionWriteMocked, answerStubKeyStaffReads, STAFF_READ_FUNCTIONS, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, signCalendarCardWrites, refuseStubKeyProductionWrite, answerStubKeyTrialReelsReads, markProductionWriteMocked, answerStubKeyStaffReads, STAFF_READ_FUNCTIONS, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

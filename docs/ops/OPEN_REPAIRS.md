@@ -35793,6 +35793,12 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Proof:** `test/calendar-month-week-skeleton-shape-browser.js` now measures every day cell on two pinned days (15 Oct 2026, five weeks; 1 Nov 2026, six weeks with the posts in the first rows), at 1440 light and dark, 1280 and 1920, and at card sizes s and l. 378 checks fail on main, 772 pass here. Unchanged and passing: client calendar read-only and expanded, staff calendar expanded, status filter, refresh scroll, linkpolish review, trial reels round 2, the write gateway, and the staff phone's 30 calendar scenarios at 390.
 - **Still true:** a day with two or more posts is taller than one with one, so its week still grows when they land. The skeleton cannot know which day that will be.
 
+## 633. [2026-11-02 UTC, BUILT, NOT MERGED] WebKit "ResizeObserver loop" on the client link's review stage: the stage's watchers wrote sizes inside the observation (session Sheetzoom)
+- **Seen:** #2488's repair-checkpoint, 1 check of 393 red, "WebKit client link review stage, switch on for all: no ResizeObserver error (ResizeObserver loop completed with undelivered notifications.)". #2488 does not touch this; the Sheet's own #calBody watcher is not on that page (622).
+- **Measured (draft #2495, a CI diagnostic: 20 WebKit runs, 4 at a time, every observer wrapped):** six observers live on the page: the header nav fit (two), the strip edge (#skList), the stage's watcher on #view (R.ro), the trial reels watcher on the player box (#fvHost) and the header watcher on the stage itself (188). The loop did not recur in those 20 runs, but exactly one callback changed a watched element's size while it ran, every run: R.ro, writing `--fv-h` onto #fvHost (45 times; 41 in Chromium). #fvHost sits inside #view, so whenever #view's height follows its content (opening a change resizes the theatre) that write can change #view itself in the same frame, which the browser cannot deliver, and WebKit reports the loop. A real visitor sees no flicker, only a console error and a frame of a stale player size.
+- **Fix (195, 188):** the three stage watchers (the player size, the trial reels arrows' half width, the header height) now write on the next frame, and only when the value changed. Nothing is written inside an observation any more.
+- **Proof:** `test/calendar-sheet-fit-window-browser.js` wraps every observer on the client link's review stage and fails if any callback changes the size of a watched element while it runs, so the cause is caught every run instead of waiting for WebKit to report the loop. On main it fails ("view -> fvHost"); here it passes, Chromium and (in CI) WebKit. Unchanged and passing: review stage, client layout, linkpolish, trial reels review (75), the Frame.io viewer.
+
 ## 630. [2026-11-02 UTC, BUILT, NOT MERGED] Pages with no verified staff key asked trial-reels anyway: 401s, console errors, main's plp_console_errors red (found by sessions Reviewguard and Sheetzoom; fixed by session Trialchange)
 
 - **Seen:** signed out (or before the staff key is verified), opening a video sub-issue in Production whose client trial reels is on (every client since `"all": true`, 2 Nov 00:49 UTC) sent trial-reels `{ action: 'read' }`. The function answers only a staff key here, so it came back 401, with a red console error, and the Assets panel said the versions "Could not be read".
@@ -35806,6 +35812,67 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/trial-reels-everyone-browser.js`, new part `signedout`: switch on for every client, the function answering 401 as live. Unverified: zero trial-reels requests, no console error. Verified: still reads. On main 31 requests and 31 console 401s (2 of 4 fail); all 24 checks of the file pass here.
   - Client link and verified staff unchanged: the rest of the everyone, production and nightreel suites pass.
 - **Way back:** revert the PR.
+
+## 631. [2026-11-02 UTC, BUILT, NOT MERGED] Kasper's queue asked trial-reels once per client, and the platform refused part of the burst (found by the supervisor in the logs; fixed by session Trialchange)
+
+- **Seen (live logs, 2 Nov):** after the switch went to `"all": true` (00:49 UTC), one staff browser's Kasper queue load sent 48 trial-reels reads in one second (01:03:24, all 200). Its next load, at 01:05:04, sent about 50 more, and 13 POSTs plus 1 preflight came back 429. These were the only 429s from 00:49 to 03:32.
+  - The refusal is the platform's, not the function's: `sb-error-code: RATE_LIMIT_EXCEEDED`, served by the edge runtime in about 30 ms, before any of our code ran (the preflight was refused too).
+  - Supabase documents that code only for one function calling another; trial-reels calls none. So this is an undocumented limit on incoming requests, and its numbers are not known. About 350 headless reads from another machine between 00:51 and 00:53 drew none, so it is per caller, not per project.
+- **Why it mattered:** a refused read counted as read with no cards. That client's trial cards drew as ordinary cards for 30 s, Kasper's per-version routing missed them for that load, and nothing said so.
+- **Fix, two parts:**
+  - **One read for many clients.** trial-reels takes `{ action: 'list_many', clients: [...] }`, at most 50 clients a request.
+    - Same shared auth, but staff key only: a client link reads its own client.
+    - The page switch is read once and checked per client exactly as a single list does: a client it leaves out is not read and is not in the answer.
+    - Each client is answered by the same code as a single list (`listCards`).
+    - The browser (189 `_trlLoadMany`) sends it from Kasper's queue (`svTrialPrime`, `svTrialPrimeWait`) and from Today's trial asks (097), in chunks of 50. One Kasper queue load now makes one request instead of one per client.
+  - **Refused reads are retried, never taken as an answer.** A 429, a 502/503/504 or a lost connection is retried twice with backoff (0.5 s, then 1 s, or the answer's Retry-After, at most 4 s; 189 `_trlRead`, also used by the review page's own reads, 194).
+    - A read still refused keeps the cards already held and does not count as read; the client is asked again after 10 s.
+    - Any other refusal is final, as before.
+- **The deploy window:** trial-reels deploys through the merge lane. Until the new function is live, the old one answers `list_many` with 400 `unknown_action`. The page then asks one client at a time, exactly as before this change, so there is no gap. The function needs no migration and is not one of the Section 4 three.
+- **Proof:**
+  - `test/trial-reels-function-deno.ts` (the real function under Deno, in-memory database) has 8 new checks, all 104 passing:
+    - a client the switch does not list gets nothing;
+    - each client's cards are exactly what its own list answers;
+    - a client token is refused `staff_only`;
+    - no key is refused;
+    - 51 clients and no clients are refused;
+    - any staff role may read.
+  - `test/trial-reels-logic.js`: `listManyPlan` and the source checks (171 pass).
+  - `test/trial-reels-batch-browser.js` (new) has 4 parts:
+    - one Kasper load makes one request covering every client of the queue;
+    - an old function makes the page fall back to one read per client;
+    - a 429 with Retry-After: 1 on the read carrying the trial card's client is retried about 1 s later and the card shows its versions;
+    - a read refused every time is tried 3 times, keeps the card as today, and is not counted as read.
+    - On #2492's browser code it fails 7 of the 13 checks in its `new`, `retry` and `lost` parts (31 requests; the 429 left the card plain; the refused read was counted as read).
+  - `prod-test-utils` `trialReelsReadAction` counts `list_many` as a read.
+- **Way back:** revert the PR. The function's `list` is unchanged, and the page's fallback covers either order of revert.
+
+## 634. [2026-11-02 UTC, BUILT, NOT MERGED] A note sent close to another one could vanish from the open Notes thread and from the card's calendar copy (found and fixed by session Trialchange)
+
+- **Seen:** running `docs/syncview-design/tests/note-send-outbox-browser.js` four at a time (busy runners, 2 Nov), its part D ("a double click … shows one") failed about 1 run in 8.
+  - The server held the note, but the open Notes thread on the card showed notes A, B1 and C only. Notes B2 and D were gone, and so was the card's own list.
+  - With the page's CPU slowed 4× (Chrome's throttling) it failed every run, desktop and phone.
+- **Cause, a lost update in 190 `_calAppendComment` (and the same code in 280 `_sxrAppendComment`, Samples):**
+  - It copied the card's comment list (`arr`) before awaiting the route check and the gateway send, then wrote that copy plus its own note back: to the thread, and to the card's calendar copy (`*_tweaks`).
+  - Two notes sent close together each held their own copy, and the one answered last wrote its copy over the other.
+  - The dropped note stayed on the server (the native comment), but left the open thread and the card's calendar copy until a reload.
+  - Not a stale read: no canonical read was involved (`_canonicalCommentReads` was empty on the card).
+- **Fix:** after the awaits, the note is added to the card's **current** list, read from the live card (`calState.posts` / `sxrState.posts`), not to the copy taken before the send. This is a merge against the latest list, not a delay. A note already there is not added twice, and a client's change request flips status only when the note is new.
+- **Proof:**
+  - `docs/syncview-design/tests/note-send-overlap-browser.js` (new, mocked, desktop and 390 px):
+    - two notes where the first is answered 2.5 s after the second;
+    - then three answered in reverse order;
+    - every note shows once in the thread, is in the card's list, and is in the card's last calendar copy.
+    - On main 9 of 12 checks fail (notes missing from all three places); with the fix 12 of 12 pass.
+  - `note-send-outbox-browser.js` part D: at 4× CPU it fails every run on main and passes with the fix. Four at a time, two rounds (8 runs, with the part-L test fix of #2496 applied): 94 of 94 in every run.
+  - `test/write-ui-writer-durability.js` now also requires, for both functions, that the list the note joins is read after the gateway answered, and that nothing is pushed onto the earlier copy. It fails on main.
+  - Samples has no browser test of its own here; it shares the code shape and the source check.
+  - The other notes suites pass:
+    - the composer threads, caption composer and quick-open reply tests;
+    - the lost-work drafts and retry-intent tests;
+    - popup behaviour;
+    - the trial-reels notes test;
+    - the unit checks on this send path.
 
 ## 636. [2026-11-02 UTC, BUILT, NOT MERGED] After a save, a card ignored everyone else's changes to its other fields for 90 seconds (nightly p52 red since 28 Oct; session Nightred)
 - **Seen:** the scheduled Calendar E2E (nightly) failed every night from 28 Oct on p52, "alt-caption removal reaches the client (now empty)", all three attempts. On the test client's link the client saves a caption (Collaborative mode on), then the SMM removes the card's alt caption: the database clears, the client link keeps showing the removed alt caption.

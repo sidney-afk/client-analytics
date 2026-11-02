@@ -1440,6 +1440,14 @@
       "ci": "representative"
     },
     {
+      "file": "staff-gate-trial-reels-stub-local.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Proves the shared gate seed answers trial-reels reads (list, list_many, read) sent with an invented staff key in the browser with an empty answer, lets writes, other keys and client tokens through, and yields to a suite's own trial-reels mock.",
+      "reproduce": "node test/staff-gate-trial-reels-stub-local.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-preview-empty-clearance-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2414,6 +2422,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels switched on for every client with no card using it: the client link draws the same review as with the switch off, as fast with a normal trial read and at most about 2 s later for the video answer with a very slow one, and nothing of trial reels shows; Kasper's queue, in both layouts, is up as fast with the trial reads held, because they run beside the card read.",
       "reproduce": "node test/trial-reels-everyone-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-batch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Kasper's queue reads every client's trial cards in one list_many request instead of one per client; that a function from before list_many (400 unknown_action) makes the page ask one client at a time, as before; that a 429 with Retry-After is retried after it and the trial card still shows; and that a read refused every time keeps the card as today and is not counted as read.",
+      "reproduce": "node test/trial-reels-batch-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

@@ -667,8 +667,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const h = document.getElementById('svReviewStage');
         if (!h || (_rsHeadRo && _rsHeadRo.el === h) || typeof ResizeObserver === 'undefined') return;
         if (_rsHeadRo) _rsHeadRo.disconnect();
-        const set = () => { if (h.isConnected && !h.hidden && h.offsetHeight) document.documentElement.style.setProperty('--sv-rs-head', h.offsetHeight + 'px'); };
-        _rsHeadRo = new ResizeObserver(set);
+        const set = () => {
+            if (!h.isConnected || h.hidden || !h.offsetHeight) return;
+            const v = h.offsetHeight + 'px', de = document.documentElement;
+            if (de.style.getPropertyValue('--sv-rs-head') !== v) de.style.setProperty('--sv-rs-head', v);
+        };
+        // Written on the next frame, never inside the observation (OPEN_REPAIRS 633).
+        let raf = 0;
+        _rsHeadRo = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; set(); }); });
         _rsHeadRo.el = h;
         _rsHeadRo.observe(h);
         set();

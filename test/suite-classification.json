@@ -2068,6 +2068,14 @@
       "ci": "representative"
     },
     {
+      "file": "diagnostics-test-traffic-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared review-stage fixture (test/fixtures/review-stage-fixture.js, fictional client and cards), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 674: a diagnostics report from a page a test robot drives says so (navigator.webdriver), so the server counts it as automation whatever its user agent; under the fixture the report is a plain request that dies with the page; a person's report is unchanged. Failed on main.",
+      "reproduce": "node test/diagnostics-test-traffic-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "workload-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

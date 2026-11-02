@@ -33,6 +33,12 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  // OPEN_REPAIRS 638: a v3 that refuses for another reason (a board its table does not take yet) still records through v2.
  globalThis.__wr101db.rpc=async(name,args)=>{calls.push({name,args});return name==='production_write_refusal_record_browser_v3'?{error:{code:'23514',message:'check constraint'}}:{data:{recorded:true},error:null};};
  assert.equal((await handler(request({action:'browser_claim',code:'write_conflict',status:409,env:{code:'save_in_flight',board:'workload'}}))).status,202);assert.deepEqual(calls.map(c=>c.name),['production_write_refusal_record_browser_v3','production_write_refusal_record_browser_v2'],'a refused v3 falls back to v2, so the report is kept');globalThis.__wr101db.rpc=realRpc;calls=[];
+ // OPEN_REPAIRS 674: a page that says a test robot drives it is automation, even with a person's user agent
+ // (headless Firefox's looks like one); without the flag the same agent is still a person.
+ const firefox='Mozilla/5.0 (X11; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0';
+ await handler(withKey({action:'browser_claim',code:'write_conflict',status:409,automation:true},null,firefox));assert.equal(calls[0].args.p_receipt.traffic,'automation','a robot-driven page is automation');calls=[];
+ await handler(withKey({action:'browser_claim',code:'write_conflict',status:409},null,firefox));assert.equal(calls[0].args.p_receipt.traffic,'person','the same agent without the flag is a person');calls=[];
+ await handler(withKey({action:'browser_claim',code:'write_conflict',status:409,automation:'yes'},null,firefox));assert.equal(calls[0].args.p_receipt.traffic,'person','only a true flag counts');calls=[];
  assert.equal((await handler(request({action:'staff_list'}))).status,401);assert.equal((await handler(withKey({action:'staff_list'},'synthetic-smm'))).status,403);assert.equal(calls.length,0,'only an admin key reads the list');
  assert.equal((await handler(withKey({action:'staff_list',days:30,include_automation:true,surface:'production',page:'client_link'},'synthetic-admin'))).status,200);assert.deepEqual(calls[0],{name:'production_write_refusal_list_v1',args:{p_days:30,p_include_automation:true,p_limit:300,p_surface:'production',p_page:'client_link'}});calls=[];
  await handler(withKey({action:'staff_list',surface:'drop table',page:'x'},'synthetic-admin'));assert.equal(calls[0].args.p_surface,null);assert.equal(calls[0].args.p_page,null,'unknown filter values are dropped');calls=[];

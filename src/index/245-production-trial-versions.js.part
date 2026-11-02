@@ -1,4 +1,5 @@
 import { svBusyHtml } from './040-shared-briefs.js';
+import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
 import { svTrialCall, svTrialErrorText, svTrialHash, svTrialLabelHtml, svTrialLabelShown, svTrialOnChange } from './189-trial-reels-card.js';
@@ -47,6 +48,12 @@ import { _prodRender } from './260-production-refresh-boot.js';
     function _trlProdLoad(issue, full) {
         const e = _trlProdEntry(issue.id);
         e.issue = issue;
+        /* No verified staff key (signed out, or the key not yet checked): no trial-reels read, which only answers a staff
+           key here (401 and a red console error before, found by session Reviewguard, 2026-11-02). The sub-issue reads
+           as having no versions, as with Trial reels off: today's single row. The next draw after sign-in reads it. */
+        let signedIn = false;
+        try { signedIn = !!_syncviewStaffIdentityForHeaders(); } catch (err) { signedIn = false; }
+        if (!signedIn) { if (!e.promise) { e.shape = null; e.readFailed = false; } return e.promise || Promise.resolve(); }
         svTrialOnChange(_trlProdOnChange);
         if (e.promise) return e.promise;
         e.client = _trlProdClient(issue);

@@ -1,5 +1,5 @@
 import { hideToast, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
@@ -188,6 +188,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _trlLoad(slug, force) {
         const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
+        /* The staff list needs a verified staff key: without one the function answers 401 and the page logs an error.
+           Not read, so no versions, as with Trial reels off; the next draw after sign-in reads it (OPEN_REPAIRS 630). */
+        let signedIn = false;
+        try { signedIn = !!_syncviewStaffIdentityForHeaders(); } catch (err) { signedIn = false; }
+        if (!signedIn) return Promise.resolve(e);
         const began = Date.now(), first = !e.at;
         let changed = null, moved = [];
         e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })

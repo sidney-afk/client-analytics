@@ -89,7 +89,7 @@ jobs:
           echo "Deploying $DEPLOY_FUNCTION from $actual" >> "$GITHUB_STEP_SUMMARY"
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.0
       - name: Refuse client-onboarding until its database objects exist
         if: github.event_name == 'workflow_dispatch' && inputs.function == 'client-onboarding'
         env:

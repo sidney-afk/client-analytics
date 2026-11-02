@@ -44,7 +44,7 @@ import {
   _calRenderBody, _calStatusFilterLabel, _thumbAdoptPersistedRevision, _thumbRefreshChangedCards,
   onCalViewChange
 } from './160-calendar-organize-ui.js';
-import { _calRestoreParkedEdits } from './170-calendar-links-status.js';
+import { _calRestoreParkedEdits, _calUnsentFields } from './170-calendar-links-status.js';
 import { CAL_REORDER_GUARD_MS, _calCapJobsRestore, _calLoadCaptionPrompts, _calReorderOptimistic } from './180-calendar-native-post-media.js';
 import { _calMergePostComments, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
 import { _isClientLink, _syncviewClientEntryDataRun, _syncviewClientEntryRunCurrent } from './260-production-refresh-boot.js';
@@ -1759,7 +1759,11 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                         // kept local.
                         if (_calV2Enabled()) {
                             const _rsf = _calRecentSaveFields.get(fp.id);
-                            const reconciled = _calRecentSaveReconcile(lp, fp, _rsf);
+                            // Everything this browser holds unsaved for the card: typed and
+                            // queued, a failed save awaiting its resend, a source repair.
+                            const _held = Object.assign({}, lp._writeUiRetryEdits || {}, lp._writeUiHeldSourceEdits || {}, _calPendingEdits[fp.id] || {});
+                            _calUnsentFields(fp.id).forEach(k => { _held[k] = true; });
+                            const reconciled = _calRecentSaveReconcile(lp, fp, _rsf, _held);
                             // Heal any stale Linear round-trip we just refused to
                             // adopt: re-assert the kept approval onto the Linear
                             // sub-issue so the next sync echoes the right value

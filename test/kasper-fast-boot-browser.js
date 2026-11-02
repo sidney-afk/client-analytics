@@ -59,6 +59,14 @@ async function again(t, origin, delays) {
   if (delays && delays.noCache) await t.page.addInitScript(() => { try { localStorage.removeItem('syncview_kasper_review_cache_v1'); } catch (e) {} });
   // ageCache: the saved list is that many minutes old (this browser last opened the tab that long ago).
   if (delays && delays.ageCache) await t.page.addInitScript(min => { try { const k = 'syncview_kasper_review_cache_v1', c = JSON.parse(localStorage.getItem(k) || 'null'); if (c) { c.savedAt = Date.now() - min * 60000; localStorage.setItem(k, JSON.stringify(c)); } } catch (e) {} }, delays.ageCache);
+  // caughtUp: records whether the review page ever said "All caught up" (the empty queue). The fixture always has cards
+  // waiting, so that page is only ever the empty answer of a read that has not landed (OPEN_REPAIRS 635). A mutation
+  // observer on the page's shadow root sees every change, however briefly it is on screen.
+  if (delays && delays.caughtUp) await t.page.addInitScript(() => {
+    window.__caughtUp = false;
+    const seen = r => { if (!window.__caughtUp && /All caught up/.test(r.textContent || '') && r.querySelector('.rc-card')) window.__caughtUp = true; };
+    const hook = setInterval(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; if (!r) return; clearInterval(hook); seen(r); new MutationObserver(() => seen(r)).observe(r, { subtree: true, childList: true, characterData: true }); }, 5);
+  });
   if (delays && delays.chips) await t.page.addInitScript(() => {
     window.__chips = [];
     setInterval(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; if (!r || h.hidden) return; const n = r.querySelectorAll('#skList .chipp').length; const L = window.__chips; if (!L.length || L[L.length - 1] !== n) L.push(n); }, 15);
@@ -105,9 +113,13 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await boot(t, origin);
       await stageUp(t.page);
       await sleep(1500);
-      await again(t, origin, { flags: 600, posts: 1500, noCache: true });
+      await again(t, origin, { flags: 600, posts: 1500, noCache: true, caughtUp: true });
       await stageUp(t.page);
       await sleep(1200);
+      // The tab's mount starts two overlapping reads; the older one, discarded, ended the newer one's loading, so the
+      // SMM sheet landing mid-read drew the empty queue and mounted the review page for it before the first video
+      // was asked for (2153 ms vs 2238 ms on a busy CI runner, run 41398021086).
+      expect(await t.page.evaluate(() => window.__caughtUp) === false, label + ': no "All caught up" while the list is still being read (the skeleton stays until the cards land)');
       const posts = first(t.state, /calendar_posts/);
       timing[label] = {
         code: first(t.state, /reviewstage/) - posts,

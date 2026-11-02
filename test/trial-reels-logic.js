@@ -287,6 +287,30 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
     && /return settleWinner\(/.test(code) && /settleWinner\(await rowsP!, sw\.winner_letter\)/.test(code),
     "every versions read passes the card's winner letter through settleWinner");
   ok(/assertSwitchOn\(supabase, client\)/.test(code) && /CLIENT_ACTIONS\.includes\(action\)/.test(code), 'every request checks the switch; a client link may only read and answer');
+
+  // list_many (session Trialchange, OPEN_REPAIRS 631): many clients' lists in one request, for Kasper's queue and Today.
+  {
+    const P = L.listManyPlan;
+    ok(L.LIST_MANY_ACTION === 'list_many' && L.LIST_MANY_MAX === 50 && !L.ACTIONS.includes('list_many') && !L.CLIENT_ACTIONS.includes('list_many'),
+      'list_many is its own action, outside ACTIONS (a function from before it answers 400 unknown_action) and never a client link\'s');
+    ok(L.staffAllows('creative', 'list_many') && L.staffAllows('automation', 'list_many'), 'every staff role may read many lists, as it may read one');
+    let r = P(['alpha', 'beta', 'gamma'], { clients: ['alpha', 'gamma'] });
+    ok(JSON.stringify(r.clients) === '["alpha","gamma"]', 'a client the page switch leaves out gets nothing at all (' + JSON.stringify(r) + ')');
+    ok(JSON.stringify(P(['alpha', 'beta'], { all: true }).clients) === '["alpha","beta"]', 'with the switch on for every client, every client asked is answered');
+    ok(P(['alpha'], null).clients.length === 0 && P(['alpha'], { clients: [] }).clients.length === 0 && P(['alpha'], 'yes').clients.length === 0, 'switch missing, empty or unreadable: nothing is answered');
+    ok(JSON.stringify(P(['Alpha', 'alpha', ' ALPHA ', ''], { clients: ['alpha'] }).clients) === '["alpha"]', 'each client once, case and spaces aside');
+    ok(P([], { all: true }).error === 'invalid_clients' && P('alpha', { all: true }).error === 'invalid_clients' && P(['', null], { all: true }).error === 'invalid_clients', 'no client, or not a list: refused');
+    const many = Array.from({ length: 51 }, (_, i) => 'c' + i);
+    ok(P(many, { all: true }).error === 'too_many_clients' && P(many.slice(0, 50), { all: true }).clients.length === 50, 'at most 50 clients a request');
+    // The function, read as source: the same shared auth and the same per-client switch check as a single list.
+    const fnMany = (code.match(/async function listMany[\s\S]*?\n}\n/) || [''])[0];
+    ok(/principalFor\(supabase, req, first, LIST_MANY_ACTION\)/.test(fnMany) && /principal\.kind !== "staff"\) throw new Refusal\(403, "staff_only"\)/.test(fnMany)
+      && /staffAllows\(principal\.role, LIST_MANY_ACTION\)/.test(fnMany), 'list_many: the same shared auth, staff key only, and the role check');
+    ok(/listManyPlan\(requested, await flagP\)/.test(fnMany) && /readFlag\(supabase\)/.test(fnMany) && /\.in\("client", allowed\)/.test(fnMany)
+      && fnMany.indexOf('listManyPlan(') < fnMany.indexOf('.in("client", allowed)'), 'list_many: the page switch decides which clients are read, before any card is read');
+    ok((code.match(/listCards\(supabase, (client|slug), /g) || []).length === 2, 'list and list_many draw each client with the same code (listCards)');
+    ok(/if \(action === LIST_MANY_ACTION\) \{/.test(code) && code.indexOf('action === LIST_MANY_ACTION') < code.indexOf('!ACTIONS.includes(action)'), 'list_many is answered before the single-client checks');
+  }
   const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261027090000_trial_reels.sql'), 'utf8');
   ok(/^-- ef-auto-deploy-applied-when: select to_regclass\('public\.trial_reel_cards'\) is not null/m.test(sql), 'the migration says how to tell it is applied, so the merge lane holds the function until then');
   ok(/revoke all on table public\.trial_reel_cards from public, anon, authenticated, service_role;/.test(sql), 'the new table: all four roles revoked');

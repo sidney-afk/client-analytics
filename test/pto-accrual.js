@@ -396,8 +396,8 @@ ok(/function loadAllPtoRows[\s\S]*\.order\("id"[\s\S]*\.gt\("id", cursor\)/.test
   && !/\.limit\(10000\)/.test(FN), 'PTO history uses stable UUID keyset paging without a fixed total-row cap');
 ok(/async function loadMemberPolicySnapshot[\s\S]*attempt < 3[\s\S]*const before = await loadPtoMember[\s\S]*Promise\.all\([\s\S]*"pto_requests"[\s\S]*"pto_adjustments"[\s\S]*const after = await loadPtoMember[\s\S]*before\.state_version[\s\S]*after\.state_version[\s\S]*pto_request_snapshot_conflict/.test(FN),
   'quote/request history is bracketed by matching per-member state versions and retries on concurrent writes');
-ok(/if \(action === "decide" \|\| action === "quote" \|\| action === "request"\)[\s\S]*quoteTimeOff\(supabase, caller[\s\S]*requestTimeOff\(supabase, caller[\s\S]*const data = await loadPtoData/.test(FN),
-  'quote and request avoid the inconsistent global history loader');
+ok(/if \(action === "decide" \|\| action === "quote" \|\| action === "request" \|\| action === "log" \|\| action === "log_quote"\)[\s\S]*logTimeOff\(supabase, caller, members[\s\S]*quoteTimeOff\(supabase, caller[\s\S]*requestTimeOff\(supabase, caller[\s\S]*const data = await loadPtoData/.test(FN),
+  'quote, request and the admin log avoid the inconsistent global history loader');
 ok(/const asOfMonthStart = asOf\.slice\(0, 8\) \+ "01";[\s\S]*dateShiftMonths\(asOfMonthStart, -3\)[\s\S]*dateShiftMonths\(asOfMonthStart, 4\)/.test(FN),
   'overview returns complete boundary months for the calendar window');
 const absenceBlock = FN.slice(FN.indexOf('const absences ='), FN.indexOf('const year =', FN.indexOf('const absences =')));

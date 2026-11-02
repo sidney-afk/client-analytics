@@ -158,6 +158,23 @@ async function shot(page, name) {
     }
     T.cardOff = '';
 
+    // Signed out (no verified staff key): no trial-reels read at all, which only answers a staff key (a 401 and a red
+    // console error before, session Reviewguard, 2026-11-02); the sub-issue keeps today's single row.
+    {
+      T.calls = []; consoleErrors.length = 0;
+      const p0 = await S.newPage();
+      await p0.setViewportSize({ width: 1440, height: 900 });
+      await S.openProduction(p0);
+      await p0.evaluate(() => { _syncviewStaffIdentityVerified = false; try { localStorage.removeItem('syncview_staff_identity_v1'); } catch (e) {} });
+      await p0.evaluate(x => _prodOpenDeliverable(x), 'del_vid_1');
+      await sleep(2000);
+      const r0 = await rows(p0);
+      ok(!T.calls.length, `signed out: no trial-reels request at all (${T.calls.map(c => c.action).join(',') || 'none'})`);
+      ok(r0.some(x => x.today && x.label === 'Deliverable file') && !r0.some(x => x.trial) && !(await p0.$('[data-trl-read-error]')), 'signed out: today\'s single "Deliverable file" row, no read error');
+      ok(!consoleErrors.some(t => /401|trial-reels/.test(t)), 'signed out: no 401 in the console (' + consoleErrors.join(' | ') + ')');
+      await p0.close();
+    }
+
     // Switch on: one row per version.
     T.calls = [];
     page = await open(1440, 900);

@@ -396,6 +396,7 @@ jobs:
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
+          Two notes sent close together both stay in the thread and in the card's calendar copy, whichever the server answers first (desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-overlap-browser.js
           Notes reopen without a needless skeleton, and a reply sent while loading goes at once (staff; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
@@ -408,6 +409,7 @@ jobs:
           Client approve and request-changes always save through the function|node test/calendar-client-approve-function-browser.js
           Sheet loading skeleton has the loaded Sheet's shape (desktop light and dark, phone, first paint)|node test/calendar-sheet-skeleton-shape-browser.js
           Sheet strip runs the full window width and the smallest card size keeps every control (1280, 1440, 1920, phone)|node test/calendar-sheet-full-width-browser.js
+          The thumbnail folder opens from the card's Files menu, not its own row icon (desktop and phone)|node test/calendar-thumb-folder-in-files-browser.js
           Samples Sheet and Review loading skeletons have the loaded shape (desktop light and dark)|node test/samples-sheet-skeleton-shape-browser.js
           A click on a pop-up's backdrop never falls through to the page underneath|node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
           Messages chat day dividers follow the reader's day and read as dates|node docs/syncview-design/tests/messages-day-divider-browser.js
@@ -499,6 +501,7 @@ jobs:
           Trial reels, Nightreel's live walk: Not this one stays said in Tweaks Needed, the SMM gets a new cut in Tweaks Needed, Kasper's Client dropped tile and undated header|node test/trial-reels-nightreel-browser.js
           Trial reels timing: the winner toast shows on the click, and a card set to Posted shows On trial in about a second|node test/trial-reels-timing-browser.js
           Trial reels switched on for everyone: non-trial cards unchanged on the client link, and Kasper's queue not held back by the trial reads|node test/trial-reels-everyone-browser.js
+          Trial reels, many clients in one read: one Kasper queue load makes one trial-reels request, an old function falls back to one per client, and a 429 is retried after Retry-After|node test/trial-reels-batch-browser.js
           LANES
 
 
@@ -599,6 +602,7 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Client link Calendar is read only and its video button opens the in-app viewer (caption, call to action, dates, Month and Week drag; staff unchanged)|node test/client-calendar-read-only-browser.js
+          A card this browser just saved still takes everyone else's changes to its other fields (OPEN_REPAIRS 636)|node test/calendar-recent-save-adopts-others-browser.js
           Clean addresses reach their screens, Kasper sub-tabs included|node test/clean-urls-browser.js
           Client link in a dark browser, frame by frame (dark from the first frame, loading screen in the page's shape)|node test/client-link-dark-first-paint-browser.js
           New review page as one system (one Kasper header on every section, Messages inside the tab, no page scroll, the app's colour tokens)|node test/review-stage-one-system-browser.js
@@ -637,6 +641,7 @@ jobs:
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
+          Staff gate seed answers trial-reels reads sent with an invented key in the browser (no live 401s)|node test/staff-gate-trial-reels-stub-local.js
           TikTok upload layout|node --require ./test/helpers/single-file-index.js test/tiktok-upload-redesign-browser.js
           TikTok preview clears when the form empties|node test/tiktok-preview-empty-clearance-browser.js
           Kasper's With the editors rows: Client · Title on one line, a small grey date below|node test/review-stage-with-editors-row-browser.js
@@ -687,7 +692,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-repair-checkpoint-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -707,6 +712,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           SHEET_FIT_REQUIRE_WEBKIT: '1'
         run: node test/calendar-sheet-fit-window-browser.js
+      - name: Kasper's review board and the client link under his conditions (Chromium and WebKit; approves in a row, double click, slow and lost answers, reload during a save, two tabs, an old tab, a full store, the refusal log's reports)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
+        run: node test/review-board-gauntlet-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

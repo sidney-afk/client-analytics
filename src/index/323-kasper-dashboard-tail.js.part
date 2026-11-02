@@ -319,7 +319,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null,
         searchOpen: false, active: 0, listOpen: false, folds: {},
         managers: null, assignments: {}, managersError: null, managersLoading: false, picker: false, pickerBusy: false,
-        history: null, historyOpen: false,
+        history: null, historyOpen: false, pfmSync: null,
     });
     const _caState = _caFresh();
     // Bumped by every purge, so a request started under one staff identity
@@ -482,6 +482,60 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };
+    }
+
+    // ---- Check Post for Me accounts (admin; L1, OPEN_REPAIRS 666) ----
+    // client-profile-write links each Post for Me account to a client on an exact, unique handle match (the
+    // hourly timer runs the same check) and lists the rest as "needs a person". The answer has safe fields only.
+    const CA_PFM_REASON = {
+        not_connected: 'Not connected in Post for Me.',
+        no_saved_handle_for_network: 'Facebook and LinkedIn have no saved handle to match; paste the ID by hand.',
+        no_client_matches: 'No client has this handle saved.',
+        several_clients_match: 'More than one client has this handle saved.',
+        only_an_archived_client_matches: 'Only an archived client has this handle.',
+        slot_holds_another_account: 'That client already has a different account here.',
+        several_accounts_match: 'Two Post for Me accounts match the same client.',
+        network_not_supported: 'SyncView has no place for this network yet.',
+    };
+    const CA_PFM_NETWORK = { tiktok: 'TikTok', tiktok_business: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn' };
+    const _caPfmReason = r => CA_PFM_REASON[r] || (/^save_refused:/.test(r || '') ? 'The save was refused (' + String(r).slice(13) + '); nothing was changed.' : String(r || ''));
+    const _caClientName = slug => { const r = (_caState.rows || []).find(x => x.slug === slug); return r ? r.display_name : slug; };
+    async function _caPfmSync() {
+        if (!_syncviewStaffCan('clients-admin') || (_caState.pfmSync && _caState.pfmSync.busy)) return;
+        const generation = _caGeneration;
+        _caState.pfmSync = { busy: true };
+        _caPaint();
+        let out;
+        try { out = await _caEditPost('pfm_accounts_sync', {}, false); } catch (e) { out = { resp: { status: 0 }, json: {} }; }
+        if (generation !== _caGeneration) return;
+        const j = out.json || {};
+        _caState.pfmSync = out.resp.status === 200 && j.ok ? { result: j } : { error: j.error || ('HTTP ' + out.resp.status) };
+        if (j.ok && Array.isArray(j.linked) && j.linked.length) _caLoad(true);
+        _caPaint();
+    }
+    function _caPfmSyncHtml() {
+        const st = _caState.pfmSync || {};
+        const btn = `<button type="button" class="cc-btn ca-pfm-btn" id="caPfmBtn" onclick="_caPfmSync()" ${st.busy ? 'disabled' : ''}>${st.busy ? svBusyHtml('Checking…') : 'Check Post for Me accounts'}</button>`;
+        let body = '';
+        if (st.error) {
+            const why = st.error === 'postforme_unreachable' ? 'Post for Me could not be reached. Try again in a minute.'
+                : st.error === 'postforme_not_configured' ? 'The Post for Me key is not set on the server.'
+                : st.error === 'authority_not_syncview' ? 'Accounts can be linked once SyncView is the main copy of client details.'
+                : 'Could not check (' + _calEsc(st.error) + '). Nothing was changed.';
+            body = `<p class="ca-pfm-msg is-error" role="status">${why}</p>`;
+        } else if (st.result) {
+            const r = st.result;
+            // A handle reads @name; a Page or channel name with spaces reads as written.
+            const who = a => { const u = String(a.username || '').replace(/^@/, ''); return `${_calEsc(CA_PFM_NETWORK[a.network] || a.network)} ${u ? (/\s/.test(u) ? _calEsc(u) : '@' + _calEsc(u)) : _calEsc(a.account_id)}`; };
+            const linked = (r.linked || []).map(a => `<li>${who(a)} <span class="ca-pfm-to">to ${_calEsc(_caClientName(a.slug))}</span></li>`).join('');
+            const needs = (r.needs_person || []).map(a => `<li>${who(a)} <span class="ca-pfm-why">${_calEsc(_caPfmReason(a.reason))}</span></li>`).join('');
+            const head = (r.linked || []).length ? `Linked ${r.linked.length} account${r.linked.length === 1 ? '' : 's'}.` : 'Nothing new to link.';
+            body = `<div class="ca-pfm-msg" role="status"><p>${head} ${r.already_linked || 0} already on a client.</p>`
+                + (linked ? `<ul class="ca-pfm-list">${linked}</ul>` : '')
+                + (needs ? `<p>${r.needs_person.length} need${r.needs_person.length === 1 ? 's' : ''} a person:</p><ul class="ca-pfm-list">${needs}</ul>` : '')
+                + '</div>';
+        }
+        return `<div class="ca-pfm" data-ca-pfm>${btn}${body}</div>`;
     }
 
     // ---- Search (typing filters at once; ↑ ↓ Enter Esc) ----
@@ -969,7 +1023,8 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const field = ([k, label]) => ed
             ? `<div class="ca-field${CA_LONG_FIELDS.includes(k) ? ' is-wide' : ''}"><dt><label for="caIn_${k}">${_calEsc(label)}</label></dt><dd>${input(k, label)}</dd></div>`
             : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValueHtml(k, _caFieldValue(r, k))}</dd></div>`;
-        const cards = CA_GROUPS.map(g => `<section class="ca-card ca-group is-${g.tone}" data-ca-group="${g.key}"><h4>${_calEsc(g.title)}</h4><dl>${g.fields.map(field).join('')}</dl></section>`).join('');
+        const pfmCheck = !ed && !r.archived_at && _syncviewStaffCan('clients-admin') ? _caPfmSyncHtml() : '';
+        const cards = CA_GROUPS.map(g => `<section class="ca-card ca-group is-${g.tone}" data-ca-group="${g.key}"><h4>${_calEsc(g.title)}</h4><dl>${g.fields.map(field).join('')}</dl>${g.key === 'publish' ? pfmCheck : ''}</section>`).join('');
         // One row of the most-used jumps, under the name.
         const reach = [['email', 'Email', CA_ICONS.mail], ['slack_channel_id', 'Slack', CA_ICONS.slack], ['creative_channel_id', 'Creative', CA_ICONS.brush],
             ['instagram_handle', 'Instagram', CA_ICONS.ig], ['tiktok_handle', 'TikTok', CA_ICONS.tt], ['youtube_channel_id', 'YouTube', CA_ICONS.yt]]
@@ -1044,7 +1099,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _caCloseList, _caCopy, _caEditCancel, _caEditInput, _caEditRefresh, _caEditSave, _caEditStart,
-        _caEditSwitch, _caFold, _caLoad, _caLoadManagers, _caMgrClose, _caMgrPick, _caMgrToggle,
+        _caEditSwitch, _caFold, _caLoad, _caLoadManagers, _caMgrClose, _caMgrPick, _caMgrToggle, _caPfmSync,
         _caSearchFocus, _caSearchKey, _caSelect, _caSetSearch, _caToggleArchived, _caToggleHistory,
         _caToggleList, _kasperMarkRepliesRead, _kasperRepliesDraftInput, _kasperRepliesReply,
         _kasperRepliesToggleAll

@@ -57,19 +57,28 @@
 //                     a manager, and is refused by the database unless SyncView
 //                     is the main copy;
 //   history        -- the newest edits to one client's details and manager.
+//
+// action "pfm_accounts_sync" (L1, OPEN_REPAIRS 666) links Post for Me accounts to clients on an exact, unique
+// handle match and lists everything else as "needs a person" (_shared/postforme-accounts.mjs has the rules).
+// Callable by an admin (the Publishing card's "Check Post for Me accounts") or by the hourly timer, which signs
+// with X-Pfm-Link-Key = PFM_ACCOUNT_LINK_KEY and may call this action only. dry_run: true plans and writes
+// nothing. Each link saves through client_profile_admin_edit after the Post for Me network check, with the
+// actor "Post for Me auto-link"; then one Sheet copy is sent. Raw accounts carry the clients' social tokens:
+// only the safe fields are ever kept, and no account body is logged or returned.
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { clientSlug } from "../_shared/sheets-mirror.mjs";
 import {
   accountChecks, accountPlatformProblem, EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
 } from "../_shared/client-profile-edit.mjs";
-import { makeStore } from "../_shared/roster-handlers.mjs";
+import { makeStore, timingSafeEqual } from "../_shared/roster-handlers.mjs";
+import { runAccountSync } from "../_shared/postforme-accounts.mjs";
 import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-pfm-link-key",
   "Cache-Control": "no-store",
 };
 const TAB = "Clients Info";
@@ -279,6 +288,78 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   return json({ ok: true, native: true, fields, request_id: requestId, row: result.row, sheet_copy: sheetCopy });
 }
 
+const AUTO_LINK_ACTOR = "Post for Me auto-link";
+const LINK_PROFILE_COLUMNS = "slug,instagram_handle,tiktok_handle,youtube_channel_id,postforme_account_id,extra,archived_at,updated_at";
+
+// The hourly timer's key (at least 32 characters), compared in constant time.
+function scheduledCaller(req: Request): boolean {
+  const given = clean(req.headers.get("x-pfm-link-key"));
+  const secret = clean(Deno.env.get("PFM_ACCOUNT_LINK_KEY"));
+  return !!given && secret.length >= 32 && timingSafeEqual(given, secret);
+}
+
+// One page of Post for Me accounts, or null. The raw body never leaves runAccountSync (it is projected to safe
+// fields there) and is never logged.
+async function fetchAccountPage(offset: number, limit: number): Promise<unknown[] | null> {
+  const key = clean(Deno.env.get("POST_FOR_ME_API_KEY"));
+  if (!key) return null;
+  try {
+    const resp = await fetch(`${PFM}/social-accounts?limit=${limit}&offset=${offset}`, {
+      headers: { Authorization: "Bearer " + key, Accept: "application/json" }, signal: AbortSignal.timeout(20000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null) as unknown;
+    if (Array.isArray(data)) return data;
+    const list = data && typeof data === "object" ? (data as JsonMap).data : null;
+    return Array.isArray(list) ? list : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function pfmAccountsSync(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string } | null): Promise<Response> {
+  if (await authority(supabase) !== "syncview") return json({ ok: false, error: "authority_not_syncview" }, 409);
+  if (!clean(Deno.env.get("POST_FOR_ME_API_KEY"))) return json({ ok: false, error: "postforme_not_configured" }, 503);
+  const result = await runAccountSync({
+    fetchPage: fetchAccountPage,
+    readProfiles: async () => {
+      const { data, error } = await supabase.from("client_profiles").select(LINK_PROFILE_COLUMNS);
+      if (error) throw error;
+      return data || [];
+    },
+    saveClient: async (row: JsonMap, changes: Record<string, string>) => {
+      const check = await checkAccounts(changes);
+      if (check.error) return { ok: false, error: check.error };
+      const { error } = await supabase.rpc("client_profile_admin_edit", {
+        p_slug: row.slug,
+        p_changes: changes,
+        p_expected_updated_at: clean(row.updated_at),
+        p_actor: AUTO_LINK_ACTOR,
+        p_role: "admin",
+        p_member_id: member ? member.id : null,
+        p_sheet_row: null,
+        p_request_id: crypto.randomUUID(),
+      });
+      if (!error) return { ok: true };
+      const msg = String(error.message);
+      if ((error as { code?: string }).code === "23505") return { ok: false, error: "postforme_account_taken" };
+      if (msg.includes("client_profile_version_conflict")) return { ok: false, error: "client_profile_version_conflict" };
+      if (msg.includes("client_profile_edit_field_not_editable")) return { ok: false, error: "field_not_editable" };
+      console.error("client-profile-write: auto-link save failed", msg);
+      return { ok: false, error: "write_failed" };
+    },
+    copySheet: () => copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch }),
+  }, { dryRun: body.dry_run === true }) as JsonMap;
+  // Best effort: the run log (migrations/2026-11-02-pfm-account-link-runs.sql) is where the watcher reads what
+  // needs a person. Its record function keeps only the named fields of each entry.
+  const { error: logErr } = await supabase.rpc("pfm_account_link_run_record", { p_run: {
+    trigger: member ? "admin" : "timer", dry_run: body.dry_run === true, ok: result.ok === true, error: result.error || null,
+    accounts: result.accounts || 0, already_linked: result.already_linked || 0, linked: result.linked || [], needs_person: result.needs_person || [],
+  } });
+  if (logErr) console.error("client-profile-write: the account-link run was not recorded", logErr.code || "");
+  return json(result, result.ok ? 200 : result.error === "postforme_unreachable" ? 502 : 500);
+}
+
 const MANAGER_SLUG = /^[a-z0-9&]+$/;
 type Roster = { managers: { slug: string; name: string }[]; byName: Map<string, string> };
 
@@ -370,9 +451,11 @@ async function history(supabase: SupabaseClient, body: JsonMap): Promise<Respons
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  // The hourly timer may call pfm_accounts_sync only (checked after the body is read).
+  const scheduled = scheduledCaller(req);
   const staffKey = clean(req.headers.get("x-syncview-key"));
   const auth = staffKey ? authorizeStaffKey(staffKey, ["admin"]) : { ok: false, role: null };
-  if (!auth.ok || auth.role !== "admin") return json({ ok: false, error: "unauthorized" }, auth.role ? 403 : 401);
+  if (!scheduled && (!auth.ok || auth.role !== "admin")) return json({ ok: false, error: "unauthorized" }, auth.role ? 403 : 401);
   try {
     const url = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -383,13 +466,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try { body = JSON.parse(raw || "{}") as JsonMap; } catch (_e) { return json({ ok: false, error: "bad_json" }, 400); }
     const action = clean(body.action);
     const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+    if (scheduled && !(auth.ok && auth.role === "admin")) {
+      if (action !== "pfm_accounts_sync") return json({ ok: false, error: "unauthorized" }, 403);
+      return await pfmAccountsSync(supabase, body, null);
+    }
     const sa = serviceAccount();
     const sheetId = clean(Deno.env.get(SHEET_ID_SECRET));
 
     if (action === "status") {
       return json({ ok: true, sheet_configured: !!(sa && sheetId), service_account: sa ? sa.email : null, sheet_id_secret: SHEET_ID_SECRET });
     }
-    const PICKER_ACTIONS = ["list_managers", "assign_manager", "history"];
+    const PICKER_ACTIONS = ["list_managers", "assign_manager", "history", "pfm_accounts_sync"];
     if (action !== "update_client_profile" && action !== "refresh_from_sheet" && !PICKER_ACTIONS.includes(action)) return json({ ok: false, error: "unknown_action" }, 400);
 
     const member = await adminMember(supabase, clean(body.member_id));
@@ -397,6 +484,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "list_managers") return await listManagers(supabase);
     if (action === "assign_manager") return await assignManager(supabase, body, member);
     if (action === "history") return await history(supabase, body);
+    if (action === "pfm_accounts_sync") return await pfmAccountsSync(supabase, body, member);
     const mode = await authority(supabase);
     if (mode === "syncview" && action === "update_client_profile") return await nativeUpdate(supabase, body, member);
     if (mode !== "sheet") return json({ ok: false, error: "authority_not_sheet" }, 409);

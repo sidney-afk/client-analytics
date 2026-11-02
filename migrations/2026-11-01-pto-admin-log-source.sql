@@ -22,6 +22,11 @@
 --   nothing is written: the insert is refused by the old check inside the
 --   create RPC's transaction. Every other pto action (overview, quote,
 --   request, decide, cancel, adjust, set_start_date) is unchanged.
+--   The marker does NOT release pto from the merge lane, though: the lane's
+--   PTO rule holds pto whenever a merge that changes it also changes a
+--   migrations/*pto*.sql file, until the lane is run by hand with
+--   migrations_applied=true (docs/ops/EF_AUTO_DEPLOY.md). Corrected
+--   2026-11-02 after merge run 98 held it.
 --
 -- HOW TO TELL IT IS APPLIED (expect true):
 --   select position('admin_log' in pg_get_constraintdef(oid)) > 0 as applied

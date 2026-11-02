@@ -155,8 +155,8 @@ is connected (`connection_type`), not per post. A TikTok connected as `tiktok_bu
 Trial reels are an Instagram feature, so:
 
 - **A trial card, "Trial versions" chosen**: one row per approved version (A, B, C...), each with its own video,
-  thumbnail and caption from Variantplan's version model (the `effective` set that `trial-reels` read returns per
-  version, card values filled in where a version has none), each with a small checkbox (all ticked). Instagram is
+  thumbnail and caption from Variantplan's version model (`studio_trial_versions.frame_url`, `thumbnail_url`,
+  `caption` by `(client, post_id, letter)`; an empty field means the card's, and version A is the card), each with a small checkbox (all ticked). Instagram is
   the only network, Trial reel is fixed on, and Facebook, YouTube, LinkedIn and TikTok are off with the reason. One
   press sends one Instagram post **per version**, each with its own key (the press key plus the letter), so a
   re-press after a partial failure resends only the versions that have no post yet.
@@ -211,7 +211,8 @@ Facebook did:
 | `post-source` (new) | Card or version to Post for Me storage: reads the Frame link, thumbnail and caption from `calendar_posts` or, for a version, from the same `effective` set `trial-reels` returns (shared logic module, never from the request), staff key only, the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (or TikTok's rule), Frame token through the `frameio-token` broker as `frameio-view` does. Reuses `frameio-view/logic.mjs` for the lookup. Writes no table. | merge lane (new function deploys on merge) | none |
 | `instagram-upload` | Account map per network; `platformMismatch(acct, want)` for youtube and linkedin; YouTube and LinkedIn configuration builders; per-network results generalised from Facebook's. | merge lane | none |
 | `tiktok-upload` | none (the stable key is a page change) | – | – |
-| `trial-reels`, `production-write`, `frameio-view`, `calendar-upsert` | none | – | none |
+| `frameio-view` (`logic.mjs`, shared) | none by this plan, but `post-source` reuses `frameio-view/logic.mjs`, which Variantplan's PR 3 changes (adds a list part, fixes the folder-share first-video fallback). Whichever lands second rebases; PR 1 here also refuses an inexact match on its own, so it is safe before the fix lands. | merge lane (Variantplan's PR) | none |
+| `trial-reels`, `production-write`, `calendar-upsert` | none | – | none |
 
 Secrets: none new. `post-source` uses the existing `POST_FOR_ME_API_KEY`, `FRAMEIO_BROKER_KEY`, `FRAMEIO_CLIENT_ID`.
 YouTube and LinkedIn need no new key: they are accounts on the same Post for Me key (confirm with Linkplan).

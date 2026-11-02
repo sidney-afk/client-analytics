@@ -267,7 +267,7 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({ids:_kasperState.items.map(i=>i.post.id),closed:_kasperState.closed,cur:document.getElementById('svReviewStage').shadowRoot.querySelector('.chipp.cur')?.dataset.id})));
   check(await inS(t.page, '.chipp.cur').getAttribute('data-id') !== id, label + ': closed card leaves stage');
 }
-/* REPRODUCTION ATTEMPT (draft, session Trialchange, 2026-11-02): which offline path makes WebKit raise the
+/* REPRODUCTION ATTEMPT (draft, session Trialchange, 2026-11-02; attempt 1 tried three synthetic offline paths, none reproduced): which offline path makes WebKit raise the
    "Fetch API cannot load .../frameio-view due to access control checks" page error the page never sees? Three variants
    on the client link's player, each in its own context, on WebKit:
      A. offline, then the player asks for a fresh address (svFrameStageRetry, the same _fvStageLoad(true) path);
@@ -276,35 +276,23 @@ async function kasperJourney(t, label) {
    Under main's rule each variant must show no page error; a variant that reproduces the report fails here, which is
    the red this draft is looking for. */
 async function offlineReproduction(browser, origin) {
-  for (const variant of ['A', 'B', 'C']) {
-    const label = 'webkit/offline reproduction ' + variant;
+  // Attempt 2: the failing case itself, four more times, with every page error stamped offline/online and timed.
+  const profile = 'iPhone 15 Pro Max landscape';
+  for (let i = 1; i <= 4; i++) {
+    const label = 'webkit/' + profile + '/client/dark repeat ' + i;
     console.log('RUN ' + label);
-    const t = await open(browser, origin, { phone: true, flags: 'on', stage: 'client', phoneMedia: true, context: { ...devices['iPhone 15 Pro Max landscape'], colorScheme: 'dark' } });
+    const t = await open(browser, origin, { phone: true, flags: 'on', stage: 'client', dark: true, phoneMedia: true, context: { ...devices[profile], colorScheme: 'dark' } });
+    t.page.setDefaultTimeout(10000);
     watchPageErrors(t);
     try {
-      await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' }), { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await t.page.waitForFunction(() => document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.fv-player')?.dataset.state === 'ready', null, { timeout: 30000 });
-      await sleep(800);
-      if (variant === 'A') {
-        await goOffline(t);
-        await t.page.evaluate(() => svFrameStageRetry());
-        await sleep(2500);
-      } else if (variant === 'B') {
-        t.state.viewDelay = 2000;
-        await t.page.evaluate(() => svFrameStageRetry());
-        await sleep(300);
-        await goOffline(t);
-        await sleep(3500);
-        t.state.viewDelay = 0;
-      } else {
-        await goOffline(t);
-        await t.page.evaluate(() => { const v = document.getElementById('svReviewStage').shadowRoot.querySelector('video'); if (v) { const src = v.currentSrc || v.src; v.src = src + (src.includes('?') ? '&' : '?') + 'reload=' + Date.now(); v.load(); } });
-        await sleep(4000);
-      }
-      await goOnline(t);
-      await sleep(500);
-      const seen = await t.page.evaluate(() => window.__phoneErrorLocations || []);
-      console.log('OFFLINE_REPRO ' + variant + ' ' + JSON.stringify({ reports: t.pageErrors, pageSaw: seen.length, player: await t.page.evaluate(() => document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.fv-player')?.dataset.state) }));
+      t.state.postsDelay = 1800;
+      await boot(t, origin, 'client');
+      t.state.postsDelay = 0;
+      Object.assign(t.state.cards[1], { platforms: 'youtube', title_status: 'Client Approval', graphic_status: 'Client Approval', video_deliverable_id: 'del_rs2', graphic_deliverable_id: 'gra_rs2' });
+      await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true }));
+      await t.page.waitForFunction(() => document.getElementById('svReviewStage').shadowRoot.querySelector('.fv-player')?.dataset.state === 'ready', null, { timeout: 15000 });
+      await clientJourney(t, origin, label, profile);
+      console.log('OFFLINE_REPRO ' + i + ' ' + JSON.stringify({ reports: t.pageErrors, pageSaw: (await t.page.evaluate(() => window.__phoneErrorLocations || [])).length }));
       check(t.errors.length === 0, label + ': no page errors ' + t.errors.map(x => String(x).split('\n')[0]).join('|'));
       cases++;
     } catch (e) {

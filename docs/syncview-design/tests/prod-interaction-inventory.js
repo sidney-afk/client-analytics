@@ -10,7 +10,7 @@
  */
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const { chromium } = require('playwright');
-const { serveStatic, isNonReadRequest } = require('./prod-test-utils');
+const { serveStatic, isNonReadRequest, waitForProductionIdle } = require('./prod-test-utils');
 
 const selectionOnly = process.argv.includes('--selection-only');
 
@@ -163,6 +163,17 @@ async function snapshot(page) {
   });
 }
 
+/* How many times #prodRoot has been rebuilt (a _prodRender swaps its children
+   wholesale). Counted by a childList observer on the root alone, installed once
+   the first load has settled; a hover that sees this move was measuring a page
+   that changed under it. */
+async function rootSwaps(page) {
+  return await page.evaluate(() => window.__prodRootSwaps || 0).catch(() => 0);
+}
+function repaintNote(swaps) {
+  return swaps > 0 ? ' (repainted under the probe)' : '';
+}
+
 function changed(a, b) {
   return Object.keys(a).some(k => a[k] !== b[k]);
 }
@@ -263,6 +274,10 @@ const INTERACTION_ASSERTIONS = [
   ['ipi_browser_errors', /^browser errors:/],
   ['ipi_probe_errors', /^page probe errors:/],
   ['ipi_error_card', /Production preview rendered an error card/],
+  // Not a failure of its own: rides along with ipi_hover_tip when #prodRoot was
+  // rebuilt during that hover (hovering itself never renders the root; a click
+  // legitimately does, so the click sweep does not carry it).
+  ['ipi_repaint_under_probe', /\(repainted under the probe\)/],
 ];
 /* Ids for a stage that stops the whole run before any assertion can fire. */
 const INTERACTION_STAGE_IDS = { firstPaint: 'ipi_first_paint_timeout', loadSettle: 'ipi_load_settle_timeout', errorCard: 'ipi_error_card' };
@@ -378,10 +393,11 @@ async function hoverChecks(page) {
     const loc = page.locator('#prodRoot [data-prod-tip]').nth(i);
     const raw = await loc.getAttribute('data-prod-tip');
     if (!raw) continue;
+    const swapsBefore = await rootSwaps(page);
     await loc.hover({ timeout: 2500, force: true });
     await page.waitForTimeout(460);
     const shown = await page.locator('#prodTip').evaluate(el => (el.textContent || '').trim()).catch(() => '');
-    if (!shown) failures.push(`hover tip did not render for "${raw}"`);
+    if (!shown) failures.push(`hover tip did not render for "${raw}"` + repaintNote((await rootSwaps(page)) - swapsBefore));
     await page.mouse.move(1, 1);
     await page.waitForTimeout(30);
   }
@@ -670,6 +686,27 @@ async function selectionChecks(page) {
         && _prodState.loaded && !_prodState.loading && !_prodState.refreshing
         && !_prodState.fromCache && !_prodState.cachePartial && _prodState.authorityLoaded, null, { timeout: 60000 });
     } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.loadSettle); throw e; }
+    /* AND THEN HOLD THE PAGE STILL. The flags above say the first projection
+       and the authority answer are in, but the finished-cards tail can still be
+       landing, and after it the 30-second tick, the authority re-read and the
+       realtime channel all repaint #prodRoot whenever live data has moved. This
+       sweep runs about three minutes, so it met several of them: a hover whose
+       node was swapped mid-hover ("element was detached from the DOM", then no
+       tip -- the 27e6d15 ipi_hover_tip red, reproduced 2 of 3 here on
+       2026-11-02) and, by the same route, a click compared across a rebuild
+       (the 3ea2693 ipi_silent_noop red). Refresh has its own suites; this one
+       is about what a click does, so wait for every load flag to stay down and
+       stop the ticks and the channel, as the a11y and layout suites do
+       (OPEN_REPAIRS 641). The Refresh button still works when clicked: it
+       passes force. */
+    try {
+      await waitForProductionIdle(page, { timeout: 60000 });
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.loadSettle); throw e; }
+    await page.evaluate(() => {
+      const root = document.getElementById('prodRoot');
+      window.__prodRootSwaps = 0;
+      if (root) new MutationObserver(() => { window.__prodRootSwaps++; }).observe(root, { childList: true });
+    });
 
     const results = [];
     const failures = [];

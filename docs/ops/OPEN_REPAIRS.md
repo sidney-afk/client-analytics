@@ -35939,6 +35939,11 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - Not covered: a full browser drive of the Review tab with a canonical thread. The review-stage fixture does not mock the crosswalk or the canonical read, so the proof is at the level of the shipped functions.
 - **Way back:** revert the PR.
 
+## 640. [2026-11-02 UTC, BUILT, NOT MERGED] WebKit "ResizeObserver loop" on the client link's review stage, again: the strip-edge watcher wrote inside the observation (session Sheetzoom)
+- **Seen:** #2514's repair-checkpoint (head 36a0c50), 2 checks of 395 red and not #2514's: "no ResizeObserver error (ResizeObserver loop completed with undelivered notifications.)" and 633's own check naming the cause, `["skList -> skList","skList -> view","skList -> svReviewStage"]`. 633 moved three of the stage's watchers to the next frame; the fourth, the strip-edge watcher on #skList (195 `_rsStripEdge`), still toggled the strip's right-edge fade class inside its callback. In WebKit that mask changes the strip's height (its scrollbar), which resizes the strip, #view and the stage in the same frame, and WebKit reports the loop. Chromium measures no size change there, which is why 633's size check passed it locally.
+- **Fix (195):** the strip-edge watcher sets the fade on the next frame, and only when it changed (the scroll listener keeps setting it at once). No watcher on the review stage writes inside an observation any more.
+- **Proof:** `test/calendar-sheet-fit-window-browser.js` now also records every class or style write a watcher's callback makes while it runs, in any engine. The case gives the strip 11 posts, so it overflows at 1440 and not at 3600, then widens the window and back, so the strip watcher's fade has to flip. On main it fails in Chromium, naming the strip watcher; here it passes (Chromium; WebKit in CI).
+
 ## 638. [2026-11-02 UTC, BUILT, NOT MERGED] The Workload calendar reports what goes wrong, the same way the review boards do (session Reviewguard)
 
 - **Asked:** after the review boards (OPEN_REPAIRS 626), put the same logging on the Workload calendar, then on the content Calendar, as separate PRs. This is the Workload one.
@@ -35985,6 +35990,56 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The suites that lift the beacon or the composer carry the new helpers (`test/write-refusal-beacon-card-id.js`, `test/linear-exit-write-diagnostics-browser.js`, `test/notes-composer-one-send.js`).
 - **Found while building, fixed here:** the reload check first ran on a timer set when 170 loaded. With the split build, the parts after 170 are written into the page and fetched one by one, and on a slow line the timer fired while the part that says whether this is a client link was still on its way. The board lookup then threw, inside a `try`, and the report was dropped without a trace (4 runs in 6 under load). The check now waits for `DOMContentLoaded`, by which point every written-in part has run, and `_writeUiPageBoard` reads the link's own address when that part has not run yet. `test/calendar-reports-browser.js` holds those later parts back on its reload, so this fails on the first version every run and passes here.
 - **Codex P2 on #2519, fixed:** a status that committed while the card's own save failed is logged as `status_committed_source_failed`, but a later landing was reported only as `status`, so that recovery never paired up and the signature read kept it as `no_retry_landed`. A landing now checks both kinds. `test/calendar-reports-browser.js` case 1 covers it (fails before, passes now).
+
+## 641. [2026-11-02 UTC, BUILT, NOT MERGED] The Production polish gate went red on main three times with no app defect behind it: two suites raced, one against its own page change and one against the live refresh (found by the supervisor; fixed by session Polishred)
+
+- **Seen:** "Production polish gate (push)" red on d25a912 (run 41466534746, heavy lane: `behav_wired:noConsoleErrors` and `pixel_wired:console silence`), on 3ea2693 (run 41474472991, interaction lane: `ipi_silent_noop` + `ipi_state_list`), and on 27e6d15 on 29 Oct (run 40925484078, interaction lane: `ipi_hover_tip`). Green on the merges before and after each. None of the three merges touched Production.
+- **Cause 1 (d25a912), the audit kept waiting for reads from a page that no longer existed.** `behav-wired.js` loads the page, then loads it again a few seconds later (`globalNavKeyboardExit`). The first page's boot reads (the deliverables first page and the team list) were still open at the second load. Playwright reported neither a finish nor a failure for them, so `installReadConsoleAudit` kept them as outstanding for the whole three-minute run. `settle()` then reported "pending read requests" while every app loading flag was down. Their age at settle was about 198 s, the length of the run. This reproduced 3 of 3 times on main from a sandbox (read-only, live). `pixel-wired.js` uses the same audit and reloads too.
+- **Cause 2 (27e6d15, 3ea2693), the interaction sweep ran while the page refreshed itself.** `prod-interaction-inventory.js` waited for the first load, then spent about three minutes clicking and hovering. It never held the 30-second tick, the authority re-read or the realtime channel, and it did not wait for the finished-cards tail. Each of these rebuilds `#prodRoot` when live data moves. Playwright's own log of a failed hover reads "element was detached from the DOM, retrying", and then no tip appeared. This reproduced 2 of 3 times on main. The `ipi_silent_noop` red did not reproduce here (0 of 15 list-state passes), but the list's candidate count changed between passes (35 vs 28): the same moving surface.
+- **Fix (tests only, nothing weakened):**
+  - `prod-test-utils.js` `installReadConsoleAudit`: when a real navigation commits (a page load, not a route change inside the page), the audit stops waiting for a main-frame read that started before the commit. That read belonged to the page that went away. It is counted with the navigation-aborted reads. A read the new page opens and never finishes is still reported, exactly as before, and so is any read open across a route change inside the same page.
+  - `prod-interaction-inventory.js`: after the first load it now runs `waitForProductionIdle`, which waits until every load flag stays down and then holds the ticks and the channel. The a11y and layout suites already do this. A hover that finds no tip now says whether `#prodRoot` was rebuilt during the hover, as a new code `ipi_repaint_under_probe` beside `ipi_hover_tip`.
+  - `prod-comments-browser.js` had no stage names, so its reds could not say which step failed. It now announces 13 steps (`boot` through `write_audit`) under its own marker. The gate harvests the allowed names from the suite's source, as it does for the read-only smoke suite, and reports the last one reached.
+- **Proof:**
+  - `test/prod-read-console-audit.js` gains four cases:
+    - an old-page read a navigation tore down silently passes;
+    - a read the new page opens and never finishes still fails;
+    - a route change inside the page excuses nothing;
+    - a half-read response body from the old page is not waited for.
+    - The first case fails on main.
+    - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
+  - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
+  - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
+- **Way back:** revert the PR.
+
+## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
+
+- **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - a link that names a file pages through every page of the share's assets (`links.next`, 50 per page), then looks inside shared folders (at any depth, paged), then inside version stacks for an older version named by its own id;
+  - if the named file is still not found, it refuses with the new code `file_not_in_share` (404, plain sentence in the MESSAGES table). The page shows the server's message for any refusal, so it is handled exactly like `link_not_found`; no page change;
+  - the search is capped (20 pages per list, 40 Frame.io calls in all); hitting the cap can only refuse, never swap;
+  - a bare share (no file named) keeps today's "first video" behaviour, with the same single request;
+  - the answer shape is unchanged.
+- **Also redeploys:** `higgsfield-mcp` imports the same `logic.mjs` for its "Watch here" lookup, so the merge lane redeploys it with the same fix. No model or setting change.
+- **Proof:** `test/frameio-view-source.js` gains a mocked share (a stack and a folder on page 1, another stack on page 2 reached only through `links.next`). A named file found on page 1 plays without asking for page 2, so a later page that fails cannot stop it (Codex review). On main, a file inside the folder, a stack inside the folder, the page-2 stack, an older version and a missing file all get the first video; with the fix each plays its own file and the missing one is refused. A top-level stack and a bare share pass on both. Every existing check is unchanged (143 pass).
+- **Live check after merge:** on the main test client's folder share with two videos, the second video's link plays the second video.
+- **Way back:** revert the PR.
+
+## 643. [2026-11-02 UTC, BUILT, NOT MERGED] A Workload report is stored as surface `workload`, not `unknown` (session Reviewguard)
+
+- **Seen:** the live check after #2514 (OPEN_REPAIRS 638) on the test client. The Workload report landed with board `workload`, but its receipt's `surface` read `unknown`. The shared receipt maker (`_shared/write-refusal-diagnostics.mjs`) keeps only `calendar`, `sxr` and `production`, and the receipts table's check takes only those and `unknown`. The watcher's signature read uses the board, so nothing was lost, but the staff "Save problems" list could not tell a Workload report from any other unknown one.
+- **Asked:** the supervisor, as its own small PR after the Calendar logging (639), with a test that fails on the old surface list.
+- **Now:**
+  - **write-diagnostics only** (`browser-detail.mjs` `shapeBrowserReceipt`): a browser claim from surface `workload` keeps it. The shared receipt maker is left as it is, because `production-write` imports it too and must not move its fingerprint.
+  - **No report is lost before the migration:** if the table refuses the surface, `index.ts` records the same report again as `unknown`, as before.
+  - The staff list's surface filter takes `workload`.
+  - **Migration `20261102180000_workload_surface.sql`** (write-diagnostics is held until it is applied; its first line is the read-only "applied-when" check the deploy lane runs, false before and true after): `receipts_v1.surface` also takes `workload`, and `production_write_refusal_list_v1` accepts it as a filter (re-created from the live definition, otherwise unchanged). EXECUTE is revoked from public, anon, authenticated and service_role, then granted to service_role. Rows already stored are left as they are.
+- **Proof:**
+  - `test/linear-exit-write-diagnostics-handlers.js`: a Workload claim is sent with surface `workload` (fails on main: "a Workload report keeps its surface"); any other surface is still `unknown`; a table that refuses `workload` gets the same report as `unknown` (three record calls: v3, v2, then v3 as unknown); the staff list filters by `workload`.
+  - `test/review-board-diagnostics-postgres.js` runs the migration's own applied-when check (false before, true after), applies it twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
+  - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
+- **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.
 
 ## 645. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
 

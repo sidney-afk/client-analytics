@@ -9,7 +9,7 @@
 //              comments:[{ id, time_seconds, frame, text, author, guest, created_at, done, replies:[...] }],
 //              comments_error, comments_truncated, reply_names_partial, open_url, fetched_at }
 //     -> { ok:false, error:<code>, message:<plain sentence> }   unsupported_link 422, link_not_found 404, share_off 404,
-//        share_expired 404, empty_share 404, not_video 415, still_processing 409, frameio_login_needed 503,
+//        share_expired 404, empty_share 404, file_not_in_share 404, not_video 415, still_processing 409, frameio_login_needed 503,
 //        frameio_busy 429, frameio_unavailable 502, timeout 504, unauthorized 401/403, staff_only 403
 //
 // Staff: the key must match a staff role key (admin, smm or creative). The browser's public key is not enough.

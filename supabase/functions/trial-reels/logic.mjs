@@ -617,6 +617,7 @@ export function versionFieldsPatch(versions, { letter, thumbnail_url, caption, m
   if (!live(v)) return { error: "version_dropped" };
   if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
   if (letter === mainLetter(versions, mainLink)) return { error: "version_is_card" };
+  /** @type {Record<string, unknown>} */
   const patch = {};
   if (thumbnail_url !== undefined) {
     const t = cleanThumb(thumbnail_url);

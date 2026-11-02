@@ -884,7 +884,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const opened = await t.page.evaluate(() => calState.view);
       const d = await dec(t);
       ok(opened === 'review' && /^on/.test(d.dots.split(',')[0] || ''), `${label}: tapping it opens the Review page on the first waiting version (${opened}, ${d.dots})`);
-      await t.page.evaluate(() => onCalViewChange('month'));
+      // Month opens on the card's own month: the fixture's dates are fixed in October 2026, and Month opens on today's
+      // month, so from 1 Nov the card was not on it.
+      await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); if (p && p.scheduled_date) calState.monthCursor = p.scheduled_date.slice(0, 8) + '01'; onCalViewChange('month'); });
       let month = null;
       for (let i = 0; i < 40 && !(month = await tagOf('#calView .cal-month-pill .cal-trial-tag')); i++) await sleep(150);
       await shot(t, 'hint-month-' + label);

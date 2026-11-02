@@ -34,9 +34,12 @@ const failures = [];
 let checks = 0;
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else { checks++; } }
 
-// Dates around today (three days before to four after), so the posts are always in the
-// week and month the views open on, whatever day the suite runs.
-const isoFromToday = days => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days);
+// Dates around a fixed "today" (three days before to four after), so the posts are in the week and month the
+// views open on. The page's clock is pinned to the same day (TODAY): a six-week month (November 2026 starts on a
+// Sunday) makes every row shorter than a cell with a post needs, so a row with posts grows by about 10px and the
+// comparison failed from 1 Nov whatever the skeleton did. 15 Oct 2026 sits in a five-week month.
+const TODAY = new Date(2026, 9, 15, 12, 0, 0);
+const isoFromToday = days => { const d = new Date(TODAY); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const card = (id, order) => ({
   id, client: SLUG, name: 'Test card ' + order, status: 'In Progress', order_index: order, updated_at: '2026-10-08T12:00:00.000Z',
@@ -105,6 +108,7 @@ async function shot(page, name) {
 
 async function view(browser, origin, label, which, theme) {
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
+  await ctx.clock.setFixedTime(TODAY);
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
   const page = await ctx.newPage();
   const errors = [];

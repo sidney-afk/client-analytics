@@ -650,7 +650,10 @@ async function prepare(page,name) {
   await page.evaluate(({samples,name}) => {
     const empty=/^(calendar|samples)-empty$/.test(name),noPosts=/^(calendar|samples)-no-posts$/.test(name),readError=/^(calendar|samples)-error$/.test(name);
     const loading=/^(calendar|samples)-loading$|^calendar-(month|week)-loading$/.test(name);
-    const row = {id:'phone_fixture_post',client:'sample-one',name:'A calmer start to the day',status:'For SMM Approval',video_status:'For SMM Approval',graphic_status:'For SMM Approval',caption_status:'For SMM Approval',caption:'A fictional caption.',scheduled_date:'2026-10-06',thumbnail_url:'https://images.example.invalid/phone-fixture.svg',asset_url:'https://example.invalid/fixture-video.mp4'};
+    // The card sits on the 6th of the current month: Month view opens on today's month, and a fixed date
+    // ('2026-10-06') left the Month pill nowhere to be found once the calendar reached November.
+    const sixth=(d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-06')(new Date());
+    const row = {id:'phone_fixture_post',client:'sample-one',name:'A calmer start to the day',status:'For SMM Approval',video_status:'For SMM Approval',graphic_status:'For SMM Approval',caption_status:'For SMM Approval',caption:'A fictional caption.',scheduled_date:sixth,thumbnail_url:'https://images.example.invalid/phone-fixture.svg',asset_url:'https://example.invalid/fixture-video.mp4'};
     if(name.endsWith('save-error')) Object.assign(row,{type:'Reel',post_type:'Reel',video_deliverable_id:'00000000-0000-4000-a000-000000000001',graphic_deliverable_id:'00000000-0000-4000-a000-000000000002'});
     if(name.endsWith('long-content')) {row.name='A longer fictional title about building a calmer morning with enough room for all the important details';row.caption='A longer fictional caption that needs to wrap comfortably without hiding its actions. '.repeat(12);}
     const posts=empty||noPosts||readError?[]:name.endsWith('many')?Array.from({length:12},(_,i)=>({...row,id:row.id+'_'+i,name:row.name+' '+(i+1),order_index:i+1})):[row];

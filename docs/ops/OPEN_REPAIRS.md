@@ -36010,6 +36010,33 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
+## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+
+- **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
+  - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
+  - The stack is the player's own video-error path: 187 `_fvStageFailed` → `_fvStageLoad(true)` → `_fvRequest`.
+  - The page's own error listeners saw nothing.
+- **Cause:** 450 ms after Finish opens the next post, the suite navigates away (its "later visit reads all four saved approvals" check) while that post's video is still loading.
+  - The browser aborts the load as the page unloads.
+  - The player took the abort for a failed video and re-asked frameio-view for a fresh address.
+  - WebKit cancelled that cross-origin fetch along with the page and reported it as an access-control failure.
+  - A navigation (a real document load) right after Finish was measured on Chromium.
+  - A real person who reloads or leaves the page while a video loads sends the same wasted request.
+  - It also re-asked for a video already taken out of the page with its player.
+  - A first guard for that last case alone (an earlier head of this PR) left the WebKit red in place, because the erroring video was still the stage's own.
+- **Change (187 only):** `_fvStageFailed` no longer re-asks in any of these cases:
+  - the page is leaving (`beforeunload`, `pagehide`; cleared when the page stays or is restored);
+  - the error is an aborted load (`MEDIA_ERR_ABORTED`);
+  - the video or the stage host is no longer in the page;
+  - the video belongs to a card other than the one on stage.
+  - The video on stage still tries the smaller file and then re-asks once, as before.
+- **Proof:** `node test/review-stage-player-leaving-browser.js` (new, offline, Chromium, in `calendar-unit-tests`).
+  - A: a video taken out of the page asks for no new address. On main it asks once.
+  - B: after a card switch, the previous card's video asks for none. This already passed on main.
+  - C: control, the stage video still re-asks once.
+  - D: while the page is leaving, no re-ask. On main it asks once.
+  - E: control, the page stays after all, and it re-asks once again.
+  - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.
 
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
@@ -36059,6 +36086,42 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Proof:** `test/slack-channel-stall-guard.js` + `scripts/slack-channel-stall-proof.sql` (disposable PostgreSQL, on top of the Create client proof): both orders (profile then form, form then profile), a typed email never overwritten, a test client and a channelled client left alone, a refusing roster and a broken web call never fail the write, one nudge per new email, the view's rows and its privileges. Fails without the file; mutation-checked. The view's query was run read-only on live: one row today (a client created 29 Oct, waiting for its form and email).
 - **Not done here, n8n (proposed on the PR, for the supervisor and owner):** make an empty profile email WAIT instead of park, so a job also recovers on its own when the email is typed by hand; and stop the manual-reconcile DM from carrying the form answers (it holds the account-access lines). Never applied by this session.
 - **Owner steps:** Lighthouse applies the migration; the supervisor adds the watcher query from the PR. Rollback is in the file's header.
+
+## 670. [2026-11-02 UTC, BUILT, NOT MERGED] frameio-view lists the videos in a Frame.io folder, and has a strict lookup (session Framefix, plan item F1)
+
+- **Asked:** plan item F1, on top of F0 (OPEN_REPAIRS 644). V2 (import versions from a Frame folder) needs the list; F4 (`post-source`) needs the strict lookup.
+- **Now (`supabase/functions/frameio-view/logic.mjs`, read-only):**
+  - `part: "list"` answers `{ name, videos: [{ file_id, name, duration_seconds, thumbnail_url, created_at, processing, link }], truncated, open_url }`. For a shared folder, the walk takes every page, goes through folders and version stacks (newest version), and keeps videos only (no images). It returns up to 50 of them, newest first, and `truncated` says when more were left out. A file link lists that one video.
+  - Each row's `link` is `next.frame.io/share/<share>/view/<asset>`, which F0 plays exactly.
+  - Only names, lengths, Frame's thumbnails (signed links: shown, never stored) and links come back. No playable address is asked for (never `media_links.original`), and no comments.
+  - A staff key only: the client path is always the video part, so a client token cannot list.
+  - `strict: true` (an option of the module, for `post-source`) refuses a folder link with `folder_link` (422, plain words). That covers a bare share that is not exactly one file, and a link naming a folder. A link naming a file plays it. Without `strict`, the player keeps today's "first video" for a bare folder link.
+- **Proof:** `test/frameio-view-source.js`, mocked Frame.io:
+  - a folder of 6 videos and 2 images lists the 6;
+  - a folder past one page is followed to page 2 and cut at 50 (`truncated`), keeping the newest;
+  - a folder whose pages run past the page cap says `truncated` even when it found few videos (Codex review);
+  - a file link lists one row;
+  - a listed link plays its own video;
+  - strict refuses a bare folder link and a link naming a folder, and plays a named file;
+  - a client lookup asking for a list gets the video only.
+
+  On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (160 pass in all).
+- **Live check after merge:** list one folder share of the main test client.
+- **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
+
+## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
+
+- **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.
+- **Measured first (read-only, 2 Nov):** 41 client profiles, none archived. Post for Me ids: TikTok column 13, Instagram 4, Facebook Page 2, YouTube 0, LinkedIn 0. **0 duplicate ids on every slot**, 0 ids with stray spaces, 0 not shaped `spc_...`. The live function is the 2026-10-31 body.
+- **Built:**
+  - **Migration `migrations/2026-11-02-client-postforme-accounts.sql` (needs Lighthouse; carries `functions-cope-without-this`):** `client_profile_admin_edit` takes `postforme_youtube_account_id`, `postforme_linkedin_account_id` (spc_ or blank) and `youtube_made_for_kids` (true / false / blank; stored as JSON `true`, removed when off), each in `extra` with one history row. Five unique partial indexes `client_profiles_<field>_uniq` on the trimmed value of every slot (TikTok column, Instagram, Facebook, YouTube, LinkedIn), archived rows included. Its header has the precheck, the read-back and the four-role revoke. Rollback: `...ROLLBACK.sql` (drops the indexes, restores the 2026-10-31 body; saved values stay).
+  - **`client-profile-write`:** every non-blank account id in a save, the TikTok column included, is checked against Post for Me's `platform` before the database is called (TikTok accepts `tiktok` and `tiktok_business`, as `tiktok-upload` does); only `platform` is read, the body is never passed on. A unique-index refusal (23505) answers `postforme_account_taken` with the slot, not `write_failed`. Logic in `_shared/client-profile-edit.mjs` (`ACCOUNT_FIELD_PLATFORMS`, `accountChecks`; `EXTRA_ACCOUNT_PLATFORM` is gone).
+  - **Kasper > Clients, Publishing card:** **YouTube (Post for Me)** and **LinkedIn (Post for Me)** paste boxes and a **YouTube: made for kids** switch (Off/On; 44px on phones). Plain messages for a taken account and for a wrong network on every slot.
+- **Proof:** `test/client-postforme-accounts-postgres.js` (new, disposable PostgreSQL: refused before, saved after, made-for-kids on/off and history, a second client refused on all five slots even padded, archived ids count, the rollback restores the 2026-10-31 body exactly); `test/client-profile-edit.js` (+14 checks); `clients-admin-browser.js` (the two fields, the switch on and off, a taken account, a wrong TikTok network, at 1440, 390 and 375). Each fails on main.
+- **Codex P2 on #2533, fixed:** the Sheet-first lane (only while `client_profiles_authority` is `sheet`; live it is `syncview`) writes the Sheet before the database, so the index alone would have left a duplicate account in the Sheet. It now reads whether another client holds the account and refuses (`postforme_account_taken`) before any Sheet write.
+- **Why the functions cope:** before the migration the three new fields answer `field_not_editable` (the page says the database update is not applied yet) and nothing is written; the TikTok check needs no database change.
+- **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
+- **Way back:** revert the PR and run the ROLLBACK file.
 
 ## 674. [2026-11-02 UTC, BUILT, NOT MERGED] A CI run's Firefox reports reached the live diagnostics log, counted as a person's (session Reviewguard)
 

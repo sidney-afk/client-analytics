@@ -570,6 +570,38 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   ok((kWait.body.stages_done as Row).kasper === false, "C still waits for Kasper: he is not done");
 }
 
+// V3 (plan combined.md): a version's own thumbnail and caption, through the real function.
+{
+  tables.calendar_posts.push({ id: "p6", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p6-a", video_deliverable_id: null,
+    thumbnail_url: "https://e.example/p6-card.jpg", caption: "Card words" });
+  const p6row = (l: string, over: Row = {}) => ({ ...v("A"), id: "p6" + l, letter: l, post_id: "p6", status: "waiting", frame_url: "https://f.io/p6-" + l.toLowerCase(), revision: 0,
+    smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null,
+    updated_at: "2026-11-02T09:00:00.000Z", ...over });
+  for (const l of ["A", "B"]) { const r = p6row(l); delete (r as Row).thumbnail_url; delete (r as Row).caption; tables.studio_trial_versions.push(r); }
+  await step({ action: "switch_set", enabled: true, post_id: "p6" });
+  const p6 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "p6" + l)!;
+  const off = await step({ action: "version_fields_set", post_id: "p6", letter: "B", caption: "B words" });
+  ok(off.status === 403 && off.body.error === "fields_off", "V3: with trial_versions_v2 off, a version's fields are refused (" + off.status + " " + off.body.error + ")");
+  tables.syncview_runtime_flags.push({ key: "trial_versions_v2", value: { clients: ["fixtureclient"] } });
+  const early = await step({ action: "version_fields_set", post_id: "p6", letter: "B", caption: "B words" });
+  ok(early.status === 503 && early.body.error === "fields_unavailable" && !("caption" in p6("B")), "V3: before F2's columns exist, refused and nothing written");
+  for (const l of ["A", "B"]) Object.assign(p6(l), { thumbnail_url: null, caption: null });
+  const set = await step({ action: "version_fields_set", post_id: "p6", letter: "B", caption: "B words" }, "creative");
+  ok(set.body.ok === true && p6("B").caption === "B words" && p6("B").thumbnail_url === null, "V3: an editor sets Video B's caption; its thumbnail stays the card's");
+  const rows = (set.body.versions || []) as Row[];
+  const eff = (l: string) => (rows.find((r) => r.letter === l)?.effective || {}) as Row;
+  ok(eff("B").caption === "B words" && eff("B").thumbnail_url === "https://e.example/p6-card.jpg" && eff("A").caption === "Card words",
+    "V3: the read's effective fields: B's own caption, the card's thumbnail; A reads the card");
+  const onCard = await step({ action: "version_fields_set", post_id: "p6", letter: "A", caption: "x" });
+  ok(onCard.status === 409 && onCard.body.error === "version_is_card", "V3: the version on the card is set on the card, not here");
+  const client = await step({ action: "version_fields_set", post_id: "p6", letter: "B", caption: "x" }, "client-token");
+  ok(client.status === 403 && client.body.error === "staff_only", "V3: a client link may not");
+  const cRead = await step({ action: "read", post_id: "p6" }, "client-token");
+  const cB = ((cRead.body.versions || []) as Row[]).find((r) => r.letter === "B") as Row;
+  ok(cB && (cB.effective as Row).caption === "B words" && !("caption" in cB), "V3: a client read carries B's effective fields, not its own columns");
+  ok(tables.calendar_posts.find((c) => c.id === "p6")!.caption === "Card words", "V3: the card's own caption is never written by trial-reels");
+}
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

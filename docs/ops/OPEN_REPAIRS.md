@@ -35991,3 +35991,26 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Found while building, fixed here:** the reload check first ran on a timer set when 170 loaded. With the split build, the parts after 170 are written into the page and fetched one by one, and on a slow line the timer fired while the part that says whether this is a client link was still on its way. The board lookup then threw, inside a `try`, and the report was dropped without a trace (4 runs in 6 under load). The check now waits for `DOMContentLoaded`, by which point every written-in part has run, and `_writeUiPageBoard` reads the link's own address when that part has not run yet. `test/calendar-reports-browser.js` holds those later parts back on its reload, so this fails on the first version every run and passes here.
 - **Codex P2 on #2519, fixed:** a status that committed while the card's own save failed is logged as `status_committed_source_failed`, but a later landing was reported only as `status`, so that recovery never paired up and the signature read kept it as `no_retry_landed`. A landing now checks both kinds. `test/calendar-reports-browser.js` case 1 covers it (fails before, passes now).
 - **Way back:** revert the PR.
+
+## 657. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V3: each version's own thumbnail and caption, the effective read, and the winner's copied onto the card (plan combined.md row V3; session Vbuild)
+
+- **Asked:** Sidney wants trial versions to differ in thumbnail and caption, not only in video. Plan row V3, on F2's columns (migration `20261102200000`, #2530).
+- **Before:** a version carried only its video. The card's single thumbnail and caption covered every version.
+- **Now:**
+  - **`trial-reels`:**
+    - New action `version_fields_set` (admin, SMM, editor). It sets a version's thumbnail (https, at most 2048) and/or caption (at most 4000). A field left out stays as it is; an empty one goes back to the card's.
+    - Refused for the version on the card (`version_is_card`: it is the card), a dropped version, and one on trial or decided.
+    - Gated server-side on `trial_versions_v2` (`fields_off`). Refused with `fields_unavailable` until F2's columns exist.
+    - A change on an answered version starts it again through the SMM (revision + 1, OKs cleared), as a replaced link does.
+    - Every read carries `effective` per version: its own field, else the card's (`coalesce(version, card)`). A staff read also carries the version's own two fields. The card's thumbnail and caption are read with the card.
+  - **Page (189, behind `trial_versions_v2`):**
+    - A "Thumbnail · Caption" line under each version, reading "Same as the card" when empty, with inline editing.
+    - Picking the winner also copies its effective thumbnail and caption onto the card through today's card save, and puts them back if the winner is refused.
+    - The pick's Undo puts back the card's own fields, which this page kept from before the pick. Undo exists only on that toast.
+  - **Never writes the card:** `trial-reels` still writes no row of `calendar_posts`. Copying onto the card is the page's job, through `calendar-card-write` and its `updated_at` check.
+- **Proof:**
+  - `test/trial-version-fields-logic.js` (31 checks; on main `effectiveFields is not a function`).
+  - `test/trial-version-fields-browser.js` (28 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` unchanged and passing.
+- **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.

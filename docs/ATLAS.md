@@ -290,6 +290,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**). Its "Video C is the winner · Undo" toast shows on the click; if the pick is refused, the toast goes and the page says why.
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
   - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
+  - **Each version's own thumbnail and caption (behind `trial_versions_v2`):**
+    - A line under each version shows its **Thumbnail** and **Caption**. "Same as the card" means it uses the card's own.
+    - Click one to set it. A thumbnail needs an https link. A caption saves with Cmd/Ctrl+Enter or by clicking away. Escape leaves it as it was.
+    - The version on the card says its thumbnail and caption are the card's own. Change those on the card.
+    - A version that has already been answered starts again with the SMM when its thumbnail or caption changes, as with a new link.
+    - A version on trial cannot change.
+    - Picking the winner puts its thumbnail and caption on the card along with its video. Undo on that toast puts the card's own back.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - **Dropping a version** (Kasper's tile) that was the last one waiting for him moves the card on, as his last approve would.
   - **On the client link,** the video's answer waits a moment ("Loading…", 2 s at most) until the card's versions are read, so an Approve never answers a trial card's whole video.
@@ -940,6 +947,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's own thumbnail and caption on the staff card (V3) | Off until set; the test client `sidneylaruel` first (`{"clients": ["sidneylaruel"]}`) |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

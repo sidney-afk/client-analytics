@@ -2291,6 +2291,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-player-leaving-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. On a switched-on client link's Review, checks the player never asks frameio-view for a new address for a video taken out of the page, or for the previous card's video after the stage moved, and still re-asks once for the video on stage.",
+      "reproduce": "node test/review-stage-player-leaving-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "scrollbars-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

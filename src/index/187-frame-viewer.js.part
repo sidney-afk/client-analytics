@@ -881,6 +881,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (old && old !== v) { _fvStop(old); old.remove(); }
         if (v.parentNode !== player) player.insertBefore(v, player.firstChild);
         FV_STAGE.video = v;
+        v._fvPid = FV_STAGE.pid;   // the card this video plays for; _fvStageFailed never re-asks for another card's
         if (!v._fvStageWired) {
             v._fvStageWired = true;
             const mine = () => FV_STAGE.video === v;
@@ -930,6 +931,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fvStageFailed() {
         const v = FV_STAGE.video;
         if (!FV_STAGE.host || !v || !v.getAttribute('src')) return;
+        // A video the stage is leaving (taken out of the page with its player, or no longer the stage card's video)
+        // has nobody watching it: never re-ask frameio-view for it. Such a wasted re-ask, as the review page moved on
+        // after the last approval, is the request WebKit reported as "cannot load ... due to access control checks"
+        // in the phone review lane (session Trialchange, 2026-11-02; expected, not yet proven, to stop that red).
+        if (!v.isConnected || !FV_STAGE.host.isConnected || !FV_STAGE.host.contains(v) || (v._fvPid && v._fvPid !== FV_STAGE.pid)) return;
         if (_fvTryEfficient(v)) return;
         if (!FV_STAGE.retried) {
             FV_STAGE.retried = true;

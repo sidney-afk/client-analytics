@@ -25,7 +25,7 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
   const S = await createEnv();
   const card = S.card('p_t1');
   const vid = S.deliv.find((d) => d.id === 'del_vid_1');
-  const T = { flagOn: false, versions: [], calls: [], saves: [], winner: null };
+  const T = { flagOn: false, versions: [], calls: [], saves: [], winner: null, failSave: false };
   const CARD0 = { thumbnail_url: 'https://e.example/fixture-card-thumb.jpg', caption: 'The card caption, fixture.' };
   const fresh = (status) => {
     const at = new Date().toISOString();
@@ -89,7 +89,10 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
     const r = route.request();
     if (r.method() === 'POST') {
       const text = r.postData() || '';
-      if (/thumbnail_url|"caption"/.test(text)) T.saves.push(text);
+      if (/thumbnail_url|"caption"/.test(text)) {
+        T.saves.push(text);
+        if (T.failSave) return route.fulfill({ status: 503, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: false, error: 'fixture_unavailable' }) });
+      }
     }
     return route.fallback();
   });
@@ -209,6 +212,26 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
         ok(!T.winner && !T.saves.slice(savesBefore).some((t) => t.includes('The card caption, fixture.')), `${label}: Undo after a card edit overwrites nothing`);
         ok(/edited after the winner was picked/.test(await page.evaluate(() => document.body.innerText)), `${label}: and says so in plain words`);
       } else ok(false, `${label}: B offers the trophy again`);
+      await page.close();
+
+      // Codex P2 on #2539: the card's thumbnail and caption could not be saved, so the winner is not picked and the
+      // card's video link goes back; the page says why.
+      fresh('on trial'); Object.assign(T.versions[1], { caption: 'Winner words, fixture.', thumbnail_url: 'https://e.example/fixture-win.jpg' });
+      Object.assign(card, CARD0, { video_status: 'Posted' }); vid.file_url = LINK('A'); card.asset_url = LINK('A'); T.saves = []; T.calls = [];
+      page = await open(w, h);
+      T.failSave = true;
+      const trophy3 = (await page.evaluateHandle(() => {
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /Video B\b/.test(n.innerText));
+        return row ? row.querySelector('.trl-pick') : null;
+      })).asElement();
+      if (trophy3) {
+        await trophy3.click();
+        await sleep(3000);
+        ok(!T.calls.some((c) => c.action === 'winner_set') && !T.winner, `${label}: a failed card save means no winner_set`);
+        ok(vid.file_url === LINK('A'), `${label}: and the card's video link is put back on Video A ("${vid.file_url}")`);
+        ok(/could not be saved/.test(await page.evaluate(() => document.body.innerText)), `${label}: and the page says why`);
+      } else ok(false, `${label}: B offers the trophy a third time`);
+      T.failSave = false;
       if (page.errors.length) console.log('page errors', label, page.errors);
       ok(!page.errors.length, `${label}: no page errors`);
       await page.close();

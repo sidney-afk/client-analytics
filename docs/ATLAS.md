@@ -947,7 +947,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's own thumbnail and caption on the staff card (V3) | Off until set; the test client `sidneylaruel` first (`{"clients": ["sidneylaruel"]}`) |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's own thumbnail and caption on the staff card (V3) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

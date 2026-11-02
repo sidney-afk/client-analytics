@@ -36012,10 +36012,11 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - **Once a winner is picked,** a version that lost reads only its own fields, never the winner's (now on the card) as its own. Its field line is hidden.
     - **The effective fields of every letter** are tested before the pick, after it and after Undo.
   - **Where versions and cards differ (on purpose, the supervisor's ruling):** editing an approved card's caption or thumbnail leaves its status as it is. On a card only a tweak note moves a status (190 `_calApplyAutoStatus`). On a version, the same edit restarts it through the SMM.
+  - **A winner copy that did not save stops the pick** (Codex P2 on #2539, fixed): today's card save reports a failure on the card instead of throwing, so the page reads `_saveError` back. On a failure nothing is picked, the card's fields and video link go back, and the page says so.
   - **Never writes the card:** `trial-reels` still writes no row of `calendar_posts`. Copying onto the card is the page's job, through `calendar-card-write` and its `updated_at` check.
 - **Proof:**
   - `test/trial-version-fields-logic.js` (36 checks; on main `effectiveFields is not a function`).
-  - `test/trial-version-fields-browser.js` (34 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
+  - `test/trial-version-fields-browser.js` (40 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` unchanged and passing.
 - **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.

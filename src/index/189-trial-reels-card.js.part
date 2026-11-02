@@ -1036,12 +1036,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const next = String((f && f[k]) || '');
             if (next !== String(post[k] || '')) edits[k] = next;
         }
-        if (!Object.keys(edits).length) return;
+        if (!Object.keys(edits).length) return true;
         if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
         Object.assign(_calPendingEdits[post.id], edits);
         Object.assign(post, edits);
+        // Today's card save answers a failure on the card (Save failed · Retry), not by throwing: read it back here.
+        delete post._saveError;
         await _calFlushCardSave(post.id);
+        const now = (calState.posts || []).find(p => p.id === post.id) || post;
         try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        return !now._saveError;
     }
     /* Dropping the version on the card (default (c), awaiting the owner): today's attach first puts the next live
        version's link on the card, so it becomes the one on the card, then the old one drops. */
@@ -1147,7 +1151,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // V3: the winner's thumbnail and caption follow its video onto the card.
         const fieldsOn = _trlFieldsOn(post) && !!v.effective;
         const before = { thumbnail_url: post.thumbnail_url || '', caption: post.caption || '' };
-        if (fieldsOn) await _trlSetCardFields(post, v.effective);
+        // A copy that did not save stops the pick (Codex on #2539): the card would keep the old thumbnail and caption
+        // beside the winner's video. The fields and the video link go back, and nothing is picked.
+        if (fieldsOn && !(await _trlSetCardFields(post, v.effective))) {
+            await _trlSetCardFields(post, before);
+            await _trlPutBack(post, mine, v.frame_url);
+            showNotify('The winner was not picked', "The card's thumbnail and caption could not be saved, so nothing changed. Try again in a moment.");
+            return null;
+        }
         const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
         // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
         // so the card and the versions never disagree (the refusal is already on screen).

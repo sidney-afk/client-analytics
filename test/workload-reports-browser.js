@@ -154,6 +154,16 @@ async function run(engineName, engine) {
       assert.equal(err.env.board, 'workload'); assert.equal(rej.env.board, 'workload');
       assert(!JSON.stringify([err, rej]).includes('boom-secret'), 'the error message is not in the report');
       ok('an uncaught error and an unhandled rejection are reported by kind, never by message');
+      // OPEN_REPAIRS 643: the live case. A frameless "Failed to fetch" used to read "TypeError at workload:0:0" (the
+      // page's own address); an off-site frame keeps only its scheme, host and file name.
+      await h.page.evaluate(() => { const e = new TypeError('Failed to fetch'); e.stack = 'TypeError: Failed to fetch'; Promise.reject(e); });
+      await h.page.evaluate(() => { const e = new TypeError('x is not a function boom-secret'); e.stack = 'TypeError: x\n    at Object.f (https://cdn.example.net/npm/lib/dist/lib.min.js?token=boom-secret#frag:2:3)'; Promise.reject(e); });
+      const frameless = await until(() => wl(reports, 'workload_uncaught').find(r => /failed_to_fetch/.test(String(r.message || ''))), 'the frameless rejection is reported by kind');
+      assert.equal(frameless.message, 'TypeError failed_to_fetch', 'no invented place: ' + frameless.message);
+      const offsite = await until(() => wl(reports, 'workload_uncaught').find(r => /not_a_function/.test(String(r.message || ''))), 'the off-site rejection is reported');
+      assert.equal(offsite.message, 'TypeError not_a_function at https cdn.example.net lib.min.js');
+      assert(!/:0:0|token|frag|boom-secret/.test(JSON.stringify(wl(reports, 'workload_uncaught'))), 'no invented place, query, fragment or message');
+      ok('a frameless rejection says what it is, an off-site one says where, with no query and no message');
       noWords(reports);
     } finally { await h.close(); }
   }

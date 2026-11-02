@@ -773,6 +773,7 @@
     "workload-tweak-exclusive-bucket.js",
     "workload-tweak-feedback-source.js",
     "write-failure-receipt.js",
+    "write-ui-error-where.js",
     "write-path-refusal-coverage.js",
     "write-refusal-beacon-card-id.js",
     "write-refusal-browser-codes.js",

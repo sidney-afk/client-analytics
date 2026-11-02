@@ -35964,3 +35964,18 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/linear-exit-write-diagnostics-handlers.js`: a v3 refusal (a check constraint) now records through v2; this fails with main's fallback.
   - The Workload suites that lift these functions were updated (`_wlPersistPlanDate` is now a thin wrapper over `_wlPersistPlanDateOnce`), and pass; the review-board suites pass with the moved helpers.
 - **Way back:** revert the PR; the migration only widens a check and replaces one read.
+
+## 643. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
+
+- **Seen (live, read-only):** 20 reports from board `workload` between 18:03 and 18:31 UTC on 2 Nov: `workload_uncaught` / `unhandled_rejection`, one staff session (role creative, Chrome on Windows, build 2026-11-02T17:13), all "TypeError at workload:0:0". No other uncaught report on any board in 3 days. The gaps (60 or 120 s) are the reports' own 60-second repeat filter, not a timer, so the error itself was at least once a minute.
+- **Cause (in the logging, OPEN_REPAIRS 626 and 638):** the rejection's stack had no frame from this site, so `_writeUiStackWhere` fell back to an empty file, and `_writeUiErrWhere` ran `new URL('', location.href)`, which is the page's own address. So every such report read "<page>:0:0" and said nothing about the error. The helper is shared by Kasper's board, the client link, Workload and the Calendar.
+- **Now (120, shared):** a report says `<Name> <kind> at <where>`, and nothing else.
+  - **kind**, one fixed word from the message (the message itself is never sent): `failed_to_fetch`, `load_failed`, `cannot_read_properties`, `not_a_function`, `not_iterable`, `not_defined`, `aborted`, `quota_exceeded`, `script_error`, `extension`, or `other`.
+  - **where:** this site's file with its build hash dropped (`app_version` says which build), `:line:col` and a plain function name; else the first frame on another site as its scheme, host and file name only (`https cdn.example.net lib.min.js`: no path, no query, no fragment, written without "://" so the server's link redaction keeps it); else `extension` for a browser extension, never its id; else no place at all.
+  - Chrome, Edge, Safari and Firefox stack formats are read. Every result passes the server's detail redaction (`clean_detail_v1`) unchanged; a split-build file name used to be long enough to be redacted.
+- **Listeners (080 Workload, 195 review stage):** an uncaught error is read from its own stack when it has one, and a cross-origin "Script error." is now reported as `script_error` instead of dropped. The Calendar's listener (639, #2519) uses the same helpers and picks up the new `where` either way they merge.
+- **Proof:**
+  - `test/write-ui-error-where.js` (new, unit): runs 120's helpers on a frameless "Failed to fetch", an off-site frame with a token in its query, an extension frame, this site's hashed file, Safari's stack, "Script error." and an unknown message; checks no message, path, query or hash is sent and each result survives the redaction. On main it fails with exactly the live text, "TypeError at workload:0:0".
+  - `test/workload-reports-browser.js` case 4 (real Workload board) and `test/review-board-gauntlet-browser.js` case 9 (Kasper's board, the shared review-stage listener): a frameless rejection reads "TypeError failed_to_fetch" and an off-site one names its host and file, with no query or message. The Workload case fails on main.
+- **Next:** once the next report says which error it is, the cause is fixed in its own PR, failing-first.
+- **Way back:** revert the PR.

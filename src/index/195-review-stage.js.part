@@ -1506,8 +1506,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         try {
             if (!_rsBoardOn() || !e) return;
             // Browser noise that is not a fault (a ResizeObserver loop), and cross-origin errors with nothing in them.
-            if (!e.error && (/ResizeObserver/.test(String(e.message || '')) || !e.filename)) return;
-            _rsReport('review_uncaught', 'uncaught_error', null, '', _rsErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
+            const msg = String(e.message || '');
+            // OPEN_REPAIRS 643: a cross-origin "Script error." is kept (as script_error); other empty ones are noise.
+            if (!e.error && (/ResizeObserver/.test(msg) || (!e.filename && !/^script error\.?$/i.test(msg)))) return;
+            _rsReport('review_uncaught', 'uncaught_error', null, '', e.error && e.error.stack ? _rsStackWhere(e.error) : _rsErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno, (e.error && e.error.message) || msg));
         } catch (x) {}
     });
     addEventListener('unhandledrejection', e => {

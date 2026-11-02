@@ -104,9 +104,32 @@ async function disconnectDuring(t, action) {
   await action();
   await until(() => t.state.writeAttempts > n, 'save never started');
   t.state.writeOffline = true;
-  await t.ctx.setOffline(true);
+  await goOffline(t);
 }
-async function reconnect(t) { t.state.writeDelay = 0; t.state.networkDelay = 0; t.state.writeOffline = false; await t.ctx.setOffline(false); }
+async function reconnect(t) { t.state.writeDelay = 0; t.state.networkDelay = 0; t.state.writeOffline = false; await goOnline(t); }
+
+/* WebKit's offline fetch report (session Trialchange, 2026-11-02). While this suite holds the browser offline, WebKit
+   reports a fetch that FAILED FOR THE NETWORK as a page error even when the page caught it: the review player's one
+   fresh-address retry (187 _fvStageFailed -> _fvRequest, which catches) went red on #2498 and #2481 with "Fetch API
+   cannot load .../frameio-view due to access control checks" while the page's own error and unhandledrejection
+   listeners saw nothing. Such a report is dropped only when ALL three hold:
+     (a) it arrived while the suite held the browser offline (the flag is set after setOffline(true) has answered and
+         cleared after setOffline(false) has answered; the protocol delivers events in order, so the window is exact);
+     (b) its message is one of WebKit's network-failure texts for a fetch (WEBKIT_FETCH_FAILED);
+     (c) the page's own error / unhandledrejection listeners did not record that message.
+   Anything else, offline or not, still fails the case. */
+const WEBKIT_FETCH_FAILED = /^(?:TypeError: )?(?:Load failed|Fetch API cannot load \S+ due to access control checks\.?|The network connection was lost\.?|The Internet connection appears to be offline\.?)$/;
+async function goOffline(t) { await t.ctx.setOffline(true); t.offlineHeld = true; }
+async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = false; }
+function watchPageErrors(t) {
+  // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event, with what (a) needs.
+  t.pageErrors = [];
+  t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0], offline: !!t.offlineHeld }));
+}
+async function pageErrorsThatCount(t) {
+  // FAILING-FIRST COMMIT: main's rule (every page error counts). The next commit adds the offline excusal.
+  return t.errors.slice();
+}
 async function media(t, label) {
   await step(t, 'video');
   await t.page.waitForFunction(() => { const v = document.getElementById('svReviewStage').shadowRoot.querySelector('video'); return v && v.readyState >= 2 && v.videoWidth > 0; });
@@ -252,6 +275,36 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({ids:_kasperState.items.map(i=>i.post.id),closed:_kasperState.closed,cur:document.getElementById('svReviewStage').shadowRoot.querySelector('.chipp.cur')?.dataset.id})));
   check(await inS(t.page, '.chipp.cur').getAttribute('data-id') !== id, label + ': closed card leaves stage');
 }
+/* Self-check of the offline rule above, on WebKit (the engine that reports a caught fetch). While offline, the page
+   makes a cross-origin fetch and catches its failure, then throws an uncaught error. The caught fetch must not count,
+   and the uncaught error must. */
+async function offlineReportSelfCheck(browser, origin) {
+  const label = 'webkit/offline report self-check';
+  console.log('RUN ' + label);
+  const t = await open(browser, origin, { phone: true, flags: 'on', stage: 'client', phoneMedia: true, context: { ...devices['iPhone 15'], colorScheme: 'light' } });
+  watchPageErrors(t);
+  try {
+    await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' }), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await t.page.waitForFunction(() => !!document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.app'), null, { timeout: 60000 });
+    await sleep(500);
+    const before = t.errors.length;
+    await goOffline(t);
+    const caught = await t.page.evaluate(() => fetch('https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/frameio-view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => 'answered', () => 'caught'));
+    await sleep(300);
+    await t.page.evaluate(() => { setTimeout(() => { throw new Error('offline self-check: an uncaught error'); }, 0); });
+    await sleep(300);
+    await goOnline(t);
+    console.log('OFFLINE_SELF_CHECK ' + JSON.stringify({ caught, raw: t.errors.slice(before).map(x => String(x).split('\n')[0].slice(0, 160)) }));
+    check(caught === 'caught', label + ': the offline fetch failed and the page caught it (' + caught + ')');
+    const counted = (await pageErrorsThatCount(t)).slice(0).map(x => String(x).split('\n')[0]);
+    check(counted.some(x => /offline self-check: an uncaught error/.test(x)), label + ': an uncaught error while offline still counts (' + JSON.stringify(counted) + ')');
+    check(!counted.some(x => /Fetch API cannot load|Load failed|network connection was lost|appears to be offline/.test(x)), label + ': a caught fetch that failed while offline does not count (' + JSON.stringify(counted) + ')');
+    cases++;
+  } catch (e) {
+    check(false, label + ': ' + remoteErrors(e));
+  } finally { await t.ctx.close(); }
+}
+
 (async () => {
   const server = await serveStatic(), origin = 'http://127.0.0.1:' + server.address().port;
   const browsers = {};
@@ -277,6 +330,7 @@ async function kasperJourney(t, label) {
         console.log('RUN ' + label);
         const t = await open(browser, origin, { phone: true, flags: 'on', stage: role, staff: role === 'kasper' ? STAFF : null, dark: theme === 'dark', phoneMedia: engine === 'webkit', context: { ...devices[profile], colorScheme: theme } });
         t.page.setDefaultTimeout(10000);
+        watchPageErrors(t);
         try {
           if (role === 'client') t.state.postsDelay = 1800;
           await boot(t, origin, role);
@@ -301,7 +355,8 @@ async function kasperJourney(t, label) {
             if (role === 'client') await clientJourney(t, origin, label, profile); else await kasperJourney(t, label);
           }
           if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
-          check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
+          const counted = await pageErrorsThatCount(t);
+          check(counted.length === 0, label + ': no page errors ' + counted.join('|'));
           cases++;
         } catch (e) {
           check(false, label + ': ' + remoteErrors(e));
@@ -311,6 +366,7 @@ async function kasperJourney(t, label) {
         finally { await t.ctx.close(); }
       }
     }
+    if (browsers.webkit && !process.env.PHONE_ONLY) await offlineReportSelfCheck(browsers.webkit, origin);
   } finally { for (const b of Object.values(browsers)) await b.close(); server.close(); }
   console.log(`review-stage-phone-browser: ${cases} completed cases, ${checks} checks, ${failures.length} failures; fictional data, no live writes`);
   if (failures.length) process.exitCode = 1;

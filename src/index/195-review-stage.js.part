@@ -7,7 +7,7 @@ import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
 import { svRsCalOn, svRsClientPolishOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsKasperPolishOn, svRsToolsEl } from './188-review-stage-switch.js';
-import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiReviewEvent, _writeUiStackWhere } from './120-calendar-flags-write-repair.js';
+import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiReviewEvent, _writeUiSetBoardHint, _writeUiStackWhere } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
@@ -1502,6 +1502,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     // An uncaught error while one of these pages is open: its kind and where, never its message (shared helpers in 120).
     const _rsErrWhere = _writeUiErrWhere, _rsStackWhere = _writeUiStackWhere;
+    // While this stage shows, a save refused from it is reported as from its own board, not the Calendar's (OPEN_REPAIRS 639).
+    _writeUiSetBoardHint(() => (_rsBoardOn() ? R.mode : null));
     addEventListener('error', e => {
         try {
             if (!_rsBoardOn() || !e) return;
@@ -1955,7 +1957,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // More posts to the right: the strip fades out before the header's right margin instead of cutting a post at
         // the edge (client page, session Curtain Three).
         if (sl) sl.addEventListener('scroll', _rsStripEdge, { passive: true });
-        if (sl && typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
+        // The fade is set on the next frame, never inside the observation: in WebKit the mask can change the strip's
+        // scrollbar and so its height, which it then reports as a ResizeObserver loop (OPEN_REPAIRS 633, 640).
+        if (sl && typeof ResizeObserver !== 'undefined') new ResizeObserver(() => {
+            if (!R.edgeRaf) R.edgeRaf = requestAnimationFrame(() => { R.edgeRaf = 0; _rsStripEdge(); });
+        }).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
         const settle = () => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } };
         R.root.addEventListener('pointerdown', () => { R.pressing = true; R.pressSeq = (R.pressSeq || 0) + 1; }, true);
@@ -2340,7 +2346,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsStripEdge() {
         const sl = _rsQ('skList');
-        if (sl) sl.classList.toggle('more-r', sl.scrollWidth - sl.clientWidth - sl.scrollLeft > 1);
+        if (!sl) return;
+        const more = sl.scrollWidth - sl.clientWidth - sl.scrollLeft > 1;
+        if (sl.classList.contains('more-r') !== more) sl.classList.toggle('more-r', more);
     }
     /* Kasper's list (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip's list button opens his
        sections as they are today, top to bottom: Urgent, Waiting for your review, With the editors (tweaks pending,

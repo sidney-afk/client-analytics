@@ -119,7 +119,7 @@ async function run(browser, origin, action, mode) {
       }
       if (url.pathname === '/functions/v1/write-diagnostics' && method === 'POST') {
         const body = JSON.parse(request.postData() || '{}');
-        diagnostics.push({ fields: Object.keys(body), code: body.code || '', stage: body.stage || '' });
+        diagnostics.push({ fields: Object.keys(body), code: body.code || '', stage: body.stage || '', operation: body.operation || '' });
         return json(route, { ok: true });
       }
       if (url.pathname === '/functions/v1/production-write' && method === 'POST') {
@@ -244,12 +244,17 @@ async function run(browser, origin, action, mode) {
     if (action === 'approve') assert.equal(gatewayWrites[0].status, 'approved', label + ': wrong native status');
     assert.deepEqual(saves.map(save => save.path), [SOURCE_PATH],
       label + ': source save must use the enrolled Track A function');
+    // OPEN_REPAIRS 639: a second press the page drops while the first is saving is reported (calendar_double_click /
+    // save_in_flight), never a refusal; only a double click may send one, and at most one.
+    const dropped = diagnostics.filter(d => d.operation === 'calendar_double_click' && d.code === 'save_in_flight');
+    assert.ok(dropped.length <= (mode === 'double' ? 1 : 0), label + ': unexpected dropped-press report');
     if (mode !== 'refused' && action === 'approve') {
-      assert.deepEqual(diagnostics, [], label + ': unexpected write diagnostic');
+      assert.deepEqual(diagnostics.filter(d => !dropped.includes(d)), [], label + ': unexpected write diagnostic');
     }
     if (mode !== 'refused' && action === 'request') {
       // The fictional row has no linked team target; team delivery may remain pending.
-      assert.ok(diagnostics.length <= 1 && diagnostics.every(d => d.code === 'legacy_tweak_confirmation_pending'),
+      const rest = diagnostics.filter(d => !dropped.includes(d));
+      assert.ok(rest.length <= 1 && rest.every(d => d.code === 'legacy_tweak_confirmation_pending'),
         label + ': unexpected write diagnostic');
     }
     assert.deepEqual(errors, [], label + ': browser errors');

@@ -8,8 +8,9 @@
  *   view serves every card; a second hover makes no request. Escape hides it.
  *
  *   Files menu: the pile's first button opens a small menu with Filming plan,
- *   Raw footage folder, Frame folder and Thumbnail file. Each opens in a new
- *   tab; a missing one reads "not linked yet". Keyboard: Enter opens on the
+ *   Raw footage folder, Frame folder, Thumbnail file and Thumbnail folder (moved
+ *   here from the Thumbnail row, 2026-11-01). Each opens in a new tab; a missing
+ *   one reads "not linked yet". Keyboard: Enter opens on the
  *   first link, arrows move, Escape closes back to the button.
  *
  *   A tokened client link shows neither.
@@ -185,10 +186,11 @@ async function staff(browser, origin, theme) {
   await page.locator('#calFilesMenu').waitFor({ timeout: 5000 });
   await page.waitForFunction(() => !!document.querySelector('#calFilesMenu a[data-files-kind="plan"]'), null, { timeout: 5000 }).catch(() => {});
   const rows = await page.$$eval('#calFilesMenu .cal-files-item', els => els.map(e => ({ kind: e.getAttribute('data-files-kind'), text: e.innerText.trim(), href: e.getAttribute('href'), target: e.getAttribute('target'), missing: e.classList.contains('is-missing') })));
-  expect(rows.map(r => r.kind).join() === 'plan,raw,frame,thumb', theme + ': four rows in order');
+  expect(rows.map(r => r.kind).join() === 'plan,raw,frame,thumb,thumbfolder', theme + ': five rows in order');
+  expect(rows[4] && rows[4].missing && /not linked yet/.test(rows[4].text), theme + ': no known thumbnail folder reads "not linked yet"');
   const by = Object.fromEntries(rows.map(r => [r.kind, r]));
   expect(by.plan.href === PLAN_URL && by.raw.href === RAW_URL && by.frame.href === FRAME_URL && by.thumb.href === THUMB_URL, theme + ': each row links to its source');
-  expect(rows.every(r => r.target === '_blank'), theme + ': every link opens in a new tab');
+  expect(rows.filter(r => !r.missing).every(r => r.target === '_blank'), theme + ': every link opens in a new tab');
   expect(await filesBtn('hv1').getAttribute('aria-expanded') === 'true', theme + ': button says the menu is open');
   await filesBtn('hv1').hover();
   await page.waitForTimeout(700);

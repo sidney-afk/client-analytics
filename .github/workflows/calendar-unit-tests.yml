@@ -396,6 +396,7 @@ jobs:
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A cold link to a batch parent asks production-comments for no thread and shows no scope refusal (mocked)|node test/prod-batch-parent-comments-cold-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
+          Two notes sent close together both stay in the thread and in the card's calendar copy, whichever the server answers first (desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-overlap-browser.js
           Notes reopen without a needless skeleton, and a reply sent while loading goes at once (staff; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
@@ -408,6 +409,7 @@ jobs:
           Client approve and request-changes always save through the function|node test/calendar-client-approve-function-browser.js
           Sheet loading skeleton has the loaded Sheet's shape (desktop light and dark, phone, first paint)|node test/calendar-sheet-skeleton-shape-browser.js
           Sheet strip runs the full window width and the smallest card size keeps every control (1280, 1440, 1920, phone)|node test/calendar-sheet-full-width-browser.js
+          The thumbnail folder opens from the card's Files menu, not its own row icon (desktop and phone)|node test/calendar-thumb-folder-in-files-browser.js
           Samples Sheet and Review loading skeletons have the loaded shape (desktop light and dark)|node test/samples-sheet-skeleton-shape-browser.js
           A click on a pop-up's backdrop never falls through to the page underneath|node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
           Messages chat day dividers follow the reader's day and read as dates|node docs/syncview-design/tests/messages-day-divider-browser.js

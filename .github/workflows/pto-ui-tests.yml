@@ -12,6 +12,7 @@ on:
       - '.github/actions/build-index/**'
       - 'package.json'
       - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'docs/syncview-design/tests/pto-admin-log-browser.js'
       - 'qa/pto-lifecycle/**'
       - 'docs/audits/2026-07-17-pto-lifecycle-simulation/**'
       - 'supabase/functions/pto/**'
@@ -31,6 +32,7 @@ on:
       - '.github/actions/build-index/**'
       - 'package.json'
       - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'docs/syncview-design/tests/pto-admin-log-browser.js'
       - 'qa/pto-lifecycle/**'
       - 'docs/audits/2026-07-17-pto-lifecycle-simulation/**'
       - 'supabase/functions/pto/**'
@@ -70,6 +72,8 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/pto/index.ts
       - name: Run synthetic PTO interactions
         run: npm run test:pto-ui
+      - name: Kasper Log time off card (mocked backend)
+        run: node docs/syncview-design/tests/pto-admin-log-browser.js
       # The evidence fingerprint is taken over the single-file page (the leave-page
       # lines of every fragment, in order). With the load-per-tab split on,
       # index.html is a loader, so these two steps read the single-file page

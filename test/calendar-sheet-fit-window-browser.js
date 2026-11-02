@@ -102,7 +102,20 @@ async function installRoSpy(ctx) {
     if (!Real) return;
     const live = new Map();
     window.__roWatching = () => [...live.values()].flatMap(set => [...set]).map(el => el.id || el.className || el.tagName);
+    // Every callback that changed the size of a watched element while it ran (OPEN_REPAIRS 633): a change made inside
+    // the observation to an element no deeper than the one just delivered is what WebKit reports as a loop.
+    const size = el => { const r = el.getBoundingClientRect(); return r.width + 'x' + r.height; };
+    const name = el => el.id || (typeof el.className === 'string' && el.className.split(' ')[0]) || el.tagName;
+    window.__roSyncResizes = [];
     window.ResizeObserver = class extends Real {
+      constructor(cb) {
+        super((entries, o) => {
+          const before = new Map();
+          for (const set of live.values()) for (const el of set) before.set(el, size(el));
+          cb(entries, o);
+          for (const [el, was] of before) if (el.isConnected && size(el) !== was) window.__roSyncResizes.push(entries.map(e => name(e.target)).join(',') + ' -> ' + name(el));
+        });
+      }
       observe(el, o) { if (!live.has(this)) live.set(this, new Set()); live.get(this).add(el); return super.observe(el, o); }
       unobserve(el) { if (live.has(this)) live.get(this).delete(el); return super.unobserve(el); }
       disconnect() { live.delete(this); return super.disconnect(); }
@@ -384,6 +397,10 @@ async function reviewStageCases(engineName, browser, origin) {
     await t.page.waitForTimeout(600);
     expect((await watched(t.page)) === false, `${L}: still nothing watches #calBody after opening a change`);
     expect(t.errors.filter(e => /ResizeObserver/i.test(e)).length === 0, `${L}: no ResizeObserver error (${t.errors.join(' | ')})`);
+    // The loop's cause, measured every run rather than waiting for WebKit to report it: the stage's watcher on #view
+    // wrote the player's size inside the observation (45 times in 20 WebKit runs on 2 Nov), and #fvHost sits inside #view.
+    const sync = await t.page.evaluate(() => window.__roSyncResizes || null);
+    expect(Array.isArray(sync) && sync.length === 0, `${L}: no ResizeObserver callback changes a watched element's size while it runs (${JSON.stringify((sync || []).slice(0, 6))})`);
     await t.ctx.close();
   }
   {

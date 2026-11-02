@@ -1801,6 +1801,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-thumb-folder-in-files-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar card's Thumbnail row has no folder icon of its own and the card's Files menu lists Thumbnail folder right after Thumbnail file (the same link, new tab, keyboard focus, not linked yet when unknown), on the desktop Sheet and the staff phone card.",
+      "reproduce": "node test/calendar-thumb-folder-in-files-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-sheet-fit-window-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -638,6 +638,7 @@ jobs:
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok queue, overdue rows say so|node test/tiktok-overdue-status-browser.js
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
+          Staff gate seed answers trial-reels reads sent with an invented key in the browser (no live 401s)|node test/staff-gate-trial-reels-stub-local.js
           TikTok upload layout|node --require ./test/helpers/single-file-index.js test/tiktok-upload-redesign-browser.js
           TikTok preview clears when the form empties|node test/tiktok-preview-empty-clearance-browser.js
           Kasper's With the editors rows: Client · Title on one line, a small grey date below|node test/review-stage-with-editors-row-browser.js

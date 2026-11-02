@@ -107,13 +107,24 @@ async function installRoSpy(ctx) {
     const size = el => { const r = el.getBoundingClientRect(); return r.width + 'x' + r.height; };
     const name = el => el.id || (typeof el.className === 'string' && el.className.split(' ')[0]) || el.tagName;
     window.__roSyncResizes = [];
+    // And every write a callback made to the page while it ran (a class or style changed, OPEN_REPAIRS 640): a size
+    // change shows only where the engine measures one (WebKit, from the strip's mask), but the write is the cause in
+    // every engine, so this fails the same way in Chromium.
+    window.__roSyncWrites = [];
     window.ResizeObserver = class extends Real {
       constructor(cb) {
         super((entries, o) => {
           const before = new Map();
           for (const set of live.values()) for (const el of set) before.set(el, size(el));
+          const roots = new Set([document]);
+          for (const set of live.values()) for (const el of set) roots.add(el.getRootNode());
+          const mo = new MutationObserver(() => {});
+          for (const r of roots) mo.observe(r, { attributes: true, attributeFilter: ['class', 'style'], subtree: true });
           cb(entries, o);
-          for (const [el, was] of before) if (el.isConnected && size(el) !== was) window.__roSyncResizes.push(entries.map(e => name(e.target)).join(',') + ' -> ' + name(el));
+          const writes = mo.takeRecords(); mo.disconnect();
+          const who = entries.map(e => name(e.target)).join(',');
+          for (const w of writes) window.__roSyncWrites.push(who + ' -> ' + name(w.target) + ' ' + w.attributeName);
+          for (const [el, was] of before) if (el.isConnected && size(el) !== was) window.__roSyncResizes.push(who + ' -> ' + name(el));
         });
       }
       observe(el, o) { if (!live.has(this)) live.set(this, new Set()); live.get(this).add(el); return super.observe(el, o); }
@@ -384,7 +395,8 @@ async function reviewStageCases(engineName, browser, origin) {
   const watched = page => page.evaluate(() => (window.__roWatching ? window.__roWatching().includes('calBody') : null));
   {
     const L = `${engineName} client link review stage, switch on for all`;
-    const t = await fixture.open(browser, origin, { stage: 'client', flags: 'on', width: 1440, height: 900, flagValues: { sheet_fit_v1: { all: true } } });
+    // More posts than the strip shows at once, so its right-edge fade (the strip watcher's class) comes on.
+    const t = await fixture.open(browser, origin, { stage: 'client', flags: 'on', width: 1440, height: 900, extraCards: 4, flagValues: { sheet_fit_v1: { all: true } } });
     await installRoSpy(t.ctx);
     await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: fixture.CLIENT, v: 'calendar', t: fixture.TOKEN }), { waitUntil: 'domcontentloaded' });
     await fixture.waitNew(t);
@@ -401,6 +413,16 @@ async function reviewStageCases(engineName, browser, origin) {
     // wrote the player's size inside the observation (45 times in 20 WebKit runs on 2 Nov), and #fvHost sits inside #view.
     const sync = await t.page.evaluate(() => window.__roSyncResizes || null);
     expect(Array.isArray(sync) && sync.length === 0, `${L}: no ResizeObserver callback changes a watched element's size while it runs (${JSON.stringify((sync || []).slice(0, 6))})`);
+    // A window wide enough that the strip no longer overflows, then back: only the strip watcher sees that change,
+    // so on main its callback flips the fade class inside the observation.
+    await t.page.setViewportSize({ width: 3600, height: 900 }); await t.page.waitForTimeout(500);
+    const wideFade = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const sl = r && r.getElementById('skList'); return sl ? { more: sl.classList.contains('more-r'), over: sl.scrollWidth > sl.clientWidth + 1 } : null; });
+    await t.page.setViewportSize({ width: 1440, height: 900 }); await t.page.waitForTimeout(500);
+    expect(!!wideFade && wideFade.over === wideFade.more, `${L}: at 3600 wide the fade follows the overflow (${JSON.stringify(wideFade)})`);
+    const fade = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const sl = r && r.getElementById('skList'); return sl ? { more: sl.classList.contains('more-r'), over: sl.scrollWidth > sl.clientWidth + 1 } : null; });
+    expect(!!fade && fade.over && fade.more, `${L}: the strip overflows and its right-edge fade is on, so the strip watcher wrote (${JSON.stringify(fade)})`);
+    const writes = await t.page.evaluate(() => window.__roSyncWrites || null);
+    expect(Array.isArray(writes) && writes.length === 0, `${L}: no ResizeObserver callback writes a class or style while it runs (${JSON.stringify((writes || []).slice(0, 6))})`);
     await t.ctx.close();
   }
   {

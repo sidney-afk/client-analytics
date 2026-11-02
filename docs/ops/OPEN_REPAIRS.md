@@ -35939,6 +35939,11 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - Not covered: a full browser drive of the Review tab with a canonical thread. The review-stage fixture does not mock the crosswalk or the canonical read, so the proof is at the level of the shipped functions.
 - **Way back:** revert the PR.
 
+## 640. [2026-11-02 UTC, BUILT, NOT MERGED] WebKit "ResizeObserver loop" on the client link's review stage, again: the strip-edge watcher wrote inside the observation (session Sheetzoom)
+- **Seen:** #2514's repair-checkpoint (head 36a0c50), 2 checks of 395 red and not #2514's: "no ResizeObserver error (ResizeObserver loop completed with undelivered notifications.)" and 633's own check naming the cause, `["skList -> skList","skList -> view","skList -> svReviewStage"]`. 633 moved three of the stage's watchers to the next frame; the fourth, the strip-edge watcher on #skList (195 `_rsStripEdge`), still toggled the strip's right-edge fade class inside its callback. In WebKit that mask changes the strip's height (its scrollbar), which resizes the strip, #view and the stage in the same frame, and WebKit reports the loop. Chromium measures no size change there, which is why 633's size check passed it locally.
+- **Fix (195):** the strip-edge watcher sets the fade on the next frame, and only when it changed (the scroll listener keeps setting it at once). No watcher on the review stage writes inside an observation any more.
+- **Proof:** `test/calendar-sheet-fit-window-browser.js` now also records every class or style write a watcher's callback makes while it runs, in any engine. The case gives the strip 11 posts, so it overflows at 1440 and not at 3600, then widens the window and back, so the strip watcher's fade has to flip. On main it fails in Chromium, naming the strip watcher; here it passes (Chromium; WebKit in CI).
+
 ## 638. [2026-11-02 UTC, BUILT, NOT MERGED] The Workload calendar reports what goes wrong, the same way the review boards do (session Reviewguard)
 
 - **Asked:** after the review boards (OPEN_REPAIRS 626), put the same logging on the Workload calendar, then on the content Calendar, as separate PRs. This is the Workload one.

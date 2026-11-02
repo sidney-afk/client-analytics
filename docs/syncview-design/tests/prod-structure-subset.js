@@ -164,19 +164,8 @@ async function assertNoWriteRequests(requests) {
   // writes nothing; it is authentication, not a mutation. Same exemption as
   // isWriteLikeRequest in prod-test-utils.js.
   const isEntryGateVerify = r => /\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(r.url || '');
-  // Trial reels answer their reads by POST (Production's video sub-issue asks {action:'read'}, the staff Calendar
-  // {action:'list'}). Same exemption as isWriteLikeRequest in prod-test-utils.js: exact action on a parsed body, so
-  // every other trial-reels action, and a body that does not parse, still counts as a write. Main red since #2486
-  // (2026-11-02): this lane kept its own copy of the rule and never got the exemption.
-  const isTrialReelsRead = r => {
-    if (r.method !== 'POST' || !/\/functions\/v1\/trial-reels(?:[/?#]|$)/i.test(r.url || '')) return false;
-    let body = null;
-    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
-    return !!body && typeof body === 'object' && !Array.isArray(body) && (body.action === 'read' || body.action === 'list');
-  };
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isEntryGateVerify(r)
-    && !isTrialReelsRead(r)
     && !isCommentRead(r)
     && !isLabelsRead(r)
     && !isAssetAccessRead(r)

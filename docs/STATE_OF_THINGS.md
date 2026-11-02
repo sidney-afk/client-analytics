@@ -32,7 +32,7 @@ line is older than a week, re-check it before relying on it.
   review boards (board `workload`): refused saves, a second change dropped while saving, a reload mid-save, uncaught
   errors, and saves that landed after a failure. They appear in the same watcher's read. Migration `20261102130000`
   widens the board column.
-- **Calendar logging (OPEN_REPAIRS 639, built, not merged, builds on 638):** the content Calendar sends the same
+- **Calendar logging (OPEN_REPAIRS 639, built, not merged; its server side came with 638, #2514):** the content Calendar sends the same
   reports (board `calendar`, `client` on a client link): refused saves and their later landing, a reload mid-save,
   dropped presses and uncaught errors, through the existing `_writeUiRecordFailure` path.
 

@@ -35977,7 +35977,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - uncaught errors and rejections while the Calendar is showing (not Workload, not the review stage) are reported as `calendar_uncaught`, by kind and file:line only.
   - **190:** a press dropped by `_calReviewApplyApprove` or `_calReviewComment` because the same part is still saving, or a second Send in the Notes composer while the first is sending, is reported as `calendar_double_click` / `save_in_flight`. The buttons are disabled while saving, so this counts only the presses that slip past them. `_calReviewApprove`'s own first check and `_calReviewRequestTweak` are left as they are (one is changed by #2512, the other is pinned by the client-requests check, and its buttons are disabled while saving).
   - Ids and the client slug only, never names, titles or words; sent after the save is handled, capped per page.
-- **Server:** nothing new. The `calendar` board and the signature read's `calendar_` prefix came with OPEN_REPAIRS 638 (#2514, migration `20261102130000`), which this PR builds on.
+- **Server:** nothing new. The `calendar` board and the signature read's `calendar_` prefix came with OPEN_REPAIRS 638 (#2514, merged; migration `20261102130000`).
 - **Watcher's read** unchanged; Calendar rows appear in it, e.g. `calendar|status|http_503|safari|mac|0-49|retry_landed`.
 - **Proof:**
   - `test/calendar-reports-browser.js` (new, on the shared staff-Calendar harness `lost-work-lib.js`, mocked): a refused card save (board calendar) and its later landing, a reload during a card save, a dropped press, an uncaught error and a rejection, no words in any report. Without this change it fails at the first board check.

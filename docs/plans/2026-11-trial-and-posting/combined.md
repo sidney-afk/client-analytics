@@ -14,8 +14,9 @@ Where this page and a sister plan disagree, this page wins. The sister plans sta
 parts kept here (screens, states, API quotes).
 
 **The short version.** The three plans add up to 21 PRs and 23 to 28 working days. This plan keeps what Sidney asked
-for and cuts the rest: **14 PRs, about 19 to 21 working days of build, about two calendar weeks** when the three
-tracks run side by side. Two migrations, no Section 4 function touched, so no fingerprint re-pin. The biggest cuts:
+for and cuts the rest: **15 PRs, about 20 to 21.5 working days of build, about two calendar weeks** when the three
+tracks run side by side. **First, on its own: F0, the Frame wrong-video fix** (section 4), because today a client
+could approve, and a post could send, the wrong video. Two migrations, no Section 4 function touched, so no fingerprint re-pin. The biggest cuts:
 the all-in-one composer that also swallows TikTok (Postplan PRs 8 and 9), the separate Post for Me accounts page
 (replaced by a Pick list on the Publishing card), the review-page thumbnail strip, Production's per-version rows,
 moving the trial switch on the card, and the "disconnected account" refusal.
@@ -38,7 +39,7 @@ Re-measured and **right**:
 |---|---|---|
 | 52 switch rows, 34 on, 161 versions all linked to a card, 5 winners, 1 real client card on | Variantplan | 52 / 34 / 161 / 161 / 5 / 1 |
 | `trial-reels` actions list and client-link actions | Variantplan | `logic.mjs:20-22`, as written |
-| `frameio-view` takes the first video of a folder; a `/share/<id>/view/<file>` file inside a folder share falls back to the share's first item | Variantplan | `frameio-view/logic.mjs:128-158`: the file id is looked for in the share's top level only, then `list[0]` |
+| `frameio-view` plays the wrong video for a `/share/<id>/view/<file>` link (two causes) | Variantplan, supervisor | `frameio-view/logic.mjs:149-153`: (a) the file id is looked for only among the share's **top-level** assets, so a file inside a shared folder is never found; (b) the share's assets are read **without a page size or paging**, so a file past the first page is never found either. Both then fall back silently to `list[0]`, the folder's first video. Latent today: 0 of 3 real-client version links and 0 of 156 test-client links have that shape (supervisor, read-only) |
 | `calendar-card-write` already allows `thumbnail_url` and `caption` | Variantplan | `calendar-card-write/logic.mjs:15-16` |
 | No browser role can read `studio_trial_versions` or `trial_reel_cards` | Variantplan | no grant to `anon`, `authenticated` or `public` on either |
 | Drop zones read `files[0]`; the server takes media only on `data.postforme.dev` | Postplan | `299:762`, `instagram-upload/logic.mjs:7` |
@@ -92,19 +93,19 @@ Re-measured and **right**:
 What stays answers each thing Sidney asked for; what waits is either a second way to do something already covered,
 or something nobody can use in the first month.
 
-**Kept (14 PRs)**
+**Kept (15 PRs)**
 
 | Sidney asked for | PRs |
 |---|---|
 | Trial versions with their own thumbnail, caption and video | F2, V3, V4 |
-| Frame folder import with a matching step | F1, V2 |
+| Frame folder import with a matching step | F0, F1, V2 |
 | SMM sets a trial version's status from the calendar | V1 |
 | A card's video pulled from Frame in full HD, server to server | F4, P1 |
 | Drop a folder on the Post tab | P2 |
 | Post trial versions | P4 |
 | YouTube and LinkedIn as destinations | F3, P3 |
 | Post for Me accounts reach SyncView without copying ids | F3, L1 |
-| (bug found on the way) TikTok can post twice after a lost answer | P0 |
+| (bugs found on the way) Frame link plays the wrong video; TikTok can post twice after a lost answer | F0, P0 |
 
 **Waits, and why**
 
@@ -121,10 +122,10 @@ or something nobody can use in the first month.
 | Webhook, Connect-from-SyncView, Slack nudge | Linkplan (already cut) | Agreed. |
 | YouTube long-form extras, per-network files, batch posting | Postplan (already cut) | Agreed. |
 
-**Size:** 14 PRs, **about 19 to 21 working days of build**, roughly two calendar weeks with three tracks in parallel
+**Size:** 15 PRs, **about 20 to 21.5 working days of build**, roughly two calendar weeks with three tracks in parallel
 (section 4). Was 21 PRs and 23 to 28 days.
 
-**Safe stopping points.** After F1+V1+V2: Sidney has the SMM status menu and the Frame import. After P0+F4+P1+P2:
+**Safe stopping points.** After F0 alone: no link can play or post the wrong video. After F1+V1+V2: Sidney has the SMM status menu and the Frame import. After P0+F4+P1+P2:
 item 3 is done. After V3+V4: versions with their own thumbnail and caption are reviewed end to end. YouTube/LinkedIn
 (F3, L1, P3) and trial posting (P4) are last because their first real use depends on accounts being connected.
 
@@ -140,8 +141,9 @@ only; posting live checks use scheduled-then-deleted posts on its test accounts 
 
 | # | Track | PR | Waits for | Proof (fails before, passes after) | Live check on `sidneylaruel` | Migration / re-pin | Days |
 |---|---|---|---|---|---|---|---|
+| **F0** | all | **Ships first, alone.** `frameio-view`: a `/share/<id>/view/<file>` link finds its file by paging through every page of the share's assets (`links.next`) and looking inside shared folders (and version stacks); if the named file is still not found, it **refuses** (`file_not_in_share`, plain message: "This link's video is not in the share any more; paste the video's own link") instead of playing the first video. A link that names no file (a bare folder share) keeps today's "first video" behaviour for the player. Server file and its test only; no flag (a correctness fix, and refusing is the safe side) | nothing | `test/frameio-view-*`: with mocked Frame answers, a file inside a shared folder plays that file, and a file on page 2 of a share plays that file, **both fail on today's code** (they get the first video); an unknown file id is refused, not swapped; every existing frameio-view test unchanged | a test-client share with a folder of two videos: the second video's link plays the second video in the client player | none | 0.5 |
 | **P0** | P | TikTok keeps one press key while the form is unchanged (Instagram's rule). No flag: it is a bug fix | nothing | browser test: two presses with an unchanged form send the same key (fails today at `300:1449`); a changed form gets a new key | one scheduled TikTok post pressed twice after a forced reload: one row, then delete it | none | 0.5 |
-| **F1** | V, P | `frameio-view`: file inside a folder share found exactly; `part: "list"` (staff key, up to 50 videos, name, length, Frame thumbnail, per-file link); `strict` lookup option. Read-only | nothing | `logic.mjs` tests with mocked Frame: a `/view/<file>` inside a folder plays that file, not the first (fails before); a folder of 6 videos + 2 images lists 6; `strict` refuses a bare folder link; today's frameio-view tests unchanged | list one test folder; open one file link inside it in the player | none | 1 |
+| **F1** | V, P | `frameio-view` (on top of F0): `part: "list"` (staff key, up to 50 videos, name, length, Frame thumbnail, per-file link); `strict` lookup option. Read-only | nothing | F0 | `logic.mjs` tests with mocked Frame: a folder of 6 videos + 2 images lists 6; a folder past one page lists all (up to 50); `strict` refuses a bare folder link; today's frameio-view tests unchanged | list one test folder | none | 0.75 |
 | **F2** | V | Migration: `studio_trial_versions` gains `thumbnail_url`, `caption`, `change_part`, `client_ok_by`; cope marker; grants read back for all four roles | nothing | migration test: columns exist, no browser role gained a privilege | Lighthouse applies; read-back SQL | **migration** (cope marker, so `trial-reels` still deploys) | 0.5 |
 | **F3** | L | Migration: `client_profile_admin_edit` allows the YouTube and LinkedIn keys; unique partial index per slot (all five); `client-profile-write` checks YouTube/LinkedIn and the TikTok column against Post for Me on save; Publishing card shows the two fields (paste box) | nothing | proof SQL on a disposable Postgres: a second client with the same id is refused on every slot; rollback restores the 2026-10-31 body; field-list tests | paste a YouTube id on the test client: saved and checked; same id on a throwaway test client: refused | **migration** (holds `client-profile-write` until applied unless the build proves it copes) | 1 |
 | **F4** | P | `post-source` (new function): spike + function. Card or version to Post for Me storage, server to server, `high_quality` rendition, uses F1's module with `strict`. Picks route (a) stream, (b) Frame-host-only URL handed to Post for Me, or (c) "Download from Frame" fallback, and writes the measured numbers into `posting.md` | F1 merged (or rebases on it) | refusal tests (no staff key, client not allowed, card of another client, folder link, too large) | one copy of a test-client card; the returned media address opens | none (new function deploys on merge) | 1.5 |
@@ -155,8 +157,15 @@ only; posting live checks use scheduled-then-deleted posts on its test accounts 
 | **P3** | P | YouTube and LinkedIn: `instagram-upload` account map, platform check before any write, config builders, per-network results; Instagram may be unticked; ticks and YouTube fields (title, privacy, made-for-kids per client) on the form, behind `post_networks_v1` | F3 applied, P1 | handler tests: wrong account and wrong platform refused before any write; same key returns the same post; **every existing Instagram + Facebook test passes unchanged** | one Private YouTube Short and one LinkedIn post from the test client, then deleted (needs those test accounts) | none | 2 |
 | **P4** | P | Post trial versions from a card: one row per approved version from the `effective` set, Instagram only, Trial reel fixed on, key `<press>_<letter>`; a winner card opens with Instagram unticked | V3, P1 (P3 for the winner's other networks) | tests: N versions make N posts with distinct keys; a re-press after one failure resends only that one; other networks cannot be ticked | two versions of a test trial card as scheduled-then-deleted trial reels | none | 1.5 |
 
-**Parallel lanes.** Day 1: P0, F1, F2, F3 all start together (no shared files). F4 starts with F1 and rebases on
-it. Then V1 (after F2 applied) runs beside V2 (after F1) and P1 (after F4). L1 runs whenever F3 is applied. V4 waits
+**Parallel lanes.** Day 1: F0, P0, F2, F3 start together (no shared files); F0 merges first. F1 starts on F0, and
+F4 starts with F1 and rebases on it.
+
+**F0 and Trialchange's Safari work do not collide.** Trialchange's open branches (#2513, a phone-suite repro, and
+#2517, the review stage's strip watcher) change only test files and the page (`195-review-stage.js.part`); the
+Safari error is on the page side of the player. F0 changes only `supabase/functions/frameio-view/logic.mjs` and its
+server test, and keeps the function's answer shape (one new refusal code). If Trialchange's fix turns out to need
+`frameio-view/logic.mjs` too, F0 lands first (it is half a day) and Trialchange rebases; the page treats the new
+refusal like today's `link_not_found`, so no page change is needed for it. Then V1 (after F2 applied) runs beside V2 (after F1) and P1 (after F4). L1 runs whenever F3 is applied. V4 waits
 for Trialchange; if that slips, V4 is the only PR that slips, everything else ships.
 
 **Must wait, in one line each.** V1 and V3 wait for F2 to be **applied**, not merged. L1 and P3 wait for F3
@@ -182,7 +191,7 @@ the marker). Each migration names `anon`, `authenticated`, `public` and `service
 | **Drift robot** | Raw SQL seeding of statuses on a linked card (OPEN_REPAIRS 373) during live checks | Live checks use the UI on a throwaway unlinked test card, never SQL on a card linked to Production work |
 | **Sheet copies** | The Instagram id is a Clients Info column, so linking one from the Pick list must send the copy | L1 saves through `client-profile-write`, which sends the queue (a direct RPC would only queue it). YouTube, LinkedIn and Facebook ids are not Sheet columns. Calendar versions never reach a Sheet |
 | **Production tab** | New work items or attachments appearing per version | None added; the winner's video still goes through today's attachment, which needs no Section 4 change |
-| **Posting** | Wrong file (old cut, folder link resolving to the first video); wrong account (another client's); double post; Frame copy not ready or too large; Edge Function time or memory limit on a 150 MB copy | Preview with Frame file name and date before the press; `strict` lookup refuses folder links; the server reads every account id from the profile and checks its platform before any write, plus the new unique index; one press key per unchanged form on both sides (P0); F4 measures the limits and keeps "Download from Frame" as the fallback. If route (b) is chosen, the server's media check widens to Frame's own media host only, never to any https address |
+| **Posting** | Wrong file (old cut, a link resolving to the folder's first video, fixed first by F0); wrong account (another client's); double post; Frame copy not ready or too large; Edge Function time or memory limit on a 150 MB copy | Preview with Frame file name and date before the press; `strict` lookup refuses folder links; the server reads every account id from the profile and checks its platform before any write, plus the new unique index; one press key per unchanged form on both sides (P0); F4 measures the limits and keeps "Download from Frame" as the fallback. If route (b) is chosen, the server's media check widens to Frame's own media host only, never to any https address |
 | **Rate limits** | Frame (100 calls a minute per user) when listing or copying seven versions; the platform limit seen on 2 Nov | One copy at a time with the #2498 429 retry; the import is one listing per click, staff only |
 | **Access tokens (Linkplan's caution)** | Post for Me's account list returns each client's social `access_token` and `refresh_token` | `pfm_accounts` copies named safe fields out (a whitelist, never deleting known bad keys); the raw body is never logged, stored, returned in an error or put in a test fixture; a test walks every key of the answer at every depth. The single-account check already used on save reads only `platform` and returns no body (measured). Sidney sends no key to anyone; nothing new is needed |
 | **Public repo** | Client handles in fixtures or in the import list | Invented handles in tests; scripts print counts; the identity-exposure check runs on every PR |

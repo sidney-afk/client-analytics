@@ -194,7 +194,9 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const prev = _crmState.people[i];
         _crmState.people[i] = Object.assign({}, prev, {
             stage: person.stage, owner: person.owner || '', next_step: person.next_step || '',
-            next_step_due: person.next_step_due || null, tags: person.tags || prev.tags, state_version: person.state_version
+            next_step_due: person.next_step_due || null, tags: person.tags || prev.tags, state_version: person.state_version,
+            source_ad: person.source_ad || '', call_showed: person.call_showed == null ? null : person.call_showed,
+            call_outcome: person.call_outcome || '', cash_collected: person.cash_collected == null ? null : person.cash_collected
         });
     }
     /* One change. Returns true when it saved. On a lost race (409) the newer
@@ -864,8 +866,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const wasOpen = !panel.hidden;
         const typing = document.activeElement && panel.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) ? document.activeElement.id : '';
         const keep = {};
-        ['crmPOwner', 'crmPStep', 'crmPNote'].forEach(id => { const n = document.getElementById(id); if (n && wasOpen) keep[id] = n.value; });
-        if (_crmState.resetFields) { delete keep.crmPOwner; delete keep.crmPStep; _crmState.resetFields = false; }
+        ['crmPOwner', 'crmPStep', 'crmPNote', 'crmPAd', 'crmPCash'].forEach(id => { const n = document.getElementById(id); if (n && wasOpen) keep[id] = n.value; });
+        if (_crmState.resetFields) { delete keep.crmPOwner; delete keep.crmPStep; delete keep.crmPAd; delete keep.crmPCash; _crmState.resetFields = false; }
         const asPage = !!_crmState.personPage;
         panel.classList.toggle('is-page', asPage);
         panel.setAttribute('role', asPage ? 'region' : 'dialog');
@@ -898,8 +900,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                 + '<label class="crm-field" id="crmLostWrap"' + (CRM_REASON_STAGES.includes(p.stage) ? '' : ' hidden') + '><span>Why it didn\'t close</span>' + _svSelectHtml('crmPLost', [{ value: '', label: 'Not set' }].concat(CRM_LOST_REASONS.map(r => ({ value: r[0], label: r[1] }))), p.lost_reason || '', 'Not set') + '</label>'
                 + '<label class="crm-field crm-field-wide"><span>Next step</span><input id="crmPStep" class="crm-input" maxlength="500" autocomplete="off" placeholder="Send the follow-up DM" value="' + _calEscAttr(keep.crmPStep != null ? keep.crmPStep : (p.next_step || '')) + '"></label>'
                 + '<div class="crm-field"><span>Due</span>' + _svDateHtml('crmPDue', p.next_step_due || '', { placeholder: 'No date' }) + '</div>'
-                + '<label class="crm-field crm-field-wide"><span>Source ad</span><input id="crmPAd" class="crm-input" maxlength="200" autocomplete="off" placeholder="Ad or campaign name" value="' + _calEscAttr(p.source_ad || '') + '"></label>'
-                + '<label class="crm-field"><span>Cash collected ($)</span><input id="crmPCash" class="crm-input" inputmode="decimal" autocomplete="off" placeholder="0" value="' + _calEscAttr(p.cash_collected != null ? String(p.cash_collected) : '') + '"></label>'
+                + '<label class="crm-field crm-field-wide"><span>Source ad</span><input id="crmPAd" class="crm-input" maxlength="200" autocomplete="off" placeholder="Ad or campaign name" value="' + _calEscAttr(keep.crmPAd != null ? keep.crmPAd : (p.source_ad || '')) + '"></label>'
+                + '<label class="crm-field"><span>Cash collected ($)</span><input id="crmPCash" class="crm-input" inputmode="decimal" autocomplete="off" placeholder="0" value="' + _calEscAttr(keep.crmPCash != null ? keep.crmPCash : (p.cash_collected != null ? String(p.cash_collected) : '')) + '"></label>'
                 + '<div class="crm-form-actions"><button type="button" class="crm-btn" onclick="_crmEditPanel(false)">Cancel</button><button type="submit" class="crm-btn crm-btn-primary"' + (_crmState.saving ? ' disabled' : '') + '>Save changes</button></div>'
                 + '</form>'
                 : '<dl class="crm-facts">' + facts.map(f => '<div><dt>' + _calEsc(f[0]) + '</dt><dd>' + _calEsc(f[1]) + '</dd></div>').join('') + '</dl>'
@@ -1804,7 +1806,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         _crmAddNote, _crmApproveStep, _crmBack, _crmClearCols, _crmClosePanel, _crmCloseStepEditor,
         _crmColClick, _crmColPick, _crmEditPanel, _crmEditStep, _crmEnrol, _crmEnrolmentOp, _crmFoldGroup,
         _crmGo, _crmLoad, _crmMarkCall, _crmMerge, _crmOpenNote, _crmOpenPersonById, _crmOpenProfile,
-        _crmReadMessage, _crmResultsKey, _crmSavePanel, _crmSaveStep, _crmSearchKey, _crmSetReason,
-        _crmSetSearch, _crmShowTemp, _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence,
+        _crmReadMessage, _crmResultsKey, _crmSavePanel, _crmSaveStep, _crmSearchKey, _crmSetOutcome, _crmSetReason,
+        _crmSetSearch, _crmSetShowed, _crmShowTemp, _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence,
         _crmToggleTemp, _crmUp
     });

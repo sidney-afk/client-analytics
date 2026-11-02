@@ -71,6 +71,14 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(Object.keys(eff).length === 0, 'unchanged tracking values are dropped from the write');
   const tcard = c.cardOf({ id: 'x', lead_type: 'ad_lead', stage: 'won', source_ad: 'A', call_showed: true, call_outcome: 'won', cash_collected: '99.50', state_version: 1 }, '2026-11-02');
   ok(tcard.source_ad === 'A' && tcard.call_showed === true && tcard.call_outcome === 'won' && tcard.cash_collected === 99.5, 'the list card carries the four fields');
+  const pageSrc = read('src/index/328-crm-leads.js.part');
+  const exportBlock = (pageSrc.match(/Object\.assign\(window, \{([^}]*)\}\)/g) || []).join(' ');
+  for (const fn of ['_crmSetShowed', '_crmSetOutcome', '_crmSetReason']) {
+    ok(new RegExp('onclick=\\"' + fn + '\\(|\\' + "'" + fn + '\\(').test(pageSrc) || pageSrc.includes(fn + '(true)'), fn + ' is used from a handler');
+    ok(new RegExp('\\b' + fn + '\\b').test(exportBlock), fn + ' is exported on window for its inline onclick');
+  }
+  ok(/source_ad: person\.source_ad/.test(pageSrc) && /cash_collected: person\.cash_collected/.test(pageSrc), 'a saved person repaints the list with the four tracking fields');
+  ok(/'crmPAd', 'crmPCash'/.test(pageSrc), 'Source ad and Cash drafts survive a repaint');
   const trackMig = fs.readdirSync(path.join(ROOT, 'supabase/migrations')).find((f) => /_crm_booked_call_tracking\.sql$/.test(f));
   const tm = trackMig ? read('supabase/migrations/' + trackMig) : '';
   ok(/^-- ef-auto-deploy-applied-when: select count\(\*\) = 4 from information_schema\.columns/.test(tm) && /call_outcome in \('won', 'lost', 'follow_up', 'pending'\)/.test(tm) && /'call_tracking_set'/.test(tm), 'tracking migration: probe, outcome check, event kind');

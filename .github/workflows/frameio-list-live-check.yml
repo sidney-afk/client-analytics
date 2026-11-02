@@ -8,6 +8,10 @@ name: frameio-view list live check (manual)
 on:
   workflow_dispatch:
     inputs:
+      client:
+        description: 'The test client slug (given here, never written in the repository)'
+        required: true
+        type: string
       card:
         description: 'A test-client trial card id whose version link is a Frame folder share'
         required: true
@@ -38,6 +42,7 @@ jobs:
         env:
           # The SMM role key, a repository secret (as the dawn check and the post-source live check use). Never printed.
           SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          LIVE_CHECK_CLIENT: ${{ inputs.client }}
           LIVE_CHECK_CARD: ${{ inputs.card }}
           LIVE_CHECK_LETTER: ${{ inputs.letter }}
         run: node scripts/frameio-list-live-check.js

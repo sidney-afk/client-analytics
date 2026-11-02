@@ -12,11 +12,11 @@
  * Prints only counts and true/false (summarize): never an address, an id, a name or a key. The repository and its CI
  * logs are public.
  *
- * Env: SYNCVIEW_STAFF_KEY (a staff role key), LIVE_CHECK_CARD (a test-client trial card id), LIVE_CHECK_LETTER
+ * Env: SYNCVIEW_STAFF_KEY (a staff role key), LIVE_CHECK_CLIENT (the test client's slug, given at dispatch: no client
+ *      slug is written into this public repository), LIVE_CHECK_CARD (a test-client trial card id), LIVE_CHECK_LETTER
  *      (optional, A to G).
  */
 const SUPA = 'https://uzltbbrjidmjwwfakwve.supabase.co';
-const TEST_CLIENT = 'sidneylaruel';
 
 /** The only things that may reach the log: counts, true/false, HTTP statuses and a refusal code. */
 function summarize(list, video) {
@@ -48,10 +48,11 @@ async function call(fn, key, body) {
 
 async function main() {
   const key = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
+  const client = String(process.env.LIVE_CHECK_CLIENT || '').trim().toLowerCase();
   const card = String(process.env.LIVE_CHECK_CARD || '').trim();
   const letter = String(process.env.LIVE_CHECK_LETTER || '').trim().toUpperCase();
-  if (!key || !card) { console.error('Set SYNCVIEW_STAFF_KEY and LIVE_CHECK_CARD.'); process.exit(2); }
-  const read = await call('trial-reels', key, { action: 'read', client: TEST_CLIENT, post_id: card });
+  if (!key || !client || !card) { console.error('Set SYNCVIEW_STAFF_KEY, LIVE_CHECK_CLIENT and LIVE_CHECK_CARD.'); process.exit(2); }
+  const read = await call('trial-reels', key, { action: 'read', client, post_id: card });
   const versions = (read.json && Array.isArray(read.json.versions)) ? read.json.versions : [];
   const v = letter ? versions.find((x) => x.letter === letter) : (versions.find((x) => x.on_card) || versions[0]);
   if (!v || !v.frame_url) {

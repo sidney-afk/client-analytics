@@ -29,6 +29,9 @@ const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/frameio-list-live-
 ok(/on:\s*\n\s*workflow_dispatch:/.test(wf) && !/\bpull_request\b|\bpush:|\bschedule:/.test(wf), 'the workflow runs by hand only');
 ok(/SYNCVIEW_STAFF_KEY: \$\{\{ secrets\.ROBOT_ROLE_KEY_SMM \}\}/.test(wf) && !/echo[^\n]*(KEY|secrets)/i.test(wf), 'the SMM robot key goes in by env and is never echoed');
 ok(/permissions:\s*\n\s*contents: read/.test(wf), 'read-only repository permissions');
+const script = fs.readFileSync(path.join(ROOT, 'scripts/frameio-list-live-check.js'), 'utf8');
+ok(/LIVE_CHECK_CLIENT: \$\{\{ inputs\.client \}\}/.test(wf) && /process\.env\.LIVE_CHECK_CLIENT/.test(script) && !/TEST_CLIENT\s*=\s*'/.test(script),
+  'the client slug comes in at dispatch, never written in the script (Codex on #2546)');
 
 console.log(`\nframeio-list-live-check: ${passed} passed, ${failures.length} failed`);
 process.exit(failures.length ? 1 : 0);

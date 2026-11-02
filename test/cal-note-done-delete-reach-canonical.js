@@ -50,7 +50,8 @@ function world({ linked = true, crosswalkInFlight = false, unlooked = false } = 
     },
     _calStringifyComments: list => JSON.stringify(list),
     _calCurrentAuthor: () => 'staff',
-    _calOpenTweaksForComp: () => view.filter(c => !c.parent_id && !c.done && !c.deleted && c.is_tweak),
+    _calOpenTweaksForComp: () => view.filter(c => !c.parent_id && !c.done && !c.deleted && c.is_tweak
+      && !(typeof ctx._calTweakKept === 'function' && ctx._calTweakKept(c))),
     _calResolveDestReason: () => '',
     _calReviewBlockReason: () => '',
     _calSmmApproveTo: d => d,
@@ -83,15 +84,18 @@ function world({ linked = true, crosswalkInFlight = false, unlooked = false } = 
     _prodProjectCanonicalCardComments: async () => { state.projections = (state.projections || 0) + 1; state.looked = true; view = reload(); return true; },
     _calNotesWarm: () => ctx._prodProjectCanonicalCardComments('calendar', 'card-1'),
   };
+  ctx.window = ctx;
   vm.createContext(ctx);
+  vm.runInContext('let _calKeepTweakLetters = null;', ctx);
   for (const name of ['_calReviewApprove', '_calReviewResolveCanonical', '_calCanonicalCrosswalkPending',
-    '_calResolveTweaksDone', '_calToggleCommentDone', '_calDeleteComment']) {
+    '_calResolveTweaksDone', '_calToggleCommentDone', '_calDeleteComment',
+    '_calTweakKept', 'svCalReviewApproveKeeping', 'svCalResolveVersionTweaks']) {
     let src;
     try { src = extractFunction(INDEX, name); } catch (e) { continue; } // absent before the fix
     if (INDEX.includes('async function ' + name + '(') && !/^async /.test(src)) src = 'async ' + src;
     vm.runInContext(src, ctx);
   }
-  return { ctx, canonical, state, post, notices, reloadPanel: () => (view = reload()), runConfirm: () => confirmCb && confirmCb() };
+  return { ctx, canonical, legacy, state, post, notices, reloadPanel: () => (view = reload()), runConfirm: () => confirmCb && confirmCb() };
 }
 const tick = () => new Promise(r => setImmediate(r));
 
@@ -190,6 +194,35 @@ const tick = () => new Promise(r => setImmediate(r));
     for (let i = 0; i < 6; i++) await tick();
     assert(w.reloadPanel().every(c => c.done), 'an unlinked card still marks its legacy requests done');
     assert.equal(applies, 1, 'and sends the part once');
+  }
+  // 9. Codex on PR 2512: a trial-reel card's approve that keeps some versions' requests open (their new cut is still
+  //    coming) must still keep them open when it first has to look the card's link up.
+  {
+    const w = world({ unlooked: true });
+    // Both copies carry the same words, as on a real card.
+    for (const [id, letter] of [['n1', 'A'], ['n2', 'B']]) {
+      w.canonical.get(id).body = 'Video ' + letter + ': change';
+      w.legacy.get(id).body = 'Video ' + letter + ': change';
+    }
+    w.reloadPanel();
+    w.ctx.svCalReviewApproveKeeping('card-1', 'video', 'client', ['B']);
+    for (let i = 0; i < 6; i++) await tick();
+    assert.equal(w.canonical.get('n1').done, true, 'version A\'s request is resolved');
+    assert.equal(w.canonical.get('n2').done, false, 'version B\'s request stays open across the lookup');
+  }
+  // 10. The SMM approves a version's new cut on a card whose link was never looked up: that version's requests are
+  //     resolved on the canonical thread too (the same fix, in svCalResolveVersionTweaks).
+  {
+    const w = world({ unlooked: true });
+    for (const [id, letter] of [['n1', 'A'], ['n2', 'B']]) {
+      w.canonical.get(id).body = 'Video ' + letter + ': change';
+      w.legacy.get(id).body = 'Video ' + letter + ': change';
+    }
+    w.reloadPanel();
+    w.ctx.svCalResolveVersionTweaks('card-1', 'video', ['A']);
+    for (let i = 0; i < 6; i++) await tick();
+    assert.equal(w.canonical.get('n1').done, true, 'version A\'s request is resolved canonically');
+    assert.equal(w.canonical.get('n2').done, false, 'version B\'s request is left alone');
   }
   console.log('cal-note-done-delete-reach-canonical: done and delete reach the canonical thread ✅');
 })().catch(e => { console.error(e); process.exit(1); });

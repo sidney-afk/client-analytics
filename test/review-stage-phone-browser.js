@@ -124,11 +124,19 @@ async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = fals
 function watchPageErrors(t) {
   // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event, with what (a) needs.
   t.pageErrors = [];
-  t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0], offline: !!t.offlineHeld }));
+  t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0], offline: !!t.offlineHeld, at: new Date().toISOString() }));
 }
 async function pageErrorsThatCount(t) {
-  // FAILING-FIRST COMMIT: main's rule (every page error counts). The next commit adds the offline excusal.
-  return t.errors.slice();
+  let seen = [];
+  try { seen = await t.page.evaluate(() => (window.__phoneErrorLocations || []).map(x => String(x.message || '').split('\n')[0])); } catch (e) {}
+  const kept = t.errors.filter((text, i) => {
+    const pe = t.pageErrors && t.pageErrors[i];
+    const excused = !!pe && pe.offline && WEBKIT_FETCH_FAILED.test(pe.message) && !seen.some(m => m === pe.message || m.endsWith(pe.message));
+    if (excused) console.log('OFFLINE_FETCH_REPORT dropped (offline, network failure, page never saw it): ' + pe.message.slice(0, 160));
+    return !excused;
+  });
+  if (kept.length) console.log('PAGE_ERRORS_SEEN ' + JSON.stringify(t.pageErrors));
+  return kept;
 }
 async function media(t, label) {
   await step(t, 'video');

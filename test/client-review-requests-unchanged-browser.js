@@ -26,6 +26,10 @@
  * branch: an approve first looks up the card's link to its work item when nothing has yet; the client requests above
  * are unchanged.
  *
+ * OPEN_REPAIRS 639 (2026-11-02): the Calendar write-diagnostics REPORT's `env` gained `board: "client"` (a refusal from
+ * a client link names its board; Samples names none); added to the golden by hand. The approve and request-changes requests, and every source
+ * hash, are unchanged.
+ *
  * OPEN_REPAIRS 626 (2026-11-01): the two write-diagnostics REPORTS gained `env` (the browser store's fill, numbers
  * only), added to the golden by hand with the numbers normalised; the approve and request-changes requests, and every
  * source hash, are unchanged.

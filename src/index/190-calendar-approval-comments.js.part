@@ -3596,14 +3596,28 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 return false;
             }
         }
-        if (!alreadyHere) arr.push(msg);
-        _calSetCommentsFor(post, comp, arr);
-        if (comp === 'video') post.comments = arr;
+        /* The thread as it is NOW, not the copy taken before the send (session Trialchange, OPEN_REPAIRS 634).
+           `arr` was copied before the awaits above (the route check and the gateway send). Two notes sent close
+           together each held their own copy, and the one answered last wrote its copy back over the other: the
+           other note left the open thread and the card's calendar copy (`*_tweaks`) while the server kept it.
+           So the note is added to the card's current list, read after the awaits, from the live card. */
+        const livePost = calState.posts.find(p => p.id === pid) || post;
+        const latest = comp === 'video'
+            ? (Array.isArray(livePost.comments) ? livePost.comments.slice() : _calLoadComments(livePost))
+            : _calCommentsFor(livePost, comp).slice();
+        const hereNow = latest.some(c => c && c.id === msg.id);
+        if (!hereNow) latest.push(msg);
+        _calSetCommentsFor(livePost, comp, latest);
+        if (comp === 'video') livePost.comments = latest;
+        if (livePost !== post) {
+            _calSetCommentsFor(post, comp, latest);
+            if (comp === 'video') post.comments = latest;
+        }
         const fieldKey = comp + '_tweaks';
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(arr) });
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(latest) });
         // Only a client's explicit change-REQUEST root flips status — a plain
         // comment or any reply leaves the status untouched.
-        if (isRoot && role === 'client' && msg.is_tweak && !alreadyHere) _calApplyAutoStatus(pid, 'client_added', comp);
+        if (isRoot && role === 'client' && msg.is_tweak && !alreadyHere && !hereNow) _calApplyAutoStatus(pid, 'client_added', comp);
         if (committedBatch) _writeUiMergeCommittedBatch(_calPendingEdits[pid], committedBatch);
         // Part B — route a video/thumbnail note to its Linear sub-issue so the
         // editor / designer sees every piece of feedback in their inbox: BOTH

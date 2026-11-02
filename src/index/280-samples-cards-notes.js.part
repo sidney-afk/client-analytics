@@ -2272,11 +2272,21 @@ import {
                 return false;
             }
         }
-        arr.push(msg);
-        _sxrSetCommentsFor(post, comp, arr);
-        if (comp === 'video') post.comments = arr;
-        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(arr) });
-        if (isRoot && role === 'client' && msg.is_tweak) _sxrApplyAutoStatus(pid, 'client_added', comp);
+        /* The thread as it is NOW, not the copy taken before the send (OPEN_REPAIRS 634, as in 190 _calAppendComment):
+           `arr` was copied before the awaits above, and a note confirmed by another send in the meantime was written
+           over. The note is added to the live card's current list, read after the awaits. */
+        const livePost = (sxrState && Array.isArray(sxrState.posts) && sxrState.posts.find(p => p.id === pid)) || post;
+        const latest = _sxrCommentsForAction(livePost, comp).slice();
+        const hereNow = latest.some(c => c && c.id === msg.id);
+        if (!hereNow) latest.push(msg);
+        _sxrSetCommentsFor(livePost, comp, latest);
+        if (comp === 'video') livePost.comments = latest;
+        if (livePost !== post) {
+            _sxrSetCommentsFor(post, comp, latest);
+            if (comp === 'video') post.comments = latest;
+        }
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(latest) });
+        if (isRoot && role === 'client' && msg.is_tweak && !hereNow) _sxrApplyAutoStatus(pid, 'client_added', comp);
         if (committedBatch) _writeUiMergeCommittedBatch(_sxrPendingEdits[pid], committedBatch);
         await _sxrWatchNoteSave(pid);
         _sxrRefreshCommentsBtn(pid);

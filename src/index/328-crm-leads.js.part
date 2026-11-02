@@ -944,11 +944,11 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
        chosen one again clears it back to not known / not set. */
     function _crmCallHtml(p) {
         const dis = _crmState.saving ? ' disabled' : '';
-        const chip = (label, on, fn) => '<button type="button" class="crm-chip-btn" aria-pressed="' + on + '"' + dis + ' onclick="' + fn + '">' + _calEsc(label) + '</button>';
+        const chip = (label, on, fn) => '<button type="button" class="crm-chip-btn" aria-pressed="' + on + '"' + dis + ' ' + fn + '>' + _calEsc(label) + '</button>';
         return '<div class="crm-reason" role="group" aria-label="Showed for the call"><span class="crm-reason-label">Showed for the call</span><div class="crm-reason-opts">'
-            + chip('Yes', p.call_showed === true, '_crmSetShowed(true)') + chip('No', p.call_showed === false, '_crmSetShowed(false)') + '</div></div>'
+            + chip('Yes', p.call_showed === true, 'onclick="_crmSetShowed(true)"') + chip('No', p.call_showed === false, 'onclick="_crmSetShowed(false)"') + '</div></div>'
             + '<div class="crm-reason" role="group" aria-label="Call outcome"><span class="crm-reason-label">Outcome</span><div class="crm-reason-opts">'
-            + CRM_OUTCOMES.map(o => chip(o[1], p.call_outcome === o[0], '_crmSetOutcome(' + _jsAttrArg(o[0]) + ')')).join('') + '</div></div>';
+            + CRM_OUTCOMES.map(o => chip(o[1], p.call_outcome === o[0], 'onclick="_crmSetOutcome(' + _jsAttrArg(o[0]) + ')"')).join('') + '</div></div>';
     }
     async function _crmSetShowed(value) {
         const p = _crmState.person;
@@ -1806,7 +1806,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         _crmAddNote, _crmApproveStep, _crmBack, _crmClearCols, _crmClosePanel, _crmCloseStepEditor,
         _crmColClick, _crmColPick, _crmEditPanel, _crmEditStep, _crmEnrol, _crmEnrolmentOp, _crmFoldGroup,
         _crmGo, _crmLoad, _crmMarkCall, _crmMerge, _crmOpenNote, _crmOpenPersonById, _crmOpenProfile,
-        _crmReadMessage, _crmResultsKey, _crmSavePanel, _crmSaveStep, _crmSearchKey, _crmSetOutcome, _crmSetReason,
-        _crmSetSearch, _crmSetShowed, _crmShowTemp, _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence,
-        _crmToggleTemp, _crmUp
+        _crmReadMessage, _crmResultsKey, _crmSavePanel, _crmSaveStep, _crmSearchKey, _crmSetOutcome,
+        _crmSetReason, _crmSetSearch, _crmSetShowed, _crmShowTemp, _crmSignIn, _crmStepCount, _crmToggleDue,
+        _crmToggleSequence, _crmToggleTemp, _crmUp
     });

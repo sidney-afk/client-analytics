@@ -28,6 +28,17 @@
  *               "change asked", today's change request names it), while Video A is unchanged. With every other version
  *               out for its new cut the card goes to Tweaks Needed. On a card already Approved the words stay a note
  *               naming the version (a client link cannot take a card back from Approved), as on a card without trials.
+ *   kdrop       Kasper's second layout (session Trialchange, live on the test client, 2026-11-01): he approves A and B and
+ *               drops C, the last version waiting for him; the card goes on to the client, as his last approve would.
+ *               Before, it stayed at Kasper Approval with "Every version is approved" and the approve to press again.
+ *   stale       the client link (session Trialchange, live, 2026-11-01): the page still reads A as waiting (approved in
+ *               another tab, or just before a reload) when the client asks a change on B. The function's answer to that
+ *               change says nothing waits for the client any more, so the card goes to Tweaks Needed; before, it stayed
+ *               at Client Approval with nothing left for the client.
+ *   early       the client link (session Trialchange, live, 2026-11-01): until the card's trial read is in, the video's
+ *               answer waits ("Loading…"), so a quick Approve never answers the whole video of a trial card; the read
+ *               starts with the page, not when the review first draws. Before, the video step offered "Approve the video"
+ *               for about a second (0.87 to 0.99 s live).
  *   phonesmm    the SMM's Review tab on a staff phone starts right under the Calendar's bar, not a whole screen lower
  *               (the Calendar's box kept its one-screen height with only its bar showing).
  * At 1440 (and 390 where the surface exists), light and dark.
@@ -77,6 +88,7 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
         L.readShape(T.versions, { client, mainLink: T.mainLink || T.versions[0].frame_url, cardStatus: T.cardStatus() }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
+      if (b.action === 'list' && T.listDelay) { T.listAt = T.listAt || Date.now(); await new Promise(res => setTimeout(res, T.listDelay)); }
       if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
@@ -216,6 +228,29 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
       ok(!!t.T.versions[0].smm_ok_at && routeMoved(t, 'Kasper Approval', 'kasper_approval'), `${label}: the SMM's approve on A sends the card on to Kasper while B waits for its new cut (A smm ok: ${!!t.T.versions[0].smm_ok_at}; writes: ${(t.gw || []).map(g => g.op + ':' + g.status).concat(t.state.upserts.map(u => u.video_status).filter(Boolean)).join(',') || 'none'}; said: ${await said(t)})`);
       const bOpen = await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); let l = []; try { l = _calCommentsFor(p, 'video') || []; } catch (e) {} return l.filter(c => /Video B:/.test(String(c.body || ''))).map(c => !!c.done); });
       ok(bOpen.every(d => !d), `${label}: B's change request stays open (${JSON.stringify(bOpen)})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- smmresolve: the SMM's approve of the new cuts answers the change requests they were made for ----------
+    for (const [how, label] of [['all', 'smm resolve, Approve all'], ['one', 'smm resolve, one by one']].filter(() => part('smmresolve'))) {
+      const at = '2026-10-27T08:40:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { revision: 1 }));
+      const tw = (id, body) => ({ id, parent_id: null, author: 'Fixture Studio', role: 'client', is_tweak: true, audience: 'client', body, created_at: at, updated_at: at, done: false, done_at: '', done_by: '' });
+      const t = await start('smm', true, vs, { beforeOpen: async t2 => {
+        await keepGateway(t2);
+        t2.T_native.status = 'smm_approval';
+        for (const c of t2.state.cards) Object.assign(c, { video_status: 'For SMM Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'For SMM Approval' });
+        t2.state.cards.find(c => c.id === 'rs1').video_tweaks = JSON.stringify([tw('cA', 'Video A: Fictional change on A.'), tw('cB', 'Video B: Fictional change on B.')]);
+      } });
+      await waitFor(async () => /Video A of 2/.test(await bar(t)), 40);
+      if (how === 'all') await press(t, '.trv-all, [data-trv-all]');
+      else { await press(t, '[data-ok="video"]'); await waitFor(async () => !!t.T.versions[0].smm_ok_at, 60); await sleep(900); if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); } await press(t, '[data-ok="video"]'); }
+      await waitFor(async () => routeMoved(t, 'Kasper Approval', 'kasper_approval'), 80);
+      await sleep(1500);
+      const done = await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1'); let l = []; try { l = _calCommentsFor(p, 'video') || []; } catch (e) {} return l.filter(c => /^Video [AB]:/.test(String(c.body || ''))).map(c => !!c.done); });
+      ok(routeMoved(t, 'Kasper Approval', 'kasper_approval'), `${label}: the card goes on to Kasper`);
+      ok(done.length === 2 && done.every(Boolean), `${label}: both versions' change requests are marked done, as the SMM's approve does on any card (${JSON.stringify(done)})`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }
@@ -412,6 +447,70 @@ const part = k => !process.env.TRL_PART || process.env.TRL_PART === k;
         ok(/Video B: Fictional: on second thought, B/.test(named()) && !tweakSent(t, 'on second thought, B'), `${label}: the words go to the team as a note naming Video B`);
       } else ok(true, `${label}: no "Change my mind" on this card (nothing to reopen) ("${await said(t)}")`);
       ok(t.T.versions.every(v => v.status === 'approved') && !routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: every version keeps its approval and the card stays Approved`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- kdrop: Kasper's drop of the last version waiting for him moves the card on ----------
+    for (const th of ['light', 'dark'].filter(() => part('kdrop'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 3);
+      Object.assign(vs[0], { kasper_ok_at: at }); Object.assign(vs[1], { kasper_ok_at: at });
+      const t = await start('kasper', true, vs, { layout2: true, dark: th === 'dark', beforeOpen: async t2 => {
+        await keepGateway(t2);
+        Object.assign(t2.state.cards.find(c => c.id === 'rs1'), { video_status: 'Kasper Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'Kasper Approval' });
+      } });
+      await t.page.evaluate(() => _rsGo('rs1'));
+      await waitFor(async () => !!(await R(t, `return !!r.querySelector('[data-trk-drop="C"]');`)), 60);
+      await R(t, `r.querySelector('[data-trk-drop="C"]').click();`);
+      await waitFor(async () => t.T.versions[2].status === 'dropped', 60);
+      await waitFor(async () => routeMoved(t, 'Client Approval', 'client_approval'), 80);
+      ok(t.T.versions[2].status === 'dropped' && routeMoved(t, 'Client Approval', 'client_approval'), `${th}: Kasper's drop of C, the last version waiting for him, sends the card on to the client (C ${t.T.versions[2].status})`);
+      await sleep(800);
+      const sd = await said(t);
+      ok(!/Every version is approved/.test(sd), `${th}: no "Every version is approved" with an approve to press again ("${sd}")`);
+      ok(!t.errors.length, `${th}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- stale: a change asked on a page that has not yet read another version's approval ----------
+    for (const label of ['stale client'].filter(() => part('stale'))) {
+      const at = '2026-10-27T08:30:00.000Z';
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { kasper_ok_at: at }));
+      const t = await start('client', true, vs, { beforeOpen: keepGateway });
+      // A is approved on the server (another tab of the client's), and this page has not read it yet.
+      Object.assign(t.T.versions[0], { status: 'approved', client_ok_at: at });
+      if (!/Video B of 2/.test(await bar(t))) { await press(t, '[data-trv-go="B"]'); await sleep(600); }
+      await press(t, '[data-chg="video"]'); await sleep(300);
+      await inS(t.page, '#ta').fill('Fictional: a calmer start on B.');
+      await inS(t.page, '#sendBtn').click();
+      await waitFor(async () => t.T.versions[1].status === 'change asked', 60);
+      await waitFor(async () => routeMoved(t, 'Tweaks Needed', 'tweak'), 80);
+      ok(t.T.versions[1].status === 'change asked' && routeMoved(t, 'Tweaks Needed', 'tweak'), `${label}: by the function's answer nothing waits for the client, so the card goes to Tweaks Needed (B ${t.T.versions[1].status})`);
+      ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
+      await t.ctx.close();
+    }
+
+    // ---------- early: no whole-video answer on a trial card before its trial read is in ----------
+    for (const [w, h, label] of [[1440, 900, 'early 1440'], [390, 844, 'early 390']].filter(() => part('early'))) {
+      const vs = fresh().slice(0, 2).map(v => Object.assign(v, { kasper_ok_at: '2026-10-27T08:30:00.000Z' }));
+      const t = await start('client', true, vs, Object.assign({ width: w, height: h, beforeOpen: async t2 => { t2.T.listDelay = 1200; } }, w < 600 ? { context: { hasTouch: true, isMobile: true } } : {}));
+      // start() waits 1.5 s after the stage: open a fresh page and look while the read is still held.
+      const p2 = await t.ctx.newPage();
+      const t0 = Date.now(); t.T.listAt = 0;
+      await p2.goto(t.page.url(), { waitUntil: 'domcontentloaded' });
+      let early = null;
+      for (let i = 0; i < 200; i++) {
+        const g = await p2.evaluate(() => { const hh = document.getElementById('svReviewStage'); const r = hh && hh.shadowRoot; if (!r || !r.querySelector('#stepper')) return null; const b = r.querySelector('[data-ok="video"]'); return { ok: b ? b.textContent.trim() : '', bar: !!r.querySelector('.trv-under'), wait: !!r.querySelector('.trv-wait') }; }).catch(() => null);
+        // Only once the video's answer row is drawn (a button, the wait, or the version bar).
+        if (g && !g.bar && (g.ok || g.wait)) { early = early || g; if (g.ok) { early = g; break; } }
+        if (g && g.bar) break;
+        await sleep(40);
+      }
+      const late = await (async () => { for (let i = 0; i < 80; i++) { const g = await p2.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-ok="video"]'); return { ok: b ? b.textContent.trim() : '', bar: !!r.querySelector('.trv-under') }; }); if (g.bar && g.ok) return g; await sleep(100); } return null; })();
+      ok(!!early && !early.ok && early.wait, `${label}: before the trial read is in, no "Approve the video" on a trial card, the answer waits (${JSON.stringify(early)})`);
+      ok(!!late && /^Approve Video A$/.test(late.ok), `${label}: once it is in, the version's own Approve ("${late && late.ok}")`);
+      ok(t.T.listAt && t.T.listAt - t0 < 1500, `${label}: the trial read starts with the page (${t.T.listAt ? t.T.listAt - t0 : 'never'} ms after the load)`);
       ok(!t.errors.length, `${label}: no page errors (${t.errors.join(' | ')})`);
       await t.ctx.close();
     }

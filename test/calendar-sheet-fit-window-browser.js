@@ -366,9 +366,71 @@ async function wheelCases(engineName, browser, origin) {
 // With the switch on for everyone ({ "all": true }, live since 31 Oct 22:40 UTC), the #calBody watcher exists only on
 // the Sheet: never on the client link's review stage (where WebKit reported a ResizeObserver loop next to the stage's
 // own watcher, main red on 31 Oct) nor on the staff Review tab; it comes with the Sheet and goes when the view leaves.
+// TEMPORARY DIAGNOSTIC (session Sheetzoom, 2 Nov): which ResizeObserver loops on the client link review stage in WebKit.
+const RO_DIAG_RUNS = 20;
+async function roDiagnostic(engineName, browser, origin) {
+  const fixture = require('./fixtures/review-stage-fixture');
+  const one = async (i) => {
+    const t = await fixture.open(browser, origin, { stage: 'client', flags: 'on', width: 1440, height: 900, flagValues: { sheet_fit_v1: { all: true } } });
+    await t.ctx.addInitScript(() => {
+      const Real = window.ResizeObserver; if (!Real) return;
+      let frame = 0; const tickF = () => { frame++; requestAnimationFrame(tickF); }; requestAnimationFrame(tickF);
+      const obs = []; const D = window.__roDiag = { log: [], errors: [] };
+      const depth = el => { let d = 0; for (let n = el; n; n = n.parentNode || n.host) d++; return d; };
+      const tagEl = el => (el.id ? '#' + el.id : (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : el.tagName)) + '@' + depth(el);
+      const size = el => { const r = el.getBoundingClientRect(); return Math.round(r.width * 10) / 10 + 'x' + Math.round(r.height * 10) / 10; };
+      window.__roWatching = () => obs.flatMap(o => [...o.targets]).map(el => el.id || el.className || el.tagName);
+      window.__roObservers = () => obs.map(o => ({ where: o.where, targets: [...o.targets].map(tagEl) }));
+      window.ResizeObserver = class extends Real {
+        constructor(cb) {
+          const where = String(new Error().stack || '').split('\n').slice(1, 5).map(s => s.trim().replace(/https?:\/\/[^\s)]*\/js\//, '').replace(/\?[^\s:)]*/, '').slice(0, 90)).join(' < ');
+          const box = {};
+          super((entries, o) => {
+            const before = new Map(); for (const ob of obs) for (const tg of ob.targets) before.set(tg, size(tg));
+            const vars = document.documentElement.style.cssText;
+            cb(entries, o);
+            const changed = []; for (const [tg, sz] of before) { const s2 = size(tg); if (s2 !== sz) changed.push(tagEl(tg) + ' ' + sz + '->' + s2); }
+            D.log.push({ f: frame, who: box.where, got: entries.map(e => tagEl(e.target) + ' ' + Math.round(e.contentRect.width) + 'x' + Math.round(e.contentRect.height)), changed, htmlVars: vars === document.documentElement.style.cssText ? '' : 'html style changed' });
+            if (D.log.length > 600) D.log.shift();
+          });
+          box.where = where; this.where = where; this.targets = new Set(); obs.push(this);
+        }
+        observe(el, o) { this.targets.add(el); return super.observe(el, o); }
+        unobserve(el) { this.targets.delete(el); return super.unobserve(el); }
+        disconnect() { this.targets.clear(); return super.disconnect(); }
+      };
+      window.addEventListener('error', e => { if (/ResizeObserver/.test(e.message || '')) D.errors.push({ f: frame, msg: e.message }); });
+    });
+    await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: fixture.CLIENT, v: 'calendar', t: fixture.TOKEN }), { waitUntil: 'domcontentloaded' });
+    await fixture.waitNew(t).catch(() => {});
+    await t.page.waitForTimeout(800);
+    await fixture.inS(t.page, '[data-chg="video"]').click().catch(() => {});
+    await fixture.inS(t.page, 'textarea').fill('Fit switch check.').catch(() => {});
+    await t.page.waitForTimeout(600);
+    const D = await t.page.evaluate(() => ({ errors: window.__roDiag.errors, log: window.__roDiag.log, observers: window.__roObservers() })).catch(e => ({ errors: [], log: [], observers: [], fail: String(e) }));
+    const pageErrs = t.errors.filter(e => /ResizeObserver/i.test(e));
+    await t.ctx.close();
+    return { i, D, pageErrs };
+  };
+  const results = [];
+  for (let b = 0; b < RO_DIAG_RUNS; b += 4) results.push(...await Promise.all([0, 1, 2, 3].map(k => one(b + k))));
+  const bad = results.filter(r => r.pageErrs.length || r.D.errors.length);
+  console.log(`RO_DIAG ${engineName}: ${bad.length} of ${results.length} runs reported a ResizeObserver loop`);
+  console.log('RO_DIAG observers (run 0): ' + JSON.stringify(results[0].D.observers));
+  for (const r of bad.slice(0, 6)) {
+    console.log(`RO_DIAG run ${r.i}: page errors ${JSON.stringify(r.pageErrs)} window errors ${JSON.stringify(r.D.errors)}`);
+    for (const e of r.D.errors) for (const l of r.D.log.filter(l => l.f >= e.f - 2 && l.f <= e.f + 1)) console.log('RO_DIAG   ' + JSON.stringify(l));
+  }
+  // Every callback that changed another observed element's size, across all runs.
+  const movers = new Map();
+  for (const r of results) for (const l of r.D.log) for (const c of l.changed) { const k = l.who.split(' < ')[1] + ' => ' + c.split(' ')[0]; movers.set(k, (movers.get(k) || 0) + 1); }
+  console.log('RO_DIAG callbacks that resized an observed element: ' + JSON.stringify([...movers]));
+}
+
 async function reviewStageCases(engineName, browser, origin) {
   const fixture = require('./fixtures/review-stage-fixture');
   const watched = page => page.evaluate(() => (window.__roWatching ? window.__roWatching().includes('calBody') : null));
+  if (engineName === 'WebKit' || process.env.RO_DIAG_ANY) await roDiagnostic(engineName, browser, origin);
   {
     const L = `${engineName} client link review stage, switch on for all`;
     const t = await fixture.open(browser, origin, { stage: 'client', flags: 'on', width: 1440, height: 900, flagValues: { sheet_fit_v1: { all: true } } });

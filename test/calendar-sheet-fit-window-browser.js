@@ -232,13 +232,24 @@ async function pointAt(page, where) {
     return null;
   }, where);
 }
+// Where everything the wheel can move is: the page, the cards and an open caption.
+function wheelPositions() {
+  const strip = document.getElementById('calStrip'), cap = document.getElementById('fitCaptionUnderTest');
+  return [scrollX, scrollY, strip ? strip.scrollLeft : 0, cap ? cap.scrollTop : 0].join(',');
+}
+// A real wheel, then wait until it has moved something (or 1.5 s pass), then a short settle. It used to wait a fixed
+// 160 ms: WebKit scrolls after the page's own wheel listener returns, and on a busy runner that took longer, so the
+// page read 0px at 160 ms and 120px 100 ms later (repair-checkpoint red on main, 1 Nov; 1 in 20 runs here under load).
+// A check that nothing moved now waits the whole 1.5 s, a stronger proof than 160 ms.
 async function realWheel(page, where, dx, dy, shift) {
   const pt = await pointAt(page, where);
   await page.mouse.move(pt.x, pt.y);
+  const before = await page.evaluate(wheelPositions);
   if (shift) await page.keyboard.down('Shift');
   await page.mouse.wheel(dx, dy);
   if (shift) await page.keyboard.up('Shift');
-  await page.waitForTimeout(160);
+  await page.waitForFunction(`(${wheelPositions})() !== ${JSON.stringify(before)}`, null, { timeout: 1500, polling: 20 }).catch(() => {});
+  await page.waitForTimeout(80);
 }
 
 async function wheelCases(engineName, browser, origin) {

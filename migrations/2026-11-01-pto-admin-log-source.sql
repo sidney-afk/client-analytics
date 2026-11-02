@@ -1,6 +1,6 @@
 -- ef-auto-deploy: functions-cope-without-this
 -- ============================================================
--- 2026-11-01 -- Admin "Log time off" (Kasper > Time Off). OPEN_REPAIRS 627.
+-- 2026-11-01 -- Admin "Log time off" (Kasper > Time Off). OPEN_REPAIRS 628.
 -- Written by session Ptolog, 2026-11-01 (UTC).
 --
 -- WHAT IT CHANGES (no new table, column or function):

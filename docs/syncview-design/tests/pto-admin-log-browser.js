@@ -1,6 +1,6 @@
 'use strict';
 
-// Browser contract for Kasper > Time Off > "Log time off" (OPEN_REPAIRS 627):
+// Browser contract for Kasper > Time Off > "Log time off" (OPEN_REPAIRS 628):
 // an admin records leave for a team member, sees what it uses from their
 // balance before saving, logs it, and lands on that day of the team calendar.
 // Also checks that "Add adjustment" says it never reaches the calendar, and

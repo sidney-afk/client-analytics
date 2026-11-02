@@ -1,6 +1,6 @@
 // The real pto Edge Function (supabase/functions/pto/index.ts), run under Deno
 // against an in-memory stand-in for the database's REST API, for the admin
-// "Log time off" actions `log` and `log_quote` (OPEN_REPAIRS 627).
+// "Log time off" actions `log` and `log_quote` (OPEN_REPAIRS 628).
 // Fully offline: invented members, fake role keys, no live backend.
 //   deno run --allow-env --allow-net=127.0.0.1 --allow-read --node-modules-dir=auto test/pto-admin-log-deno.ts
 //

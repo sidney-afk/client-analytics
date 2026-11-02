@@ -1,7 +1,7 @@
 import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
 import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
@@ -48,6 +48,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // A staff page's first read is the Calendar's list of this client (189), which Kasper's queue starts as it
         // arrives; every later one is this page's own, so it never takes back an answer given here since.
         const read = !_isClientLink && !e.at ? svTrialListShared(slug, false) : svTrialCall({ action: 'list', client: slug, post_id: '' });
+        if (!e.at && !e.started) { e.started = Date.now(); setTimeout(_trvRepaint, TRV_HOLD_MS + 20); }
         e.promise = read
             .then(json => { e.cards = (json && json.cards) || {}; _trvFlush(slug); })
             .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
@@ -55,6 +56,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return e.promise;
     }
     const _trvLive = v => v.status !== 'dropped';
+    /* THE FIRST TRIAL READ, AND THE VIDEO'S ANSWER BEFORE IT (session Trialchange, live on the test client, 2026-11-01).
+       The read started only when the review first drew, so a trial card read as an ordinary card for about a second
+       (0.87 to 0.99 s, four runs): the client's Approve then answered the whole video, not a version. A client link now
+       starts it with the switch read, beside the card read; and until it is in (TRV_HOLD_MS at most), the video's answer
+       waits on any card of a client trial reels is on for (svTrialReviewPending). After that the page is today's, as on
+       a read that failed. */
+    const TRV_HOLD_MS = 2000;
+    // After every module has loaded (_isClientLink is declared in 260, which loads after this one).
+    setTimeout(() => {
+        try {
+            if (!_isClientLink) return;
+            const c = new URLSearchParams(location.search).get('c') || '';
+            if (c) svRsFlagsReady().then(() => { const slug = _trvSlug(c); if (slug && svTrialReelsOn(slug)) _trvLoad(slug); }, () => {});
+        } catch (e) {}
+    }, 0);
 
     /* The trial shape of one card for the review page, or null for today's page. Samples have no trial. */
     function svTrialReviewShape(post, mode, item) {
@@ -79,8 +95,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!post || !post.id || (item && item._sxr)) return false;
         const slug = _trvSlug(post.client || (item && item.client) || '');
         if (!slug || !svTrialReelsOn(slug)) return false;
+        if (!_trv[slug]) _trvLoad(slug);
         const e = _trv[slug];
-        return !e || !e.at;
+        return !e.at && (!e.started || Date.now() - e.started < TRV_HOLD_MS);
     }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
     /* This reviewer's answer on one version: ok, chg or wait. */
@@ -156,6 +173,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (stage !== 'client' && rest.some(v => !!v[stage + '_ok_at'])) return 'move';
         if (rest.some(v => ['smm', 'kasper', 'client', 'team'].includes(_trvPlace(v)))) return 'keep';
         return 'tweaks';
+    }
+    /* The page kept the card where it is after a change ('keep': another version still waited for this reviewer, by the
+       versions it had read), and the function's answer to that change says otherwise: nothing waits for this reviewer any
+       more, nothing is on its way to one, and a change is open. The card then goes to Tweaks Needed after all (session
+       Trialchange, live on the test client, 2026-11-01: the client approved A, the page reloaded before A's answer was
+       read, and the change then asked on B kept the card at Client Approval with nothing left for the client). */
+    function svTrialReviewSettles(m, mode, versions) {
+        if (!m || !m.trial || m.trial.winner || !Array.isArray(versions)) return false;
+        const stage = _trvStage(mode);
+        return !_trvCardAhead(m.post, stage) && _trvSettlesToTweaks(versions, stage);
     }
     /* The versions still waiting for their new cut: forwarding the card answers the other versions' change requests,
        never theirs (Codex on PR 2452: the SMM's approve marked B's open request done while B waited for its cut). */
@@ -523,6 +550,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const e = _trv[job.slug];
             if (e && json.versions) e.cards[job.pid] = Object.assign({}, e.cards[job.pid] || {}, json, { enabled: true });
             _trvRepaint();
+            if (typeof job.onLanded === 'function') { const f = job.onLanded; job.onLanded = null; try { f(json); } catch (err2) {} }
             return true;
         } catch (err) {
             // The version is gone, dropped or already decided: nothing left to record.
@@ -562,10 +590,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* `asked` is the version the change was asked on (the box remembers it when it opens, and the client's queue keeps
        it with each change): a change sent after a look at another version is still about the one it was asked on
        (Probe bugs 10 and 10b). Without it, the version on screen. */
-    function svTrialReviewChangeText(m, mode, text, frameNote, asked) {
+    function svTrialReviewChangeText(m, mode, text, frameNote, asked, onLanded) {
         const had = asked && m.trial.versions.find(v => v.letter === asked);
         const letter = had ? had.letter : _trvCurOf(m, mode).letter;
-        const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
+        const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now(), onLanded };
         _trvPending().push(job); _trvPendingSave();
         // The version reads "change asked" at once, as Approve does (Trialtest, 2026-10-28: the client's own dot stayed
         // waiting); the server's answer, or the next read, replaces it.
@@ -628,24 +656,34 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         el.querySelectorAll('[data-trk-go]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkGo); _trvRepaint(); }));
         el.querySelectorAll('[data-trk-ok]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkOk); on.approve(); }));
         el.querySelectorAll('[data-trk-chg]').forEach(b => b.addEventListener('click', () => { pick(b.dataset.trkChg); _trvRepaint(); on.change(); }));
-        el.querySelectorAll('[data-trk-drop]').forEach(b => b.addEventListener('click', () => svTrialReviewDrop(m, b.dataset.trkDrop)));
+        el.querySelectorAll('[data-trk-drop]').forEach(b => b.addEventListener('click', () => svTrialReviewDrop(m, b.dataset.trkDrop, mode, on.proceed, on.toTweaks)));
         el.querySelectorAll('[data-trk-all]').forEach(b => b.addEventListener('click', () => on.all()));
     }
     const _trvNextLive = (vs, letter) => (vs || []).find(x => x.letter !== letter && x.status !== 'dropped' && x.frame_url) || null;
     /* Only the team drops a version (Q2): Kasper's tile, through the function. The version on the card (default (c)):
        today's attach first puts the next live version on the card, then the old one drops. */
-    async function svTrialReviewDrop(m, letter) {
+    /* A drop can finish this reviewer's stage: the version dropped was the last one waiting for them, and the others
+       already have their OK (session Trialchange, live on the test client, 2026-11-01: Kasper approved A and B and
+       dropped C, and the card stayed at Kasper Approval with "Every version is approved" and the approve again). The drop
+       then goes on as that last approve would: `proceed` (today's approve on the video part) once the function says the
+       stage is done, or `toTweaks` when only changes are left. A card already further on stays where it is. */
+    async function svTrialReviewDrop(m, letter, mode, proceed, toTweaks) {
         if (_trvBusy.has(m.id)) return;
         _trvBusy.add(m.id); _trvRepaint();
         const v = m.trial.versions.find(x => x.letter === letter), next = v && v.on_card ? _trvNextLive(m.trial.versions, letter) : null;
         const before = String((m.post && m.post.asset_url) || '');
-        let mine = null;
+        let mine = null, after = null;
         try {
             if (next) mine = await svTrialMoveCard(m.post, next.frame_url);
             const json = await svTrialCall({ action: 'version_drop', client: m.trial.slug, post_id: m.id, letter });
             const e = _trv[m.trial.slug];
             if (e && json.versions) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
             if (_trvCur[m.id] === letter) delete _trvCur[m.id];
+            const stage = _trvStage(mode);
+            if (mode && json.versions && !_trvCardAhead(m.post, stage)) {
+                if (_trvDone(json, mode) && json.versions.some(v => _trvLive(v) && _trvAnswer(v, stage) === 'ok')) after = proceed;
+                else if (_trvSettlesToTweaks(json.versions, stage)) after = toTweaks;
+            }
         } catch (err) {
             showNotify('Video ' + letter + ' was not dropped', svTrialErrorText(err));
             // The card's link moves only once the function says yes (Probe bug 12b): a refused drop puts it back.
@@ -653,6 +691,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         } finally {
             _trvBusy.delete(m.id); _trvRepaint();
         }
+        if (typeof after === 'function') after();
     }
     const TRV_PLAY = '<svg class="trk-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 3.8v8.4a.6.6 0 0 0 .9.5l6.6-4.2a.6.6 0 0 0 0-1L6.4 3.3a.6.6 0 0 0-.9.5z"/></svg>';
     const TRV_CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
@@ -727,5 +766,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml
+  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles
 };

@@ -291,6 +291,8 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
   - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
+  - **Dropping a version** (Kasper's tile) that was the last one waiting for him moves the card on, as his last approve would.
+  - **On the client link,** the video's answer waits a moment ("Loading…", 2 s at most) until the card's versions are read, so an Approve never answers a trial card's whole video.
   - **On the SMM's Review tab:** a trial card is listed while any version waits for the SMM, whatever the card's status, Tweaks Needed included (a new cut that came in while another version's change is still open). The SMM's approve on a trial card always sends it to Kasper, so its video has no "Approve to client".
   - **If a card did not move on** after every version was answered (the page closed between the two saves), the review page shows "Every version is approved" ("You approved every version" on the client link) with the usual approve button, which moves the card on.
   - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted; "On trial" shows on the row at once and is confirmed by the trial-reels function a moment later.

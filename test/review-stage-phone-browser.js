@@ -120,6 +120,13 @@ async function goOnline(t) { await t.ctx.setOffline(false); t.offlineHeld = fals
 function watchPageErrors(t) {
   // Registered after the fixture's own listener, so entry i here is t.errors[i]: the same event.
   t.pageErrors = [];
+  // Attempt 3 (draft): every frameio-view request's life, so a red names which request WebKit blocked and how.
+  t.fvTrace = []; const t0 = Date.now(); const fv = r => /\/functions\/v1\/frameio-view/.test(r.url());
+  t.page.on('request', r => { if (fv(r)) t.fvTrace.push({ ev: 'request', ms: Date.now() - t0, method: r.method(), offline: !!t.offlineHeld, body: String(r.postData() || '').slice(0, 120), headers: Object.keys(r.headers()).filter(h => /^x-|authorization|content-type/i.test(h)).join(',') }); });
+  t.page.on('requestfinished', async r => { if (fv(r)) { let st = 0; try { st = (await r.response()).status(); } catch (e) {} t.fvTrace.push({ ev: 'finished', ms: Date.now() - t0, method: r.method(), status: st }); } });
+  t.page.on('requestfailed', r => { if (fv(r)) t.fvTrace.push({ ev: 'failed', ms: Date.now() - t0, method: r.method(), offline: !!t.offlineHeld, error: (r.failure() || {}).errorText || '' }); });
+  t.page.on('console', m => { if (/frameio-view/.test(m.text())) t.fvTrace.push({ ev: 'console.' + m.type(), ms: Date.now() - t0, text: m.text().slice(0, 200) }); });
+  t.page.on('pageerror', () => t.fvTrace.push({ ev: 'pageerror', ms: Date.now() - t0, offline: !!t.offlineHeld }));
   t.page.on('pageerror', e => t.pageErrors.push({ message: String(e && e.message || e).split('\n')[0].slice(0, 300), offline: !!t.offlineHeld, at: new Date().toISOString(), url: (() => { try { return t.page.url(); } catch (x) { return ''; } })() }));
 }
 async function media(t, label) {
@@ -267,40 +274,6 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({ids:_kasperState.items.map(i=>i.post.id),closed:_kasperState.closed,cur:document.getElementById('svReviewStage').shadowRoot.querySelector('.chipp.cur')?.dataset.id})));
   check(await inS(t.page, '.chipp.cur').getAttribute('data-id') !== id, label + ': closed card leaves stage');
 }
-/* REPRODUCTION ATTEMPT (draft, session Trialchange, 2026-11-02; attempt 1 tried three synthetic offline paths, none reproduced): which offline path makes WebKit raise the
-   "Fetch API cannot load .../frameio-view due to access control checks" page error the page never sees? Three variants
-   on the client link's player, each in its own context, on WebKit:
-     A. offline, then the player asks for a fresh address (svFrameStageRetry, the same _fvStageLoad(true) path);
-     B. the fixture's video-address answer delayed 2 s, the fresh-address ask sent, offline while it waits;
-     C. offline, then the playing video is made to load again so its own error starts _fvStageFailed's retry.
-   Under main's rule each variant must show no page error; a variant that reproduces the report fails here, which is
-   the red this draft is looking for. */
-async function offlineReproduction(browser, origin) {
-  // Attempt 2: the failing case itself, four more times, with every page error stamped offline/online and timed.
-  const profile = 'iPhone 15 Pro Max landscape';
-  for (let i = 1; i <= 4; i++) {
-    const label = 'webkit/' + profile + '/client/dark repeat ' + i;
-    console.log('RUN ' + label);
-    const t = await open(browser, origin, { phone: true, flags: 'on', stage: 'client', dark: true, phoneMedia: true, context: { ...devices[profile], colorScheme: 'dark' } });
-    t.page.setDefaultTimeout(10000);
-    watchPageErrors(t);
-    try {
-      t.state.postsDelay = 1800;
-      await boot(t, origin, 'client');
-      t.state.postsDelay = 0;
-      Object.assign(t.state.cards[1], { platforms: 'youtube', title_status: 'Client Approval', graphic_status: 'Client Approval', video_deliverable_id: 'del_rs2', graphic_deliverable_id: 'gra_rs2' });
-      await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true }));
-      await t.page.waitForFunction(() => document.getElementById('svReviewStage').shadowRoot.querySelector('.fv-player')?.dataset.state === 'ready', null, { timeout: 15000 });
-      await clientJourney(t, origin, label, profile);
-      console.log('OFFLINE_REPRO ' + i + ' ' + JSON.stringify({ reports: t.pageErrors, pageSaw: (await t.page.evaluate(() => window.__phoneErrorLocations || [])).length }));
-      check(t.errors.length === 0, label + ': no page errors ' + t.errors.map(x => String(x).split('\n')[0]).join('|'));
-      cases++;
-    } catch (e) {
-      check(false, label + ': ' + remoteErrors(e));
-    } finally { await t.ctx.close(); }
-  }
-}
-
 (async () => {
   const server = await serveStatic(), origin = 'http://127.0.0.1:' + server.address().port;
   const browsers = {};
@@ -352,6 +325,7 @@ async function offlineReproduction(browser, origin) {
           }
           if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
           if (t.errors.length) console.log('PAGE_ERRORS_SEEN ' + JSON.stringify(t.pageErrors));
+          if (t.errors.length || /iPhone 15 Pro Max landscape\/client/.test(label)) console.log('FRAMEIO_TRACE ' + label + ' ' + JSON.stringify(t.fvTrace));
           check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
           cases++;
         } catch (e) {
@@ -362,7 +336,6 @@ async function offlineReproduction(browser, origin) {
         finally { await t.ctx.close(); }
       }
     }
-    if (browsers.webkit && !process.env.PHONE_ONLY) await offlineReproduction(browsers.webkit, origin);
   } finally { for (const b of Object.values(browsers)) await b.close(); server.close(); }
   console.log(`review-stage-phone-browser: ${cases} completed cases, ${checks} checks, ${failures.length} failures; fictional data, no live writes`);
   if (failures.length) process.exitCode = 1;

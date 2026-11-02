@@ -43,7 +43,7 @@ Written for teammates (SMMs, editors and designers, Kasper), not developers. The
   - **The client upload link** (copied with **Copy upload link** on Submit; titled "Upload your content") is that form for clients and videographers. They need no sign-in, the title box is hidden, the limits are tighter, and every piece is marked as coming from the public link. It works only while `public_intake_enabled` is on (it is).
 - **SyncLinear.** The team's own work tracker, which replaced Linear. The header button says **Linear**, the screen's breadcrumb says **Production**, and its address is `/synclinear` (old `?prod=1` links still work). You cannot create anything there: posts and their sub-issues come only from Create Post on the Calendar or Samples, or from Submit. See [Production / SyncLinear](#production--synclinear-what-it-is-and-what-it-is-called).
 - **Samples.** Trial pieces for a client (a Video plus a Thumbnail, with no caption, date or platforms). They are made by SMMs on the Samples tab, edited in Production like posts, and reviewed by the client on a separate Samples link. See [Samples](#samples-what-they-are-and-how-they-differ-from-calendar-posts).
-- **Trial reels.** One video posted as several versions (A to G) with different text hooks, each as an Instagram trial reel. The winner is kept after 24 h. The card, Production, review and client parts are behind `trial_reels_pages` (**test client only**). The trial reel switch on the **Post** tab is a separate thing: it is there for every staff member, and it posts a single reel as an Instagram trial.
+- **Trial reels.** One video posted as several versions (A to G) with different text hooks, each as an Instagram trial reel. The winner is kept after 24 h. The card, Production, review and client parts are behind `trial_reels_pages`, **on for every client since 2 Nov 2026** (00:49 UTC). The trial reel switch on the **Post** tab is a separate thing: it is there for every staff member, and it posts a single reel as an Instagram trial.
 - **Analytics.** Hidden for everyone right now (owner decision, 2026-10-17). See [Analytics](#analytics-overview-and-client-profile).
 
 ### Signing in, the header, Today, Workload, Analytics, clients, Templates, Time Off and weekly reports
@@ -297,7 +297,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **If a card did not move on** after every version was answered (the page closed between the two saves), the review page shows "Every version is approved" ("You approved every version" on the client link) with the usual approve button, which moves the card on.
   - The card goes to Approved once every version is approved or dropped. The 24 h trial starts when the card is set to Posted; "On trial" shows on the row at once and is confirmed by the trial-reels function a moment later.
   - The client sees only the winner once it is picked.
-- **Switch:** `trial_reels_pages`, **test client only**.
+- **Switch:** `trial_reels_pages`, **on for every client since 2 Nov 2026**.
 
 #### Archive and restore
 - **Archive** (the card's x, or Select → Archive) asks "Archive this post?". This is admins and SMMs in every mode; never the client.
@@ -371,7 +371,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - **When it is off:** captions are read only and reordering does not save. The review page's caption edit for a post waiting on the client works either way.
 
 #### Trial reels (client side)
-- Switch `trial_reels_pages`: **test client only.**
+- Switch `trial_reels_pages`: **on for every client since 2 Nov 2026.**
 - On a post with several trial versions, the video step shows "Video B of 5" with arrows. The client sees only the versions the team has already approved.
   - **Approve** answers the version on screen; **Approve all** answers every open version.
   - **Ask for a change** goes on that version (it is sent as "Video C: …").
@@ -542,7 +542,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Deliverable file:** called **Thumbnail file** on graphics. This is the finished file for this sub-issue. A parent issue normally does not show it.
 - **Status words on each row:** Available, Missing, Not checked, Permission denied, Expired and so on. "Refresh access" checks the sharing again.
 - **"from the content calendar / samples card / client / post"** means the link is borrowed from there. Editing a borrowed link changes what the Calendar shows too.
-- **Trial reels:** when a card has Trial reels on, the video sub-issue shows one "Deliverable file · Video A … E" row per version, each with its own Edit. Switch: `trial_reels_pages`, which is on for the test client only.
+- **Trial reels:** when a card has Trial reels on, the video sub-issue shows one "Deliverable file · Video A … E" row per version, each with its own Edit. Switch: `trial_reels_pages`, which is on for every client since 2 Nov 2026.
 
 #### Comments ("Feedback & tweaks")
 
@@ -937,7 +937,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `review_stage_kasper_layout2` | Kasper's second layout (wide screens) | 3 staff members |
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
-| `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Test client only |
+| `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |
@@ -1001,7 +1001,7 @@ Visibility below comes from page source and role checks. Shared rules live in [s
 | Calendar approval, changes and Notes | Staff and scoped client link. | [190-calendar-approval-comments.js.part](../src/index/190-calendar-approval-comments.js.part). Native status, the Notes dialog, canonical threads and client review. |
 | Watch here (Frame.io player in Notes) | Staff, Kasper and client link; live switch `frame_viewer_clients` is on for all. A client link never sees Frame.io comments. | [187-frame-viewer.js.part](../src/index/187-frame-viewer.js.part). A card's Frame.io video beside its notes; read only. |
 | Review page (guided stage) | Client review link and the SMM's Review tab (live: all clients); Kasper's Review Session only for the staff `review_stage_kasper_staff` names (live: 3). | [195-review-stage.js.part](../src/index/195-review-stage.js.part), loaded on demand. One page for client, SMM and Kasper; every button calls the old page's save. |
-| Trial reels on the card | Staff Calendar only, behind `trial_reels_pages` (live: one client). | [189-trial-reels-card.js.part](../src/index/189-trial-reels-card.js.part). Video versions A to G, 24 h trial state and the winner, written through the trial-reels function. |
+| Trial reels on the card | Staff Calendar only, behind `trial_reels_pages` (live: every client since 2 Nov 2026). | [189-trial-reels-card.js.part](../src/index/189-trial-reels-card.js.part). Video versions A to G, 24 h trial state and the winner, written through the trial-reels function. |
 | Trial reels on the review page | Client link, SMM Review tab and Kasper, behind the same switch. | [194-review-trial-versions.js.part](../src/index/194-review-trial-versions.js.part). One version at a time with per-version answers; approve and change requests reuse the card's paths. |
 | Samples and sample card | Staff and scoped client link. | [270-samples-model.js.part](../src/index/270-samples-model.js.part). Sample reviews; old Samples routes redirect here. |
 | Sample notes, media and comments | Staff and scoped client link. | [280-samples-cards-notes.js.part](../src/index/280-samples-cards-notes.js.part). Card editing and comment rendering. |
@@ -1340,7 +1340,7 @@ There are 69 entrypoint folders and one shared helper folder here. The live proj
 | <!-- atlas:edge filming-plan-tabs -->[`filming-plan-tabs`](../supabase/functions/filming-plan-tabs/index.ts) | Staff reads and caches Google Doc tab lists for Kasper > Filming (replaced the n8n webhook). | Live v29. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | <!-- atlas:edge frameio-token -->[`frameio-token`](../supabase/functions/frameio-token/index.ts) | Frame.io key keeper: a server caller with the broker key gets a fresh Adobe access token; the rotating refresh token is saved in `frameio_token_keeper` on every refresh and never leaves the server. One-time browser login at `/login`. | Live v8. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml) with the keeper-table readback; fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | <!-- atlas:edge frameio-view -->[`frameio-view`](../supabase/functions/frameio-view/index.ts) | Watch here: a staff key and a card's Frame.io link get a fresh playable video address and the video's comments from Frame.io's V4 API, through the `frameio-token` key keeper. A client review token plus a card id gets the playable address only, for a card of that same client while `frame_viewer_clients` allows it. Read only, stores nothing. | Live v10. `frame_viewer_clients` on for every client (`all: true`) since 2026-10-16. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
-| <!-- atlas:edge trial-reels -->[`trial-reels`](../supabase/functions/trial-reels/index.ts) | Trial reels, the SyncView half (plan: `docs/features/TRIAL_REELS_PLAN.md`, #2352): a card's Trial reels switch, each version's Frame.io link, each reviewer's answer per version, the 24 h trial and the SMM's winner pick, in `studio_trial_versions` and `trial_reel_cards`. Staff key for everything; a client review link for read and answer only. Never writes the card's status or its one link. | Live v12; its tables exist. Page switch `trial_reels_pages` lists the test client only. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); no manual lane. |
+| <!-- atlas:edge trial-reels -->[`trial-reels`](../supabase/functions/trial-reels/index.ts) | Trial reels, the SyncView half (plan: `docs/features/TRIAL_REELS_PLAN.md`, #2352): a card's Trial reels switch, each version's Frame.io link, each reviewer's answer per version, the 24 h trial and the SMM's winner pick, in `studio_trial_versions` and `trial_reel_cards`. Staff key for everything; a client review link for read and answer only. Never writes the card's status or its one link. | Live v12; its tables exist. Page switch `trial_reels_pages` is on for every client since 2 Nov 2026. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); no manual lane. |
 | <!-- atlas:edge filming-plans -->[`filming-plans`](../supabase/functions/filming-plans/index.ts) | Staff reads and updates filming plan Doc references. | Live v82. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-onboarding-edge-functions.yml](../.github/workflows/deploy-onboarding-edge-functions.yml) |
 | <!-- atlas:edge crm-gmail -->[`crm-gmail`](../supabase/functions/crm-gmail/index.ts) | Leads CRM Gmail reader: who one company mailbox has emailed (headers only, `gmail.metadata`, read only, server key only; `docs/features/CRM_LEADS.md`). | Live v3. Needs a Workspace admin's domain-wide delegation approval before it can read (whether granted: unverified 2026-10-29). [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); no manual lane. |
 | <!-- atlas:edge crm-leads -->[`crm-leads`](../supabase/functions/crm-leads/index.ts) | The Leads CRM page (`/leads`): list, read, update and note people in the pipeline, sequences and steps; staff key with Leads access, step approval admin only (`docs/features/CRM_LEADS.md`). Only reader of the `crm_*` tables. | Live v10; its tables exist. [On merge](../.github/workflows/deploy-edge-functions-on-merge.yml); no manual lane. |

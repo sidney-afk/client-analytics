@@ -267,6 +267,52 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({ids:_kasperState.items.map(i=>i.post.id),closed:_kasperState.closed,cur:document.getElementById('svReviewStage').shadowRoot.querySelector('.chipp.cur')?.dataset.id})));
   check(await inS(t.page, '.chipp.cur').getAttribute('data-id') !== id, label + ': closed card leaves stage');
 }
+/* REPRODUCTION ATTEMPT (draft, session Trialchange, 2026-11-02): which offline path makes WebKit raise the
+   "Fetch API cannot load .../frameio-view due to access control checks" page error the page never sees? Three variants
+   on the client link's player, each in its own context, on WebKit:
+     A. offline, then the player asks for a fresh address (svFrameStageRetry, the same _fvStageLoad(true) path);
+     B. the fixture's video-address answer delayed 2 s, the fresh-address ask sent, offline while it waits;
+     C. offline, then the playing video is made to load again so its own error starts _fvStageFailed's retry.
+   Under main's rule each variant must show no page error; a variant that reproduces the report fails here, which is
+   the red this draft is looking for. */
+async function offlineReproduction(browser, origin) {
+  for (const variant of ['A', 'B', 'C']) {
+    const label = 'webkit/offline reproduction ' + variant;
+    console.log('RUN ' + label);
+    const t = await open(browser, origin, { phone: true, flags: 'on', stage: 'client', phoneMedia: true, context: { ...devices['iPhone 15 Pro Max landscape'], colorScheme: 'dark' } });
+    watchPageErrors(t);
+    try {
+      await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' }), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await t.page.waitForFunction(() => document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.fv-player')?.dataset.state === 'ready', null, { timeout: 30000 });
+      await sleep(800);
+      if (variant === 'A') {
+        await goOffline(t);
+        await t.page.evaluate(() => svFrameStageRetry());
+        await sleep(2500);
+      } else if (variant === 'B') {
+        t.state.viewDelay = 2000;
+        await t.page.evaluate(() => svFrameStageRetry());
+        await sleep(300);
+        await goOffline(t);
+        await sleep(3500);
+        t.state.viewDelay = 0;
+      } else {
+        await goOffline(t);
+        await t.page.evaluate(() => { const v = document.getElementById('svReviewStage').shadowRoot.querySelector('video'); if (v) { const src = v.currentSrc || v.src; v.src = src + (src.includes('?') ? '&' : '?') + 'reload=' + Date.now(); v.load(); } });
+        await sleep(4000);
+      }
+      await goOnline(t);
+      await sleep(500);
+      const seen = await t.page.evaluate(() => window.__phoneErrorLocations || []);
+      console.log('OFFLINE_REPRO ' + variant + ' ' + JSON.stringify({ reports: t.pageErrors, pageSaw: seen.length, player: await t.page.evaluate(() => document.getElementById('svReviewStage')?.shadowRoot?.querySelector('.fv-player')?.dataset.state) }));
+      check(t.errors.length === 0, label + ': no page errors ' + t.errors.map(x => String(x).split('\n')[0]).join('|'));
+      cases++;
+    } catch (e) {
+      check(false, label + ': ' + remoteErrors(e));
+    } finally { await t.ctx.close(); }
+  }
+}
+
 (async () => {
   const server = await serveStatic(), origin = 'http://127.0.0.1:' + server.address().port;
   const browsers = {};
@@ -328,6 +374,7 @@ async function kasperJourney(t, label) {
         finally { await t.ctx.close(); }
       }
     }
+    if (browsers.webkit && !process.env.PHONE_ONLY) await offlineReproduction(browsers.webkit, origin);
   } finally { for (const b of Object.values(browsers)) await b.close(); server.close(); }
   console.log(`review-stage-phone-browser: ${cases} completed cases, ${checks} checks, ${failures.length} failures; fictional data, no live writes`);
   if (failures.length) process.exitCode = 1;

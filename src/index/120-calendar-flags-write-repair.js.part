@@ -1645,7 +1645,9 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             /* OPEN_REPAIRS 626: how full this browser's store is, on every report (a full store
                refused Kasper's tweaks in October, OPEN_REPAIRS 615, and nothing on the server
                could see it), and, from the review boards, the page's own code for what happened. */
-            const env = Object.assign({}, _writeUiStorageUse() || {}, error && error.reviewEnv || {});
+            /* OPEN_REPAIRS 638: a Workload save's refusal names its board, so the watcher's signature read lists it. */
+            const env = Object.assign({}, _writeUiStorageUse() || {}, surface === 'workload' ? { board: 'workload' } : {},
+                error && error.reviewEnv || {});
             if (Object.keys(env).length) claim.env = env;
             const version = _writeRefusalAppVersion();
             if (version) claim.app_version = version;
@@ -1730,23 +1732,39 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
        `where` is used only for a page error ("TypeError at sv-12-reviewstage.js:120:7") and for
        the action a dropped press was. */
     const WRITE_UI_REVIEW_PARTS = ['video', 'graphic', 'caption', 'title'];
+    const WRITE_UI_REVIEW_BOARDS = ['kasper', 'client', 'workload', 'calendar'];
+    /* An uncaught error's kind and where (this site's file:line:col only), never its message: shared by the review
+       boards and Workload (OPEN_REPAIRS 626, 638). */
+    function _writeUiErrWhere(name, file, line, col) {
+        let f = '';
+        try { const u = new URL(String(file || ''), location.href); if (u.origin === location.origin) f = u.pathname.split('/').pop(); } catch (e) {}
+        return String(name || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) + (f ? ' at ' + f.slice(0, 60) + ':' + (Number(line) || 0) + ':' + (Number(col) || 0) : '');
+    }
+    function _writeUiStackWhere(err) {
+        const st = String(err && err.stack || ''), re = /((?:https?:)?\/\/[^\s)]+?):(\d+):(\d+)/g;
+        let mm;
+        while ((mm = re.exec(st))) { try { if (new URL(mm[1], location.href).origin === location.origin) return _writeUiErrWhere(err && err.name, mm[1], mm[2], mm[3]); } catch (e) {} }
+        return _writeUiErrWhere(err && err.name, '', 0, 0);
+    }
     function _writeUiReviewEvent(surface, action, code, ids, where) {
         try {
             if (_writeUiReviewBudget <= 0) return;
             const c = _writeUiReviewCode(code);
-            const sig = [surface, action, c, ids && ids.card, ids && ids.component, where].join('|');
+            const sig = [surface, action, c, ids && (ids.card || ids.id), ids && ids.component, where].join('|');
             if (Date.now() - (_writeUiReviewSeen.get(sig) || 0) < 60000) return;
             _writeUiReviewSeen.set(sig, Date.now());
             _writeUiReviewBudget--;
             setTimeout(() => {
                 try {
                     const item = { kind: String(action || 'review_other').slice(0, 40) };
+                    if (ids && ids.id) item.id = String(ids.id);
                     if (ids && ids.card) item.card = String(ids.card);
                     if (ids && ids.component) item.component = String(ids.component);
                     if (ids && ids.client_slug) item.client_slug = String(ids.client_slug).slice(0, 120);
-                    const env = { code: c, board: ids && ids.board === 'client' ? 'client' : 'kasper' };
+                    // OPEN_REPAIRS 638: the Workload calendar and the content Calendar report through here too.
+                    const env = { code: c, board: WRITE_UI_REVIEW_BOARDS.indexOf(ids && ids.board) >= 0 ? ids.board : 'kasper' };
                     if (ids && WRITE_UI_REVIEW_PARTS.indexOf(ids.component) >= 0) env.part = ids.component;
-                    _writeRefusalBeacon(surface === 'sxr' ? 'sxr' : 'calendar', 'ui_write_failure', item,
+                    _writeRefusalBeacon(surface === 'sxr' || surface === 'workload' ? surface : 'calendar', 'ui_write_failure', item,
                         { code: c, message: where ? String(where).slice(0, 120) : '', reviewEnv: env });
                 } catch (e) {}
             }, 0);
@@ -3841,3 +3859,4 @@ export {
   _writeUiUseGatewayWhenReady, computeOverallStatus
 };
 export { _prodCrosswalkInFlight, _prodCrosswalkRunEnd, _prodCrosswalkRunStart, _writeUiRecordSaveFailure, _writeUiTrackSave };
+export { _writeUiErrWhere, _writeUiStackWhere };

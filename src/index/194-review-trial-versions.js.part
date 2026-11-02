@@ -1,6 +1,7 @@
 import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
 import { svTrialAttachBack, svTrialCall, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -41,7 +42,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         }
     }
+    /* Who may ask trial-reels: a client link (its review token) or a verified staff key. Anyone else (signed out, the
+       key not yet checked, Production's own boot before verification) gets a 401 and a red console error, so they read
+       nothing and see no versions, as with Trial reels off (session Trialchange, OPEN_REPAIRS 630; Production's
+       plp_console_errors went red after PR 2486). */
+    function _trvMayRead() {
+        if (_isClientLink) return true;
+        try { return !!_syncviewStaffIdentityForHeaders(); } catch (e) { return false; }
+    }
     function _trvLoad(slug, force) {
+        if (!_trvMayRead()) return Promise.resolve(_trv[slug] || null);
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
         svTrialOnChange(_trvOnChange);
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
@@ -94,9 +104,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialReviewPending(post, item) {
         if (!post || !post.id || (item && item._sxr)) return false;
         const slug = _trvSlug(post.client || (item && item.client) || '');
-        if (!slug || !svTrialReelsOn(slug)) return false;
+        if (!slug || !svTrialReelsOn(slug) || !_trvMayRead()) return false;
         if (!_trv[slug]) _trvLoad(slug);
         const e = _trv[slug];
+        if (!e) return false;
         return !e.at && (!e.started || Date.now() - e.started < TRV_HOLD_MS);
     }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';

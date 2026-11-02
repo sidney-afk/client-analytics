@@ -343,6 +343,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 
     // ---------- once the winner is picked ----------
     t = await start('client', true, fresh({ A: { status: 'lost' }, B: { status: 'lost' }, C: { status: 'winner' }, D: { status: 'lost' }, E: { status: 'lost' } }));
+    // With the winner picked the bar draws only once the trial read answers (up to TRV_HOLD_MS, 2 s, since PR 2486):
+    // wait for it rather than read it after a fixed sleep (a busy runner read "" and "x0"; found by session Sheetzoom).
+    await t.page.waitForFunction(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r && r.querySelector('.trv'); return !!(b && b.innerText.trim()); }, null, { timeout: 5000 }).catch(() => {});
     b = await bar(t);
     ok(b.text === 'Video C: the one we are posting' && !b.dots.length, 'client after the pick: only "Video C: the one we are posting" (' + b.text + ')');
     ok(await tags(t) === 'Trial x1', 'client after the pick: still the one "Trial" marker (' + await tags(t) + ')');

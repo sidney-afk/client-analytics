@@ -2402,6 +2402,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-everyone-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels switched on for every client with no card using it: the client link draws the same review as with the switch off, as fast with a normal trial read and at most about 2 s later for the video answer with a very slow one, and nothing of trial reels shows; Kasper's queue, in both layouts, is up as fast with the trial reads held, because they run beside the card read.",
+      "reproduce": "node test/trial-reels-everyone-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-today-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -343,6 +343,11 @@ Until then `probe` answers `unauthorized_client` with the client id to approve.
 - `probe` checks access.
 - `sent_recipients { after?: "YYYY/MM/DD", max_messages? }` lists each address
   with how many emails, first and last date.
+- `contact_digest { emails: [up to 40], per?: 1-3 }` returns, for each address,
+  its latest few emails: date, whether we sent it, subject and Gmail's short
+  snippet (never a full body). It uses `gmail.readonly`, which Kasper added to
+  the same delegation on 1 Nov 2026, so leads can be told apart from podcast
+  hosts, friends and vendors by what was said.
 
 The list is reviewed (clients, staff and vendors left out) before anyone is
 imported with `scripts/crm-import.js --lead-type=email`.

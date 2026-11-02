@@ -3464,8 +3464,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         // the client sees it too once Collaborative mode is on, so they can pull
         // a piece onto a day (or swap it in) themselves. Off → no tray, since a
         // client with no drag rights could only stare at it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
-        const undated = _calClientUndatedPosts(hideUnready);
+        const { unsched, undated } = _calUndatedStrips(hideUnready);
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
@@ -3497,6 +3496,89 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
             </div>
         </div>`;
     }
+    /* The undated strips above Month and Week: the staff "Unscheduled" tray (unsched) and the client link's
+       "Not scheduled yet" list (undated). They used to appear only once the posts landed, so the whole grid
+       dropped by the strip's height after the skeleton (249 px on the client link at 1440, 2 Nov 2026). Now each
+       loaded paint remembers, per client and per staff/link, how many pills each strip held and how many text
+       lines each pill had, in browser storage, and the loading skeleton draws the same strips with that many
+       blank pills (_calUndatedReserve, set by 160 _calLoadingGridHtml). No memory: no strip, as before. A strip
+       that turns out empty folds away (160 _calCollapseUndatedReserve). Storage may be missing or full: every
+       read and write is guarded and a failure only means no reserve. OPEN_REPAIRS 632. */
+    const _CAL_UNDATED_MEMO_KEY = 'syncview_cal_undated_v1';
+    const _CAL_UNDATED_MEMO_MAX = 60;
+    let _calUndatedMemo = null;
+    let _calUndatedReserve = null;
+    function _calUndatedMemoAll() {
+        if (_calUndatedMemo) return _calUndatedMemo;
+        let all = {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_CAL_UNDATED_MEMO_KEY) || '{}');
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) all = raw;
+        } catch (e) { all = {}; }
+        _calUndatedMemo = all;
+        return all;
+    }
+    function _calUndatedMemoId() {
+        const c = calState.client;
+        if (!c) return '';
+        let slug = '';
+        try { slug = calClientSlug(c); } catch (e) { slug = ''; }
+        return (_isClientLink ? 'link:' : 'staff:') + String(slug || c);
+    }
+    // One digit per pill: its text lines (the name, then a status badge or a trial tag).
+    function _calUndatedPillLines(p) {
+        let n = 1;
+        try { if (_CAL_PILL_BADGE.has(computeOverallStatus(p))) n++; } catch (e) {}
+        try { if (_isClientLink && svTrialClientTagHtml(p, true)) n++; } catch (e) {}
+        return n;
+    }
+    function _calUndatedLinesOf(list) { return list.slice(0, _CAL_UNDATED_MEMO_MAX).map(_calUndatedPillLines).join(''); }
+    function _calUndatedMemoRead() {
+        const id = _calUndatedMemoId();
+        const v = id ? _calUndatedMemoAll()[id] : null;
+        if (!v || typeof v !== 'object') return null;
+        const clean = x => /^[1-9]{1,60}$/.test(String(x || '')) ? String(x) : '';
+        const t = clean(v.t), r = clean(v.r);
+        return t || r ? { t, r } : null;
+    }
+    function _calUndatedMemoNote(unsched, undated) {
+        // Only a paint of this client's own fetched posts counts: not a skeleton, an error, or the moment between a
+        // client switch and its first read, when calState.posts can still be empty or the last client's.
+        if (calState.loading || calState.error || !calState.client || calState.postsClient !== calState.client) return;
+        const id = _calUndatedMemoId();
+        if (!id) return;
+        const all = _calUndatedMemoAll();
+        const t = _calUndatedLinesOf(unsched), r = _calUndatedLinesOf(undated);
+        const prev = all[id];
+        if (!t && !r) { if (!prev) return; delete all[id]; }
+        else if (prev && prev.t === t && prev.r === r) return;
+        else all[id] = { t, r };
+        try { localStorage.setItem(_CAL_UNDATED_MEMO_KEY, JSON.stringify(all)); } catch (e) {}
+    }
+    function _calUndatedStrips(hideUnready) {
+        if (_calUndatedReserve) {
+            const fake = lines => String(lines || '').split('').filter(Boolean).map(n => ({ __reserve: true, lines: Number(n) }));
+            return {
+                unsched: _calCanDragCards() ? fake(_calUndatedReserve.t) : [],
+                undated: _isClientLink ? fake(_calUndatedReserve.r) : [],
+            };
+        }
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
+        const undated = _calClientUndatedPosts(hideUnready);
+        _calUndatedMemoNote(unsched, undated);
+        return { unsched, undated };
+    }
+    // 160 _calLoadingGridHtml draws the skeleton grid inside this, so the strips above it take the remembered shape.
+    function _calWithUndatedReserve(draw) {
+        const memo = _calUndatedMemoRead();
+        _calUndatedReserve = memo;
+        try { return draw(!!memo); } finally { _calUndatedReserve = null; }
+    }
+    // A blank pill of a loaded pill's size: the square picture, then one line per remembered text line.
+    function _calReservePillHtml(p) {
+        const extra = Math.max(0, Math.min(2, (p.lines || 1) - 1));
+        return `<span class="cal-month-pill cal-month-pill-reserve" aria-hidden="true"><span class="cal-month-pill-thumb"></span><span class="cal-month-pill-meta"><span class="cal-month-pill-name">&nbsp;</span>${'<span class="cal-status">&nbsp;</span>'.repeat(extra)}</span></span>`;
+    }
     /* Reserve-content tray that rides above the Month and Week grids. Pills are
        draggable onto any day cell to schedule (or reschedule) them. */
     function _calUnscheduledTrayHtml(unsched) {
@@ -3504,7 +3586,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         return `<div class="cal-unscheduled cal-unscheduled-top">
             <div class="cal-unscheduled-h">Unscheduled (${unsched.length}) · drag onto a day to schedule</div>
             <div class="cal-unscheduled-list">
-                ${unsched.map(p => _calMonthPillHtml(p)).join('')}
+                ${unsched.map(p => p && p.__reserve ? _calReservePillHtml(p) : _calMonthPillHtml(p)).join('')}
             </div>
         </div>`;
     }
@@ -3534,7 +3616,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
             <h3 class="cal-notyet-h" id="calNotYetH">Not scheduled yet (${list.length})</h3>
             <button type="button" class="cal-notyet-tog" aria-expanded="${_calNotYetOpen}" aria-controls="calNotYetList" onclick="_calNotYetToggle(this)"><span>Not scheduled yet <span class="cal-notyet-n">${list.length}</span></span><svg class="cal-notyet-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
             <div class="cal-notyet-list" id="calNotYetList">
-                ${list.map(p => _calMonthPillHtml(p)).join('')}
+                ${list.map(p => p && p.__reserve ? _calReservePillHtml(p) : _calMonthPillHtml(p)).join('')}
             </div>
         </section>`;
     }
@@ -3569,8 +3651,7 @@ import { svTrialClientTagHtml } from './189-trial-reels-card.js';
         const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
-        const undated = _calClientUndatedPosts(hideUnready);
+        const { unsched, undated } = _calUndatedStrips(hideUnready);
         return `<div class="cal-week-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>
@@ -3969,5 +4050,5 @@ export {
   _calShowApprovedAfterTweaks, _calWireDragEdgeScroll, _calWireDragOnCard, _calWireShiftScroll,
   _kasperGetSeenAt, _kasperHasUnreadReply, _kasperLatestInternalComp, _kasperMarkSeenAt,
   _kasperOwnedThreadRoots, _kasperRepliesSeenBasis, _nativePostViewSlug, _notesGetSeen,
-  _notesMarkSeen, archiveCalPost, calMonthShift, calWeekShiftDays, renderCalMonth, renderCalWeek,
-  wireCalOrganizerDrag };
+  _notesMarkSeen, _calWithUndatedReserve, archiveCalPost, calMonthShift,
+  calWeekShiftDays, renderCalMonth, renderCalWeek, wireCalOrganizerDrag };

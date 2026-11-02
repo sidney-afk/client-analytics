@@ -8,6 +8,7 @@
     "workflow-plain-scalars.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
+    "supabase-cli-pinned.js",
     "loading-family.js",
     "pages-build-inputs.js",
     "messages-inbox-scope.js",

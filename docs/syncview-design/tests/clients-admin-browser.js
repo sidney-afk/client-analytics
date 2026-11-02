@@ -99,12 +99,19 @@ async function open(browser, origin, role, viewport) {
       if (ctl.edit === 'conflict') return json({ ok: false, error: 'sheet_changed', fields: ['instagram_handle'] }, 409);
       if (ctl.edit === 'version') return json({ ok: false, error: 'client_profile_version_conflict', row: ROWS[0] }, 409);
       if (ctl.edit === 'fbwrong') return json({ ok: false, error: 'postforme_wrong_platform', field: 'postforme_facebook_account_id' }, 400);
+      if (ctl.edit === 'taken') return json({ ok: false, error: 'postforme_account_taken', field: 'postforme_youtube_account_id' }, 409);
+      if (ctl.edit === 'ttwrong') return json({ ok: false, error: 'postforme_wrong_platform', field: 'postforme_account_id' }, 400);
       const row = ROWS.find(x => x.slug === b.slug);
-      // The Facebook Page is kept in extra (OPEN_REPAIRS 620), as the server does.
+      // The Post for Me accounts and made-for-kids are kept in extra (OPEN_REPAIRS 620, 666), as the server does:
+      // made-for-kids is stored as true and removed when off.
       const changes = Object.assign({}, b.changes || {});
-      const fbPage = 'postforme_facebook_account_id' in changes ? changes.postforme_facebook_account_id : undefined;
-      delete changes.postforme_facebook_account_id;
-      const extra = Object.assign({}, row.extra || {}, fbPage === undefined ? {} : { postforme_facebook_account_id: fbPage });
+      const extra = Object.assign({}, row.extra || {});
+      for (const k of ['postforme_facebook_account_id', 'postforme_youtube_account_id', 'postforme_linkedin_account_id', 'youtube_made_for_kids']) {
+        if (!(k in changes)) continue;
+        const v = changes[k];
+        delete changes[k];
+        if (!v) delete extra[k]; else extra[k] = k === 'youtube_made_for_kids' ? true : v;
+      }
       return json({ ok: true, native: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, changes, { extra, source: 'syncview', updated_by: 'QA admin', updated_at: '2026-09-25T10:00:00Z' }) });
     }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
@@ -310,8 +317,9 @@ const measure = page => page.evaluate(() => {
       await p.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
       const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open, tag: !!document.querySelector('[data-ca-group="team"] [data-ca-field="slack_mention_user_id"]'), fb: !!document.querySelector('[data-ca-group="publish"] [data-ca-field="postforme_facebook_account_id"]'), igInput: !!document.querySelector('[data-ca-field="postforme_instagram_account_id"]') }));
       // 12 profile fields plus "Slack person to tag" (Notify client's at-mention, OPEN_REPAIRS 477) in Contact and team,
-      // plus the Post for Me Instagram account and Facebook Page in Publishing (OPEN_REPAIRS 620).
-      if (em.n !== 15 || em.roam || !em.research || !em.tag || !em.fb || !em.igInput) failures.push(`${label}: expected 15 editable fields (with the Slack person to tag and both Post for Me accounts) and research open (${JSON.stringify(em)})`);
+      // plus the Post for Me Instagram account and Facebook Page in Publishing (OPEN_REPAIRS 620),
+      // plus the YouTube and LinkedIn accounts (OPEN_REPAIRS 666; made-for-kids is a switch, not a text box).
+      if (em.n !== 17 || em.roam || !em.research || !em.tag || !em.fb || !em.igInput) failures.push(`${label}: expected 17 editable fields (with the Slack person to tag and the four Post for Me accounts in extra) and research open (${JSON.stringify(em)})`);
       if (shots) { await p.waitForTimeout(3500); await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`) }); }
       if (phone) {
         const m = await measure(p);
@@ -374,6 +382,50 @@ const measure = page => page.evaluate(() => {
       await p.waitForFunction(() => !document.querySelector('#caIn_postforme_facebook_account_id'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the Facebook Page save did not close the form`));
       const fbShown = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
       if (!/Facebook Page \(Post for Me\)[\s\S]*spc_fixtureFacebook01/.test(fbShown)) failures.push(`${label}: the saved Facebook Page is not shown (${JSON.stringify(fbShown)})`);
+
+      // YouTube and LinkedIn (Post for Me) and "made for kids" (F3, OPEN_REPAIRS 666): two more paste boxes
+      // and a switch on the Publishing card. A taken account and a wrong TikTok network are explained in words.
+      const pub0 = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
+      if (!/YouTube \(Post for Me\)[\s\S]*Not set/.test(pub0) || !/LinkedIn \(Post for Me\)[\s\S]*Not set/.test(pub0) || !/YouTube: made for kids[\s\S]*Off/.test(pub0)) failures.push(`${label}: Publishing does not show empty YouTube and LinkedIn accounts and made-for-kids Off (${JSON.stringify(pub0)})`);
+      await p.click('.ca-edit-btn');
+      await p.waitForSelector('#caIn_postforme_youtube_account_id', { timeout: 3000 }).catch(() => failures.push(`${label}: no YouTube field in the edit form`));
+      if (!(await p.$('[data-ca-group="publish"] #caIn_postforme_linkedin_account_id'))) failures.push(`${label}: no LinkedIn field in the Publishing card`);
+      const sw = await p.$eval('#caIn_youtube_made_for_kids', e => ({ role: e.getAttribute('role'), on: e.getAttribute('aria-checked'), tag: e.tagName, h: e.getBoundingClientRect().height })).catch(() => null);
+      if (!sw || sw.role !== 'switch' || sw.on !== 'false' || sw.tag !== 'BUTTON') failures.push(`${label}: made-for-kids is not an off switch (${JSON.stringify(sw)})`);
+      if (phone && sw && sw.h < 44) failures.push(`${label}: the made-for-kids switch is ${sw.h}px tall on a phone`);
+      const ytBefore = s.edits.length;
+      s.ctl.edit = 'taken';
+      await p.fill('#caIn_postforme_youtube_account_id', 'spc_fixtureYouTube01');
+      await p.click('.ca-save');
+      await p.waitForFunction(() => /already on another client/.test((document.querySelector('.ca-msg') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: a taken account was not explained`));
+      if (!(await p.$('#caIn_postforme_youtube_account_id.is-conflict'))) failures.push(`${label}: the taken YouTube field is not flagged`);
+      const ytSent = s.edits[ytBefore] && s.edits[ytBefore].body;
+      if (!ytSent || JSON.stringify(ytSent.changes) !== JSON.stringify({ postforme_youtube_account_id: 'spc_fixtureYouTube01' })) failures.push(`${label}: the YouTube save sent ${JSON.stringify(ytSent)}`);
+      s.ctl.edit = 'ttwrong';
+      await p.fill('#caIn_postforme_account_id', 'spc_fixture02');
+      await p.click('.ca-save');
+      await p.waitForFunction(() => /not a TikTok account/.test((document.querySelector('.ca-msg') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: a wrong-network TikTok id was not explained`));
+      await p.fill('#caIn_postforme_account_id', 'spc_fixture01');
+      await p.click('#caIn_youtube_made_for_kids');
+      if ((await p.getAttribute('#caIn_youtube_made_for_kids', 'aria-checked')) !== 'true') failures.push(`${label}: the made-for-kids switch did not turn on`);
+      const kidsBefore = s.edits.length;
+      s.ctl.edit = 'ok';
+      await p.click('.ca-save');
+      await p.waitForFunction(() => !document.querySelector('#caIn_youtube_made_for_kids'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the made-for-kids save did not close the form`));
+      const kidsSent = s.edits[kidsBefore] && s.edits[kidsBefore].body;
+      if (!kidsSent || JSON.stringify(kidsSent.changes) !== JSON.stringify({ postforme_youtube_account_id: 'spc_fixtureYouTube01', youtube_made_for_kids: 'true' })) failures.push(`${label}: the made-for-kids save sent ${JSON.stringify(kidsSent)}`);
+      const pub1 = await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || '');
+      if (!/YouTube \(Post for Me\)[\s\S]*spc_fixtureYouTube01/.test(pub1) || !/YouTube: made for kids[\s\S]*On/.test(pub1)) failures.push(`${label}: the saved YouTube account and made-for-kids On are not shown (${JSON.stringify(pub1)})`);
+      // Off again sends a blank, which the server reads as "remove the key".
+      await p.click('.ca-edit-btn');
+      await p.waitForSelector('#caIn_youtube_made_for_kids[aria-checked="true"]', { timeout: 3000 }).catch(() => failures.push(`${label}: the switch does not open On after saving`));
+      await p.click('#caIn_youtube_made_for_kids');
+      const offBefore = s.edits.length;
+      await p.click('.ca-save');
+      await p.waitForFunction(() => !document.querySelector('#caIn_youtube_made_for_kids'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the made-for-kids off save did not close the form`));
+      const offSent = s.edits[offBefore] && s.edits[offBefore].body;
+      if (!offSent || JSON.stringify(offSent.changes) !== JSON.stringify({ youtube_made_for_kids: '' })) failures.push(`${label}: turning made-for-kids off sent ${JSON.stringify(offSent)}`);
+      if (!/YouTube: made for kids[\s\S]*Off/.test(await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || ''))) failures.push(`${label}: made-for-kids does not read Off after turning it off`);
 
       // History: read on demand.
       await p.click('#caHistBtn');

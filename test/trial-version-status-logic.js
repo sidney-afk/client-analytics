@@ -63,17 +63,17 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(word([v('A'), v('B', { frame_url: null })], 'B') === 'In Progress' && word(three(), 'B') === 'For SMM Approval', 'no link reads In Progress; a link reads For SMM Approval');
 
   // Approved straight from the SMM stamps all three OKs (D1), keeping any earlier one.
-  let r = set([v('A'), v('B', { smm_ok_at: EARLY })], 'B', 'Approved');
+  let r = set([v('A'), v('B', { smm_ok_at: EARLY })], 'B', 'Approved', 'For SMM Approval');
   let p = r.patches[0].patch;
   ok(p.status === 'approved' && p.smm_ok_at === EARLY && p.kasper_ok_at === NOW && p.client_ok_at === NOW, 'Approved: status approved, all three OKs (an earlier OK kept)');
-  r = set([v('A'), v('B', { status: 'change asked', change_by: 'client', change_note: 'x', change_at: EARLY })], 'B', 'Approved');
+  r = set([v('A'), v('B', { status: 'change asked', change_by: 'client', change_note: 'x', change_at: EARLY })], 'B', 'Approved', 'Tweaks Needed');
   p = r.patches[0].patch;
   ok(p.status === 'approved' && p.change_by === null && p.change_note === null && p.change_at === null, 'Approved clears an open change');
 
   // Kasper Approval and Client Approval.
   p = set(three(), 'B', 'Kasper Approval', 'For SMM Approval').patches[0].patch;
   ok(p.status === 'waiting' && p.smm_ok_at === NOW && p.kasper_ok_at === null && p.client_ok_at === null, 'Kasper Approval: the SMM OK only');
-  p = set([v('A'), v('B', { status: 'approved', smm_ok_at: EARLY, kasper_ok_at: EARLY, client_ok_at: EARLY })], 'B', 'Client Approval').patches[0].patch;
+  p = set([v('A'), v('B', { status: 'approved', smm_ok_at: EARLY, kasper_ok_at: EARLY, client_ok_at: EARLY })], 'B', 'Client Approval', 'Approved').patches[0].patch;
   ok(p.status === 'waiting' && p.smm_ok_at === EARLY && p.kasper_ok_at === EARLY && p.client_ok_at === null, 'Client Approval from Approved: back to waiting, the client OK cleared');
 
   // Tweaks Needed: no note needed (as on a card), OKs kept, the change is the SMM's.
@@ -103,6 +103,19 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   // A pick the card's own state would read differently is refused, not silently shown as something else.
   r = set(three(), 'B', 'For SMM Approval', 'Client Approval');
   ok(r.error === 'status_follows_card', 'a card sent on whole to the client: For SMM Approval on one version is refused (it would read as Client Approval)');
+
+  // Codex on #2535: on a card sent on whole to the client (no SMM OK on any version), stamping B's OKs would end that
+  // reading for every version, so untouched A would silently go back with the team. Refused instead: one pick never
+  // moves another version.
+  {
+    const whole = () => [v('A'), v('B')];
+    ok(L.readShape(whole(), { client: true, mainLink: 'https://f.io/fixture-a', cardStatus: 'Client Approval' }).versions.every((x) => x.ready), 'sent on whole: both versions are ready for the client');
+    ok(set(whole(), 'B', 'Approved', 'Client Approval').error === 'status_follows_card', 'Approved on B is refused while the card is sent on whole: A would lose its turn');
+    ok(set(whole(), 'B', 'Approved', 'Kasper Approval').error === 'status_follows_card', 'the same at Kasper\'s stage');
+    const seen = () => [v('A', { smm_ok_at: EARLY }), v('B')];
+    const r2 = set(seen(), 'B', 'Approved', 'Client Approval');
+    ok(!r2.error && r2.patches[0].patch.kasper_ok_at === null, 'once the SMM has looked at a version, a pick on another is fine, with no Kasper OK where Kasper is off the route');
+  }
 
   // The card reaches Approved only through today's approve: the rule only says it can.
   let vs = three();

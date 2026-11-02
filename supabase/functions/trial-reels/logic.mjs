@@ -587,8 +587,8 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
  * post (supervisor, 2 Nov). Each word is stored in the columns the review already uses, no new one:
  *   In Progress, For SMM Approval  waiting, no OK          (one state: no link reads In Progress, a link For SMM Approval)
  *   Kasper Approval                waiting, the SMM's OK
- *   Client Approval                waiting, the SMM's and Kasper's OKs
- *   Approved                       approved, all three OKs (an SMM may go straight to Approved, as on a card)
+ *   Client Approval                waiting, the SMM's and Kasper's OKs (Kasper's only where he is on the card's route)
+ *   Approved                       approved, all three OKs, the same way (an SMM may go straight to Approved, as on a card)
  *   Tweaks Needed                  change asked by the SMM, no note needed (as on a card); OKs kept, as a change keeps them
  * Admin and SMM keys only (staffAllows); a client link never. The card's own status is never written here: once every
  * live version is Approved, card_approvable tells the page, which calls today's approve.
@@ -618,20 +618,27 @@ export function versionStatusPatches(versions, { letter, status, cardStatus }, n
   const from = versionCardStatus(v, versions, cardStatus);
   if (from === want && !passed(v)) return { patches: [] };
   const noChange = { change_by: null, change_note: null, change_at: null };
+  // Kasper's OK only where Kasper is on the card's route (a card the SMM sent straight to the client has none to give).
+  const kasperOk = kasperOnRoute(versions, cardStatus) ? (v.kasper_ok_at || now) : (v.kasper_ok_at || null);
   const patch = {
     "In Progress": { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, ...noChange },
     "For SMM Approval": { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, ...noChange },
     "Kasper Approval": { status: STATUS.waiting, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: null, client_ok_at: null, ...noChange },
-    "Client Approval": { status: STATUS.waiting, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: v.kasper_ok_at || now, client_ok_at: null, ...noChange },
-    "Approved": { status: STATUS.approved, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: v.kasper_ok_at || now, client_ok_at: v.client_ok_at || now, ...noChange },
+    "Client Approval": { status: STATUS.waiting, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: kasperOk, client_ok_at: null, ...noChange },
+    "Approved": { status: STATUS.approved, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: kasperOk, client_ok_at: v.client_ok_at || now, ...noChange },
     "Tweaks Needed": { status: STATUS.change, change_by: "smm", change_note: null, change_at: now },
   }[word];
   Object.assign(patch, clearPass(v));
   // The card's own state can place a version elsewhere (a card sent on whole to the client counts every version
   // through the SMM): a pick that would read back as another word is refused, never shown as something it is not.
   const after = { ...v, ...patch };
-  const to = versionCardStatus(after, versions.map((x) => (x.id === v.id ? after : x)), cardStatus);
+  const next = versions.map((x) => (x.id === v.id ? after : x));
+  const to = versionCardStatus(after, next, cardStatus);
   if (to !== want) return { error: "status_follows_card" };
+  // One pick never moves another version (Codex on #2535): a card sent on whole counts every version through the SMM
+  // only while none has the SMM's OK, so stamping one would send the others back with the team.
+  const others = (vs) => vs.filter((x) => x.id !== v.id && live(x)).map((x) => x.letter + ":" + placeOf(x, vs, cardStatus)).join();
+  if (others(versions) !== others(next)) return { error: "status_follows_card" };
   return { patches: [{ id: v.id, letter: v.letter, from: v.status, from_word: from, to_word: to, patch }] };
 }
 

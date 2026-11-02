@@ -36007,6 +36007,10 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The staff read gains `card_status` for each version.
   - One `calendar_post_events` row per pick, in the card's `status_change` shape but under action `trial_status`, with from and to in the card's words. A pick that changes nothing writes nothing.
   - The page (189), behind `trial_versions_v2`: the label slot becomes the card's status pill and menu (the card's menu, colours and phone sheet). The capability is `trial-version-status` (admin, SMM).
+- **One pick never moves another version** (Codex P2 on #2535, fixed):
+  - On a card sent on whole, stamping one version's SMM OK ended the "sent on whole" reading for every version, so an untouched version went back to the team.
+  - A pick that would change how any other version reads is now refused with `status_follows_card`.
+  - Kasper's OK is stamped only where Kasper is on the card's route, so a card the SMM sent straight to the client does not put Kasper back on it.
 - **Narrower than the card, on purpose:** on a card, an editor may set the status of their own assigned video. On a version, a creative key may not: a version has no assignee to check, and Sidney asked for "the SMM, at least".
 - **Readers of `calendar_post_events` checked for the new action:**
   - The Kasper history (330) reads `status_change` and `mirror_in_status_change` only.

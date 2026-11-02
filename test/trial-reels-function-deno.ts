@@ -572,30 +572,30 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
 
 // V1 (plan combined.md, D1): a version's status set with the card's own picker, through the real function.
 {
-  tables.calendar_posts.push({ id: "p5", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p5-a", video_deliverable_id: null });
-  for (const l of ["A", "B"]) tables.studio_trial_versions.push({ ...v("A"), id: "p5" + l, letter: l, post_id: "p5", status: "waiting", frame_url: "https://f.io/p5-" + l.toLowerCase(), revision: 0, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null, updated_at: "2026-11-02T09:00:00.000Z" });
-  await step({ action: "switch_set", enabled: true, post_id: "p5" });
-  const p5 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "p5" + l)!;
+  tables.calendar_posts.push({ id: "pv1", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/pv1-a", video_deliverable_id: null });
+  for (const l of ["A", "B"]) tables.studio_trial_versions.push({ ...v("A"), id: "pv1" + l, letter: l, post_id: "pv1", status: "waiting", frame_url: "https://f.io/pv1-" + l.toLowerCase(), revision: 0, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, posted_at: null, trial_ends_at: null, updated_at: "2026-11-02T09:00:00.000Z" });
+  await step({ action: "switch_set", enabled: true, post_id: "pv1" });
+  const pv1 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "pv1" + l)!;
   const ev0 = tables.calendar_post_events.length;
-  const set = await step({ action: "version_status_set", post_id: "p5", letter: "B", status: "Approved" });
-  ok(set.body.ok === true && p5("B").status === "approved" && !!p5("B").smm_ok_at && !!p5("B").kasper_ok_at && !!p5("B").client_ok_at && p5("A").status === "waiting",
+  const set = await step({ action: "version_status_set", post_id: "pv1", letter: "B", status: "Approved" });
+  ok(set.body.ok === true && pv1("B").status === "approved" && !!pv1("B").smm_ok_at && !!pv1("B").kasper_ok_at && !!pv1("B").client_ok_at && pv1("A").status === "waiting",
     "V1: the SMM sets Video B straight to Approved: all three OKs, Video A untouched (" + set.status + " " + set.body.error + ")");
-  const rows = tables.calendar_post_events.slice(ev0).filter((e) => e.post_id === "p5" && e.action !== "trial_on");
+  const rows = tables.calendar_post_events.slice(ev0).filter((e) => e.post_id === "pv1" && e.action !== "trial_on");
   ok(rows.length === 1 && rows[0].action === "trial_status" && rows[0].component === "video" && rows[0].from_status === "For SMM Approval"
     && rows[0].to_status === "Approved" && rows[0].source === "trial-reels" && (rows[0].payload as Row).letter === "B",
     "V1: one trial_status ledger row, in the card's words (" + JSON.stringify(rows.map((r) => r.action)) + ")");
   ok(((set.body.versions || []) as Row[]).find((r) => r.letter === "B")?.card_status === "Approved", "V1: the answer names B's status in the card's words");
-  ok(tables.calendar_posts.find((c) => c.id === "p5")!.video_status === "For SMM Approval", "V1: the card's own status is never written");
-  const admin = await step({ action: "version_status_set", post_id: "p5", letter: "A", status: "Kasper Approval" }, "admin");
-  ok(admin.body.ok === true && !!p5("A").smm_ok_at && !p5("A").kasper_ok_at, "V1: an admin key may set it too");
-  const creative = await step({ action: "version_status_set", post_id: "p5", letter: "A", status: "Approved" }, "creative");
-  ok(creative.status === 403 && creative.body.error === "role_not_allowed" && p5("A").status === "waiting", "V1: an editor's key may not");
-  const client = await step({ action: "version_status_set", post_id: "p5", letter: "A", status: "Approved" }, "client-token");
+  ok(tables.calendar_posts.find((c) => c.id === "pv1")!.video_status === "For SMM Approval", "V1: the card's own status is never written");
+  const admin = await step({ action: "version_status_set", post_id: "pv1", letter: "A", status: "Kasper Approval" }, "admin");
+  ok(admin.body.ok === true && !!pv1("A").smm_ok_at && !pv1("A").kasper_ok_at, "V1: an admin key may set it too");
+  const creative = await step({ action: "version_status_set", post_id: "pv1", letter: "A", status: "Approved" }, "creative");
+  ok(creative.status === 403 && creative.body.error === "role_not_allowed" && pv1("A").status === "waiting", "V1: an editor's key may not");
+  const client = await step({ action: "version_status_set", post_id: "pv1", letter: "A", status: "Approved" }, "client-token");
   ok(client.status === 403 && client.body.error === "staff_only", "V1: a client link may not");
-  const posted = await step({ action: "version_status_set", post_id: "p5", letter: "A", status: "Posted" });
+  const posted = await step({ action: "version_status_set", post_id: "pv1", letter: "A", status: "Posted" });
   ok(posted.status === 400 && posted.body.error === "status_invalid", "V1: Posted stays card-only");
   const evN = tables.calendar_post_events.length;
-  const same = await step({ action: "version_status_set", post_id: "p5", letter: "B", status: "Approved" });
+  const same = await step({ action: "version_status_set", post_id: "pv1", letter: "B", status: "Approved" });
   ok(same.body.ok === true && tables.calendar_post_events.length === evN, "V1: the same status again writes no ledger row");
 }
 

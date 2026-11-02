@@ -337,6 +337,11 @@ function deps(f, over = {}) {
           return reply(200, { data: [folder], links: { next: null } });
         }
         if (m.startsWith(B + '/shares/' + SH_ONE + '/assets')) return reply(200, { data: [{ id: ONE, type: 'version_stack', head_version: vid(40) }], links: { next: null } });
+        if (m.startsWith(B + '/folders/' + DIR + '/children') && o.endless) {
+          // an image-heavy folder that never runs out of pages: one image and one video per page
+          const p = Number((m.match(/after=(\d+)/) || [0, 0])[1]);
+          return reply(200, { data: [img(500 + p), ...(p < 3 ? [vid(300 + p)] : [])], links: { next: 'https://api.frame.io/v4' + B + '/folders/' + DIR + '/children?page_size=50&after=' + (p + 1) } });
+        }
         if (m.startsWith(B + '/folders/' + DIR + '/children')) return reply(200, { data: [six[0], img(7), six[1], six[2], img(8), six[3], six[4], six[5]], links: { next: null } });
         if (m.startsWith(B + '/folders/' + BIG + '/children')) {
           if (/after=2/.test(m)) return reply(200, { data: Array.from({ length: 30 }, (_, i) => vid(130 + i)), links: { next: null } });
@@ -366,6 +371,9 @@ function deps(f, over = {}) {
     const big = await lookup('https://next.frame.io/share/' + SH, deps(listFake({ big: true })), { part: 'list' });
     eq([big.videos.length, big.truncated], [50, true], 'a folder past one page is followed to its second page and cut at 50, saying so');
     eq(big.videos[0].name, 'Clip 159.mp4', 'the 50 kept are the newest');
+
+    const endless = await lookup('https://next.frame.io/share/' + SH, deps(listFake({ endless: true })), { part: 'list' });
+    eq([endless.videos.length, endless.truncated], [3, true], 'a folder whose pages run past the cap says it was cut, even with few videos found');
 
     const one = await lookup('https://next.frame.io/share/' + SH_ONE + '/view/' + ONE, deps(listFake()), { part: 'list' });
     eq(one.videos.map((v) => [v.name, v.link]), [['Clip 40.mp4', 'https://next.frame.io/share/' + SH_ONE + '/view/' + ONE]], 'a link to one file lists that one video');

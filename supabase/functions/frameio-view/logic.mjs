@@ -147,11 +147,12 @@ async function fileFromAsset(ctx, acct, asset) {
 
 // The items of a Frame.io list, following links.next, stopping at the first page that holds an item `found` accepts
 // (so a named file on page 1 never waits on, or fails because of, a later page). Each page spends one call from
-// `budget`; when the budget or the page cap runs out the list is cut short, which can only make a named file be
-// refused, never swapped.
+// `budget`; when the budget or the page cap runs out the list is cut short (and `budget.cut` says so), which can
+// only make a named file be refused, never swapped.
 async function listAll(ctx, path, budget, found) {
   const out = [];
-  for (let page = 0; path && page < MAX_LIST_PAGES && budget.left > 0; page++) {
+  for (let page = 0; path; page++) {
+    if (page >= MAX_LIST_PAGES || budget.left <= 0) { budget.cut = true; break; }
     budget.left--;
     const got = await api(ctx, path);
     if (got.missing) break;
@@ -261,7 +262,7 @@ function row(f, link) {
 }
 
 // Every video under a share or folder listing, through folders and version stacks (newest version), paged.
-// Returns the rows found and whether the walk was cut (the call budget ran out with folders left to read).
+// Returns the rows found and whether the walk was cut (pages or folders were left unread).
 async function collectVideos(ctx, acct, firstPath, shareId) {
   const budget = { left: MAX_SEARCH_CALLS };
   const rows = new Map();
@@ -281,7 +282,7 @@ async function collectVideos(ctx, acct, firstPath, shareId) {
       rows.set(f.id, row(f, 'https://next.frame.io/share/' + shareId + '/view/' + a.id));
     }
   }
-  return { rows: [...rows.values()], cut };
+  return { rows: [...rows.values()], cut: cut || !!budget.cut };
 }
 
 async function openShare(ctx, accounts, shareId) {

@@ -35991,11 +35991,12 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Proof:** `test/frameio-view-source.js`, mocked Frame.io:
   - a folder of 6 videos and 2 images lists the 6;
   - a folder past one page is followed to page 2 and cut at 50 (`truncated`), keeping the newest;
+  - a folder whose pages run past the page cap says `truncated` even when it found few videos (Codex review);
   - a file link lists one row;
   - a listed link plays its own video;
   - strict refuses a bare folder link and a link naming a folder, and plays a named file;
   - a client lookup asking for a list gets the video only.
 
-  On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (159 pass in all).
+  On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (160 pass in all).
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.

@@ -1378,7 +1378,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return ids;
     }
     // The last action pressed on each part this visit: names a save's failure, and finds the saves still running.
-    function _rsActed(m, comp, act) { const S = R.S; (S.lastAct || (S.lastAct = {}))[m.id + '|' + comp] = act; }
+    function _rsActed(m, comp, act) { const S = R.S; (S.lastAct || (S.lastAct = {}))[m.id + '|' + comp] = act; _rsInflightTrack(m, comp, act); }
     // A save's error as a code: the code the sentence carries, else what the sentence says happened.
     function _rsErrCode(err) {
         const t = String(err || ''), c = /\(code: ([A-Za-z0-9_]+)\)/.exec(t);
@@ -1411,27 +1411,60 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     /* A reload while a save on this page was still running. The server still finishes a request it has received, but
        Kasper's board, read again at once after a reload (and painted from his browser's copy before that), could show
        the part waiting before the server was done, and he approved it again (OPEN_REPAIRS 626, test 5 of
-       review-board-gauntlet-browser.js). So, as the page goes, this tab notes which saves were running (ids and the
-       action only); the next page in the tab reports them, and his board reads the cards again a few seconds after it
-       opens. Noted, not sent, on the way out: a request from a page being unloaded is not reliably delivered (Safari). */
+       review-board-gauntlet-browser.js). So this tab keeps a short note of the saves running on this page (ids and the
+       action only, in sessionStorage), written when an action is pressed and taken off when its save ends; the next
+       page in the tab reports what was still on it, and his board reads the cards again a few seconds after it opens.
+       Kept while the save runs, not written as the page goes: WebKit (Safari) did not keep a note written at
+       pagehide (CI, 2026-11-02), and a request from a page being unloaded is not reliably delivered either. */
     const RS_INFLIGHT_KEY = 'syncview_rs_inflight_v1';
-    addEventListener('pagehide', () => {
+    function _rsInflightWrite() {
+        try {
+            const S = R.S, saving = Object.keys((S && S.inflight) || {}).map(k => S.inflight[k]).slice(0, 10)
+                .map(e => ({ card: e.card, component: e.component, client_slug: e.client_slug, board: e.board, act: e.act, sxr: e.sxr }));
+            // The tab's own store first; the shared one too, as a fallback where a reload starts a fresh session store.
+            for (const store of [sessionStorage, localStorage]) {
+                try {
+                    if (saving.length) store.setItem(RS_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), mode: R.mode, saving }));
+                    else store.removeItem(RS_INFLIGHT_KEY);
+                } catch (e) {}
+            }
+        } catch (e) {}
+    }
+    let _rsInflightTimer = 0;
+    // An entry leaves once its save has been seen running and has stopped, or after 3 s if it never started.
+    function _rsInflightTrack(m, comp, act) {
         try {
             if (!_rsBoardOn()) return;
-            const S = R.S, saving = [];
-            Object.keys(S.lastAct || {}).forEach(key => {
-                const i = key.lastIndexOf('|'), m = _rsModelById(key.slice(0, i)), k = key.slice(i + 1);
-                if (m && _rsSaving(m, k)) saving.push(Object.assign(_rsReportIds(m, k), { act: S.lastAct[key], sxr: !!m.sample }));
-            });
-            if (saving.length) sessionStorage.setItem(RS_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), mode: R.mode, saving: saving.slice(0, 10) }));
+            const S = R.S;
+            (S.inflight || (S.inflight = {}))[m.id + '|' + comp] = Object.assign(_rsReportIds(m, comp), { act, sxr: !!m.sample, t: Date.now(), seen: false });
+            _rsInflightWrite();
+            if (_rsInflightTimer) return;
+            const tick = () => {
+                _rsInflightTimer = 0;
+                const S2 = R.S;
+                if (!S2 || !S2.inflight) return;
+                let changed = false;
+                Object.keys(S2.inflight).forEach(key => {
+                    const e = S2.inflight[key], i = key.lastIndexOf('|'), mm = _rsModelById(key.slice(0, i));
+                    const running = !!(mm && _rsSaving(mm, key.slice(i + 1)));
+                    if (running) e.seen = true;
+                    else if (e.seen || Date.now() - e.t > 3000) { delete S2.inflight[key]; changed = true; }
+                });
+                if (changed) _rsInflightWrite();
+                if (Object.keys(S2.inflight).length) _rsInflightTimer = setTimeout(tick, 400);
+            };
+            _rsInflightTimer = setTimeout(tick, 400);
         } catch (e) {}
-    });
+    }
     let _rsInflightChecked = false;
     function _rsAfterReload() {
         if (_rsInflightChecked) return;
         _rsInflightChecked = true;
         let note = null;
-        try { note = JSON.parse(sessionStorage.getItem(RS_INFLIGHT_KEY) || 'null'); sessionStorage.removeItem(RS_INFLIGHT_KEY); } catch (e) { note = null; }
+        const read = store => { try { const v = JSON.parse(store.getItem(RS_INFLIGHT_KEY) || 'null'); store.removeItem(RS_INFLIGHT_KEY); return v; } catch (e) { return null; } };
+        const own = read(sessionStorage), shared = read(localStorage);
+        // The shared copy only when it is a minute old at most (another tab could have written it).
+        note = own || (shared && Date.now() - Number(shared.at || 0) < 60000 ? shared : null);
         if (!note || !(Date.now() - Number(note.at || 0) < 10 * 60000) || !Array.isArray(note.saving)) return;
         note.saving.forEach(x => {
             try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_mid_save', String(x.act || 'save'), { card: String(x.card || ''), component: String(x.component || ''), client_slug: String(x.client_slug || ''), board: x.board }); } catch (e) {}

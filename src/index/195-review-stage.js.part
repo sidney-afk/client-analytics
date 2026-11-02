@@ -1986,7 +1986,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const fvh = _rsQ('fvHost');
         if (fvh) _rsFvDblClick(fvh);
         if (R.ro) R.ro.disconnect();
-        R.ro = new ResizeObserver(() => _rsFit());
+        // The size is written on the next frame, not inside the observation: #fvHost sits inside #view, so writing
+        // it there could change #view itself in the same frame, which WebKit reports as a ResizeObserver loop
+        // (OPEN_REPAIRS 633).
+        R.ro = new ResizeObserver(_rsFitSoon);
         if (_rsQ('view')) R.ro.observe(_rsQ('view'));
         if (!R.mo) {
             const release = () => { R.pressing = false; if (R.pending && !_rsTyping()) _rsRender(); };
@@ -2055,7 +2058,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsFit() {
         const v = _rsQ('view'), h = _rsQ('fvHost');
         if (!v || !h) return;
-        h.style.setProperty('--fv-h', Math.max(160, v.clientHeight - 2) + 'px');
+        const fv = Math.max(160, v.clientHeight - 2) + 'px';
+        if (h.style.getPropertyValue('--fv-h') !== fv) h.style.setProperty('--fv-h', fv);
+    }
+    function _rsFitSoon() {
+        if (R.fitRaf) return;
+        R.fitRaf = requestAnimationFrame(() => { R.fitRaf = 0; _rsFit(); });
     }
     function _rsTyping() {
         if (R.pressing) return true;
@@ -2510,10 +2518,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
            are placed beside the player by its measured width. */
         const html = trial && box && !(R.l2 && svTrialReviewTilesHtml(m, R.mode)) ? svTrialReviewArrowsHtml(m, R.mode) : '';
         const key = html ? m.id + '|' + html : '';   // the arrows hold this post: the same arrows of another card are bound again
-        const half = () => { const w = box && box.getBoundingClientRect().width; if (w) mb.style.setProperty('--trv-half', Math.round(w / 2) + 'px'); };
+        const half = () => {
+            const w = box && box.getBoundingClientRect().width;
+            const v = w ? Math.round(w / 2) + 'px' : '';
+            if (v && mb.style.getPropertyValue('--trv-half') !== v) mb.style.setProperty('--trv-half', v);
+        };
+        // Like the player's own size (_rsFitSoon): written on the next frame, never inside the observation (OPEN_REPAIRS 633).
         if (box && typeof ResizeObserver === 'function' && mb.__trvBox !== box) {
             if (mb.__trvRO) mb.__trvRO.disconnect();
-            mb.__trvRO = new ResizeObserver(half); mb.__trvRO.observe(box); mb.__trvBox = box;
+            let raf = 0;
+            mb.__trvRO = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; half(); }); });
+            mb.__trvRO.observe(box); mb.__trvBox = box;
         }
         half();
         if (mb.__trvArr === key && (!html || mb.querySelector(':scope > .trv-side'))) return;

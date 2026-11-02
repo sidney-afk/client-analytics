@@ -18,6 +18,14 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-11-02 morning): trial reels on for everyone, Ask for a change, admins log time off
+
+- **Trial reels on for all clients** since 2026-11-02 00:49 UTC: `trial_reels_pages` = `{"all": true, "clients": [test client]}` (owner's go after the last round, #2486, OPEN_REPAIRS 627). Rollback: drop `"all"`. Reads now need a client link or a verified staff key (#2492, 630), so a signed-out page sends no trial-reels request. Kasper's queue still does one read per client until #2498 (631, batched `list_many` plus a 429 retry) merges; a real browser hit the platform rate limit once at 01:05 UTC on 2 Nov.
+- **Sheet fit for everyone** (`sheet_fit_v1` all, #2477); Month days keep their height as posts land (#2487, 629).
+- **Client link, Ask for a change always clickable** (#2482, 623): with no part picked it asks what should change inline (no dialog), and the comment box says a comment does not ask for a change. Checked live on the test client at 1440 and 390.
+- **Admins log time off for someone else** (Kasper > Time Off > Log time off, #2488, 628): person, type, date, straight onto the team calendar as approved (`pto_requests.source = 'admin_log'`). Migration `pto_admin_log_source` applied and read back; `pto` v57 released by hand (the PTO lane rule holds `pto` on any PTO SQL change whatever the cope marker says, #2500). Add adjustment changes the balance only and never reaches the calendar.
+- **Open:** #2485 (Kasper's second Approve during a save, review-board error logging), #2481 (thumbnail folder in the Files menu), #2494 (undated strip room), #2495 (633, review-stage ResizeObservers write on the next frame), #2496 and #2499 (634, a note sent close to another no longer vanishes), #2498 (631). A one-off red of `kasper-fast-boot-browser.js` on main d26242f is being root-caused by session Bootrace.
+
 ## Latest (session Reviewguard, 2026-11-01): Kasper's "approve twice", and a review-board error log a watcher can read
 
 - **#2485 (OPEN_REPAIRS 626, built, not merged):** on Kasper's board a second Approve on the same card during the first

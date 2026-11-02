@@ -2240,7 +2240,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
     }
     /* Phone Month and Week load under the timeline skeleton, not the grid. When a strip is remembered, the loaded
        view's own month header and that strip go above it, where they sit once loaded (on a client phone the strip is
-       the folded "Not scheduled yet" row from #2482; on a staff phone, the tray). No memory: the timeline skeleton
+       the folded "Not scheduled yet" row from PR 2482; on a staff phone, the tray). No memory: the timeline skeleton
        alone, as before. Inert, like the desktop skeleton. */
     function _calPhoneUndatedReserveHtml() {
         if (calState.view !== 'month' && calState.view !== 'week') return '';

@@ -25,8 +25,10 @@ intakes.sort((a, b) => s(b.created_at).localeCompare(s(a.created_at)));
 const intake = intakes[0] || {};
 const tag = id => /^U[A-Z0-9]{6,}$/i.test(s(id)) ? "<@" + s(id) + ">" : "";
 const smmTag = tag(smmRow.slack_profile_url);
+// Check Readiness builds private_required_members as Array.from(new Set([KASPER_ID, smmSlackId])): a Set keeps
+// insertion order, so Kasper (its fixed constant, inserted first) is always element 0, also when he is the SMM.
 const leadIds = Array.isArray(ready.private_required_members) ? ready.private_required_members : [];
-const kasperTag = tag(leadIds[0]) && leadIds[0] !== smmRow.slack_profile_url ? tag(leadIds[0]) : "";
+const kasperTag = tag(leadIds[0]);
 const smm = smmTag || FILL("SMM");
 const lead = kasperTag || FILL("Kasper");
 // The queue row's snapshot was written at form time, in Slack's single-asterisk bold. Read one labelled

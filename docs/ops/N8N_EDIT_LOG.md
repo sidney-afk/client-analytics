@@ -556,7 +556,14 @@ Changed (one change, three steps):
   `sales_intakes` rows whose `client_email` matches the queue row's email (case-insensitive); always outputs, continues on error.
 - New Code step **Build Kickoff**: the code in `scripts/n8n-finalizer-build-kickoff.js` (`BUILD_KICKOFF_JS`), byte for byte. It
   writes `kickoff_text` and passes the Clients Info readback fields through.
-- Wiring: Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack. Post Kickoff to Slack's text
+- Exact steps added (Clients Info Verified? sits at [5020,80], Post Kickoff to Slack at [5260,40]):
+  - **Read Sales Intake**: `n8n-nodes-base.supabase` v1 at [5140,-200]; resource row, operation getAll, table `sales_intakes`,
+    return all, filter manual / all filters: `client_email` **ilike** `={{ $("Pick One Pending Job").first().json.email }}`;
+    settings Always Output Data on, On Error "continue (regular output)"; credential as Read Filming Plan.
+  - **Build Kickoff**: `n8n-nodes-base.code` v2 at [5380,-200]; mode run once for all items, JavaScript, code =
+    `BUILD_KICKOFF_JS` from `scripts/n8n-finalizer-build-kickoff.js`.
+- Wiring: Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack (the old direct link from
+  Clients Info Verified? (true) to Post Kickoff to Slack is removed; its false branch is unchanged). Post Kickoff to Slack's text
   changes from the queue row's `kickoff` to `{{ $json.kickoff_text }}`; its channel stays `{{ $json.creative_channel_id }}`.
 - Not changed: every readiness, channel, roster, readback and form-answers step; the owner's fallback DM (still the snapshot);
   provisioning (still writes the snapshot the logins come from).

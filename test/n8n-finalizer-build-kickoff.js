@@ -73,5 +73,10 @@ ok(b.includes('Brand deck — none sent') && b.includes('_No account access in t
 const noFilm = run({ ...full, 'Read Sales Intake': [{ client_email: 'fixture@example.invalid', created_at: '2026-11-01', status: 'signed', deliverables: '12 short videos a month' }] }).kickoff_text;
 ok(!/Videographer|videographer|ManyChat/.test(noFilm), 'a scope without filming or ManyChat names neither');
 
+const same = run({ ...full, 'Check Readiness and Slack Decision': [{ private_required_members: ['UFIXTURESMM'] }] }).kickoff_text;
+ok(same.includes('SMM <@UFIXTURESMM> · Lead <@UFIXTURESMM>'), 'when the lead is also the SMM (one id in the set), both are tagged, never a placeholder');
+const noReady = run({ ...full, 'Check Readiness and Slack Decision': [{}] }).kickoff_text;
+ok(noReady.includes('Lead [ Kasper ]'), 'no readiness id: the lead is a placeholder, never the SMM');
+
 console.log('\nn8n-finalizer-build-kickoff: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

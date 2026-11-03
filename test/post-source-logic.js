@@ -181,6 +181,18 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
       assert.deepEqual(w.calls.lookups, [CARD_LINK]);
     }
   });
+  await ok('P4: a card with no version rows at all is read exactly as before: no letter and letter A both copy the card', async () => {
+    const DRIVE_THUMB = 'https://drive.google.com/file/d/AbCdEf123456/view?usp=sharing';
+    const LH3_THUMB = 'https://lh3.googleusercontent.com/d/AbCdEf123456=w1080';
+    for (const letter of [undefined, 'A']) {
+      const w = world({ versions: [], thumb: DRIVE_THUMB, images: { [LH3_THUMB]: { type: 'image/jpeg' } } });
+      let read = 0; const inner = w.deps.readVersions; w.deps.readVersions = async (...a) => { read++; return inner(...a); };
+      const r = await run(w, { client: 'test-client', post_id: 'p_1', letter });
+      assert.equal(r.status, 200, String(letter)); assert.deepEqual(w.calls.lookups, [CARD_LINK]);
+      assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.ok(w.calls.gets.includes(LH3_THUMB));
+      if (!letter) assert.equal(read, 0, 'no letter: the version rows are never read');
+    }
+  });
   await ok('P4: letter A with a row of its own (another version is on the card) is A\'s own link, not the card\'s', async () => {
     const A_LINK = 'https://next.frame.io/share/eeee/view/ffff';
     const w = world({ versions: [

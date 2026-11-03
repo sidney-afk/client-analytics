@@ -223,9 +223,11 @@ async function open(browser, origin, opt) {
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
       state.writeAttempts++;
-      // A status write the server never answers or applies. state.releaseHangs() later drops it (an aborted request), so a
-      // page that has gone does not keep the browser's connection open (WebKit kept it, and the next page's requests queued).
-      if (state.gatewayHang) return new Promise(res => (state.hung || (state.hung = [])).push(() => route.abort('failed').catch(() => {}).then(res)));
+      // A status write the server never answers or applies. A test later drops it (state.hung, an aborted request), so a
+      // page that has gone does not keep the browser's connection open (WebKit kept it, and the next page's requests
+      // queued). A reconcile is a read, and a server that lost a write still answers it ("absent"), so it is not held:
+      // held, it was one more of WebKit's six connections to the host, and the next page's report queued behind them.
+      if (state.gatewayHang && !/"reconcile_only"\s*:\s*true/.test(r.postData() || '')) return new Promise(res => (state.hung || (state.hung = [])).push(() => route.abort('failed').catch(() => {}).then(res)));
       if (state.networkDelay) await sleep(state.networkDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
       if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);

@@ -127,8 +127,13 @@ async function runEngine(browserType, origin) {
     Object.assign(t.state, { gatewayHang: true, writeHang: true });
     await inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first().click();
     await sleep(700);
+    const noteBefore = await t.page.evaluate(() => { try { return !!(sessionStorage.getItem('syncview_rs_inflight_v1') || localStorage.getItem('syncview_rs_inflight_v1')); } catch (e) { return 'err'; } });
+    const heldBefore = (t.state.hung || []).length;
     await goKasper(t, origin, () => releaseHung(t));
     const rep3 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
+    // On a miss, what the test saw (fictional fixture data): was the note there before the reload, how many requests
+    // the fixture was holding then and now, and which reports did arrive.
+    if (rep3 < 0) console.log('RELOAD3_TRACE ' + JSON.stringify({ noteBefore, heldBefore, heldNow: (t.state.hung || []).length, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')) }));
     expect(rep3 >= 0, '3: the reload during his approve is reported');
     const again = inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first();
     if (await again.count()) await again.click({ timeout: 3000 }).catch(() => {});

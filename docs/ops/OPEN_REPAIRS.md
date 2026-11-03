@@ -36818,6 +36818,45 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
 
+## 687. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab after the owner tried it: From Content Calendar first in a quieter row, and YouTube and LinkedIn as their own sides (session Pbuild)
+
+- **Asked:** the owner tried the Post tab on 3 Nov and asked for three changes (relayed by the supervisor). All three are behind the existing switches, test client first.
+- **1. The source:** "From a card" is now **From Content Calendar**, and it is the default. **From files** is the second choice. With no Approved or Scheduled card, the note says to choose From files. (`svPostSourceNew` starts on the card; switch `post_sources_v1`.)
+- **2. A different control:** the owner: "so it doesn't seem like the same option".
+  - The source choice is no longer the big segmented control the post type uses (Video / Photo carousel, Reel / Carousel, unchanged). It is the house's small two-option row, the Notes composer's "Who sees this?" (`cal-cm-audience` / `cal-cm-aud-seg`): a "Video from" caption and a compact bordered pair above the media box.
+  - The radio stays inside each label, for the keyboard and screen readers.
+- **3. One side per network.** The owner: "I don't understand why there's an Instagram toggle inside of the Instagram". Behind `post_networks_v1`:
+  - **The platform switch** reads TikTok, Instagram, YouTube and LinkedIn. The YouTube and LinkedIn buttons show once the switch lists any client (`svPostNetworksAny`, 188), because the switch sits above the client picker. A side says so when the picked client is not listed.
+  - **The YouTube and LinkedIn sides** are the Instagram panel (299) with that network as the only target (`igState.network`, set by `mountInstagramPanel`). Each has its own account line, the same video source, caption and schedule, and no carousel or trial. The **YouTube card** keeps P3's title, Short or Regular video, and made-for-kids note. LinkedIn takes no cover. Each side's queue lists its own network's posts, under its own heading.
+  - **The Instagram side** has no Instagram, YouTube or LinkedIn tick (P3b's "Post to" card is gone). It keeps only **Also post to Facebook**, on by default with a connected Page and not shown when there is none. With the switch off, the Facebook card is exactly as before, including its no-Page reason.
+  - **Server unchanged.** Each side sends the body instagram-upload already takes (P3, 652): `instagram: false` with YouTube's `{ accountId, title, format, … }` or LinkedIn's `{ accountId }`, and the Instagram side's body as before.
+- **Codex on PR 2580, fixed with a case:** a browser that last used YouTube or LinkedIn, with the switch later cleared, reopened that hidden side when the switch read was already in before the tab opened. `svPostNetworksAny` now answers null while unknown, and the tab starts on Instagram when the answer is already a clear no, whichever order the two came in.
+- **Layout:**
+  - with four sides the switch takes the width its buttons need, and the header wraps it under the title on a narrower window. Two sides stay at today's 220px;
+  - the rules use `:where()` so the phone's own switch rules still win;
+  - a hidden side stays hidden on the staff phone too (`display: none !important` on `[hidden]`, which the switch rules would otherwise beat).
+- **Proof:**
+  - `test/post-source-choice-browser.js` (new, isolated browser, 22 checks): **main** `AssertionError` (the default and the labels); **this branch** `22 checks passed`.
+  - `test/post-networks-browser.js` (rewritten for the sides, 54 checks): **main** `AssertionError: switch on: YouTube and LinkedIn are on the platform switch`; **this branch** `54 checks passed`.
+  - `post-from-card-browser` now expects From Content Calendar as the default (51 checks). `post-folder-drop-browser` chooses From files before dropping, as a person now does (55).
+  - Also passing:
+    - post-trial-versions (43)
+    - post-tab (58)
+    - instagram-facebook (38)
+    - instagram-platform-switch (59)
+    - instagram-cover (38)
+    - instagram-cover-client-switch (8)
+    - instagram-carousel (51)
+    - tiktok-upload (35)
+    - tiktok-upload-steps (14)
+    - tiktok-press-key-reload (21)
+    - `qa/staff-phone-responsiveness.js --only=Upload` (0 failures)
+    - `qa/staff-phone-tabs-grid.js` (0 failures)
+    - the lifted-function suites
+  - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
+  - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
+- **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
 ## 693. [2026-11-03 UTC, BUILT, NOT MERGED] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
 
 - **Seen:** from about 17:15 UTC on 3 Nov the full-history checkout took 3 to 12 minutes instead of 40 to 50 s, and jobs hit `timeout-minutes` and came out cancelled: module-check (job 126080092299), the Pages build (126080021235), identity-exposure (126089893903). GitHub's status page was green.

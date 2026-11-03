@@ -1670,8 +1670,16 @@
       "file": "post-networks-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's YouTube and LinkedIn ticks behind post_networks_v1: the Post to card, Instagram untickable, YouTube's title from the caption's first line, Short by default and refused for a landscape card, made for kids from the profile, the create body's networks and ids, carousel and trial staying Instagram only, the no-account messages, the queue per network, the switch off, and 390 wide.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks YouTube and LinkedIn as their own sides of the Post tab behind post_networks_v1: the platform switch, the Instagram side with only Also post to Facebook (hidden with no Page), the YouTube card (title from the caption, Short by default and refused for a landscape card, made for kids from the profile), the create body per side, no-account messages, each side's queue, the switch off, and 390 wide.",
       "reproduce": "node test/post-networks-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "post-source-choice-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's source choice on both sides behind post_sources_v1: From Content Calendar first and the default, From files second, drawn as the house's small two-option row and visibly smaller than the post-type control, the empty-list note, the switch off, and 390 wide.",
+      "reproduce": "node test/post-source-choice-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

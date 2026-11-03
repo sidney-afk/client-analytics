@@ -350,6 +350,13 @@
       ],
       "note": "Instagram video upload to Post For Me storage. Recorded as instagram_storage_put."
     },
+    "299-instagram-upload.js.part|ctrl|url|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "svPostSourceCopy"
+      ],
+      "note": "From a card (P1, OPEN_REPAIRS 651): the post-source copy, recorded as post_source_copy; the same helper also reads Frame's small copy from frameio-view (a read). Writes no table."
+    },
     "299-instagram-upload.js.part|send|IG_FUNCTION_URL|POST": {
       "status": "reports",
       "within": [

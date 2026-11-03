@@ -24,6 +24,7 @@
     "tiktok-create-keeps-key.js",
     "post-folder-sort.js",
     "post-source-logic.js",
+    "post-from-card-live-check.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
@@ -1626,6 +1627,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the TikTok / Instagram switch and a full Instagram post through the mocked instagram-upload function.",
       "reproduce": "node test/instagram-platform-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "post-from-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's From a card behind post_sources_v1 on both sides: the card list, the copy through post-source, the media line and the small-copy preview, the caption and cover from the card, the post carrying the copied addresses with no browser upload, a failed copy and Try again, a copy older than 20 hours made again under the same key, the switch off showing today's drop zones, and 390 wide.",
+      "reproduce": "node test/post-from-card-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

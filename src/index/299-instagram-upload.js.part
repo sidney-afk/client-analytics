@@ -6,6 +6,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOv
 import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
+import { svPostSourcesOn } from './188-review-stage-switch.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
        Posts a video to a client's Instagram through Post For Me. Unlike TikTok, which
@@ -58,7 +59,10 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         titleFromCard: '',           // the caption a Calendar card filled in, while unedited
         captionFill: null,           // { name, text }: the caption the chosen video's file name filled in, while it can be undone
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
-        cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
+        cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '', remoteUrl: '' },
+        // "From a card" (post_sources_v1): the card whose video post-source copied (svPostSourceNew). remoteUrl above
+        // is its thumbnail, already in Post for Me storage, used as the cover until the person picks another.
+        source: null,
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         facebookOff: false,          // the person unticked "Also post to Facebook" for this client (ticked again on a client change)
@@ -76,6 +80,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     };
     let _igDeps = null;
     let _igMounted = false;
+    // The post_sources_v1 answer may arrive after the form is drawn: draw it again then (registered once, at load).
+    try { window.addEventListener('sv-review-stage-switch', () => { if (_igMounted && !igState.submitting) _igRenderForm(); }); } catch (e) { /* no window: nothing to redraw */ }
     let _igPollTimer = null;
     let _igActiveXhr = null;
     let _igAbort = null;           // aborts every step before the post is created
@@ -169,10 +175,14 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
        storage) or `thumbnail_timestamp_ms` (a frame of the video). The form offers both, plus the
        thumbnail of a Calendar card as a ready-made image. Only one is ever sent. */
     const _igCover = () => igState.cover;
+    const _igSrc = () => (igState.source || (igState.source = svPostSourceNew()));
+    // `active` is kept on the source itself, so the functions the tests lift alone (_igValidate, _igLeaveClient) read
+    // only igState.
+    const _igFromCard = () => { const s = _igSrc(); s.active = svPostSourceActive(s, igState.client, igState.kind === 'reel'); return s.active; };
     function _igCoverClear(keepMode) {
         const c = _igCover();
         if (c.url) { try { URL.revokeObjectURL(c.url); } catch (e) {} }
-        igState.cover = Object.assign({}, c, { blob: null, url: '', name: '', source: '', note: '', dims: '', cardId: '', frameUrl: keepMode ? c.frameUrl : '' });
+        igState.cover = Object.assign({}, c, { blob: null, url: '', name: '', source: '', note: '', dims: '', cardId: '', remoteUrl: '', frameUrl: keepMode ? c.frameUrl : '' });
     }
     // The client's Calendar cards that can still go out: the live Calendar if it is showing this client, otherwise
     // its saved copy on this device. Read only; nothing is fetched here.
@@ -200,6 +210,9 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     id: String(p.id), date: /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '', order: p.order_index,
                     name: String(p.name || '').replace(/\s+/g, ' ').trim() || 'Untitled card',
                     caption: String(p.caption || '').trim(),
+                    captionAlt: String(p.caption_alt || '').trim(),
+                    captionAltPlatform: String(p.caption_alt_platform || '').trim().toLowerCase(),
+                    link: String(p.asset_url || '').trim(),
                     thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(),
                 };
             })
@@ -207,6 +220,168 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const dated = cards.filter(c => c.date).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : byManual(a, b));
         const undated = cards.filter(c => !c.date).sort(byManual);
         return dated.concat(undated).slice(0, 80).map(c => Object.assign(c, { label: c.name }));
+    }
+    /* ---- From a card (both sides of the Post tab; plan row P1, part P1b, OPEN_REPAIRS 651) ----------------------
+       Behind post_sources_v1 (188). The person picks one of the client's Approved or Scheduled cards
+       (_igCalendarCards). The server function post-source copies the card's video, and its thumbnail, from Frame.io
+       into Post for Me storage, so the file never passes through this browser (a phone included). The post then
+       carries that storage address. The page shows Frame's small copy in a plain <video> (asked of frameio-view,
+       as the Calendar's player asks) and one line naming the file, its size and which Frame file went.
+       Post for Me deletes an upload no post uses after 24 hours, so a copy older than SV_POST_SOURCE_MAX_AGE_MS is
+       made again at the press. Each side keeps its own state (svPostSourceNew) and draws it with these helpers. */
+    const SV_POST_SOURCE_URL = CAL_SUPABASE_URL + '/functions/v1/post-source';
+    const SV_FRAMEIO_VIEW_URL = CAL_SUPABASE_URL + '/functions/v1/frameio-view';
+    const SV_POST_SOURCE_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+    const SV_POST_SOURCE_TIMEOUT_MS = 150000;
+    const SV_POST_SOURCE_RENDITIONS = { original: "Frame's original file", high_quality: "Frame's full-size copy", efficient: "Frame's small copy" };
+    function svPostSourceNew() {
+        return { mode: 'files', cardId: '', cardName: '', client: '', state: '', data: null, message: '', previewUrl: '', copiedAt: 0, seq: 0 };
+    }
+    // Is "From a card" offered here? The switch, a client, and a single video (not a carousel or photos).
+    function svPostSourceOffered(client, singleVideo) {
+        return !!client && !!singleVideo && svPostSourcesOn(client);
+    }
+    // Using a card: the switch is on and the person chose "From a card".
+    function svPostSourceActive(src, client, singleVideo) {
+        return !!src && src.mode === 'card' && svPostSourceOffered(client, singleVideo);
+    }
+    function svPostSourceReady(src) { return !!src && src.state === 'ready' && !!(src.data && src.data.media_url); }
+    // Young enough that Post for Me still holds the copy (it deletes an unused upload after 24 hours).
+    function svPostSourceYoung(src) { return !!src && Date.now() - (Number(src.copiedAt) || 0) < SV_POST_SOURCE_MAX_AGE_MS; }
+    // The card's caption for this network: its second caption when written for it, else the first (as the file-name fill).
+    function svPostSourceCaption(card, platform) {
+        if (!card) return '';
+        return (card.captionAlt && card.captionAltPlatform === platform) ? card.captionAlt : card.caption;
+    }
+    async function _svPostSourceAsk(url, body, timeoutMs) {
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, timeoutMs) : null;
+        try {
+            const resp = await fetch(url, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, url), body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined });
+            const json = await resp.json().catch(() => null);
+            return { status: resp.status, json };
+        } catch (e) {
+            return { status: 0, json: null, aborted: !!(ctrl && ctrl.signal.aborted) };
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    function _svPostSourceFail(res) {
+        const j = res && res.json;
+        if (j && j.message) return String(j.message);
+        if (res && (res.status === 401 || res.status === 403)) return 'Your staff sign-in was not accepted for this. Sign in again and retry.';
+        if (res && res.aborted) return 'Copying from Frame took too long. Try again, or download the video from Frame and drop it here.';
+        if (res && !res.status) return 'The copy could not start. Check your connection and try again.';
+        return 'The copy from Frame did not finish. Try again, or download the video from Frame and drop it here.';
+    }
+    // One copy: { ok, data } or { ok:false, message }. Nothing is changed on the card.
+    async function svPostSourceCopy(client, cardId, side) {
+        const res = await _svPostSourceAsk(SV_POST_SOURCE_URL, { client, post_id: cardId, side }, SV_POST_SOURCE_TIMEOUT_MS);
+        if (res.status === 200 && res.json && res.json.ok && res.json.media_url) return { ok: true, data: res.json };
+        _igRecordFailure('post_source_copy', res.status || 0, !res.status);
+        return { ok: false, message: _svPostSourceFail(res) };
+    }
+    /* Pick a card: copy its video (and thumbnail) and ask Frame for its small copy to show. A later pick, a client
+       change or Remove retires an answer still on its way (seq). onDone(card) runs once a copy is in, for the
+       caller's caption and cover. */
+    async function svPostSourcePick(src, opts) {
+        const card = (_igCalendarCards(opts.client) || []).find(c => c.id === opts.cardId);
+        const seq = ++src.seq;
+        Object.assign(src, { cardId: card ? card.id : '', cardName: card ? card.name : '', client: opts.client || '', data: null, message: '', previewUrl: '', copiedAt: 0, state: card ? 'copying' : '' });
+        opts.rerender();
+        if (!card) return;
+        // A later pick, Remove, a client change or a switch back to "From files" retires this one (Codex P2 on #2555):
+        // an abandoned card never fills the caption or the cover.
+        const live = () => src.seq === seq && src.cardId === card.id && src.client === opts.client && src.mode === 'card';
+        if (card.link) {
+            _svPostSourceAsk(SV_FRAMEIO_VIEW_URL, { link: card.link, part: 'video' }, 30000).then(res => {
+                const v = res.json && res.json.ok && res.json.video;
+                const url = v && ((v.renditions && v.renditions.efficient) || v.url);
+                if (!live() || !url) return;
+                src.previewUrl = String(url);
+                opts.rerender();
+            });
+        }
+        const out = await svPostSourceCopy(opts.client, card.id, opts.side);
+        if (!live()) return;
+        if (out.ok) { src.state = 'ready'; src.data = out.data; src.copiedAt = Date.now(); }
+        else { src.state = 'failed'; src.message = out.message; }
+        if (out.ok && typeof opts.onDone === 'function') opts.onDone(card, out.data);
+        opts.rerender();
+    }
+    // At the press: the copy, made again first when it is old enough that Post for Me may have deleted it.
+    async function svPostSourceFresh(src, side) {
+        if (!svPostSourceReady(src)) throw new Error('Pick a card and wait for its video to be copied.');
+        if (svPostSourceYoung(src)) return src.data;
+        const out = await svPostSourceCopy(src.client, src.cardId, side);
+        if (!out.ok) throw new Error(out.message);
+        src.data = out.data; src.copiedAt = Date.now();
+        return src.data;
+    }
+    function svPostSourceClear(src) {
+        src.seq++;
+        Object.assign(src, { cardId: '', cardName: '', client: '', state: '', data: null, message: '', previewUrl: '', copiedAt: 0 });
+    }
+    // The line under the video: what goes, in plain words.
+    function svPostSourceFacts(d) {
+        if (!d) return '';
+        const parts = [];
+        if (d.width && d.height) parts.push(d.width + '×' + d.height);
+        if (d.bytes) parts.push(_svPostSourceBytes(d.bytes));
+        if (d.duration_seconds) parts.push(Math.round(d.duration_seconds) + ' s');
+        parts.push(SV_POST_SOURCE_RENDITIONS[d.rendition] || 'from Frame');
+        return parts.join(' · ');
+    }
+    function _svPostSourceBytes(n) {
+        const mb = n / (1024 * 1024);
+        return mb >= 10 ? Math.round(mb) + ' MB' : mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+    }
+    // "From files" / "From a card", above the video card's body.
+    function svPostSourceModeHtml(prefix, src, disabled) {
+        const mode = src.mode === 'card' ? 'card' : 'files';
+        return `<div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Where the video comes from" style="margin-bottom:12px">${[['files', 'From files'], ['card', 'From a card']].map(([v, label]) =>
+            `<label class="tk-radio${mode === v ? ' active' : ''}"><input type="radio" name="${prefix}SrcMode" value="${v}" ${mode === v ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="position:absolute;opacity:0">${label}</label>`).join('')}</div>`;
+    }
+    // The card picker and what the copy has done so far.
+    function svPostSourceCardHtml(prefix, src, client, disabled) {
+        const cards = _igCalendarCards(client);
+        if (!cards.length) return `<div class="tk-step-note" id="${prefix}SrcEmpty">No Approved or Scheduled cards from today on. Drop the file instead.</div>`;
+        const pick = _svSelectHtml(prefix + 'SrcCard', cards.map(x => ({ value: x.id, label: x.date ? x.label + ' · ' + x.date : x.label })), src.cardId || '', 'Pick a card…', { disabled });
+        let body = '';
+        if (src.state === 'copying') {
+            body = `<div class="tk-step-note" role="status" id="${prefix}SrcStatus">Copying ${_igEsc(src.cardName)} from Frame… This takes a few seconds. Nothing is downloaded to this device.</div>`;
+        } else if (src.state === 'failed') {
+            body = `<div class="tk-step-note" role="alert" id="${prefix}SrcStatus">${_igEsc(src.message)}</div>
+                <div class="tk-file-actions" style="margin-top:8px"><button type="button" class="tk-mini-btn" id="${prefix}SrcRetry" ${disabled ? 'disabled' : ''}>Try again</button></div>`;
+        } else if (svPostSourceReady(src)) {
+            const d = src.data;
+            const video = src.previewUrl
+                ? `<video id="${prefix}SrcPreview" src="${_igEsc(src.previewUrl)}" playsinline controls preload="metadata" muted></video>`
+                : '';
+            const fell = d.fell_back_from_original ? `<div class="tk-step-note">Frame did not allow its original file, so its full-size copy goes instead.</div>` : '';
+            body = `<div class="tk-file-card" id="${prefix}SrcReady">${video}
+                    <div class="tk-file-meta">
+                        <div class="tk-file-meta-text">
+                            <div class="tk-file-name">${_igEsc(d.file_name || src.cardName)}</div>
+                            <div class="tk-file-size" id="${prefix}SrcFacts">${_igEsc(svPostSourceFacts(d))}</div>
+                        </div>
+                        <div class="tk-file-actions"><button type="button" class="tk-mini-btn" id="${prefix}SrcRemove" ${disabled ? 'disabled' : ''}>Remove</button></div>
+                    </div>
+                </div>${fell}`;
+        }
+        return `<div style="margin-bottom:${body ? '12px' : '0'}">${pick}</div>${body}`;
+    }
+    // Wires the controls drawn above. ctx: { client, side, rerender, onDone, onMode }.
+    function svPostSourceBind(prefix, src, ctx) {
+        document.querySelectorAll(`input[name="${prefix}SrcMode"]`).forEach(r => r.addEventListener('change', (e) => {
+            src.mode = e.target.value === 'card' ? 'card' : 'files';
+            // Back to files: a copy still on its way is dropped, so it can never fill the form later.
+            if (src.mode === 'files' && src.state === 'copying') svPostSourceClear(src);
+            if (typeof ctx.onMode === 'function') ctx.onMode(src.mode);
+            ctx.rerender();
+        }));
+        const pick = (id) => svPostSourcePick(src, { client: ctx.client, cardId: id, side: ctx.side, rerender: ctx.rerender, onDone: ctx.onDone });
+        document.getElementById(prefix + 'SrcCard')?.addEventListener('change', (e) => { pick(e.target.value); });
+        document.getElementById(prefix + 'SrcRetry')?.addEventListener('click', () => { pick(src.cardId); });
+        document.getElementById(prefix + 'SrcRemove')?.addEventListener('click', () => { svPostSourceClear(src); ctx.rerender(); });
     }
     /* ---- Caption from the Calendar (both sides of the Post tab) --------------------------------
        When the chosen video's file name names one of the client's Calendar cards, that card's caption
@@ -339,6 +514,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
         igState.titleFromCard = '';
         igState.captionFill = null;
+        if (igState.source) svPostSourceClear(igState.source);
     }
     async function _igUseCalendarCard(cardId) {
         const c = _igCover();
@@ -395,18 +571,20 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     }
     function _igCoverPreviewUrl() {
         const c = _igCover();
-        if (c.mode === 'image') return c.url || '';
+        if (c.mode === 'image') return c.url || c.remoteUrl || '';
         return c.frameMs > 0 ? c.frameUrl : '';
     }
     function _igCoverSummary() {
         const c = _igCover();
         if (c.mode === 'image' && c.blob) return c.source === 'calendar' ? 'Calendar thumbnail' : 'Uploaded image';
+        if (c.mode === 'image' && c.remoteUrl) return "The card's thumbnail";
         if (c.mode === 'frame' && c.frameMs > 0) return 'Video frame at ' + (c.frameMs / 1000).toFixed(1) + ' s';
         return 'Instagram picks the first frame';
     }
     function _igCoverCardHtml() {
         const c = _igCover(), cards = _igCalendarCards(igState.client), off = igState.submitting ? 'disabled' : '';
-        const cardPick = cards.length
+        // From a card, the card is already picked above (and its thumbnail is the cover): no second card picker here.
+        const cardPick = cards.length && !_igFromCard()
             ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">Pick one of this client's Calendar cards (Approved or Scheduled) to use its thumbnail as the cover and its caption if the caption box is empty:</div>
                 ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar card' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
             : '';
@@ -416,6 +594,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (c.mode === 'image') {
             body = c.blob
                 ? `<div class="tk-file-card"><div class="tk-file-meta"><div class="tk-file-meta-text"><div class="tk-file-name">${_igEsc(c.name)}</div><div class="tk-file-size">${_igEsc(c.dims)} · ${_igDeps.formatBytes(c.blob.size)} · ${c.source === 'calendar' ? 'from the Calendar' : 'uploaded'}</div></div><div class="tk-file-actions"><button type="button" class="tk-mini-btn" id="igCoverRemove" ${off}>Remove</button></div></div></div>`
+                : c.remoteUrl
+                ? `<div class="tk-file-card" id="igCoverRemote"><div class="tk-file-meta"><div class="tk-file-meta-text"><div class="tk-file-name">The card's thumbnail</div><div class="tk-file-size">Copied with the video</div></div><div class="tk-file-actions"><button type="button" class="tk-mini-btn" id="igCoverRemove" ${off}>Remove</button></div></div></div>`
                 : `<div class="tk-drop" id="igCoverDrop"><input type="file" id="igCoverFile" accept="image/jpeg,image/png" ${off}><div class="tk-drop-title">Drop a cover image here, or ${window.svIsStaffPhone?.() ? 'tap' : 'click'} to browse</div><div class="tk-drop-sub">JPEG or PNG · 9:16 (1080×1920 is ideal) · up to ${_igDeps.formatBytes(IG_COVER_MAX_BYTES)}</div></div>`;
         } else {
             const maxMs = Math.max(0, Math.floor((c.duration || 0) * 1000));
@@ -603,6 +783,10 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (igState.kind === 'carousel') {
             if (igState.items.length < IG_CAROUSEL_MIN) return 'A carousel needs at least ' + IG_CAROUSEL_MIN + ' images or videos.';
             if (igState.items.length > IG_CAROUSEL_MAX) return 'A carousel holds at most ' + IG_CAROUSEL_MAX + ' items.';
+        } else if (igState.source && igState.source.active) {
+            const src = igState.source;
+            if (src.state === 'copying') return 'Wait for the video to finish copying from Frame.';
+            if (!(src.state === 'ready' && src.data && src.data.media_url)) return 'Pick a card for the video.';
         } else {
             if (!igState.file) return 'Attach a video.';
             if (igState.file.size > _igDeps.maxBytes) return 'That video is over the ' + _igDeps.formatBytes(_igDeps.maxBytes) + ' limit.';
@@ -628,7 +812,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const names = _igClientNames();
         const over = igState.title.length > IG_MAX_CAPTION;
         const isCarousel = igState.kind === 'carousel';
-        const hasMedia = isCarousel ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : !!igState.file;
+        const fromCard = _igFromCard();
+        const hasMedia = isCarousel ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : fromCard ? svPostSourceReady(_igSrc()) : !!igState.file;
         const can = !!(igState.client && accountOk && hasMedia && igState.title.trim() && !over && !igState.submitting);
         let accountLine = '';
         if (igState.client) {
@@ -666,7 +851,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     <label class="tk-radio${isCarousel ? '' : ' active'}"><input type="radio" name="igKind" value="reel" ${isCarousel ? '' : 'checked'} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Reel</label>
                     <label class="tk-radio${isCarousel ? ' active' : ''}"><input type="radio" name="igKind" value="carousel" ${isCarousel ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Carousel</label>
                 </div>
-                ${isCarousel ? _igCarouselCardHtml() : media}
+                ${isCarousel ? _igCarouselCardHtml() : (svPostSourceOffered(igState.client, true) ? svPostSourceModeHtml('ig', _igSrc(), igState.submitting) : '') + (fromCard ? svPostSourceCardHtml('ig', _igSrc(), igState.client, igState.submitting) : media)}
             </div>
             ${isCarousel ? '' : _igCoverCardHtml()}
             <div class="tk-card">
@@ -760,6 +945,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         }
         document.querySelectorAll('[data-ig-car-idx]').forEach(b => b.addEventListener('click', () => _igCarouselAction(Number(b.getAttribute('data-ig-car-idx')), b.getAttribute('data-action'))));
         $('igCapFillUndo')?.addEventListener('click', () => { _igDropCaptionFill(); _igRenderForm(); $('igTitle')?.focus(); });
+        svPostSourceBind('ig', _igSrc(), { client: igState.client, side: 'instagram', rerender: () => { _igRenderForm(); _igRenderPreview(); }, onDone: _igCardCopied });
         $('igSubmit')?.addEventListener('click', _igSubmit);
         $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
         const drop = $('igDrop');
@@ -806,11 +992,29 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         _igRenderForm(); _igRenderPreview();
     }
 
+    // A card's copy is in: its caption fills an EMPTY caption box (with Undo), and its thumbnail, already in Post for
+    // Me storage, becomes the cover unless one is already chosen.
+    function _igCardCopied(card, data) {
+        const text = svPostSourceCaption(card, 'instagram');
+        if (text && !igState.title.trim()) {
+            igState.title = text.slice(0, IG_MAX_CAPTION);
+            igState.titleFromCard = igState.title;
+            igState.captionFill = { name: card.name, text: igState.title };
+        }
+        const c = _igCover();
+        if (data && data.thumb_url && !c.blob && !(c.mode === 'frame' && c.frameMs > 0)) {
+            _igCoverClear(true);
+            Object.assign(_igCover(), { mode: 'image', remoteUrl: String(data.thumb_url), note: '' });
+        } else if (data && !data.thumb_url && data.thumb_note && !c.blob) {
+            c.note = String(data.thumb_note);
+        }
+    }
     // Three steps, the same shape as TikTok's direct transport: (1) ask the function for a one-time Post For Me
     // storage URL, (2) PUT the video straight there from the browser, (3) tell the function to create the post.
     // Cancel works for steps 1 and 2. Once step 3 is sent its outcome may be unknown (a timeout, a dropped
     // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
     async function _igSubmit() {
+        _igFromCard();
         const err = _igValidate();
         if (err) { igState.error = err; _igRenderForm(); return; }
         if (igState.kind === 'carousel') return _igSubmitCarousel();
@@ -818,13 +1022,17 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const wall = igState.schedule.postNow ? '' : _igAt();
         const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
-        const file = igState.file;
+        const fromCard = _igFromCard();
+        const src = _igSrc();
+        const file = fromCard ? null : igState.file;
         const cv = igState.cover;
-        const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
+        const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : (cv.remoteUrl ? 'card-thumb:' + src.cardId : '')) : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
         const trial = igState.trial ? 'manual' : '';
         const fbState = _igFacebookState();
         const facebookAccountId = fbState.enabled && fbState.checked ? _igResolveFacebook(igState.client) : '';
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey, trial, facebookAccountId ? 'fb' : ''].join('|');
+        // A card is named by its id, not by the copy's address: a copy made again (after 20 h) is the same post.
+        const media = fromCard ? ['card', src.cardId] : [file.name, file.size, file.lastModified];
+        const fp = [igState.client].concat(media, [igState.title.trim(), utc, coverKey, trial, facebookAccountId ? 'fb' : '']).join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -834,32 +1042,42 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0; igState.phase = 'preparing';
         _igRenderForm();
         try {
-            const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
-            if (!mint.ok || !mint.json || !mint.json.upload_url || !mint.json.media_url) {
-                _igRecordFailure('instagram_mint', mint.status);
-                throw new Error((mint.json && mint.json.error) || 'Could not prepare the upload. Try again.');
-            }
-            igState.phase = 'uploading';
-            await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                _igActiveXhr = xhr;
-                xhr.open('PUT', mint.json.upload_url);
-                xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-                xhr.upload.onprogress = (e) => {
-                    if (!e.lengthComputable) return;
-                    igState.progress = Math.min(90, Math.round((e.loaded / e.total) * 90));
-                    const bar = document.getElementById('igProgress');
-                    if (bar) bar.style.width = igState.progress + '%';
-                };
-                xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : (_igRecordFailure('instagram_storage_put', xhr.status), reject(new Error('Video upload to storage failed (HTTP ' + xhr.status + '). Try again.')));
-                xhr.onerror = () => { _igRecordFailure('instagram_storage_put', 0, true); reject(new Error('Network error while uploading the video. Try again.')); };
-                xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled.'), { igCancelled: true }));
-                xhr.send(file);
-            });
-            _igActiveXhr = null;
-            if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
-            // A cover image goes to Post For Me storage the same way the video did; its address rides on the post.
+            let mediaUrl = '';
             let coverUrl = '';
+            if (fromCard) {
+                // The video is already in Post for Me storage (post-source); it is copied again first if it is old.
+                const copied = await svPostSourceFresh(src, 'instagram');
+                mediaUrl = copied.media_url;
+                if (cv.mode === 'image' && !cv.blob && cv.remoteUrl) coverUrl = copied.thumb_url || '';
+                if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            } else {
+                const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
+                if (!mint.ok || !mint.json || !mint.json.upload_url || !mint.json.media_url) {
+                    _igRecordFailure('instagram_mint', mint.status);
+                    throw new Error((mint.json && mint.json.error) || 'Could not prepare the upload. Try again.');
+                }
+                mediaUrl = mint.json.media_url;
+                igState.phase = 'uploading';
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    _igActiveXhr = xhr;
+                    xhr.open('PUT', mint.json.upload_url);
+                    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+                    xhr.upload.onprogress = (e) => {
+                        if (!e.lengthComputable) return;
+                        igState.progress = Math.min(90, Math.round((e.loaded / e.total) * 90));
+                        const bar = document.getElementById('igProgress');
+                        if (bar) bar.style.width = igState.progress + '%';
+                    };
+                    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : (_igRecordFailure('instagram_storage_put', xhr.status), reject(new Error('Video upload to storage failed (HTTP ' + xhr.status + '). Try again.')));
+                    xhr.onerror = () => { _igRecordFailure('instagram_storage_put', 0, true); reject(new Error('Network error while uploading the video. Try again.')); };
+                    xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled.'), { igCancelled: true }));
+                    xhr.send(file);
+                });
+                _igActiveXhr = null;
+                if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            }
+            // A cover image goes to Post For Me storage the same way the video did; its address rides on the post.
             if (cv.mode === 'image' && cv.blob) {
                 const cmint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
                 if (!cmint.ok || !cmint.json || !cmint.json.upload_url || !cmint.json.media_url) {
@@ -874,7 +1092,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
+                mediaUrl, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
                 ...(facebookAccountId ? { alsoFacebook: true, facebookAccountId } : {}),
             }, 'instagram_create');
@@ -897,6 +1115,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
+            if (fromCard) svPostSourceClear(src);
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = facebookAccountId
@@ -1136,7 +1355,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
            bar and the top bar and the TikTok side said B while this form, empty,
            still said A, and a video attached then went to A's Instagram. */
         // A caption a Calendar card filled in, unedited, is not a post being written.
-        const igIdle = !igState.file && !igState.items.length && !igState.submitting
+        const igIdle = !igState.file && !igState.items.length && !igState.submitting && !(igState.source && igState.source.cardId)
             && (!String(igState.title || '').trim() || (!!igState.titleFromCard && igState.title === igState.titleFromCard));
         if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
             const leaving = igState.client && igState.client !== shared;
@@ -1211,5 +1430,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 
 export {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel,
+  svPostSourceActive, svPostSourceBind, svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh,
+  svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady, svPostSourceYoung
 };

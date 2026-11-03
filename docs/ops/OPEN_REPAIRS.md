@@ -36503,3 +36503,39 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - On main the second tab's data did refresh (its copy of the note reads deleted), but the open Notes still drew the deleted note until Notes was closed and reopened. A background load redraws the cards and the Notes dots, never the open Notes.
 - **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
 - **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
+
+## 651. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
+
+- **Asked:** plan row P1 (`docs/plans/2026-11-trial-and-posting/combined.md`), split with the supervisor into P1a (server, 650) and P1b (this, the page).
+- **Before:** a card on the Post tab gave only its cover and caption, and only on Instagram. The video had to be downloaded from Frame and dropped in, so it passed through the browser (and a phone).
+- **Now (299 and 300; the switch is read in 188):**
+  - for a client listed in `post_sources_v1`, each side's video card has **From files** (as before) and **From a card**. This applies to a single video only, never a carousel or photos;
+  - the card list is the existing one: the client's Approved or Scheduled cards from today on;
+  - picking a card asks `post-source` (F4) to copy its video, and the card's thumbnail, from Frame.io into Post for Me storage. Nothing is downloaded to the device;
+  - the page shows Frame's small copy in a plain `<video>`. It is asked of frameio-view, as the Calendar's player asks, and also plays in TikTok's phone preview;
+  - one line names the file, its size, length and which Frame file goes. The resolution shows only when Frame gives it (650 measures the field);
+  - the card's caption fills an empty caption box, with Undo. Its second caption is used when it was written for that network;
+  - on Instagram, the copied thumbnail is the cover (Remove picks another), and the cover card's own card picker hides while the card is the source;
+  - the post carries the copied address(es): no storage address is asked for and nothing is uploaded from the browser. TikTok uses the server path only; on the old n8n path it says to drop the file instead;
+  - a failed copy shows the server's plain reason and **Try again**. Post stays off until a copy is in;
+  - a copy older than 20 hours is made again at the press, because Post for Me deletes an unused upload after 24 hours;
+  - the press key is tied to the card, not the copy's address, so a re-copy after a lost answer keeps the **same** key and the server adopts the first post;
+  - a client change, Remove, or a finished post clears the card;
+  - switch missing, unreadable or not listing the client: each side exactly as before.
+- **Proof:** `test/post-from-card-browser.js` (new, isolated browser, 37 checks) covers:
+  - both sides end to end;
+  - a past card and an in-progress card left out;
+  - the post body carries the copied addresses with no mint or PUT;
+  - a failed copy, then Try again;
+  - a copy aged 21 hours made again under the same key;
+  - the switch off showing no "From a card" and asking neither function;
+  - 390 wide with no sideways scroll.
+  On main it fails (`waiting for locator('input[name="tkSrcMode"]')`). Every other Post tab browser suite passes, except two that fail identically on main in this sandbox (`postforme-link-browser`, `tiktok-upload-redesign-browser`).
+- **Live check (D6), after merge:** `.github/workflows/post-from-card-live-check.yml` runs `scripts/post-from-card-live-check.js`, one side per run, on one of the owner's two clients:
+  - it makes the page's own calls (post-source, then the side's create);
+  - the post is SCHEDULED 8 days ahead (TikTok also private and to drafts), cancelled at once through the queue's own cancel, and read back as `cancelled`;
+  - exit 3 means a cancel or read-back failed. The summary then names the queue row to cancel by hand;
+  - the card id is the only input. The client is read from the card (`calendar_posts.client`), and the run is refused unless its slug's SHA-256 is on the script's allowlist: the test client and the owner's two own clients, by hash only. Nothing that names the client is an input or is printed;
+  - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
+  `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
+- **Way back:** clear `post_sources_v1`, or revert the PR.

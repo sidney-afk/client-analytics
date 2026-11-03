@@ -12,7 +12,9 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svPostSourceActive, svPostSourceBind,
+  svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh, svPostSourceModeHtml, svPostSourceNew,
+  svPostSourceOffered, svPostSourceReady, svPostSourceYoung, teardownInstagramPanel
 } from './299-instagram-upload.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
@@ -99,13 +101,20 @@ import {
         submitting: false,
         error: null,
         progress: 0,
+        source: null,               // "From a card" (post_sources_v1): the card whose video post-source copied (299)
     };
+    const _tkSrc = () => (tkState.source || (tkState.source = svPostSourceNew()));
+    // `active` is kept on the source itself, so the functions the tests lift alone (_tkValidate, _tkDraftSig) read
+    // only tkState.
+    const _tkFromCard = () => { const s = _tkSrc(); s.active = svPostSourceActive(s, tkState.client, tkState.mediaType === 'video'); return s.active; };
 
     let _tkPollTimer = null;
     let _tkSaveTimer = null;
     let _tkActiveXhr = null;
     let _tkActivePhotoAbort = null; // AbortController for the photo-carousel mint+PUT loop
     let _tkMounted = false;   // true while the TikTok Upload view is on screen
+    // The post_sources_v1 answer may arrive after the form is drawn: draw it again then (registered once, at load).
+    try { window.addEventListener('sv-review-stage-switch', () => { if (_tkMounted && !tkState.submitting) _tkRenderForm(); }); } catch (e) { /* no window: nothing to redraw */ }
     let _tkVisHooked = false; // one-time guard for the visibilitychange listener
 
     /* ---- Which backend: n8n + the Sheet, or the tiktok-upload function --
@@ -567,7 +576,8 @@ import {
         const caption = (tkState.title || '').trim();
         const captionHasOver = caption.length > 2200;
         const isPhoto = tkState.mediaType === 'photo';
-        const videoSrc = tkState.objectUrl || '';
+        // From a card, the preview plays Frame's small copy of the card's video (the file itself never comes here).
+        const videoSrc = _tkFromCard() ? (_tkSrc().previewUrl || '') : (tkState.objectUrl || '');
         const firstPhotoUrl = isPhoto && tkState.photos[0] ? tkState.photos[0].objectUrl : '';
         const initial = (tkState.client || '?').charAt(0).toUpperCase();
         const privacy = TK_PRIVACY_LABELS[tkState.options.privacy_level] || 'Public';
@@ -840,7 +850,8 @@ import {
         const clientNames = _tkClientNames();
         const titleCount = (tkState.title || '').length;
         const titleOver = titleCount > 2200;
-        const hasMedia = tkState.mediaType === 'photo' ? tkState.photos.length > 0 : !!tkState.file;
+        const fromCard = _tkFromCard();
+        const hasMedia = tkState.mediaType === 'photo' ? tkState.photos.length > 0 : fromCard ? svPostSourceReady(_tkSrc()) : !!tkState.file;
         const submittable = !!(tkState.client && tkState.profile && hasMedia && tkState.title.trim() && !titleOver && !tkState.submitting);
 
         let profileLine = '';
@@ -956,7 +967,7 @@ import {
                         </label>
                     </div>
                 </div>
-                ${tkState.mediaType === 'photo' ? photoCard : mediaCard}
+                ${tkState.mediaType === 'photo' ? photoCard : (svPostSourceOffered(tkState.client, true) ? svPostSourceModeHtml('tk', _tkSrc(), tkState.submitting) : '') + (fromCard ? svPostSourceCardHtml('tk', _tkSrc(), tkState.client, tkState.submitting) : mediaCard)}
             </div>
 
             <div class="tk-card">
@@ -1106,7 +1117,7 @@ import {
         return [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
     }
     function _tkPickClient(name) {
-        if ((name || null) !== tkState.client) _tkDropCaptionFill();
+        if ((name || null) !== tkState.client) { _tkDropCaptionFill(); svPostSourceClear(_tkSrc()); }
         tkState.client = name || null;
         if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
@@ -1193,6 +1204,7 @@ import {
         const $ = (id) => document.getElementById(id);
 
         _tkWireClientSearch();
+        svPostSourceBind('tk', _tkSrc(), { client: tkState.client, side: 'tiktok', rerender: () => { _tkRenderForm(); _tkRenderPreview(); }, onDone: _tkCardCopied });
 
         document.querySelectorAll('input[name=tkMediaType]').forEach(el => el.addEventListener('change', (e) => {
             tkState.mediaType = e.target.value;
@@ -1311,6 +1323,14 @@ import {
         if (_tkMounted) _tkRenderForm();
     }
     // A caption the file name filled, still as it was filled, leaves with the video (or the client) it came from.
+    // A card's copy is in: its caption fills an EMPTY caption box, with Undo, as a file name's match does.
+    function _tkCardCopied(card) {
+        const text = svPostSourceCaption(card, 'tiktok');
+        if (!text || tkState.title.trim()) return;
+        tkState.title = text.slice(0, 2200);
+        tkState.captionFill = { name: card.name, text: tkState.title };
+        _tkSaveDraftSoon();
+    }
     function _tkDropCaptionFill() {
         const f = tkState.captionFill;
         if (f && tkState.title === f.text) tkState.title = '';
@@ -1452,6 +1472,10 @@ import {
         if (!tkState.profile) return 'No TikTok account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney.';
         if (tkState.mediaType === 'photo') {
             if (!tkState.photos.length) return 'Attach at least one image.';
+        } else if (tkState.source && tkState.source.active) {
+            const src = tkState.source;
+            if (src.state === 'copying') return 'Wait for the video to finish copying from Frame.';
+            if (!(src.state === 'ready' && src.data && src.data.media_url)) return 'Pick a card for the video.';
         } else if (!tkState.file) return 'Attach a video.';
         if (!tkState.title.trim()) return 'Add a caption.';
         if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
@@ -1482,6 +1506,7 @@ import {
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
+        _tkFromCard();
         const err = _tkValidate();
         if (err) { tkState.error = err; _tkRenderForm(); return; }
 
@@ -1500,7 +1525,10 @@ import {
         // SAME key and the media already in storage, so the server finds the first attempt instead of posting twice.
         const again = tkState.retryCreate;
         const sameDraft = source === 'supabase' && _tkRetryUsable(again) && again.sig === _tkDraftSig();
-        if (sameDraft && _tkRetryMediaFresh(again)) {
+        // From a card, the copy's own age counts too (Codex P2 on #2555): a copy made 19 hours before a lost answer is
+        // copied again on a later press, under the same key, never sent stale.
+        const cardStale = _tkFromCard() && !svPostSourceYoung(_tkSrc());
+        if (sameDraft && _tkRetryMediaFresh(again) && !cardStale) {
             const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
             tkState.submitting = true;
             tkState.error = null;
@@ -1515,6 +1543,10 @@ import {
 
         if (tkState.mediaType === 'photo') {
             _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
+            return;
+        }
+        if (_tkFromCard()) {
+            _tkSubmitFromCard(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
             return;
         }
 
@@ -1639,6 +1671,7 @@ import {
         tkState.file = null;
         tkState.objectUrl = null;
         tkState.fileMeta = null;
+        if (_tkFromCard()) svPostSourceClear(_tkSrc());
         _tkClearAllPhotos();
         tkState.title = '';
         tkState.captionFill = null;
@@ -1656,6 +1689,45 @@ import {
     // Cloudflare's 100 MB cap never applies), (3) POST just the metadata + the
     // resulting media URL to n8n to actually create the post. Same UI, same
     // drop zone — the SMM never sees which path ran.
+    // From a card: the video is already in Post for Me storage (post-source, 299), copied again first when it is old.
+    // Only through the Supabase function; the old n8n path never sees a card.
+    async function _tkSubmitFromCard(idempotencyKey, scheduledAtWall, scheduledAtUTC, source) {
+        if (source !== 'supabase') {
+            tkState.error = 'Posting from a card needs the server path, which is off right now. Download the video from Frame and drop it here instead.';
+            _tkRenderForm();
+            return;
+        }
+        const src = _tkSrc();
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
+        // Cancel works while an old copy is made again (Codex P1 on #2555): nothing has been sent to create yet.
+        const controller = new AbortController();
+        _tkActivePhotoAbort = controller;
+        tkState.submitting = true;
+        tkState.error = null;
+        tkState.progress = 50;
+        _tkRenderForm();
+        let copied;
+        try { copied = await svPostSourceFresh(src, 'tiktok'); } catch (e) {
+            _tkActivePhotoAbort = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = controller.signal.aborted ? 'Upload cancelled.' : ((e && e.message) || 'The copy from Frame did not finish. Try again.');
+            _tkRenderForm();
+            return;
+        }
+        if (controller.signal.aborted) {
+            _tkActivePhotoAbort = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+            return;
+        }
+        _tkActivePhotoAbort = null;
+        tkState.progress = 90;
+        _tkCreateViaFunction({ mediaUrl: copied.media_url }, idempotencyKey, scheduledAtWall, scheduledAtUTC, target, 'video');
+    }
+
     function _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC, source) {
         const file = tkState.file;
         // Snapshot the submission target now, synchronously, before any async gap.
@@ -1976,8 +2048,10 @@ import {
     // What makes two submits "the same draft": client, account, caption, options, schedule and the same files.
     function _tkDraftSig() {
         const f = tkState.file;
+        // A card is named by its id, not by its copy's address: a copy made again (after 20 h) is the same draft.
         const files = tkState.mediaType === 'photo'
             ? (tkState.photos || []).map(p => p.file ? [p.file.name, p.file.size, p.file.lastModified].join(':') : '').join('|')
+            : (tkState.source && tkState.source.active) ? 'card:' + tkState.source.cardId
             : (f ? [f.name, f.size, f.lastModified].join(':') : '');
         return JSON.stringify([tkState.client, tkState.profile, tkState.title, tkState.options, tkState.schedule.postNow, tkState.schedule.at, tkState.schedule.tz, tkState.mediaType, files]);
     }

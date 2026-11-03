@@ -502,6 +502,69 @@ async function auxiliary(browser, origin, role, width) {
     assert.ok(!JSON.parse(row.caption_tweaks).find(n => n.id === parent.id).deleted, 'deleting reply deleted root');
   });
 }
+// What one tab holds for a card's caption notes, for a two-tabs miss (OPEN_REPAIRS 682).
+// The page keeps no last-refresh time, so this reports whether it is loading,
+// whether the tab is visible, and the notes as that tab has them.
+function notesState(page, id, rootId) {
+  return page.evaluate(({ id, rootId }) => {
+    const post = (typeof calState !== 'undefined' && calState.posts || []).find(p => p.id === id);
+    let notes = [];
+    try { notes = JSON.parse((post && post.caption_tweaks) || '[]'); } catch (e) { notes = ['unreadable']; }
+    const root = notes.find(n => n && n.id === rootId);
+    const box = document.getElementById('calCommentComposer');
+    return {
+      card_loaded: !!post, notes: notes.length, root: root ? (root.deleted ? 'deleted' : 'present') : 'absent',
+      notes_open: !!document.querySelector('#calCommentsOverlay.open'), rows_drawn: document.querySelectorAll('#calCommentsModal .cal-cm-row').length,
+      box: box ? (box.offsetParent ? 'visible' : 'hidden') : 'absent', confirm_open: !!document.querySelector('#confirmOverlay.active'),
+      loading: typeof calState !== 'undefined' ? !!calState.loading : null, tab: document.visibilityState,
+    };
+  }, { id, rootId }).catch(e => ({ unreadable: String(e && e.message || e).slice(0, 120) }));
+}
+// A note deleted in one tab must leave a tab that already has it open, at that
+// tab's normal refresh (OPEN_REPAIRS 682). This harness closes every websocket,
+// so the refresh here is the person coming back to the tab (focus/visibility).
+async function openTabDelete(browser, origin, role, width) {
+  if (role !== 'client') return;
+  await runCase(browser, origin, role, width, 'Notes dialog open tab drops a note deleted in another tab', async t => {
+    await t.page.evaluate(() => onCalViewChange('organizer'));
+    const id = await t.page.locator('[data-comments-btn]').filter({ visible: true }).first().getAttribute('data-comments-btn');
+    const row = t.state.cards.find(c => c.id === id);
+    const box = await openNotes(t, id);
+    await t.page.evaluate(() => _calSetComposeComp('caption'));
+    await box.fill('Open tab root words'); await box.press('Enter');
+    await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Open tab root words'), 'root note not saved');
+    await sleep(700);
+    const rootId = JSON.parse(row.caption_tweaks).find(n => n.body === 'Open tab root words').id;
+    const peer = await setup(browser, origin, role, width, t.state);
+    try {
+      await peer.page.evaluate(() => onCalViewChange('organizer'));
+      await openNotes(peer, id);
+      const peerRow = peer.page.locator('#calCommentsModal .cal-cm-row').filter({ hasText: 'Open tab root words' });
+      await until(async () => await peerRow.count() > 0, 'the second tab never showed the note before the delete');
+      // Half-written words in the second tab must survive its refresh.
+      await peer.page.locator('#calCommentComposer').fill('Half typed peer words');
+      await t.page.bringToFront();
+      const root = t.page.locator('#calCommentsModal .cal-cm-row').filter({ hasText: 'Open tab root words' }).first();
+      await root.hover();
+      await root.locator('.cal-cm-action').filter({ hasText: 'Delete' }).click();
+      await t.page.locator('#confirmYes').click();
+      await until(() => !!JSON.parse(row.caption_tweaks || '[]').find(n => n.id === rootId && n.deleted), 'delete not saved');
+      // The person comes back to the second tab later: past the page's own
+      // floor for a refresh on return (4 s on the database read, 90 s before it).
+      await peer.page.clock.fastForward(91000);
+      await peer.page.bringToFront();
+      await peer.page.evaluate(() => { document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
+      try {
+        await until(async () => await peerRow.count() === 0, 'the second tab still shows the deleted note', 10000);
+      } catch (e) {
+        console.log('DIAG open tab delete: ' + JSON.stringify({ first: await notesState(t.page, id, rootId), peer: await notesState(peer.page, id, rootId) }));
+        throw e;
+      }
+      assert.equal(await peer.page.locator('#calCommentComposer').inputValue(), 'Half typed peer words', 'the refresh lost what the second tab was typing');
+      assert.deepEqual(peer.errors, []);
+    } finally { await peer.ctx.close(); }
+  });
+}
 async function dialogMatrix(browser, origin, role, width) {
   if (role !== 'client') return;
   for (const condition of process.env.G3_CONDITIONS ? process.env.G3_CONDITIONS.split(',') : conditions) for (const kind of ['reply', 'edit', 'delete']) {
@@ -554,12 +617,31 @@ async function dialogMatrix(browser, origin, role, width) {
       }
       let peer;
       if (condition === 'two-tabs') {
-        peer = await setup(browser, origin, role, width, t.state);
-        await peer.page.evaluate(() => onCalViewChange('organizer'));
-        await peer.page.locator('[data-comments-btn="' + id + '"]').filter({ visible: true }).click();
-        await peer.page.locator('#calCommentComposer').waitFor({ state: 'visible' });
-        await peer.page.evaluate(() => _calSetComposeComp('caption'));
-        await peer.page.locator('#calCommentComposer').fill('Peer dialog words'); await peer.page.locator('#calCommentComposer').press('Enter');
+        // OPEN_REPAIRS 682: twice on main (Firefox, 1024 and 1920) this block
+        // timed out after 15 s and the log said only "locator.waitFor", so
+        // which step stalled and what each tab held were unknown. Each step
+        // now names itself, and a miss prints both tabs' state before failing
+        // exactly as before. Fictional data only.
+        const done = [];
+        const stepTo = async (label, fn) => {
+          const started = Date.now();
+          try { await fn(); done.push(label + ' ' + (Date.now() - started) + ' ms'); }
+          catch (e) {
+            const tabs = { first: await notesState(t.page, id, rootId), peer: peer ? await notesState(peer.page, id, rootId) : 'not open' };
+            console.log('DIAG two-tabs ' + kind + ': stuck at "' + label + '" after ' + (Date.now() - started) + ' ms; done: ' + (done.join(', ') || 'nothing') + '; tabs: ' + JSON.stringify(tabs));
+            throw e;
+          }
+        };
+        await stepTo('open the second tab', async () => { peer = await setup(browser, origin, role, width, t.state); });
+        await stepTo('open its Notes', async () => {
+          await peer.page.evaluate(() => onCalViewChange('organizer'));
+          await peer.page.locator('[data-comments-btn="' + id + '"]').filter({ visible: true }).click();
+        });
+        await stepTo('its Notes box shows', () => peer.page.locator('#calCommentComposer').waitFor({ state: 'visible' }));
+        await stepTo('send its note', async () => {
+          await peer.page.evaluate(() => _calSetComposeComp('caption'));
+          await peer.page.locator('#calCommentComposer').fill('Peer dialog words'); await peer.page.locator('#calCommentComposer').press('Enter');
+        });
       }
       const landed = () => {
         const notes = JSON.parse(row.caption_tweaks || '[]');
@@ -650,6 +732,7 @@ async function refusals(browser, origin, role, width) {
         if (!process.env.G3_MODE || process.env.G3_MODE === 'matrix') await matrix(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'auxiliary') await auxiliary(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'dialogs') await dialogMatrix(browser, origin, role, width);
+        if (!process.env.G3_MODE || process.env.G3_MODE === 'dialogs') await openTabDelete(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'refusals') await refusals(browser, origin, role, width);
       } }
       finally { await browser.close(); }

@@ -24,6 +24,7 @@
     "tiktok-create-keeps-key.js",
     "post-folder-sort.js",
     "post-source-logic.js",
+    "post-from-card-live-check.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
@@ -83,6 +84,7 @@
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
     "frameio-list-live-check.js",
+    "trial-versions-import-logic.js",
     "trial-version-fields-migration.js",
     "trial-version-status-logic.js",
     "trial-version-status-live-check.js",
@@ -783,6 +785,7 @@
     "workload-tweak-exclusive-bucket.js",
     "workload-tweak-feedback-source.js",
     "write-failure-receipt.js",
+    "write-ui-error-where.js",
     "write-path-refusal-coverage.js",
     "write-refusal-beacon-card-id.js",
     "write-refusal-browser-codes.js",
@@ -1628,6 +1631,14 @@
       "ci": "representative"
     },
     {
+      "file": "post-from-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's From a card behind post_sources_v1 on both sides: the card list, the copy through post-source, the media line and the small-copy preview, the caption and cover from the card, the post carrying the copied addresses with no browser upload, a failed copy and Try again, a copy older than 20 hours made again under the same key, the switch off showing today's drop zones, and 390 wide.",
+      "reproduce": "node test/post-from-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "postforme-link-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2436,6 +2447,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V3: behind trial_versions_v2 each version shows its own thumbnail and caption (Same as the card when empty, the card's own on the version on the card), a caption or thumbnail saves through version_fields_set for that letter only, an http thumbnail is refused before anything is sent, Escape sends nothing, and a winner's thumbnail and caption go onto the card through today's card save with Undo putting the card's back, at 1440 and 390 pixel width.",
       "reproduce": "node test/trial-version-fields-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-versions-import-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (frameio-view's list in its F1 shape), no hosted credentials and no live data. Plan row V2: behind trial_versions_v2, Import from Frame opens a sheet with Back; a refused link keeps the link and says why; the list names the folder and the card, pre-sets letters only from clear file names, never offers the version on the card or a still-processing video, and never puts one letter on two videos; Cancel writes nothing; Add sends one versions_import with the picked letters; replacing an answered version asks first; a refused import writes nothing, at 1440 and 390 pixel width.",
+      "reproduce": "node test/trial-versions-import-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

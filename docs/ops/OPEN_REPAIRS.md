@@ -36126,6 +36126,34 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
 
+## 658. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V2: import several versions' videos from a Frame folder in one write (plan combined.md row V2; session Vbuild)
+
+- **Asked:** Sidney's item 1: a Frame folder import with a matching step. Built on F1 (#2537), where `frameio-view` gained `part: "list"`.
+- **Before:** every version's link was pasted one at a time.
+- **Now:**
+  - **`trial-reels`:** new action `versions_import` (admin, SMM, editor, like pasting a link). `logic.mjs` `importPlan` decides everything before anything is written:
+    - a new letter becomes a new row;
+    - an existing letter takes the link by today's rules, so a replaced link on an answered version starts it again;
+    - refused: the version on the card (`version_is_card`: it changes from its own row through today's attach), a dropped version, one letter twice, one video twice, a link another version has, a bad link, more than seven, and anything once the trial has started.
+    - The updates go first, because they can be put back. Then every new row goes in one insert. If that insert is refused, the updates are put back. The table has no delete grant, so a row is never inserted and then removed.
+    - One ledger row per version, `trial_versions_import`.
+  - **Page (189, behind `trial_versions_v2`):** "Import from Frame" beside "+ Add version". It opens a sheet on the Calendar import's own dialog.
+    - **Step 1** takes the link and has a Back button.
+    - **Step 2** shows the folder's name and the card's name, then one letter picker per video. Letters are pre-set only from clear file names. The version on the card and still-processing videos are disabled, and one letter never sits on two videos.
+    - Back keeps the link. Cancel writes nothing.
+    - Replacing an answered version asks first.
+    - A refused import writes nothing and says why.
+- **Codex on #2545, fixed:**
+  - **The letter pickers are the house select** (100 `_svSelectHtml`), never a browser-native one (AGENTS.md). The house select also now measures against the box that scrolls around it, not only the window, so its menu is no longer cut off inside a dialog's body. This is a small change to `_svSelectPlace`.
+  - **Import stays on a card whose seven letters are all taken,** because an import can still give existing versions their new cuts.
+  - **The last asked-for new cut** arriving by import sends a Tweaks Needed card back to For SMM Approval (`_trlBackToReview`), as a pasted link does.
+- **Not built (cut by combined.md):** the filter box, paging past 50, and project (non-share) folder links. Frame's own message covers those.
+- **Proof:**
+  - `test/trial-versions-import-logic.js` (21 checks; on main `importPlan is not a function`).
+  - `test/trial-versions-import-browser.js` (50 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
+  - A Deno case in `test/trial-reels-function-deno.ts` (card `pv2`).
+- **Way back:** turn `trial_versions_v2` off (no Import button), or revert the PR.
+
 ## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
 
 - **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.
@@ -36472,6 +36500,74 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Follow-up (Pbuild, once this is live):** the Post tab's "Ask Sidney to add its Connection ID" wording.
 - **Way back:** `select cron.unschedule('pfm-account-link-hourly');` then revert the PR; the run log's header gives its drop statements.
 
+## 645. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
+
+- **Seen (live, read-only):** 20 reports from board `workload` between 18:03 and 18:31 UTC on 2 Nov: `workload_uncaught` / `unhandled_rejection`, one staff session (role creative, Chrome on Windows, build 2026-11-02T17:13), all "TypeError at workload:0:0". No other uncaught report on any board in 3 days. The gaps (60 or 120 s) are the reports' own 60-second repeat filter, not a timer, so the error itself was at least once a minute.
+- **Cause (in the logging, OPEN_REPAIRS 626 and 638):** the rejection's stack had no frame from this site, so `_writeUiStackWhere` fell back to an empty file, and `_writeUiErrWhere` ran `new URL('', location.href)`, which is the page's own address. So every such report read "<page>:0:0" and said nothing about the error. The helper is shared by Kasper's board, the client link, Workload and the Calendar.
+- **Now (120, shared):** a report says `<Name> <kind> at <where>`, and nothing else.
+  - **kind**, one fixed word from the message (the message itself is never sent): `failed_to_fetch`, `load_failed`, `cannot_read_properties`, `not_a_function`, `not_iterable`, `not_defined`, `aborted`, `quota_exceeded`, `script_error`, `extension`, or `other`.
+  - **where:** this site's file with its build hash dropped (`app_version` says which build), `:line:col` and a plain function name; else the first frame on another site as its scheme, host and file name only (`https cdn.example.net lib.min.js`: no path, no query, no fragment, written without "://" so the server's link redaction keeps it); else `extension` for a browser extension, never its id; else no place at all.
+  - Chrome, Edge, Safari and Firefox stack formats are read. Every result passes the server's detail redaction (`clean_detail_v1`) unchanged; a split-build file name used to be long enough to be redacted.
+- **Listeners (080 Workload, 195 review stage, 170 Calendar, from 639):** an uncaught error is read from its own stack when it has one, and a cross-origin "Script error." is now reported as `script_error` instead of dropped.
+- **Proof:**
+  - `test/write-ui-error-where.js` (new, unit): runs 120's helpers on a frameless "Failed to fetch", an off-site frame with a token in its query, an extension frame, this site's hashed file, Safari's stack, "Script error." and an unknown message; checks no message, path, query or hash is sent and each result survives the redaction. On main it fails with exactly the live text, "TypeError at workload:0:0".
+  - `test/workload-reports-browser.js` case 4 (real Workload board), `test/calendar-reports-browser.js` case 3 (the Calendar) and `test/review-board-gauntlet-browser.js` case 9 (Kasper's board, the shared review-stage listener): a frameless rejection reads "TypeError failed_to_fetch" and an off-site one names its host and file, with no query or message. The Workload case fails on main.
+- **Next:** once the next report says which error it is, the cause is fixed in its own PR, failing-first.
+- **Way back:** revert the PR.
+
+## 682. [2026-11-03 UTC, BUILT, NOT MERGED] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
+
+Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six main runs (`e77b492` at 1024, `36e1536` at 1920), each time only on `client <width> Notes dialog two-tabs delete: locator.waitFor: Timeout 15000ms exceeded`. All 336 other checks passed, two-tabs reply and edit included.
+
+- **What the case does.** The first tab deletes its note and confirms. Only then does the test open a fresh second tab, open its Notes and send a note there. The second tab is opened after the delete, so the case cannot show a deleted note lingering in an already-open tab. Whether that can happen to a client is not tested here, and nothing in this failure points to it.
+- **Which wait.** Two 15-second waits in this path could have run out: the second tab's own boot (`setup`, `#ta` in the review stage) and its Notes box showing (`#calCommentComposer`). The log does not say which.
+- **Not reproduced.** Firefox is not installed in this sandbox, and the environment's rule is not to run `playwright install`, so the Firefox runs under load that were asked for could not be made. In Chromium every step is quick: the second tab opens in 0.6 to 0.9 s, its Notes open in 0.1 to 0.3 s, and the box shows within 50 ms. Delete and reply match, and the first tab has no confirm box left open. Only a run in Firefox can say whether the delete is special there.
+- **So, diagnostics (pass/fail unchanged).** The second tab's work is now four named steps: open the second tab, open its Notes, its Notes box shows, send its note. A miss prints `DIAG two-tabs <kind>: stuck at "<step>" after <ms>; done: <steps with times>; tabs: {first, peer}`. For each tab that is: card loaded, number of caption notes, whether the root is present, deleted or absent, Notes open, rows drawn, the Notes box visible, hidden or absent, a confirm box open, loading, and tab visibility. The page keeps no last-refresh time, so none is printed. Checked by forcing a miss locally: both tabs agreed the root was deleted and the box was visible. Fictional data only.
+- **Next:** the next Firefox red names the step and what each tab held, and the fix is chosen from that. Way back: revert the PR.
+- **The gap the supervisor asked to test was a real page bug, and it is fixed here.** New case `Notes dialog open tab drops a note deleted in another tab` (client, Chromium):
+  - Both tabs have the card's Notes open, and the second tab has half-written text in its box.
+  - The first tab deletes the note.
+  - The person comes back to the second tab after the page's own floor for a refresh on return (91 s on the test clock).
+  - On main the second tab's data did refresh (its copy of the note reads deleted), but the open Notes still drew the deleted note until Notes was closed and reopened. A background load redraws the cards and the Notes dots, never the open Notes.
+- **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
+- **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
+
+## 651. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
+
+- **Asked:** plan row P1 (`docs/plans/2026-11-trial-and-posting/combined.md`), split with the supervisor into P1a (server, 650) and P1b (this, the page).
+- **Before:** a card on the Post tab gave only its cover and caption, and only on Instagram. The video had to be downloaded from Frame and dropped in, so it passed through the browser (and a phone).
+- **Now (299 and 300; the switch is read in 188):**
+  - for a client listed in `post_sources_v1`, each side's video card has **From files** (as before) and **From a card**. This applies to a single video only, never a carousel or photos;
+  - the card list is the existing one: the client's Approved or Scheduled cards from today on;
+  - picking a card asks `post-source` (F4) to copy its video, and the card's thumbnail, from Frame.io into Post for Me storage. Nothing is downloaded to the device;
+  - the page shows Frame's small copy in a plain `<video>`. It is asked of frameio-view, as the Calendar's player asks, and also plays in TikTok's phone preview;
+  - one line names the file, its size, length and which Frame file goes. The resolution shows only when Frame gives it (650 measures the field);
+  - the card's caption fills an empty caption box, with Undo. Its second caption is used when it was written for that network;
+  - on Instagram, the copied thumbnail is the cover (Remove picks another), and the cover card's own card picker hides while the card is the source;
+  - the post carries the copied address(es): no storage address is asked for and nothing is uploaded from the browser. TikTok uses the server path only; on the old n8n path it says to drop the file instead;
+  - a failed copy shows the server's plain reason and **Try again**. Post stays off until a copy is in;
+  - a copy older than 20 hours is made again at the press, because Post for Me deletes an unused upload after 24 hours;
+  - the press key is tied to the card, not the copy's address, so a re-copy after a lost answer keeps the **same** key and the server adopts the first post;
+  - a client change, Remove, or a finished post clears the card;
+  - switch missing, unreadable or not listing the client: each side exactly as before.
+- **Proof:** `test/post-from-card-browser.js` (new, isolated browser, 37 checks) covers:
+  - both sides end to end;
+  - a past card and an in-progress card left out;
+  - the post body carries the copied addresses with no mint or PUT;
+  - a failed copy, then Try again;
+  - a copy aged 21 hours made again under the same key;
+  - the switch off showing no "From a card" and asking neither function;
+  - 390 wide with no sideways scroll.
+  On main it fails (`waiting for locator('input[name="tkSrcMode"]')`). Every other Post tab browser suite passes, except two that fail identically on main in this sandbox (`postforme-link-browser`, `tiktok-upload-redesign-browser`).
+- **Live check (D6), after merge:** `.github/workflows/post-from-card-live-check.yml` runs `scripts/post-from-card-live-check.js`, one side per run, on one of the owner's two clients:
+  - it makes the page's own calls (post-source, then the side's create);
+  - the post is SCHEDULED 8 days ahead (TikTok also private and to drafts), cancelled at once through the queue's own cancel, and read back as `cancelled`;
+  - exit 3 means a cancel or read-back failed. The summary then names the queue row to cancel by hand;
+  - the card id is the only input. The client is read from the card (`calendar_posts.client`), and the run is refused unless its slug's SHA-256 is on the script's allowlist: the test client and the owner's two own clients, by hash only. Nothing that names the client is an input or is printed;
+  - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
+  `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
+- **Way back:** clear `post_sources_v1`, or revert the PR.
+
 ## 653. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages say the account links itself once it is connected in Post for Me (follow-up to N1, 646; session Pbuild)
 
 - **Asked:** the supervisor, 3 Nov, after L1 went live at 10:41 UTC: a client's Post for Me accounts now link themselves every hour on an exact, unique handle match, so the "no account" messages no longer need someone to paste an id.
@@ -36481,10 +36577,8 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
   - The phone's shorter line says "Connect it in Post for Me: it links itself here within the hour."
   - N1's **Open Post for Me** link stays beside each one.
   - Page only; no server change.
-- **Proof:**
   - `test/postforme-link-browser.js` and `test/instagram-platform-switch-browser.js` now expect the new words. On main they fail ("TikTok: connect it in Post for Me, it links itself"; "the flag says to connect it in Post for Me"). Here every wording check passes.
   - `postforme-link-browser` checks the Facebook wording too. `instagram-facebook-browser` (38) and `instagram-facebook-crosspost` (79) pass with the Facebook line.
   - `upload-schedule-zone-and-queue-guards` now checks that TikTok's refusal names Post for Me and "links itself", and still never the sheet.
   - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
-- **Way back:** revert the PR.
 

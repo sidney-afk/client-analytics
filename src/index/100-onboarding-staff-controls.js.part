@@ -2275,8 +2275,16 @@ import {
         const rect = button.getBoundingClientRect();
         const edge = 8;
         const gap = 7;
-        const below = Math.max(0, window.innerHeight - rect.bottom - edge - gap);
-        const above = Math.max(0, rect.top - edge - gap);
+        // Inside a scrolling box (a dialog's body), the box clips the menu as the window does: measure against both.
+        let top = 0, bottom = window.innerHeight;
+        for (let el = wrap.parentElement; el && el !== document.body; el = el.parentElement) {
+            if (!/(auto|scroll|hidden|clip)/.test(getComputedStyle(el).overflowY)) continue;
+            const box = el.getBoundingClientRect();
+            top = Math.max(top, box.top); bottom = Math.min(bottom, box.bottom);
+            break;
+        }
+        const below = Math.max(0, bottom - rect.bottom - edge - gap);
+        const above = Math.max(0, rect.top - top - edge - gap);
         const naturalHeight = menu.scrollHeight;
         const openUp = below < Math.min(naturalHeight, 180) && above > below;
         wrap.classList.toggle('open-up', openUp);

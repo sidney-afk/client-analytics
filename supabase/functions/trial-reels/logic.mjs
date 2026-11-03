@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_status_set"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_status_set", "version_fields_set"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -48,8 +48,9 @@ export function staffAllows(role, action) {
   if (action === "list" || action === "list_many" || action === "read") return true;
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
-  // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.
-  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add");
+  // An editor pastes a version's link, says its new cut is ready, and sets its own thumbnail and caption (V3);
+  // everything else is the SMM's or an admin's.
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add" || action === "version_fields_set");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
@@ -532,7 +533,7 @@ export function undoWinnerPatches(versions, mainLink, opts) {
 }
 
 /** What a reader gets back. A client link sees no hook family, no notes from the team, and once a winner is picked only the winner (owner, Q8). */
-export function readShape(versions, { client, mainLink, cardStatus }) {
+export function readShape(versions, { client, mainLink, cardStatus, card }) {
   const sorted = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
   const main = mainLetter(sorted, mainLink);
   const winner = sorted.find((v) => v.status === STATUS.winner);
@@ -551,10 +552,13 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
       ready: client ? throughTeam(v, sorted, cardStatus) || whole : !!v.smm_ok_at || whole,
+      // V3: the thumbnail and caption this version shows and posts with (its own, else the card's). Once a winner is
+      // picked the card carries the winner's, so a version that lost reads only its own (never the winner's as its own).
+      effective: effectiveFields(v, winner && v.letter !== winner.letter ? null : card),
     };
     if (client) return base;
     return Object.assign(base, {
-      hook: v.hook || null, smm_ok_at: v.smm_ok_at || null, kasper_ok_at: v.kasper_ok_at || null,
+      hook: v.hook || null, thumbnail_url: v.thumbnail_url || null, caption: v.caption || null, smm_ok_at: v.smm_ok_at || null, kasper_ok_at: v.kasper_ok_at || null,
       change_by: v.change_by || null, change_note: v.change_note || null, change_at: v.change_at || null,
       posted_at: v.posted_at || null, trial_ends_at: v.trial_ends_at || null,
       // Where it is now (per-version routing): every staff surface says it per version.
@@ -649,6 +653,68 @@ export function statusLedgerRows(client, postId, changes, actor, now) {
     action: "trial_status", component: "video", from_status: c.from_word || null, to_status: c.to_word || null,
     source: "trial-reels", payload: { letter: c.letter, label: "Video " + c.letter },
   }));
+}
+
+/*
+ * V3 (plan combined.md row V3): each version's own thumbnail and caption (studio_trial_versions.thumbnail_url and
+ * caption, migration 20261102200000). The rule for empty is the card's: coalesce(version.field, card.field). The
+ * version on the card IS the card, so its fields are set on the card, never on its row.
+ * The winner copy onto the card and its Undo are the page's, through today's card save: this function never writes
+ * the card. Undo lives only on the pick's toast, so the page keeps the card's fields from before the pick itself.
+ */
+export function effectiveFields(v, card) {
+  const c = card || {};
+  const pick = (own, theirs) => clean(own, 4000) || clean(theirs, 4000) || null;
+  return { thumbnail_url: pick(v && v.thumbnail_url, c.thumbnail_url), caption: pick(v && v.caption, c.caption) };
+}
+
+/** Do the rows carry F2's columns yet? Before the migration is applied they do not, and version_fields_set refuses. */
+export function fieldsAvailable(rows) {
+  return (rows || []).length > 0 && Object.prototype.hasOwnProperty.call(rows[0], "caption") && Object.prototype.hasOwnProperty.call(rows[0], "thumbnail_url");
+}
+
+function cleanThumb(raw) {
+  const s = clean(raw, 2049);
+  if (!s) return { value: null };
+  if (s.length > 2048) return { error: "thumbnail_too_long" };
+  let u;
+  try { u = new URL(s); } catch (_e) { return { error: "thumbnail_not_https" }; }
+  if (u.protocol !== "https:" || u.username || u.password || !/^https:\/\/[^\s<>"']+$/i.test(s)) return { error: "thumbnail_not_https" };
+  return { value: s };
+}
+
+/** One version's thumbnail and/or caption. A field the request leaves out stays as it is; an empty one goes back to the card's. */
+export function versionFieldsPatch(versions, { letter, thumbnail_url, caption, mainLink }) {
+  const v = versions.find((x) => x.letter === letter);
+  if (!v) return { error: "version_not_found" };
+  if (!live(v)) return { error: "version_dropped" };
+  if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
+  if (letter === mainLetter(versions, mainLink)) return { error: "version_is_card" };
+  /** @type {Record<string, unknown>} */
+  const patch = {};
+  if (thumbnail_url !== undefined) {
+    const t = cleanThumb(thumbnail_url);
+    if (t.error) return { error: t.error };
+    if (t.value !== (v.thumbnail_url || null)) patch.thumbnail_url = t.value;
+  }
+  if (caption !== undefined) {
+    const raw = String(caption == null ? "" : caption);
+    if (raw.trim().length > 4000) return { error: "caption_too_long" };
+    const text = raw.trim() ? raw.trim() : null;
+    if (text !== (v.caption || null)) patch.caption = text;
+  }
+  if (thumbnail_url === undefined && caption === undefined) return { error: "nothing_to_set" };
+  if (!Object.keys(patch).length) return { patch: null };
+  // An answered version starts again through the SMM, as a replaced video link does (linkChange): no approval ever
+  // covers a thumbnail or caption its reviewer did not see.
+  const answered = v.status === STATUS.approved || v.status === STATUS.change || !!(v.smm_ok_at || v.kasper_ok_at || v.client_ok_at || v.client_pass_at);
+  if (answered) {
+    Object.assign(patch, {
+      revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting,
+      smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null,
+    }, clearPass(v));
+  }
+  return { patch, restarted: answered };
 }
 
 /** One ledger row per changed version, in calendar_post_events, so the card's history shows "Video C: change asked". */

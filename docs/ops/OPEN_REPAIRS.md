@@ -36848,6 +36848,7 @@ Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial 
   - Both fail on a clean origin/main worktree: the browser test with "one delete went to Production (0)", the unit test because the rule does not exist.
   - `production-comment-slice` reads a 400-character longer window of the dispatch, because of the new no-op branch.
   - Codex review: a retry after a lost answer would have failed its own receipt (`idempotency_conflict`), because the fingerprint held the version the server had read, and a committed delete moves it. The fingerprint now leaves the version out for a front-door delete. New case: the committed delete, then the identical retry, replays and writes nothing; it fails without this with `idempotency_conflict`.
+- **CI, not this change's logic.** Touching `test/production-comment-slice.js` triggered the F42 apply rehearsal workflow, which had not run since 17 Sep. It failed before running anything (`initdb_unavailable`): the guard asked for PostgreSQL 16's `initdb` even in external mode, where CI's postgres:16 service is already running, and the runner image no longer ships that binary. The guard now applies only when the script starts its own cluster. The rehearsal passes in external mode against a local PostgreSQL 16 (32 checks).
 - **Way back:** revert the PR. The card delete is unchanged, so a revert only stops the Production copy from following.
 
 ## 692. [2026-11-03 UTC, OPEN, read-only look after 690] Staff-authored Production notes whose card copy is deleted but which stay open (session Chanfix)

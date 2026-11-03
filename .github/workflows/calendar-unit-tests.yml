@@ -733,6 +733,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A reload while a client's change request saves says when that save lands, and never for a lost one (Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_RELOAD_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-landed-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -36779,3 +36779,27 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.
 - **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
 - **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.
+
+## 685. [2026-11-03 UTC, BUILT, NOT MERGED] A client's reload during a change request read as a blocked client although the change had landed (session Reviewguard)
+
+- **Seen (read-only, live):** the review-board watcher (15:50 UTC) found a new person signature, `client|reload_mid_save|tweak|safari|ios|0-49|no_retry_landed`. It is one report, at 14:34:05 UTC, from a real client on iPhone Safari (build 14:04), card id p_native_…_14 (not the test client; read, never written).
+- **Nothing was lost or sent twice:**
+  - one status change at 14:33:21 (video Client Approval to Tweaks Needed, native-bridge);
+  - one comment at 14:34:06 (role client, source ui, one comment id), 1 s after the reload report;
+  - nothing else from the client on that card. The card reads Tweaks Needed with the note.
+  - The comment landing just after the reload fits what the fixture shows: the next page sends the interrupted change again from its recovery copy and outbox, and that lands. The save can only be lost if the line never answers, before or after the reload. The card then stays waiting, which the client sees.
+- **Why it read as blocked:** the signature read (`production_write_refusal_review_signatures_v1`) marks a report `retry_landed` only when a `landed_after_retry` for the same card, part and action follows within an hour. Nothing ever sent one after a reload.
+- **Fix (195, page only; no server, Edge Function or migration change):**
+  - After reporting the reload, the next page watches each save it named, for up to 2 minutes, on the cards it has read.
+  - It reports the save as landed only when all of these hold:
+    - the part shows it (approved, or Tweaks Needed for a change; on Kasper's board, an approved card that left his list);
+    - no save is still running for that card;
+    - no note of that card is still in the outbox. A comment counts only if its note was there at the reload and has gone.
+  - It then sends `landed_after_retry` once, with `ui_action` `review_reload_mid_save` and the same card and part. The existing signature read already joins it, so the report then reads `retry_landed`.
+  - A save that never shows is never reported as landed. Sample saves are not followed.
+- **Test:** `test/review-reload-landed-browser.js`, new, on the shared fixture's client link, Chromium and WebKit (WebKit required in CI):
+  1. a change request on the video, a slow line, a reload mid-save, the save landing after: the reload is reported (code tweak), then reported as landed, once, for the same card and part. **On main this fails:** nothing follows the reload report.
+  2. a line that never answers, before or after the reload: the reload is reported, the card stays waiting, and nothing says it landed.
+  - The fixture gains `gatewayHang`, a status write the server never answers.
+  - Chromium passes here. WebKit is not installed in this sandbox, so its first run is in CI.
+- **Way back:** revert the PR. Until it is live, the watcher can read a `reload_mid_save` signature against `calendar_post_events` for the same card and part.

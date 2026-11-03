@@ -223,6 +223,7 @@ async function open(browser, origin, opt) {
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
       state.writeAttempts++;
+      if (state.gatewayHang) return new Promise(() => {});   // a status write the server never answers (or applies)
       if (state.networkDelay) await sleep(state.networkDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
       if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);

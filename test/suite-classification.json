@@ -62,6 +62,7 @@
     "client-onboarding-handler.js",
     "client-review-alert-handler.js",
     "client-create-migration.js",
+    "slack-channel-stall-guard.js",
     "client-resource-match.js",
     "client-hubspot-sync-handler.js",
     "client-hubspot-sync-migration.js",
@@ -1620,6 +1621,14 @@
       "ci": "representative"
     },
     {
+      "file": "tiktok-press-key-reload-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that the TikTok side keeps a create's key across a reload while its outcome is unknown: the same key and storage address after a reload with an unchanged form and no new upload; a new key for a changed form, after a success and after a 4xx; the same key with a new upload for an attempt older than 20 hours.",
+      "reproduce": "node test/tiktok-press-key-reload-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "post-tab-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1714,6 +1723,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-facebook-page-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "client-postforme-accounts-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_POSTFORME_ACCOUNTS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "CLIENT_POSTFORME_ACCOUNTS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-postforme-accounts-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },
@@ -2298,6 +2316,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, with the card read answered slowly), no hosted credentials and no live data. On a switched-on client link's Review at 1440 and 390 wide, checks the new page draws its own skeleton while the cards load (not the old calendar loader) and each placeholder (strip chip, title, date, step bar, media, buttons, conversation) sits where the real part lands, at its size, within a few pixels.",
       "reproduce": "node test/review-stage-skeleton-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-player-leaving-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. On a switched-on client link's Review, checks the player never asks frameio-view for a new address for a video taken out of the page, or for the previous card's video after the stage moved, and still re-asks once for the video on stage.",
+      "reproduce": "node test/review-stage-player-leaving-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

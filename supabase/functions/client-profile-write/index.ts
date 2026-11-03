@@ -31,11 +31,14 @@
 // that cannot be made stays queued; the saved edit stands). refresh_from_sheet
 // is refused in that state.
 //
-// Fields kept in client_profiles.extra (the client's Post For Me accounts: postforme_instagram_account_id
-// and postforme_facebook_account_id) ride in the same `changes` map. They are saved only while SyncView is
-// the main copy: Post For Me must first say each account is on the right network, then the same
-// client_profile_admin_edit transaction saves them in extra with one history row each ("extra.<field>";
-// migrations/2026-10-31-client-facebook-page.sql) and queues the usual Sheet copy.
+// Fields kept in client_profiles.extra (the client's Post For Me accounts: postforme_instagram_account_id,
+// postforme_facebook_account_id, postforme_youtube_account_id, postforme_linkedin_account_id, and the
+// youtube_made_for_kids setting) ride in the same `changes` map. They are saved only while SyncView is
+// the main copy: Post For Me must first say each account (the TikTok column postforme_account_id too) is
+// on the right network, then the same client_profile_admin_edit transaction saves them in extra with one
+// history row each ("extra.<field>"; migrations/2026-10-31-client-facebook-page.sql and
+// 2026-11-02-client-postforme-accounts.sql) and queues the usual Sheet copy. One account per client per
+// slot is a unique index; its refusal answers postforme_account_taken.
 //
 // action "status" says whether Sheet writing is configured, and which Google
 // account the Sheet must be shared with. It never returns a secret.
@@ -58,7 +61,7 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { clientSlug } from "../_shared/sheets-mirror.mjs";
 import {
-  accountPlatformProblem, EDITABLE_FIELDS, EXTRA_ACCOUNT_PLATFORM, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
+  accountChecks, accountPlatformProblem, EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
 } from "../_shared/client-profile-edit.mjs";
 import { makeStore } from "../_shared/roster-handlers.mjs";
 import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
@@ -177,16 +180,15 @@ async function authority(supabase: SupabaseClient): Promise<string> {
 const blankToNull = (v: unknown) => (clean(v) === "" ? null : clean(v));
 
 const PFM = "https://api.postforme.dev/v1";
-// Post For Me must report each new account id on the expected network. Returns "" or an error code.
-async function checkExtraAccounts(extra: Record<string, string>): Promise<{ error: string; field?: string }> {
-  for (const [field, value] of Object.entries(extra)) {
-    const want = (EXTRA_ACCOUNT_PLATFORM as Record<string, string>)[field];
-    if (!want || !clean(value)) continue;
+// Post For Me must report each new account id on the expected network (every account slot, the TikTok
+// column included). Reads only `platform`; the account body is never passed on or logged.
+async function checkAccounts(changes: Record<string, string>): Promise<{ error: string; field?: string }> {
+  for (const { field, value, platforms } of accountChecks(changes) as { field: string; value: string; platforms: string[] }[]) {
     const key = clean(Deno.env.get("POST_FOR_ME_API_KEY"));
     if (!key) return { error: "postforme_not_configured", field };
     let resp: Response;
     try {
-      resp = await fetch(PFM + "/social-accounts/" + encodeURIComponent(clean(value)), {
+      resp = await fetch(PFM + "/social-accounts/" + encodeURIComponent(value), {
         headers: { Authorization: "Bearer " + key, Accept: "application/json" }, signal: AbortSignal.timeout(20000),
       });
     } catch (_e) {
@@ -195,10 +197,28 @@ async function checkExtraAccounts(extra: Record<string, string>): Promise<{ erro
     if (resp.status === 404) return { error: "postforme_account_unknown", field };
     if (!resp.ok) return { error: "postforme_unreachable", field };
     const data = await resp.json().catch(() => ({}));
-    const problem = accountPlatformProblem(data, want);
+    const problem = accountPlatformProblem(data, platforms);
     if (problem) return { error: problem, field };
   }
   return { error: "" };
+}
+
+// The account field in `changes` that another client (archived included) already holds, or null. The unique
+// indexes are the real guard; this read lets the Sheet-first lane refuse BEFORE it writes the Sheet.
+async function accountTakenBy(supabase: SupabaseClient, slug: string, changes: Record<string, string>): Promise<string | null> {
+  for (const { field, value } of accountChecks(changes) as { field: string; value: string }[]) {
+    const col = (EDITABLE_FIELDS as readonly string[]).includes(field) ? field : "extra->>" + field;
+    const { data, error } = await supabase.from("client_profiles").select("slug").eq(col, value).neq("slug", slug).limit(1);
+    if (error) throw error;
+    if ((data || []).length) return field;
+  }
+  return null;
+}
+
+// client_profiles_<field>_uniq -> <field>, for the unique index that refused a save.
+function takenField(message: string): string | null {
+  const m = message.match(/client_profiles_(postforme_[a-z_]+?)_uniq/);
+  return m ? m[1] : null;
 }
 
 // The database is the main copy (client_profiles_authority = "syncview").
@@ -217,10 +237,8 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   const norm = normalizeChanges(body.changes);
   if (!norm.ok) return json({ ok: false, error: norm.error, field: norm.field || null }, 400);
   const split = splitChanges(norm.changes) as { columns: Record<string, string>; extra: Record<string, string> };
-  if (Object.keys(split.extra).length) {
-    const check = await checkExtraAccounts(split.extra);
-    if (check.error) return json({ ok: false, error: check.error, field: check.field || null }, check.error === "postforme_unreachable" ? 502 : check.error === "postforme_not_configured" ? 503 : 400);
-  }
+  const check = await checkAccounts(norm.changes as Record<string, string>);
+  if (check.error) return json({ ok: false, error: check.error, field: check.field || null }, check.error === "postforme_unreachable" ? 502 : check.error === "postforme_not_configured" ? 503 : 400);
   const dbChanges: JsonMap = {};
   for (const [f, v] of Object.entries(norm.changes as Record<string, string>)) dbChanges[f] = blankToNull(v);
   const requestId = crypto.randomUUID();
@@ -242,6 +260,12 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
       return json({ ok: false, error: "field_not_editable", field: m ? m[1] : null }, 400);
     }
     if (String(rpcErr.message).includes("client_profile_edit_bad_value")) return json({ ok: false, error: "bad_value", field: null }, 400);
+    // One Post For Me account on two clients: refused by a unique index per slot
+    // (migrations/2026-11-02-client-postforme-accounts.sql). The index name says which slot.
+    if ((rpcErr as { code?: string }).code === "23505") {
+      const field = takenField(String(rpcErr.message));
+      return json({ ok: false, error: "postforme_account_taken", field }, 409);
+    }
     console.error("client-profile-write: native save failed", rpcErr.message);
     return json({ ok: false, error: "write_failed" }, 500);
   }
@@ -412,6 +436,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // A field kept in extra is not a Sheet column: it can only be saved once SyncView is the main copy.
     const extraKeys = Object.keys(splitChanges(norm.changes).extra);
     if (extraKeys.length) return json({ ok: false, error: "authority_not_syncview", field: extraKeys[0] }, 409);
+    const heldField = await accountTakenBy(supabase, slug, norm.changes as Record<string, string>);
+    if (heldField) return json({ ok: false, error: "postforme_account_taken", field: heldField }, 409);
+    const accountCheck = await checkAccounts(norm.changes as Record<string, string>);
+    if (accountCheck.error) return json({ ok: false, error: accountCheck.error, field: accountCheck.field || null }, accountCheck.error === "postforme_unreachable" ? 502 : accountCheck.error === "postforme_not_configured" ? 503 : 400);
     const changes = norm.changes as Record<string, string>;
 
     const plan = planSheetEdit(values, slug, current, changes, TAB) as JsonMap;

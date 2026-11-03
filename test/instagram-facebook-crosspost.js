@@ -139,7 +139,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(E.normalizeChanges({ postforme_facebook_account_id: 'facebook.com/page' }), { ok: false, error: 'bad_value', field: 'postforme_facebook_account_id' }, 'only spc_ ids');
   eq(E.normalizeChanges({ postforme_instagram_account_id: IG }).changes, { postforme_instagram_account_id: IG }, 'the Instagram id beside it is editable too');
   eq(E.normalizeChanges({ postforme_instagram_account_id: 'not-an-id' }), { ok: false, error: 'bad_value', field: 'postforme_instagram_account_id' }, 'with the same spc_ rule');
-  eq(E.EXTRA_ACCOUNT_PLATFORM, { postforme_instagram_account_id: 'instagram', postforme_facebook_account_id: 'facebook' }, 'each is checked against its own network');
+  // ACCOUNT_FIELD_PLATFORMS replaced EXTRA_ACCOUNT_PLATFORM on 2026-11-02 (OPEN_REPAIRS 666: five slots, TikTok included).
+  eq([E.ACCOUNT_FIELD_PLATFORMS.postforme_instagram_account_id, E.ACCOUNT_FIELD_PLATFORMS.postforme_facebook_account_id], [['instagram'], ['facebook']], 'each is checked against its own network');
   eq(E.splitChanges({ email: 'a@example.test', postforme_facebook_account_id: FB }), { columns: { email: 'a@example.test' }, extra: { postforme_facebook_account_id: FB } }, 'columns and extra split');
   ok(!E.EDITABLE_FIELDS.includes('postforme_facebook_account_id') && !E.EDITABLE_FIELDS.includes('postforme_instagram_account_id'), 'neither is planned as a Sheet-main cell edit');
   eq(E.accountPlatformProblem({ platform: 'facebook' }, 'facebook'), '', 'platform check passes');
@@ -153,7 +154,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(IG_HANDLER.indexOf('clientAllowed(row.client') < IG_HANDLER.indexOf('expectedFacebookAccountId('), 'INSTAGRAM_UPLOAD_ALLOWED_CLIENTS still governs first');
   ok(/if \(facebookPart\(row\)\) patch\.options = next\.options/.test(IG_HANDLER), 'the status poll saves Facebook\'s result');
   ok(/markCancelled\(row/.test(IG_HANDLER), 'cancel marks both');
-  ok(/checkExtraAccounts\(split\.extra\)/.test(CPW_HANDLER) && CPW_HANDLER.indexOf('checkExtraAccounts(split.extra)') < CPW_HANDLER.indexOf('rpc("client_profile_admin_edit"'),
+  // checkAccounts(norm.changes) replaced checkExtraAccounts(split.extra) on 2026-11-02 (OPEN_REPAIRS 666): every account field, columns too.
+  ok(/checkAccounts\(norm\.changes/.test(CPW_HANDLER) && CPW_HANDLER.indexOf('checkAccounts(norm.changes') < CPW_HANDLER.indexOf('rpc("client_profile_admin_edit"'),
     'client-profile-write asks Post For Me before it saves');
   ok(/extraKeys\.length\) return json\(\{ ok: false, error: "authority_not_syncview"/.test(CPW_HANDLER), 'never written to the Sheet path');
   ok(!/client_profile_edits"\)\.insert/.test(CPW_HANDLER), 'history is still written only by the SQL function');

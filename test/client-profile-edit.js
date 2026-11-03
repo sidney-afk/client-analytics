@@ -104,6 +104,45 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
   ok(!/\.(insert|update|upsert|delete)\(/.test(hist) && !/\.(insert|update|upsert|delete)\(/.test(fn.slice(fn.indexOf('async function listManagers'), fn.indexOf('async function assignManager'))),
     'list_managers and history only read');
 
+  // F3 (OPEN_REPAIRS 666): YouTube and LinkedIn Post for Me slots, the per-client "made for kids" setting,
+  // and the TikTok column checked against Post for Me on save like the others.
+  for (const k of ['postforme_youtube_account_id', 'postforme_linkedin_account_id', 'youtube_made_for_kids']) {
+    ok(m.EXTRA_EDITABLE_FIELDS.includes(k) && !m.EDITABLE_FIELDS.includes(k), k + ' is kept in extra, never a column');
+  }
+  ok(m.splitChanges({ youtube_made_for_kids: 'true', postforme_account_id: 'spc_fixtureTikTok01' }).extra.youtube_made_for_kids === 'true'
+    && m.splitChanges({ postforme_account_id: 'spc_fixtureTikTok01' }).columns.postforme_account_id === 'spc_fixtureTikTok01', 'made-for-kids rides in extra, the TikTok id stays a column');
+  const mfk = v => m.normalizeChanges({ youtube_made_for_kids: v });
+  ok(mfk('true').changes.youtube_made_for_kids === 'true' && mfk(' TRUE ').changes.youtube_made_for_kids === 'true', 'made-for-kids on is "true"');
+  ok(mfk('false').changes.youtube_made_for_kids === '' && mfk('').changes.youtube_made_for_kids === '' && mfk(null).changes.youtube_made_for_kids === '',
+    'made-for-kids off is blank, so the key is removed (off when absent)');
+  ok(!mfk('yes').ok && mfk('yes').error === 'bad_value' && !mfk('1').ok, 'made-for-kids takes only true or false');
+  for (const k of ['postforme_youtube_account_id', 'postforme_linkedin_account_id']) {
+    ok(!m.normalizeChanges({ [k]: 'UCnotAnId' }).ok && m.normalizeChanges({ [k]: 'spc_fixtureAccount01' }).ok && m.normalizeChanges({ [k]: '' }).ok, k + ' takes a spc_ id or blank');
+  }
+  const checks = m.accountChecks({ postforme_account_id: 'spc_fixtureTikTok01', postforme_youtube_account_id: 'spc_fixtureYouTube01',
+    postforme_linkedin_account_id: '', youtube_made_for_kids: 'true', email: 'x@example.invalid' });
+  ok(JSON.stringify(checks) === JSON.stringify([
+    { field: 'postforme_account_id', value: 'spc_fixtureTikTok01', platforms: ['tiktok', 'tiktok_business'] },
+    { field: 'postforme_youtube_account_id', value: 'spc_fixtureYouTube01', platforms: ['youtube'] }]),
+  'every non-blank account id is checked (the TikTok column too); a blank or a non-account field is not');
+  ok(JSON.stringify(m.ACCOUNT_FIELD_PLATFORMS) === JSON.stringify({
+    postforme_account_id: ['tiktok', 'tiktok_business'], postforme_instagram_account_id: ['instagram'], postforme_facebook_account_id: ['facebook'],
+    postforme_youtube_account_id: ['youtube'], postforme_linkedin_account_id: ['linkedin'] }), 'five account slots, each with its network');
+  ok(m.accountPlatformProblem({ platform: 'TikTok_Business' }, ['tiktok', 'tiktok_business']) === ''
+    && m.accountPlatformProblem({ platform: 'instagram' }, ['tiktok', 'tiktok_business']) === 'postforme_wrong_platform'
+    && m.accountPlatformProblem({}, ['youtube']) === 'postforme_platform_unknown'
+    && m.accountPlatformProblem({ platform: 'facebook' }, 'facebook') === '', 'the platform check takes one network or a list');
+  ok((fn.match(/checkAccounts\(norm\.changes/g) || []).length === 2 && !/checkExtraAccounts/.test(fn), 'both saves (native and Sheet-first) check every account field, columns included');
+  ok(/"23505"/.test(fn) && /postforme_account_taken/.test(fn), 'the unique index refusal answers postforme_account_taken, not write_failed');
+  // Codex P2 on #2533: the Sheet-first lane writes the Sheet before the database, so the index alone would leave a
+  // duplicate account in the Sheet. It asks first, and refuses before any Sheet write.
+  const sheetLane = fn.slice(fn.indexOf('const extraKeys = Object.keys(splitChanges(norm.changes).extra);'), fn.indexOf('await writeCells(sheetId, token, updates);'));
+  ok(/await accountTakenBy\(supabase, slug, norm\.changes/.test(sheetLane) && /error: "postforme_account_taken"/.test(sheetLane),
+    'the Sheet-first lane refuses an account on another client before it writes the Sheet');
+  const taken = fn.slice(fn.indexOf('async function accountTakenBy'), fn.indexOf('async function accountTakenBy') + 1200);
+  ok(/accountChecks\(changes\)/.test(taken) && /\.neq\("slug", slug\)/.test(taken) && /extra->>/.test(taken) && !/\.(insert|update|upsert|delete)\(/.test(taken),
+    'accountTakenBy reads every account slot of the other clients (archived included) and writes nothing');
+
   const cfg = read('supabase/config.toml');
   ok(/\[functions\.client-profile-write\]\s*\nverify_jwt = false/.test(cfg), 'client-profile-write has an explicit transport posture in config.toml');
   console.log(`client-profile-edit: ${passed} checks passed`);

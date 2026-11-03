@@ -24,6 +24,16 @@ function serve() {
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+/* WHERE A RED STOPPED. CI keeps this suite's output on the runner, so the public
+ * summary used to say only "Production comment thread failed" -- nothing about
+ * which of its dozen steps. Each step announces itself with a bare token; the
+ * gate (prod-polish-gate.js) harvests the legal names from THIS FILE's
+ * `stage('...')` literals and reports the last one reached, so a name must stay
+ * a literal here or the gate cannot report it. Nothing else from the output
+ * travels. Added 2026-11-02 (OPEN_REPAIRS 641), same shape as the read-only
+ * smoke suite's stages. */
+function stage(name) { console.log('COMMENTS_STAGE ' + name); }
+
 function expect(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -171,6 +181,7 @@ function expect(condition, message) {
   });
 
   try {
+    stage('boot');
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row', { timeout: 30000 });
     /* WHAT THIS FIXTURE IS FOR: rows whose comment composer is decided by
@@ -202,6 +213,7 @@ function expect(condition, message) {
     // _syncviewInvalidateStaffVerification() clears the verified flag and bumps
     // the epoch only; it does not purge state or re-raise the gate, so the rows
     // read above survive and the assertion below still means what it meant.
+    stage('signed_out_state');
     await page.evaluate(() => _syncviewInvalidateStaffVerification());
     await page.evaluate(id => _prodOpenDeliverable(id), ids[0]);
     await page.waitForSelector('[data-prod-comments-state="signin"]', { timeout: 5000 });
@@ -212,6 +224,7 @@ function expect(condition, message) {
       _syncviewStaffIdentityVerified = true;
       _prodComments.retry(id);
     }, ids[0]);
+    stage('thread_render');
     await page.waitForSelector('.prod-comment-loading', { timeout: 3000 });
     await page.waitForSelector('[data-prod-comments-state="ready"]', { timeout: 5000 });
 
@@ -233,6 +246,7 @@ function expect(condition, message) {
     const activityBeforePage = await page.locator('.prod-activity').textContent();
     expect(!activityBeforePage.includes('DELETED SECRET') && !activityBeforePage.includes('HIDDEN SECRET'), 'deleted or hidden body leaked into the DOM');
 
+    stage('older_page');
     await page.locator('[data-prod-comments-more]').click();
     await page.waitForFunction(() => !document.querySelector('[data-prod-comments-more]'));
     expect(await page.locator('[data-prod-comment-id="edit"]').count() === 1, 'edit duplicated across pages');
@@ -246,6 +260,7 @@ function expect(condition, message) {
       _prodOpenDeliverable(id);
       _prodOpenDeliverable(id);
     }, primaryId);
+    stage('reopen');
     await page.waitForSelector('[data-prod-comment-id="captured-reopen"]', { timeout: 5000 });
     expect(primaryTopReads === 2, 'rapid reopen started duplicate newest-page requests');
     expect(primaryOlderReads === 1, 'reopen unexpectedly replayed or lost the older-page request');
@@ -253,12 +268,14 @@ function expect(condition, message) {
     expect(await page.locator('[data-prod-comments-more]').count() === 0, 'reopen replaced the exhausted deep cursor with the newest-page cursor');
     expect((await page.locator('[data-prod-comment-id="edit"] .prod-comment-body').textContent()).trim() === 'Edited after reopen', 'reopen did not apply a newly captured edit');
 
+    stage('normal_refresh');
     await page.evaluate(() => _prodRefresh({ silent: true }));
     await page.waitForSelector('[data-prod-comment-id="captured-normal-refresh"]', { timeout: 5000 });
     expect(primaryTopReads === 3, 'normal Production refresh did not make exactly one newest-page request');
     expect(await page.locator('[data-prod-comment-id="older"]').count() === 1, 'normal refresh discarded an already-loaded older page');
     expect((await page.locator('[data-prod-comment-id="edit"] .prod-comment-body').textContent()).trim() === 'Edited after normal refresh', 'normal refresh did not apply the latest edit');
 
+    stage('composer_gate');
     /* The composer's authority gate, split in two after F1(video).
      *
      * This used to be one assertion against the LIVE authority, demanding the
@@ -318,6 +335,7 @@ function expect(condition, message) {
     }
 
     errorId = ids[1];
+    stage('error_retry');
     await page.evaluate(id => _prodOpenDeliverable(id), errorId);
     await page.waitForSelector('[data-prod-comments-state="error"]', { timeout: 5000 });
     await page.locator('[data-prod-comments-state="error"] button', { hasText: 'Retry' }).click();
@@ -326,6 +344,7 @@ function expect(condition, message) {
     expect(await page.locator('[data-prod-comments-state="empty"]').count() === 0,
       'old reader response incorrectly certified all feedback as empty');
 
+    stage('client_boot');
     const clientPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const clientPageErrors = [];
     const clientCommentReads = [];
@@ -559,6 +578,7 @@ function expect(condition, message) {
       await clientPage.evaluate(() => openSxrComments('client-card'));
       await clientPage.waitForSelector('[data-cm-row="client-safe"]', { timeout: 5000 });
 
+      stage('client_notes');
       const exactReads = clientCommentReads.map(read => read.body);
       expect(exactReads.length === 2, 'client Notes did not read both exact canonical deliverable slots');
       expect(exactReads.every(body => body.source_surface === 'sxr'
@@ -620,6 +640,7 @@ function expect(condition, message) {
         return video.ready && video.client && graphic.ready && graphic.client;
       }), 'real verified client-surface reads did not establish exact canonical capability');
 
+      stage('client_write');
       trackClientWrite = true;
       const writeSaved = await clientPage.evaluate(() => {
         _sxrComposeComp = 'video';
@@ -653,6 +674,7 @@ function expect(condition, message) {
               && row.audience === 'client');
       }), 'gateway client comment was persisted into legacy card arrays or missed canonical projection');
 
+      stage('binding_switch');
       // Re-point the video deliverable crosswalk row at the switch card: the
       // projection only reads a component whose crosswalk validates against
       // the exact card being projected.
@@ -700,6 +722,7 @@ function expect(condition, message) {
       await clientPage.close();
     }
 
+    stage('write_audit');
     expect(!unexpectedWrites.length, 'unexpected write-like requests: ' + unexpectedWrites.join(' | '));
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
     console.log('prod-comments-browser: staff thread plus exact verified client-link SXR canonical projection passed');

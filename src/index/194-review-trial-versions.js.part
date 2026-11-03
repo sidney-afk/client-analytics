@@ -383,7 +383,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const pic = look === 't' ? (_trvPicOf(m, v) || m.thumb || '') : '';
             const inner = look === 't'
                 ? '<span class="trs-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : TRV_PLAY) + '</span><span class="trs-n"><i class="trs-d"></i>' + _calEsc(v.letter) + '</span>'
-                : (look === 'p' || look === 'q' ? '<i class="trs-d"></i>' : '') + '<span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter);
+                : (look === 'p' || look === 'q' ? '<i class="trs-d"></i>' : '') + '<span class="trs-t"><span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter) + '</span>';
             return '<button type="button" class="trs-s' + (on ? ' on' : '') + '" data-a="' + a + '" data-stage="' + stage + '" ' + attr + '="' + l + '" aria-pressed="' + on + '"'
                 + ' aria-label="Version ' + l + ', ' + TRV_SAY[a] + '">' + inner + '</button>';
         }).join('') + '</div>';

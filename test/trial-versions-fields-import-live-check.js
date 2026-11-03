@@ -78,7 +78,16 @@ function backend(over = {}) {
     }
     return reply(400, { ok: false, error: 'action_invalid' });
   };
-  return { st, fetchImpl };
+  // Codex on #2568: the server applies a write but its reply never arrives (once per action named in loseReply).
+  const lost = new Set();
+  const wrapped = async (url, opts = {}) => {
+    const res = await fetchImpl(url, opts);
+    const body = (() => { try { return JSON.parse(opts.body || '{}'); } catch (e) { return {}; } })();
+    const key = body.action + (body.action === 'switch_set' ? ':' + body.enabled : '');
+    if ((over.loseReply || []).includes(key) && !lost.has(key) && res.ok) { lost.add(key); throw new Error('reply_lost'); }
+    return res;
+  };
+  return { st, fetchImpl: wrapped };
 }
 
 const env = (over = {}) => ({ SYNCVIEW_STAFF_KEY: 'fixture-staff-key-not-real', LIVE_CHECK_CLIENT: CLIENT, LIVE_CHECK_CARD: CARD, LIVE_CHECK_FIELDS_LETTER: 'C',
@@ -129,6 +138,24 @@ const v = (r, l) => r.st.versions.find((x) => x.letter === l);
   ok(notTest.summary.refused === 'not_test_client' && notTest.st.calls.length === 0, 'any other client is refused before anything is called');
   const nothingNew = await go({ listed: [{ file_id: 'f2', link: LINK(2), processing: false }] });
   ok(nothingNew.summary.refused === 'import_nothing_new' && nothingNew.st.writes === 0, 'a share whose videos every version already holds is refused before any write');
+
+  // Codex on #2568: a version that already has its own fields is refused (the put-back would clear them).
+  const own = await go({ versions: ['A', 'B', 'C'].map((l, i) => ({ id: 'v' + l, letter: l, status: 'waiting', frame_url: LINK(i + 1), smm_ok_at: null, kasper_ok_at: null,
+    client_ok_at: null, client_pass_at: null, revision: 0, thumbnail_url: null, caption: l === 'C' ? 'Its own caption, fixture.' : null })) });
+  ok(own.exit === 1 && own.summary.refused === 'fields_letter_has_own_fields' && own.st.writes === 0 && v(own, 'C').caption === 'Its own caption, fixture.',
+    'a fields version with its own caption already is refused before any write, and keeps it');
+
+  // Codex on #2568: a write the server applied whose reply was lost is still put back, from a fresh read.
+  const lostImport = await go({ loseReply: ['versions_import'] });
+  ok(lostImport.exit === 1 && lostImport.summary.run_error && v(lostImport, 'D').status === 'dropped' && v(lostImport, 'E').status === 'dropped'
+    && lostImport.summary.imported_rows_left_dropped === 2 && lostImport.summary.imported_all_dropped,
+    'an import applied but unanswered: its letters are still dropped, and counted (' + JSON.stringify([lostImport.summary.imported_rows_left_dropped]) + ')');
+  const lostFields = await go({ loseReply: ['version_fields_set'] }, { LIVE_CHECK_FRAME_SHARE: '' });
+  ok(lostFields.exit === 1 && !v(lostFields, 'C').caption && !v(lostFields, 'C').thumbnail_url && lostFields.summary.fields_put_back === true,
+    'a fields write applied but unanswered is still cleared');
+  const lostSwitch = await go({ enabled: false, loseReply: ['switch_set:true'] }, { LIVE_CHECK_SWITCH_FOR_RUN: 'true', LIVE_CHECK_FRAME_SHARE: '' });
+  ok(lostSwitch.exit === 1 && lostSwitch.st.enabled === false && lostSwitch.summary.switch_ended_off === true,
+    'a switch turned on whose reply was lost is still turned off and read back');
 
   // What must fail the run, and still put things back.
   const touched = await go({ touchCard: true }, { LIVE_CHECK_FRAME_SHARE: '' });

@@ -64,6 +64,9 @@ function planRun(logic, versions, { letter, mainLink, thumb, caption, listed }) 
   const f = logic.versionFieldsPatch(versions, { letter, thumbnail_url: thumb, caption, mainLink });
   if (f.error) return { refused: 'fields_not_allowed', code: code(f.error) };
   if (f.restarted) return { refused: 'fields_letter_unsuitable' };   // an answered version would go back to the SMM
+  // A version that already has its own caption or thumbnail is refused: the put-back clears both, so it would lose them
+  // (Codex on #2568). The check only ever writes fields onto a version that reads the card's.
+  if (v.caption || v.thumbnail_url) return { refused: 'fields_letter_has_own_fields' };
   if (!listed) return { refused: null, items: [] };
   const used = new Set(versions.map((x) => x.frame_url).filter(Boolean));
   const free = LETTERS.filter((l) => !versions.some((x) => x.letter === l));
@@ -107,14 +110,17 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   if (!switchForRun && first.json.enabled !== true) return fail({ refused: 'not_a_trial_card' });
 
   const out = { refused: null, switch_for_run: switchForRun, import_ran: false };
-  let switchedOn = false, fieldsSet = false, imported = [];
+  // What was sent, not what was answered: a write whose reply is lost is still put back (Codex on #2568). The put-back
+  // reads the card afresh and undoes whatever of these it finds.
+  let switchAttempted = false, fieldsAttempted = false;
+  const attemptedLetters = [];
   try {
     if (switchForRun) {
       const before = await versionEvents();
+      switchAttempted = true;
       const on = await call({ action: 'switch_set', client, post_id: card, enabled: true });
-      switchedOn = ok(on);
-      out.switch_on_ok = switchedOn;
-      if (!switchedOn) { out.refused = 'switch_on_failed'; return fail(out); }
+      out.switch_on_ok = ok(on);
+      if (!out.switch_on_ok) { out.refused = 'switch_on_failed'; return fail(out); }
       out.switch_on_seeded_versions = (await versionEvents()) - before;
       if (out.switch_on_seeded_versions !== 0) { out.refused = 'switch_on_seeded_a_version'; return fail(out); }
     }
@@ -147,12 +153,12 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
     const other = versions.find((x) => x.letter !== letter && x.status !== 'dropped') || null;
     const c0 = await readCard();
     const ev0 = await events('trial_version_fields_set');
+    fieldsAttempted = true;
     const set = await call({ action: 'version_fields_set', client, post_id: card, letter, thumbnail_url: thumb, caption: FIELDS_CAPTION });
-    fieldsSet = ok(set);
     const sv = find(set, letter), so = other && find(set, other.letter);
     const c1 = await readCard();
     out.fields_set = {
-      http_status: set.status, ok: fieldsSet, error: err(set), restarted: !!(set.json && set.json.restarted),
+      http_status: set.status, ok: ok(set), error: err(set), restarted: !!(set.json && set.json.restarted),
       own_read_back: !!sv && sv.caption === FIELDS_CAPTION && sv.thumbnail_url === thumb,
       effective_read_back: !!sv && !!sv.effective && sv.effective.caption === FIELDS_CAPTION && sv.effective.thumbnail_url === thumb,
       other_reads_card: !other || (!!so && !!so.effective && same(so.effective.caption, so.caption || cardRow.caption)
@@ -162,7 +168,6 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
     };
     const ev1 = await events('trial_version_fields_set');
     const clr = await call({ action: 'version_fields_set', client, post_id: card, letter, thumbnail_url: '', caption: '' });
-    if (ok(clr)) fieldsSet = false;
     const cv = find(clr, letter);
     const c2 = await readCard();
     out.fields_cleared = {
@@ -179,8 +184,8 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
       out.import_ran = true;
       const evI = await events('trial_versions_import');
       const c3 = await readCard();
+      attemptedLetters.push(...plan.items.map((x) => x.letter));
       const imp = await call({ action: 'versions_import', client, post_id: card, items: plan.items });
-      if (ok(imp)) imported = plan.items.map((x) => x.letter);
       const c4 = await readCard();
       out.import = {
         http_status: imp.status, ok: ok(imp), error: err(imp), videos: plan.items.length,
@@ -188,8 +193,9 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
         events_added: (await events('trial_versions_import')) - evI,
         card_unchanged: !!c3 && !!c4 && c3.updated_at === c4.updated_at,
       };
-      if (plan.spareLetter && imported.length) {
+      if (plan.spareLetter && ok(imp)) {
         const evR = await events('trial_versions_import');
+        attemptedLetters.push(plan.spareLetter);
         const again = await call({ action: 'versions_import', client, post_id: card, items: [{ letter: plan.spareLetter, link: plan.items[0].link }] });
         const after = await call({ action: 'read', client, post_id: card });
         out.import_again = {
@@ -203,18 +209,36 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   } catch (x) {
     out.run_error = code(String(x && x.message)) || 'error';
   } finally {
-    // Put back: fields cleared, imported letters dropped, then the switch off.
+    // Put back, from a fresh read, whatever was sent: fields cleared, attempted letters dropped, then the switch off.
+    const readNow = async () => { const r = await call({ action: 'read', client, post_id: card }); return ok(r) && r.json.enabled === true ? (r.json.versions || []) : null; };
     try {
-      if (fieldsSet) {
-        const clr = await call({ action: 'version_fields_set', client, post_id: card, letter, thumbnail_url: '', caption: '' });
-        out.fields_put_back = ok(clr);
+      let now = await readNow();
+      if (fieldsAttempted) {
+        const v = now && now.find((x) => x.letter === letter);
+        if (!now || (v && (v.caption || v.thumbnail_url))) {
+          const clr = await call({ action: 'version_fields_set', client, post_id: card, letter, thumbnail_url: '', caption: '' });
+          out.fields_put_back = ok(clr);
+        } else out.fields_put_back = true;
       }
-      let dropped = 0;
-      for (const l of imported) { const d = await call({ action: 'version_drop', client, post_id: card, letter: l }); if (ok(d) && (find(d, l) || {}).status === 'dropped') dropped += 1; }
-      out.imported_rows_left_dropped = dropped;
-      out.imported_all_dropped = dropped === imported.length;
+      for (const l of attemptedLetters) {
+        const v = now && now.find((x) => x.letter === l);
+        if (!now || (v && v.status !== 'dropped')) await call({ action: 'version_drop', client, post_id: card, letter: l });
+      }
+      if (attemptedLetters.length || fieldsAttempted) now = await readNow();
+      if (attemptedLetters.length) {
+        const rows = attemptedLetters.map((l) => now && now.find((x) => x.letter === l)).filter(Boolean);
+        out.imported_rows_left_dropped = rows.filter((x) => x.status === 'dropped').length;
+        out.imported_all_dropped = !!now && rows.every((x) => x.status === 'dropped');
+      } else if (out.import_ran) {
+        out.imported_rows_left_dropped = 0;
+        out.imported_all_dropped = true;
+      }
+      if (fieldsAttempted && now) {
+        const v = now.find((x) => x.letter === letter);
+        out.fields_put_back = !!v && !v.caption && !v.thumbnail_url;
+      }
     } catch (x) { out.put_back_error = code(String(x && x.message)) || 'error'; }
-    if (switchedOn) {
+    if (switchAttempted) {
       try {
         const before = await versionEvents();
         const off = await call({ action: 'switch_set', client, post_id: card, enabled: false });
@@ -227,7 +251,7 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   }
   if (out.refused) return fail(out);
   const fs = out.fields_set || {}, fc = out.fields_cleared || {};
-  const fieldsPass = fs.ok && !fs.restarted && fs.own_read_back && fs.effective_read_back && fs.other_reads_card && fs.card_unchanged
+  const fieldsPass = out.fields_put_back !== false && fs.ok && !fs.restarted && fs.own_read_back && fs.effective_read_back && fs.other_reads_card && fs.card_unchanged
     && fc.ok && fc.own_cleared && fc.effective_is_card && fc.card_unchanged;
   const im = out.import || {}, ia = out.import_again || {};
   const importPass = !out.import_ran || (im.ok && im.letters_read_back && im.card_unchanged && im.events_added === im.videos

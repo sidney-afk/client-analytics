@@ -36224,7 +36224,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
 - **Way back:** revert the PR. Rows go back to a `null` length.
 
-## 649. [2026-11-02 UTC, BUILT, NOT MERGED] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
+## 649. [2026-11-02 UTC, LIVE 2026-11-03] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
 
 - **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
 - **Now:**
@@ -36245,3 +36245,33 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
   - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
 - **Way back:** revert the PR. Nothing calls the function yet.
+- **Live (2026-11-03, merged as #2543, merge lane run 41572842991; live check run 41573085174, one test-client card, no letter, Instagram side):** `ok`, rendition `original` (no fallback), 28,291,416 bytes, 57.28 s long, copied in 4,875 ms (5,628 ms wall). The storage address answered 206 `video/mp4` with the same byte count. So route (a), the streamed copy, works; routes (b) and (c) are not needed for a file this size. Width and height came back empty: Frame gives the size under another field name, which P1a (650) reads and measures. No post was created.
+
+## 650. [2026-11-03 UTC, BUILT, NOT MERGED] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
+
+- **Asked:** plan row P1 ("thumbnail copied server side"), split with the supervisor into P1a (server) and P1b (the page, behind `post_sources_v1`). Also the supervisor, 3 Nov: F4's live check (649) answered `width` and `height` empty.
+- **Now (`supabase/functions/post-source/handler.mjs`):**
+  - after the video, the card's thumbnail goes into its own Post for Me address, and the answer carries `thumb_url`. The thumbnail is read from `calendar_posts.thumbnail_url` on the server, never from the request;
+  - which thumbnails are fetched (`thumbSource`):
+    - a Drive file, from Google's image host at 1080 wide (the host the Calendar uses);
+    - otherwise only a direct https link to a .jpg, .jpeg or .png;
+    - never http, a bare IP, localhost, a port, or a redirect;
+  - it must come back as a JPEG or PNG of at most 8 MB (Instagram's cover limits);
+  - a thumbnail that cannot be used never fails the video. `thumb_url` is then null and `thumb_note` says why in plain words. A failed video copy copies no thumbnail;
+  - a trial version has no thumbnail of its own until V3, so none is read for one.
+- **frameio-view `videoFacts` (shared, so frameio-view and higgsfield-mcp redeploy):**
+  - the size is also read from one "W x H" field (Resolution, Dimensions, Frame Size), from any field ending in Width or Height, and from values with a unit ("1080 px");
+  - the staff answer lists Frame's metadata field **names** (`metadata_fields`, never values). The client answer is unchanged.
+- **The live check** (`scripts/post-source-live-check.js`) also prints `thumb_copied` (true or false, never the address) and `metadata_fields`. The next run shows the field name Frame really uses for the size.
+- **Proof, failing first:**
+  - `test/post-source-logic.js`: 29 checks, 7 new:
+    - a Drive thumbnail is copied as a JPEG;
+    - a direct PNG is copied as a PNG;
+    - eleven thumbnails that cannot be used (too big, WebP, 404, network error, none, http, IP, localhost, IPv6, a Frame link, YouTube) leave the video copied, reach no storage address and say why;
+    - a refused thumbnail upload;
+    - a version gets no thumbnail;
+    - a failed video copy copies no thumbnail;
+    - the field names pass through to the live line.
+    On main the first new case fails (no thumbnail is fetched).
+  - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
+- **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).

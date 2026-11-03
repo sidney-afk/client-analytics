@@ -106,11 +106,30 @@ try {
   p = run(c4, c5);
   ok(decision(p, 'beta') === 'deploy', 'a migration that says the functions cope without it does not hold them');
 
+  // A rollback file ships beside its migration and is never applied: it must not hold anything
+  // (OPEN_REPAIRS 678: an unmarked .ROLLBACK.sql held client-profile-write after its migration was live).
+  put('migrations/2026-10-17-optional-b.sql', '-- ef-auto-deploy: functions-cope-without-this\nalter table t add column if not exists m int;\n');
+  put('migrations/2026-10-17-optional-b.ROLLBACK.sql', '-- ROLLBACK of 2026-10-17-optional-b.sql\nalter table t drop column if exists m;\n');
+  put('supabase/functions/beta/index.ts', 'Deno.serve(() => new Response("beta 4b"));\n');
+  g('add', '.'); g('commit', '-q', '-m', 'optional migration with its rollback');
+  const c5b = g('rev-parse', 'HEAD');
+  p = run(c5, c5b);
+  ok(decision(p, 'beta') === 'deploy', 'a rollback file beside its migration does not hold the functions');
+  put('migrations/2026-10-17-needs-b.sql', 'create table if not exists w (id int);\n');
+  put('migrations/2026-10-17-needs-b.ROLLBACK.sql', 'drop table if exists w;\n');
+  put('supabase/functions/beta/index.ts', 'Deno.serve(() => new Response("beta 4c"));\n');
+  g('add', '.'); g('commit', '-q', '-m', 'unmarked migration with its rollback');
+  const c5c = g('rev-parse', 'HEAD');
+  p = run(c5b, c5c);
+  const why = (p.functions.find(r => r.slug === 'beta') || {}).reason || '';
+  ok(decision(p, 'beta') === 'held' && /needs-b\.sql/.test(why) && !/ROLLBACK/.test(why),
+    'an unmarked migration still holds, and its rollback file is not named as a migration');
+
   put('supabase/config.toml', 'project_id = "uzltbbrjidmjwwfakwve"\n\n[functions.beta]\nverify_jwt = true\n');
   put('supabase/functions/beta/index.ts', 'Deno.serve(() => new Response("beta 5"));\n');
   g('add', '.'); g('commit', '-q', '-m', 'jwt');
   const c6 = g('rev-parse', 'HEAD');
-  p = run(c5, c6);
+  p = run(c5c, c6);
   ok(decision(p, 'beta') === 'held', 'a function whose config asks for verify_jwt = true is held (this lane deploys JWT-off only)');
 
   // The Section 4 lane deploys all three together: one held sibling holds the group.

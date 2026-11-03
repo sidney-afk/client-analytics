@@ -36010,7 +36010,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+## 642. [2026-11-02 UTC, LIVE (merged #2526 as 225595b on 2026-11-02; WebKit phone lane green on main three times)] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
 
 - **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
   - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
@@ -36037,6 +36037,9 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - D: while the page is leaving, no re-ask. On main it asks once.
   - E: control, the page stays after all, and it re-asks once again.
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
+- **Live:** merged in #2526 as 225595b. The #2513 trace merged as 14c325b. The last main run without the fix (94f2d49) still went red at 00:29 UTC on 3 Nov, with the same report.
+  - After the fix, `review-stage-phones` passed on three main runs in a row: 288ad4c (job 125682156074), 6dc6349 (job 125697967913) and 817100f (job 125709994956).
+  - The front end is a page change, so it went live with the Pages publish of 225595b. No function is involved.
 - **Way back:** revert the PR.
 
 ## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
@@ -36164,7 +36167,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
 - **Way back:** revert the PR and run the ROLLBACK file.
 
-## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+## 656. [2026-11-02 UTC, LIVE (merged #2535 as deba3bc; trial_versions_v2 on for the test client 00:32 UTC; checked live by entry 659's workflow, run 41563650679, 2026-11-03)] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
 
 - **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
 - **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
@@ -36198,3 +36201,223 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` is unchanged and passes.
 - **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+- **Live (3 Nov):** on a test-client trial card that is not linked to Production, version A was walked by the robot SMM key: For SMM Approval (no-op), Kasper Approval, Client Approval, Tweaks Needed, Approved, then back. Every step passed (5 of 5). Each step read back its status and wrote exactly one `trial_status` row. The card row was never written, and the put-back read back. The card's trial switch was turned on for the run and ended off, with no version seeded or removed. The supervisor's own read afterwards: switch off, 5 `trial_status` rows, card still For SMM Approval.
+## 657. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V3: each version's own thumbnail and caption, the effective read, and the winner's copied onto the card (plan combined.md row V3; session Vbuild)
+
+- **Asked:** Sidney wants trial versions to differ in thumbnail and caption, not only in video. Plan row V3, on F2's columns (migration `20261102200000`, #2530).
+- **Before:** a version carried only its video. The card's single thumbnail and caption covered every version.
+- **Now:**
+  - **`trial-reels`:**
+    - New action `version_fields_set` (admin, SMM, editor). It sets a version's thumbnail (https, at most 2048) and/or caption (at most 4000). A field left out stays as it is; an empty one goes back to the card's.
+    - Refused for the version on the card (`version_is_card`: it is the card), a dropped version, and one on trial or decided.
+    - Gated server-side on `trial_versions_v2` (`fields_off`). Refused with `fields_unavailable` until F2's columns exist.
+    - A change on an answered version starts it again through the SMM (revision + 1, OKs cleared), as a replaced link does.
+    - Every read carries `effective` per version: its own field, else the card's (`coalesce(version, card)`). A staff read also carries the version's own two fields. The card's thumbnail and caption are read with the card.
+  - **Page (189, behind `trial_versions_v2`):**
+    - A "Thumbnail · Caption" line under each version, reading "Same as the card" when empty, with inline editing.
+    - Picking the winner also copies its effective thumbnail and caption onto the card through today's card save, and puts them back if the winner is refused.
+    - The pick's Undo puts back the card's own fields, which this page kept from before the pick. Undo exists only on that toast.
+  - **The supervisor's guards:**
+    - **Undo after the card was edited since the pick** overwrites nothing. It says "The card was edited after the winner was picked; check its thumbnail and caption by hand."
+    - **Once a winner is picked,** a version that lost reads only its own fields, never the winner's (now on the card) as its own. Its field line is hidden.
+    - **The effective fields of every letter** are tested before the pick, after it and after Undo.
+  - **Where versions and cards differ (on purpose, the supervisor's ruling):** editing an approved card's caption or thumbnail leaves its status as it is. On a card only a tweak note moves a status (190 `_calApplyAutoStatus`). On a version, the same edit restarts it through the SMM.
+  - **A winner copy that did not save stops the pick** (Codex P2 on #2539, fixed): today's card save reports a failure on the card instead of throwing, so the page reads `_saveError` back. On a failure nothing is picked, the card's fields and video link go back, and the page says so.
+  - **Never writes the card:** `trial-reels` still writes no row of `calendar_posts`. Copying onto the card is the page's job, through `calendar-card-write` and its `updated_at` check.
+- **Proof:**
+  - `test/trial-version-fields-logic.js` (36 checks; on main `effectiveFields is not a function`).
+  - `test/trial-version-fields-browser.js` (40 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` unchanged and passing.
+- **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.
+
+
+## 659. [2026-11-03 UTC, LIVE (merged #2549 as 9e233cf; dispatched, run 41563650679 green)] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
+- **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
+  - **Refused first, read-only, and nothing is written:**
+    - any client but the test client (compared by SHA-256, so no slug is in the repository);
+    - a card that is not that client's;
+    - a Posted card (a staff call starts its trial);
+    - a card with a Production video or graphic sub-issue, or any row in `production_deliverables_browser_v1` (so the status sync and the drift robot never see these writes; entry 373);
+    - a card whose switch is off, or with no such version;
+    - a card whose first staff read healed a version link;
+    - a walk V1's own rules would refuse. The script runs `logic.mjs` `versionStatusPatches` from the checkout over the card's state from that read, for every pick and the put-back (`planWalk`), so an expected refusal such as `status_follows_card` stops the run before it writes. A refusal the live function gives anyway still fails the run.
+  - **The walk:** For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, then back to the word the version started at.
+    - After each pick it reads back the version's `card_status`.
+    - It checks there is exactly one new `trial_status` row with that from, to, `source = trial-reels` and the letter. A pick of the word the version already has must add none.
+    - It checks that `calendar_posts.updated_at` and `video_status` are unchanged.
+  - **Put back, always:** once any pick was sent, the put-back runs in a `finally` and is read back, even when a read fails mid-walk (Codex on #2549).
+  - **Opt-in switch (`switch_for_run`, default off, supervisor 3 Nov):** the card's trial switch is turned on through trial-reels `switch_set`, the page's own call, never SQL. It is refused when the switch is already on. The walk runs, then the switch is turned off again in a `finally` step, even after a failure. The run reads back that it ended off, and that neither flip added or removed a version (no `trial_version_add`, `drop`, `restore` or `versions_import` row). It prints `switch_ended_off`.
+  - **Put back:** the version returns to its starting word. Exact OK times and a client pass are not restored, because a pick sets them by its own rules. A Tweaks Needed note is not restored either.
+  - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
+- **Proof:** `test/trial-version-status-live-check.js` (40 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, the put-back after a read that fails mid-walk, and the opt-in switch: on and off, refused when already on, a seeding switch-on, and a switch that will not turn off, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
+- **Live result (3 Nov, run 41563650679):** 5 of 5 steps passed, the put-back read back, the switch went on with 0 versions seeded and ended off with 0 removed. See entry 656.
+- **Way back:** delete the workflow. It runs only by hand.
+
+## 678. [2026-11-03 UTC, BUILT, NOT MERGED] The Edge Functions merge lane held a function because of a rollback file, after its migration was already applied (SyncView supervisor)
+
+- **What happened:** F3 (#2533) added `migrations/2026-11-02-client-postforme-accounts.sql`, which carries the cope marker, and its `.ROLLBACK.sql`, which does not. The lane's planner counts every added `.sql` under `migrations/` as a migration, so the unmarked rollback file held `client-profile-write`. The migration had been applied live at once, but the function stayed at its old version for about 1 h 40 min. The red merge run was easy to miss: the lane counts from the last fully green run, so the next merge (V1, #2535) went red for the same hold.
+- **Released by hand** at 01:40 UTC with the merge lane (`commit_sha` = main's tip, `migrations_applied` = true), after reading back the migration's applied-when probe (true).
+- **Fix:** `scripts/ef-auto-deploy-plan.js` leaves `*.ROLLBACK.sql` out of the migrations a merge adds. A rollback file is applied only to undo its migration, never forward, so it never holds a function. An unmarked forward migration still holds exactly as before.
+- **Proof, failing first:** two new cases in `test/ef-auto-deploy.js`. A cope-marked migration plus its rollback deploys; an unmarked migration plus its rollback still holds, and the reason names the migration, not the rollback. On main both fail. With the fix the whole suite passes. Re-planning the window from the last green run to main's tip now gives `client-profile-write: deploy` and `trial-reels: deploy`, with no hold.
+- **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
+- **Way back:** revert the PR.
+
+## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+
+- **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
+- **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - after the list is sorted and cut to 50, each kept row without a length gets the file's metadata "Duration", the same read the video part makes;
+  - it runs 5 at a time, one call per kept row at most, and none for rows that were cut;
+  - a metadata call that fails, is refused (429) or runs out of the function's time leaves that row's length `null`. It never fails the list;
+  - a length already on the listing is used as is, with no metadata call;
+  - the answer shape is unchanged.
+- **Live check (`scripts/frameio-list-live-check.js`):** also prints `video_has_duration`, whether the listed video's own lookup has a length, beside `rows_with_duration`. The next dispatch settles both.
+- **Proof:**
+  - `test/frameio-view-source.js` has a mock that matches the live shape: no `duration` on listed files, the length only in the metadata, and one metadata call answering 500 and another 429. On main, 0 rows get a length. Now 4 of 6 do, the two failed rows stay `null`, and the list still answers.
+  - A 60-video folder makes exactly 50 metadata calls.
+  - A listing that already carries lengths makes none.
+  - 167 checks pass; every earlier check is unchanged.
+  - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
+- **Way back:** revert the PR. Rows go back to a `null` length.
+
+## 649. [2026-11-02 UTC, LIVE 2026-11-03] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
+
+- **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
+- **Now:**
+  - **New function `post-source`** (`index.ts` wires; `handler.mjs` holds the whole flow and runs under Node). POST `{ client, post_id, letter?, side? }` with a staff role key.
+  - **The link is read on the server**, never taken from the request: from `calendar_posts.asset_url` (matched on client and id, so another client's card is not found), or from `studio_trial_versions.frame_url` for letters B to G (A is the card). A letter with two rows uses the one trial-reels shows (`oneRowPerLetter`: earliest, then smallest id; Codex P1 on #2543).
+  - **Frame is read through frameio-view's own lookup with `strict`:** a folder link is refused (`folder_link`) and a missing file too (`file_not_in_share`). There is no Frame code of its own (plan, settled row 3).
+  - **Which file (D2), `pickPostRendition`:**
+    - the Original, when Frame says `media_type` is `video/mp4` AND its video codec names H.264/AVC;
+    - else the full-size H.264 proxy (`high_quality`), else the small one (`efficient`), so never a smaller proxy while a bigger one exists;
+    - facts Frame did not give never pick the Original;
+    - a 403 on the Original falls to the largest proxy, and the answer says so (`fell_back_from_original`);
+    - no H.264 copy at all is refused (`no_h264_copy`).
+  - **The copy:** Frame's response body is streamed straight into one Post for Me upload address (`duplex: "half"`, Content-Length from Frame). It is never buffered.
+  - **Refusals:** over 287 MB is refused before any upload (both sides, until P1 measures Instagram). A failed upload says "Download it from Frame and drop the file on the Post tab instead". The client must be in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (currently "*").
+  - **Writes no table, creates no post.** A signed Frame address is never returned, stored or logged.
+- **frameio-view (shared logic, also redeploys higgsfield-mcp):** the staff `video` answer now also carries the upload's `media_type`, video `codec`, `width` and `height`, read from the file and the metadata Frame already returns. The field names are not measured yet: a codec is any metadata field named "... Codec" other than the audio one, and a size is "Width"/"Height" with or without "Video ". The client's answer is unchanged. The live check confirms which fields Frame really sends.
+- **Live check (by hand, after merge):** `.github/workflows/post-source-live-check.yml` copies one test-client card. It uses the `ROBOT_ROLE_KEY_SMM` repository secret, never printed. It is storage only, with no post (D6). It prints only which file went, size, shape, length and copy time, and whether the storage address answers with the same size (`scripts/post-source-live-check.js`, `safeSummary`). Those numbers decide route (a), streaming, against (b) and (c) in posting.md. Not built unless (a) fails: route (b), and the thumbnail copy (P1).
+  - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
+  - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
+- **Way back:** revert the PR. Nothing calls the function yet.
+- **Live (2026-11-03, merged as #2543, merge lane run 41572842991; live check run 41573085174, one test-client card, no letter, Instagram side):** `ok`, rendition `original` (no fallback), 28,291,416 bytes, 57.28 s long, copied in 4,875 ms (5,628 ms wall). The storage address answered 206 `video/mp4` with the same byte count. So route (a), the streamed copy, works; routes (b) and (c) are not needed for a file this size. Width and height came back empty: Frame gives the size under another field name, which P1a (650) reads and measures. No post was created.
+
+## 650. [2026-11-03 UTC, LIVE 2026-11-03] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
+
+- **Asked:** plan row P1 ("thumbnail copied server side"), split with the supervisor into P1a (server) and P1b (the page, behind `post_sources_v1`). Also the supervisor, 3 Nov: F4's live check (649) answered `width` and `height` empty.
+- **Now (`supabase/functions/post-source/handler.mjs`):**
+  - after the video, the card's thumbnail goes into its own Post for Me address, and the answer carries `thumb_url`. The thumbnail is read from `calendar_posts.thumbnail_url` on the server, never from the request;
+  - which thumbnails are fetched (`thumbSource`):
+    - a Drive file, from Google's image host at 1080 wide (the host the Calendar uses);
+    - otherwise only a direct https link to a .jpg, .jpeg or .png;
+    - never http, a bare IP, localhost, a port, or a redirect;
+  - it must come back as a JPEG or PNG of at most 8 MB (Instagram's cover limits);
+  - a thumbnail that cannot be used never fails the video. `thumb_url` is then null and `thumb_note` says why in plain words. A failed video copy copies no thumbnail;
+  - a trial version has no thumbnail of its own until V3, so none is read for one.
+- **frameio-view `videoFacts` (shared, so frameio-view and higgsfield-mcp redeploy):**
+  - the size is also read from one "W x H" field (Resolution, Dimensions, Frame Size), from any field ending in Width or Height, and from values with a unit ("1080 px");
+  - the staff answer lists Frame's metadata field **names** (`metadata_fields`, never values). The client answer is unchanged.
+- **The live check** (`scripts/post-source-live-check.js`) also prints `thumb_copied` (true or false, never the address) and `metadata_fields`. The next run shows the field name Frame really uses for the size.
+- **Proof, failing first:**
+  - `test/post-source-logic.js`: 29 checks, 7 new:
+    - a Drive thumbnail is copied as a JPEG;
+    - a direct PNG is copied as a PNG;
+    - eleven thumbnails that cannot be used (too big, WebP, 404, network error, none, http, IP, localhost, IPv6, a Frame link, YouTube) leave the video copied, reach no storage address and say why;
+    - a refused thumbnail upload;
+    - a version gets no thumbnail;
+    - a failed video copy copies no thumbnail;
+    - the field names pass through to the live line.
+    On main the first new case fails (no thumbnail is fetched).
+  - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
+- **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).
+- **Live (2026-11-03, merged as #2554; merge lane green):** two runs of `post-source-live-check.yml`, both storage only, no post:
+  - **Run 41575393444, a test-client card with no thumbnail:** 200, the Original, 28.3 MB, 1080×1920, 57.3 s, `thumb_copied` false. That is right: the card's `thumbnail_url` reads back empty.
+  - **A test-client card with a Drive thumbnail:** 200, the Original, 18.2 MB, 1080×1920, 45.1 s, `thumb_copied` true. The stored file is `video/mp4` with the same size.
+  - **Frame's real metadata field names:** "Resolution - Width" and "Resolution - Height" for the size (read by the any-field-ending-in-Width/Height rule), "Duration", and "Video Codec".
+- **Follow-up (2026-11-03, after #2554 merged; supervisor and Codex P2 on #2554):** the thumbnail is now read piece by piece and stopped as soon as it passes 8 MB, so a server that states no size, or a wrong one, cannot make the function hold more. Redirects were already refused (`redirect: "error"`), so a redirect to a private or link-local address cannot be followed. Proof: a new case in `test/post-source-logic.js` (30 checks). A headerless 12 MB thumbnail is stopped after at most 9 MB read, with the video still copied and "over 8 MB" said; a headerless 3 MB one is still copied. It fails on main (main only reads the whole body at once).
+
+
+## 652. [2026-11-03 UTC, BUILT, NOT MERGED] instagram-upload posts to YouTube and LinkedIn too, in the same one post (plan row P3, server half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The supervisor, 3 Nov: start the server half now; the page half waits for P1b.
+- **Now (`supabase/functions/instagram-upload/logic.mjs` and `index.ts`):**
+  - **`create` takes:**
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }`;
+    - `linkedin: { accountId }`;
+    - `instagram: false`.
+    Every ticked account goes in the same one Post for Me post. YouTube is sent its title, `privacy_status: public` and `made_for_kids`; LinkedIn gets nothing extra.
+  - **Made for kids comes from the client's profile only** (`extra.youtube_made_for_kids === true`, F3), set by `applyProfileSettings` after the profile is read. The page cannot set it.
+  - **Account checks (`checkNetworkAccounts`):** every YouTube or LinkedIn account, and the first network's when Instagram is unticked, must be the one on the profile and on that network according to Post for Me. This runs before the row is written or the post is created. The Instagram and Facebook checks are unchanged.
+  - **Short or regular:** a Short is refused when the file is known to be over 3 minutes ("this video is 4:00. Post it as a regular video.") or not vertical. An unknown length or shape is left to YouTube.
+  - **Limits:**
+    - YouTube title 1 to 100 characters, no `<` or `>`;
+    - caption 2,200 characters for every network, because `instagram_uploads.title` holds 2,200 (no migration; Codex P2 on #2557), and 5,000 bytes with YouTube;
+    - a trial and a carousel stay Instagram's;
+    - one account per network.
+  - **Queue row:**
+    - `options.network` names the row's own network when Instagram is not ticked (absent = Instagram, so every earlier row reads as before);
+    - `options.networks.{youtube,linkedin}` keep each one's own status, link and error, read from Post for Me's per-account results;
+    - a failed create, a cancel, the queue's group and the status poll cover every part;
+    - `publicRow` shows `network`, `networks` and the YouTube title and format, never an account id.
+- **No migration** (JSON columns, as Facebook). No new secret.
+- **Proof:**
+  - `test/instagram-networks.js` (new, unit, 66 checks):
+    - one post with three accounts;
+    - Instagram unticked (YouTube first, Facebook first, nothing ticked refused);
+    - a 4-minute vertical file refused as a Short and accepted as regular;
+    - horizontal refused as a Short;
+    - title and caption limits;
+    - trial and carousel kept Instagram's;
+    - a duplicate account;
+    - made for kids from the profile only;
+    - wrong account (403), no account (409), wrong platform (400), unknown id, Post for Me down;
+    - the handler checking before `.insert(row)` and before the create;
+    - the same key returning the same post;
+    - results per network;
+    - a cancel covering every network;
+    - no account id to the page.
+    On main it fails (`applyProfileSettings` is not there).
+  - Every existing Instagram and Facebook suite passes unchanged: `instagram-upload-source` (139), `instagram-facebook-crosspost` (79).
+  - Codex P2 on #2557, fixed: a YouTube-, LinkedIn- or Facebook-only post answered "processed" now waits for its own result instead of being marked posted.
+- **Live check (D6), after merge:** on one of the owner's clients with YouTube and LinkedIn connected, schedule 7+ days ahead through Post for Me's `scheduled_at`, cancel at once, read back gone. The page half and its live check follow P1b.
+- **Way back:** revert the PR. Rows already written keep reading as Instagram.
+
+## 674. [2026-11-02 UTC, BUILT, NOT MERGED] A CI run's Firefox reports reached the live diagnostics log, counted as a person's (session Reviewguard)
+
+- **Seen (read-only, live):** between 19:22 and 21:29 UTC on 2 Nov, 10 reports with traffic `person`, all surface calendar, board client, operation status, code `landed_after_retry`, all on card `rs1` (the review-stage fixture's card, not a real one), all Firefox on Linux, `app_version` equal to the CI build's minute, about one per CI run. No Chromium or WebKit run leaked.
+- **Source:** the shared review-stage fixture (`test/fixtures/review-stage-fixture.js`), in its Firefox runs. Those are `test/repair-checkpoint-browser.js` (its client-link note, change and approve cases) and `test/review-stage-gauntlet3-browser.js`. The landing report (OPEN_REPAIRS 639, so only since #2519) is sent as the save finishes, right before the test closes its context. The report goes with `keepalive`, so a request still on its way can outlive the page. In these Firefox runs it reached the real write-diagnostics past the fixture's route, which answers every `/functions/v1/` call. A refusal sent mid-test was always caught. This is inferred from the rows and the code; Firefox is not installed in the sandbox where this was built.
+- **Why "person":** the server's traffic check reads the user agent, and headless Firefox's looks like a person's (Chrome's says HeadlessChrome).
+  - **The page says when a test robot drives it** (120 `_writeRefusalBeacon`): `automation: true` when `navigator.webdriver` is true, as it is in every Playwright and Selenium browser and never in a person's. write-diagnostics then records the report as automation, whatever the user agent. The check is in write-diagnostics' own code; the shared `requestTraffic` (production-write imports it) is unchanged. The flag can only mark a report as automation, never hide a person's.
+  - **The fixture sends diagnostics reports as plain requests** (no keepalive, counted in `window.__svDiagKeepaliveDropped`), so its route answers them and they die with the page.
+- **Telling the 10 rows apart (read-only advice, nothing deleted):** once this is live, a test run's report is traffic `automation`, which the daily read already leaves out and the signature read lists apart. The 10 rows already stored are card_ref `rs1` from firefox/linux; no real card has that id. A watcher can leave them out with `card_ref <> 'rs1'`, or by their attempt ids. The 30-day retention removes them on its own.
+  - `test/diagnostics-test-traffic-browser.js` (new, on the review-stage fixture, Chromium): a robot-driven page's report carries the flag, the fixture sends it without keepalive, and a page with `navigator.webdriver` false sends no flag. On main it fails: the report has no flag.
+  - `test/linear-exit-write-diagnostics-handlers.js`: a Firefox user agent with the flag is automation, without it a person, and only `true` counts. On main it fails ("a robot-driven page is automation").
+  - The client-requests golden's two diagnostics reports gained `automation: true` (added by hand; the requests and every source hash are unchanged).
+  - Unchanged and passing on the fixture: `test/review-board-gauntlet-browser.js`, `test/review-stage-save-browser.js`, `test/review-stage-browser.js`, `test/client-calendar-read-only-browser.js`, `test/first-paint-theme-browser.js`.
+
+## 676. [2026-11-03 UTC, OPEN, cause NOT found yet] The trial-reels "client after the pick" check missed twice in CI: no trial drawn on the client's review page (session Reviewguard)
+
+- **Seen:** `test/trial-reels-review-browser.js`, the winner case, failed 2 of 75 checks in CI twice on 2 Nov: on #2542's head 45af5056 (23:22 UTC) and on #2527's head dd88b902 (00:22 UTC, `entry-links-boot (3)`). Both times the bar read "" and the "Trial" count read x0: about 6.5 s after the review was ready (the case's own 1.5 s plus its 5 s wait), the page drew no trial at all. It also failed once in 6 locally on main 566de010 (3 runs at once beside 3 more). Neither PR touches trial reels.
+- **Ruled out (on main, locally):**
+  - **A slow trial read:** the list read held back 3 s gives the plain card, then the bar once the 2 s hold ends, and it stays right. A slow line never leaves the page wrong.
+  - **A slow page:** at a 4x and 8x CPU throttle, the read fires before the stage draws and the bar is right from the first look.
+  - **194's load-order trap** (its boot read reads `_isClientLink` from a timer, like the Calendar's in 639): under throttling it still started on time.
+  - **Shared state between cases:** the fixture builds fresh cards for every open, and every case has its own context.
+  - **Load alone:** 20 more runs, 4 and then 6 at once, all passed.
+- **Lead, not a cause:** switching trial reels off for this client reproduces the exact symptom ("" and x0, no list read at all). So the CI misses fit a page that took the switch as off, or not yet answered, when the stage drew. This is unproven.
+- **Now (test only, diagnostics):** the check's own wait no longer swallows its error silently. On a miss, and only then, the test prints one `TRV_TRACE` line from the fixture's fictional page:
+  - when the stage was ready, and when each list read reached the fake server;
+  - the fake server's switch reads;
+  - the page's trial-read state (started, arrived, failed, in flight, the cards it holds);
+  - whether the switch says trial reels is on for this client;
+  - the stage's visible text, and the wait's own error.
+
+  Pass/fail and every wait are unchanged.
+- **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
+- **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.

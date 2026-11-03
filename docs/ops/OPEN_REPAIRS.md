@@ -36856,3 +36856,29 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 688. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: the review boards show a version's own three parts once, as "Version A, B, C" tabs (part 1 of 3: the review boards)
+
+- **Seen:** Sidney picked option B from the three version-tab samples (the realistic ones were built on the real app, read only). He asked for three changes:
+  - "Version A / B / C", never "Video A";
+  - a clear "Trial" label on the review boards;
+  - Kasper should not see the caption twice: "shouldn't he see 3 components for each version?"
+- **Why the caption showed twice:** under the version switch, V4's "Video B's thumbnail and caption" block showed B's own thumbnail and caption. Below it, the stage's Thumbnail and Caption parts still drew the card's, which belong to Version A. The client link and the SMM tab did the same.
+- **Fix, behind `trial_versions_v2` (test client only), on the client link, the SMM's Review tab and Kasper's Review Session:**
+  - The versions are one segmented control, "Version A, B, C", in place of the dots and of Kasper's tiles. Each segment is coloured by where that version stands for this reviewer (approved, change asked, or waiting at this stage). A phone shows the letters only.
+  - The stage's own Video, Thumbnail and Caption parts show the selected version's player, thumbnail and caption (its own, else the card's), each once. The separate block is gone, and no card caption sits beside a version's. The player's still image is the version's thumbnail too.
+  - Each part keeps its own state and actions:
+    - one "Approve Version B" on the video covers the version's parts, as V4 decided;
+    - the Thumbnail and Caption parts each have their own Ask for a change, which goes on that version with its part ("Version C, thumbnail: …");
+    - an answered version reads "Version B approved" or "Change asked on Version C's thumbnail" on each part.
+    - A version has one status in trial-reels, so a per-part approve inside a version would need a migration; it is not built.
+  - Kasper sees the selected version's own Approve, change and drop beside the control, and Approve all.
+  - A trial card carries a quiet "Trial" chip on the client's and SMM's strip and on Kasper's list.
+  - A version that is not the one on the card shows its caption but does not edit it on the stage. The version on the card edits as before.
+  - Change notes are named "Version C: …" with the switch on. Every reader of those names accepts both "Video" and "Version".
+- **Proof:** `test/trial-version-review-parts-browser.js` rewritten for 688, 40 checks. On main, 15 of 37 fail. It covers:
+  - the client link: the control, the parts per version, the caption shown once, the chip, a thumbnail change on its part, a Drive thumbnail, and a broken one that hides;
+  - the SMM tab, Kasper's second layout, and the phone at 390;
+  - the switch off, where the page is today's word for word.
+- **Not in this part:** the Calendar card's tabs (part 2), and the remaining "Version" wording on the card, in Production, in the Post tab and in trial-reels' own notes (part 3).
+- **Way back:** revert the PR, or take the client off `trial_versions_v2`.

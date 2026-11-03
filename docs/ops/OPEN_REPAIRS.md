@@ -36568,6 +36568,20 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 
+## 653. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages say the account links itself once it is connected in Post for Me (follow-up to N1, 646; session Pbuild)
+
+- **Asked:** the supervisor, 3 Nov, after L1 went live at 10:41 UTC: a client's Post for Me accounts now link themselves every hour on an exact, unique handle match, so the "no account" messages no longer need someone to paste an id.
+- **Now (299, 300, 099):** every "no account" message on the Post tab reads "No [TikTok / Instagram] account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney."
+  - It covers TikTok's account line and its refusal, and Instagram's account line and refusal.
+  - **Facebook is different** (Codex P2 on #2563): the linker matches on a saved handle, and a Facebook Page has none (`_shared/postforme-accounts.mjs` sends it to `needs_person`). So the Facebook box says "No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client's profile: a Page does not link itself." LinkedIn is the same, for P3b.
+  - The phone's shorter line says "Connect it in Post for Me: it links itself here within the hour."
+  - N1's **Open Post for Me** link stays beside each one.
+  - Page only; no server change.
+  - `test/postforme-link-browser.js` and `test/instagram-platform-switch-browser.js` now expect the new words. On main they fail ("TikTok: connect it in Post for Me, it links itself"; "the flag says to connect it in Post for Me"). Here every wording check passes.
+  - `postforme-link-browser` checks the Facebook wording too. `instagram-facebook-browser` (38) and `instagram-facebook-crosspost` (79) pass with the Facebook line.
+  - `upload-schedule-zone-and-queue-guards` now checks that TikTok's refusal names Post for Me and "links itself", and still never the sheet.
+  - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
+
 ## 660. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V2 and V3: one live check of a version's own thumbnail and caption and of Import from Frame, as the robot SMM key
 
 - **Asked:** the supervisor, 3 Nov, after V3 (#2539) and V2 (#2545) merged. Run one test-client walk covering both: set a version's caption and thumbnail, import from a Frame share, and read both back. Build it as a workflow like 659's.

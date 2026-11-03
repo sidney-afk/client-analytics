@@ -66,8 +66,10 @@ const HALF_HOUR = 30 * 60000;
   // 4. the missing-account sentence
   tkState.profile = null;
   const missing = String(validate());
-  ok(/Clients/.test(missing) && /Post for Me/i.test(missing) && !/Clients Info sheet/.test(missing),
-    'TikTok: a missing account points at the Clients tab, not at the sheet');
+  // Since L1 (OPEN_REPAIRS 653) the account links itself once connected in Post for Me: the refusal says so, and
+  // never sends anyone to the sheet.
+  ok(/Post for Me/i.test(missing) && /links itself/.test(missing) && !/Clients Info sheet/.test(missing),
+    'TikTok: a missing account says to connect it in Post for Me, where it links itself, not to use the sheet');
 }
 
 // --- 1. Instagram ----------------------------------------------------------------

@@ -36158,3 +36158,24 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` is unchanged and passes.
 - **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+
+## 676. [2026-11-03 UTC, OPEN, cause NOT found yet] The trial-reels "client after the pick" check missed twice in CI: no trial drawn on the client's review page (session Reviewguard)
+
+- **Seen:** `test/trial-reels-review-browser.js`, the winner case, failed 2 of 75 checks in CI twice on 2 Nov: on #2542's head 45af5056 (23:22 UTC) and on #2527's head dd88b902 (00:22 UTC, `entry-links-boot (3)`). Both times the bar read "" and the "Trial" count read x0: about 6.5 s after the review was ready (the case's own 1.5 s plus its 5 s wait), the page drew no trial at all. It also failed once in 6 locally on main 566de010 (3 runs at once beside 3 more). Neither PR touches trial reels.
+- **Ruled out (on main, locally):**
+  - **A slow trial read:** the list read held back 3 s gives the plain card, then the bar once the 2 s hold ends, and it stays right. A slow line never leaves the page wrong.
+  - **A slow page:** at a 4x and 8x CPU throttle, the read fires before the stage draws and the bar is right from the first look.
+  - **194's load-order trap** (its boot read reads `_isClientLink` from a timer, like the Calendar's in 639): under throttling it still started on time.
+  - **Shared state between cases:** the fixture builds fresh cards for every open, and every case has its own context.
+  - **Load alone:** 20 more runs, 4 and then 6 at once, all passed.
+- **Lead, not a cause:** switching trial reels off for this client reproduces the exact symptom ("" and x0, no list read at all). So the CI misses fit a page that took the switch as off, or not yet answered, when the stage drew. This is unproven.
+- **Now (test only, diagnostics):** the check's own wait no longer swallows its error silently. On a miss, and only then, the test prints one `TRV_TRACE` line from the fixture's fictional page:
+  - when the stage was ready, and when each list read reached the fake server;
+  - the fake server's switch reads;
+  - the page's trial-read state (started, arrived, failed, in flight, the cards it holds);
+  - whether the switch says trial reels is on for this client;
+  - the stage's visible text, and the wait's own error.
+
+  Pass/fail and every wait are unchanged.
+- **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
+- **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.

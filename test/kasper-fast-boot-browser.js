@@ -62,6 +62,22 @@ async function again(t, origin, delays) {
   // caughtUp: records whether the review page ever said "All caught up" (the empty queue). The fixture always has cards
   // waiting, so that page is only ever the empty answer of a read that has not landed (OPEN_REPAIRS 635). A mutation
   // observer on the page's shadow root sees every change, however briefly it is on screen.
+  // askAt: what was on screen when the first card's video address was asked for (OPEN_REPAIRS 683). Read inside the
+  // fetch call itself, so it is the page's own order of events, not two page loads' clocks compared: the stage's
+  // player asks from inside its own mount (the review page already on screen), the fast boot's warm-up asks while the
+  // list is still being drawn (the review page not there yet).
+  if (delays && delays.askAt) await t.page.addInitScript(() => {
+    const of = window.fetch;
+    window.fetch = function (u) {
+      try {
+        if (!window.__askAt && /frameio-view/.test(String((u && u.url) || u))) {
+          const h = document.getElementById('svReviewStage'), r = h && h.shadowRoot;
+          window.__askAt = { stageOnScreen: !!(h && !h.hidden && r && r.querySelector('.pn, #stepper > *')), player: !!(r && r.querySelector('.fv-player, video')) };
+        }
+      } catch (e) {}
+      return of.apply(this, arguments);
+    };
+  });
   if (delays && delays.caughtUp) await t.page.addInitScript(() => {
     window.__caughtUp = false;
     const seen = r => { if (!window.__caughtUp && /All caught up/.test(r.textContent || '') && r.querySelector('.rc-card')) window.__caughtUp = true; };
@@ -113,7 +129,7 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await boot(t, origin);
       await stageUp(t.page);
       await sleep(1500);
-      await again(t, origin, { flags: 600, posts: 1500, noCache: true, caughtUp: true });
+      await again(t, origin, { flags: 600, posts: 1500, noCache: true, caughtUp: true, askAt: true });
       await stageUp(t.page);
       await sleep(1200);
       // The tab's mount starts two overlapping reads; the older one, discarded, ended the newer one's loading, so the
@@ -127,6 +143,10 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
         video: first(t.state, /frameio-view/) - posts,
       };
       console.log('     ms after the list was asked for: review page code ' + timing[label].code + ', player switch ' + timing[label].frameFlag + ', first video address ' + timing[label].video);
+      const askAt = await t.page.evaluate(() => window.__askAt || null);
+      console.log('     on screen when the first video address was asked for: ' + JSON.stringify(askAt));
+      if (label === 'on') expect(!!askAt && askAt.stageOnScreen === false && askAt.player === false, 'on: the first card\'s video address is asked for while the list is still being drawn, before the review page and its player are on screen (' + JSON.stringify(askAt) + ')');
+      else expect(!!askAt && askAt.stageOnScreen === true && askAt.player === true, 'off (control): the first card\'s video address is asked for by the player, once the review page is on screen (' + JSON.stringify(askAt) + ')');
       if (label === 'on') {
         expect(timing.on.code <= 100, 'on: the review page\'s code is requested at page start, before the list is asked for (' + timing.on.code + ' ms)');
         expect(timing.on.frameFlag < 1000 && timing.off.frameFlag > 1500, 'on: the player\'s switch is read at page start, not when the first card paints (' + timing.on.frameFlag + ' ms vs ' + timing.off.frameFlag + ' ms)');
@@ -136,7 +156,6 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
-    expect(timing.on.video < timing.off.video - 300, 'the first card\'s video address is asked for sooner with the flag on (' + timing.on.video + ' ms vs ' + timing.off.video + ' ms after the list was asked for)');
 
     // ---------- a second visit: a loader, not the old page first ----------
     for (const [label, opt, wantOld] of [['flag off', {}, true], ['flag on', { fast: true }, false], ['flag on, review page switch off for this person', { fast: true, noKasperStage: true }, true]]) {

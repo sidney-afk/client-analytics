@@ -5,7 +5,9 @@
 //      https://www.postforme.dev that opens in a new tab with rel="noopener": TikTok's account line and its
 //      refusal on submit, Instagram's account line and its refusal on submit, and the Facebook box's reason;
 //   2. for a client with every account on file, no such link appears anywhere on the Post tab;
-//   3. the message wording is unchanged (it changes only with the linking pick list, plan row L1);
+//   3. since L1 (accounts link themselves hourly on a saved handle) the TikTok and Instagram messages say to connect the
+//      account in Post for Me, that it links itself within the hour, and to ask Sidney if it does not; a Facebook Page has
+//      no handle to match, so its message says to connect it and ask Sidney to link it (OPEN_REPAIRS 653);
 //   4. on a phone, where the account line is reworded shorter, the link stays beside it on both sides.
 // Every backend answer is local and nothing is ever posted: the page is never let past its own refusal.
 const assert = require('assert/strict');
@@ -89,12 +91,12 @@ function assertOneLink(found, where) {
       await page.press('#tkClientInput', 'Enter');
       await page.waitForSelector('#tkFormCol .tk-profile-line .tk-warn-chip');
       assertOneLink(await linksIn(page, '#tkFormCol .tk-profile-line'), 'TikTok account line'); checks++;
-      assert.match(await textOf(page, '#tkFormCol .tk-profile-line'), /Ask an admin to add this client's Post For Me Connection ID/, 'TikTok wording unchanged'); checks++;
+      assert.match(await textOf(page, '#tkFormCol .tk-profile-line'), /No TikTok account linked to this client yet\. Connect it in Post for Me: it links itself here within the hour\. If it still isn't here after that, ask Sidney\./, 'TikTok: connect it in Post for Me, it links itself'); checks++;
       // TikTok: the refusal a submit gives (the button is off, so the press is made the way a draft restore reaches it).
       await page.evaluate(() => _tkSubmit());
       await page.waitForSelector('#tkFormCol .tk-error');
       assertOneLink(await linksIn(page, '#tkFormCol .tk-error'), 'TikTok refusal'); checks++;
-      assert.match(await textOf(page, '#tkFormCol .tk-error'), /This client has no Post For Me account yet/, 'TikTok refusal wording unchanged'); checks++;
+      assert.match(await textOf(page, '#tkFormCol .tk-error'), /No TikTok account linked to this client yet\. Connect it in Post for Me: it links itself here within the hour\. If it still isn't here after that, ask Sidney\./, 'TikTok refusal: the same words'); checks++;
 
       // Instagram: the account line, the Facebook reason, the refusal.
       await page.click('#tkPlatInstagram');
@@ -102,9 +104,9 @@ function assertOneLink(found, where) {
       if (!(await page.locator('#igFormCol .tk-profile-line').count())) await pickSv(page, 'igClient', TEST_CLIENT);
       await page.waitForSelector('#igFormCol .tk-profile-line .tk-warn-chip');
       assertOneLink(await linksIn(page, '#igFormCol .tk-profile-line'), 'Instagram account line'); checks++;
-      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /No Instagram account on file for this client yet/, 'Instagram wording unchanged'); checks++;
+      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /No Instagram account linked to this client yet\. Connect it in Post for Me: it links itself here within the hour\. If it still isn't here after that, ask Sidney\./, 'Instagram: connect it in Post for Me, it links itself'); checks++;
       assertOneLink(await linksIn(page, '#igFacebookNote'), 'Facebook reason'); checks++;
-      assert.match(await textOf(page, '#igFacebookNote'), /No Facebook Page connected for this client/, 'Facebook wording unchanged'); checks++;
+      assert.match(await textOf(page, '#igFacebookNote'), /No Facebook Page linked to this client yet\. Connect it in Post for Me, then ask Sidney to link it to the client's profile: a Page does not link itself\./, 'Facebook: a Page has no handle, so it needs a person (Codex P2 on #2563)'); checks++;
       await page.evaluate(() => _igSubmit());
       await page.waitForSelector('#igFormCol .tk-error');
       assertOneLink(await linksIn(page, '#igFormCol .tk-error'), 'Instagram refusal'); checks++;
@@ -146,14 +148,14 @@ function assertOneLink(found, where) {
       await page.fill('#tkClientInput', TEST_CLIENT);
       await page.press('#tkClientInput', 'Enter');
       await page.waitForSelector('#tkFormCol .tk-profile-line .tk-warn-chip');
-      await page.waitForFunction(() => document.documentElement.classList.contains('fph-on') && /connect this client in Clients/.test(document.querySelector('#tkFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
+      await page.waitForFunction(() => document.documentElement.classList.contains('fph-on') && /Connect it in Post for Me: it links itself here within the hour\./.test(document.querySelector('#tkFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
       assertOneLink(await linksIn(page, '#tkFormCol .tk-profile-line'), 'phone, TikTok account line'); checks++;
       await page.click('#tkPlatInstagram');
       await page.waitForSelector('#igFormCol:not([hidden])');
       if (!(await page.locator('#igFormCol .tk-profile-line').count())) await pickSv(page, 'igClient', TEST_CLIENT);
-      await page.waitForFunction(() => /connect this client in Clients/.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
+      await page.waitForFunction(() => /Connect it in Post for Me: it links itself here within the hour\./.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
       assertOneLink(await linksIn(page, '#igFormCol .tk-profile-line'), 'phone, Instagram account line'); checks++;
-      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /before uploading\. Open Post for Me$/, 'phone: the link reads after the sentence'); checks++;
+      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /links itself here within the hour\. Open Post for Me$/, 'phone: the link reads after the sentence'); checks++;
       assert.deepEqual(writes, [], 'nothing was ever posted'); checks++;
       assert.deepEqual(errors, [], 'no page errors'); checks++;
       await context.close();

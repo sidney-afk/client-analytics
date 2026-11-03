@@ -1,0 +1,51 @@
+name: trial version status live check (manual)
+
+# The live check for V1 (plan row V1, OPEN_REPAIRS 659): one version of one test-client trial card walked through the
+# card's own status words (For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved) through the live
+# trial-reels function as the robot SMM key, then put back to the word it started at. After each pick it reads back
+# the version's status, its one trial_status history row and that the card row itself was not written.
+# It WRITES, on the test client only, and refuses first, read-only, unless the client is the test client (by hash),
+# the card is not Posted, nothing in Production links to it, and it is a trial card with that version
+# (scripts/trial-version-status-live-check.js). Prints only counts, true/false, refusal codes and the card's status
+# words, never an address, an id, a name or a key. Run by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      client:
+        description: 'The test client slug (given here, never written in the repository; any other client is refused)'
+        required: true
+        type: string
+      card:
+        description: 'A test-client trial card that is not Posted and is not linked to any Production work item'
+        required: true
+        type: string
+      letter:
+        description: 'The version letter to walk (A to G)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trial-version-status-live-check
+  cancel-in-progress: false
+
+jobs:
+  walk-once:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Walk one test-client version through the status picker and report what was read back
+        env:
+          # The SMM role key, a repository secret (as the dawn check and the frameio list live check use). Never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          LIVE_CHECK_CLIENT: ${{ inputs.client }}
+          LIVE_CHECK_CARD: ${{ inputs.card }}
+          LIVE_CHECK_LETTER: ${{ inputs.letter }}
+        run: node scripts/trial-version-status-live-check.js

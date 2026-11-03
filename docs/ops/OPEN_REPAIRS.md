@@ -36158,3 +36158,24 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` is unchanged and passes.
 - **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+
+## 659. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
+- **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
+  - **Refused first, read-only, and nothing is written:**
+    - any client but the test client (compared by SHA-256, so no slug is in the repository);
+    - a card that is not that client's;
+    - a Posted card (a staff call starts its trial);
+    - a card with a Production video or graphic sub-issue, or any row in `production_deliverables_browser_v1` (so the status sync and the drift robot never see these writes; entry 373);
+    - a card whose switch is off, or with no such version;
+    - a card whose first staff read healed a version link.
+  - **The walk:** For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, then back to the word the version started at.
+    - After each pick it reads back the version's `card_status`.
+    - It checks there is exactly one new `trial_status` row with that from, to, `source = trial-reels` and the letter. A pick of the word the version already has must add none.
+    - It checks that `calendar_posts.updated_at` and `video_status` are unchanged.
+  - **Put back:** the version returns to its starting word. Exact OK times and a client pass are not restored, because a pick sets them by its own rules. A Tweaks Needed note is not restored either.
+  - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
+- **Proof:** `test/trial-version-status-live-check.js` (31 checks, offline, fake backend). It covers every refusal before any write, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Live result:** filled in by the supervisor's dispatch.
+- **Way back:** delete the workflow. It runs only by hand.

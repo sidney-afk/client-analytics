@@ -82,6 +82,7 @@
     "trial-reels-logic.js",
     "trial-version-fields-migration.js",
     "trial-version-status-logic.js",
+    "trial-version-status-live-check.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",

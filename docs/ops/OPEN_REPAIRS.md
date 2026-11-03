@@ -36126,6 +36126,34 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
 
+## 658. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V2: import several versions' videos from a Frame folder in one write (plan combined.md row V2; session Vbuild)
+
+- **Asked:** Sidney's item 1: a Frame folder import with a matching step. Built on F1 (#2537), where `frameio-view` gained `part: "list"`.
+- **Before:** every version's link was pasted one at a time.
+- **Now:**
+  - **`trial-reels`:** new action `versions_import` (admin, SMM, editor, like pasting a link). `logic.mjs` `importPlan` decides everything before anything is written:
+    - a new letter becomes a new row;
+    - an existing letter takes the link by today's rules, so a replaced link on an answered version starts it again;
+    - refused: the version on the card (`version_is_card`: it changes from its own row through today's attach), a dropped version, one letter twice, one video twice, a link another version has, a bad link, more than seven, and anything once the trial has started.
+    - The updates go first, because they can be put back. Then every new row goes in one insert. If that insert is refused, the updates are put back. The table has no delete grant, so a row is never inserted and then removed.
+    - One ledger row per version, `trial_versions_import`.
+  - **Page (189, behind `trial_versions_v2`):** "Import from Frame" beside "+ Add version". It opens a sheet on the Calendar import's own dialog.
+    - **Step 1** takes the link and has a Back button.
+    - **Step 2** shows the folder's name and the card's name, then one letter picker per video. Letters are pre-set only from clear file names. The version on the card and still-processing videos are disabled, and one letter never sits on two videos.
+    - Back keeps the link. Cancel writes nothing.
+    - Replacing an answered version asks first.
+    - A refused import writes nothing and says why.
+- **Codex on #2545, fixed:**
+  - **The letter pickers are the house select** (100 `_svSelectHtml`), never a browser-native one (AGENTS.md). The house select also now measures against the box that scrolls around it, not only the window, so its menu is no longer cut off inside a dialog's body. This is a small change to `_svSelectPlace`.
+  - **Import stays on a card whose seven letters are all taken,** because an import can still give existing versions their new cuts.
+  - **The last asked-for new cut** arriving by import sends a Tweaks Needed card back to For SMM Approval (`_trlBackToReview`), as a pasted link does.
+- **Not built (cut by combined.md):** the filter box, paging past 50, and project (non-share) folder links. Frame's own message covers those.
+- **Proof:**
+  - `test/trial-versions-import-logic.js` (21 checks; on main `importPlan is not a function`).
+  - `test/trial-versions-import-browser.js` (50 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
+  - A Deno case in `test/trial-reels-function-deno.ts` (card `pv2`).
+- **Way back:** turn `trial_versions_v2` off (no Import button), or revert the PR.
+
 ## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
 
 - **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.

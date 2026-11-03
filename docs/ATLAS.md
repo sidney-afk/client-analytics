@@ -298,6 +298,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
     - A version that has already been answered starts again with the SMM when its thumbnail or caption changes, as with a new link.
     - A version on trial cannot change.
     - Picking the winner puts its thumbnail and caption on the card along with its video. Undo on that toast puts the card's own back.
+  - **Import from Frame (behind `trial_versions_v2`):** beside "+ Add version". Paste the Frame share link of the folder that holds the versions, then "Show videos".
+    - The next step names the folder and the card, so a wrong folder shows before anything is added.
+    - Give each video a letter, or Skip it. A letter is pre-set only when the file name clearly says one ("_B", "v3").
+    - The version on the card and a video still processing in Frame cannot be picked.
+    - "Add" puts every picked video in at once, all or nothing.
+    - Replacing a version that was already answered asks first; it then goes back to the SMM.
+    - Back returns to the link. Cancel changes nothing.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - **Dropping a version** (Kasper's tile) that was the last one waiting for him moves the card on, as his last approve would.
   - **On the client link,** the video's answer waits a moment ("Loading…", 2 s at most) until the card's versions are read, so an Approve never answers a trial card's whole video.
@@ -956,7 +963,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |

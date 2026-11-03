@@ -22,6 +22,7 @@
     "prod-comment-restored-request-id.js",
     "samples-notes-lifecycle-busy.js",
     "tiktok-create-keeps-key.js",
+    "post-source-logic.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
@@ -80,8 +81,10 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "frameio-list-live-check.js",
     "trial-version-fields-migration.js",
     "trial-version-status-logic.js",
+    "trial-version-status-live-check.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -338,6 +341,7 @@
     "index-split.js",
     "instagram-upload-source.js",
     "instagram-facebook-crosspost.js",
+    "instagram-networks.js",
     "intake-created-status-server-guard.js",
     "intake-not-assigned.js",
     "intake-post-names.js",
@@ -1621,6 +1625,14 @@
       "ci": "representative"
     },
     {
+      "file": "postforme-link-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Open Post for Me link beside every no-account message on the Post tab (TikTok and Instagram account lines and refusals, the Facebook box's reason), new tab and noopener, on desktop and on a phone, and no link when every account is on file.",
+      "reproduce": "node test/postforme-link-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-press-key-reload-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2084,6 +2096,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; the shared staff-Calendar harness (docs/syncview-design/tests/lost-work-lib.js, fictional client, card and staff member), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 639: the content Calendar reports a refused card save with board calendar and its later landing (landed_after_retry), a reload during a card save, a press dropped while the same part is saving, and an uncaught error, ids and the client slug only; failed without the change.",
       "reproduce": "node test/calendar-reports-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "diagnostics-test-traffic-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared review-stage fixture (test/fixtures/review-stage-fixture.js, fictional client and cards), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 674: a diagnostics report from a page a test robot drives says so (navigator.webdriver), so the server counts it as automation whatever its user agent; under the fixture the report is a plain request that dies with the page; a person's report is unchanged. Failed on main.",
+      "reproduce": "node test/diagnostics-test-traffic-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

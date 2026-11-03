@@ -135,7 +135,11 @@ deploys nothing.
 
 A merge that **adds** a file under `migrations/` or `supabase/migrations/` holds
 every function it changed, because a function must not go live before the
-column or table it needs. Two lines near the top of a migration file change that:
+column or table it needs. A `*.ROLLBACK.sql` file is not a migration for this
+rule: it ships beside the migration it undoes and is never applied forward, so
+it holds nothing (OPEN_REPAIRS 678, 3 Nov 2026; before that, an unmarked rollback file
+held `client-profile-write` after its migration was live). Two lines near the
+top of a migration file change that:
 
 - `-- ef-auto-deploy: functions-cope-without-this` says the functions in this
   merge work without it (for example a new index, or a column the code checks

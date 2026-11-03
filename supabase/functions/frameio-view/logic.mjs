@@ -243,9 +243,9 @@ async function resolveView(ctx, accounts, link) {
 
 // ---------------------------------------------------------------- part "list": the videos a link points at
 
-// Assumed from the V4 reference, not yet measured on a real listing (the live check after merge does): a listed file
-// carries `duration` in seconds, and `include=media_links.thumbnail` gives `media_links.thumbnail.download_url`.
-// Either missing leaves that field null; the row is still listed.
+// Measured live on 2026-11-03 (two live-check runs): `include=media_links.thumbnail` gives
+// `media_links.thumbnail.download_url`, but a listed file carries no `duration`. A length found on the listing is
+// still used; a row without one gets it from the file's metadata after the cut (fillDurations).
 const durationOf = (f) => (Number(f && f.duration) > 0 ? Number(f.duration) : null);
 const thumbOf = (f) => {
   const u = clean(f && f.media_links && f.media_links.thumbnail && f.media_links.thumbnail.download_url);
@@ -297,6 +297,24 @@ async function openShare(ctx, accounts, shareId) {
   throw fail('link_not_found');
 }
 
+// A listed row with no length gets the file's metadata "Duration" (the same read the video part makes), a few rows at
+// a time and only for the rows kept. A metadata call that fails, is refused or runs out of time leaves that row's
+// length null; it never fails the list.
+const DURATION_WORKERS = 5;
+async function fillDurations(ctx, acct, rows) {
+  const todo = rows.filter((r) => r.duration_seconds == null && r.file_id);
+  let at = 0;
+  const worker = async () => {
+    while (at < todo.length) {
+      const r = todo[at++];
+      try { r.duration_seconds = (await videoFacts(ctx, acct, r.file_id)).duration; } catch { /* the length stays null */ }
+    }
+  };
+  const workers = [];
+  for (let i = 0; i < Math.min(DURATION_WORKERS, todo.length); i++) workers.push(worker());
+  await Promise.all(workers);
+}
+
 // The videos a link points at: every video in a shared folder (up to MAX_LIST_VIDEOS, newest first), or the one video
 // a file link names. Names, lengths, Frame's thumbnails and per-file links only: no playable address, no comments.
 async function listLink(ctx, link) {
@@ -306,7 +324,7 @@ async function listLink(ctx, link) {
     const found = await resolveView(ctx, accounts, resolved);
     const got = await api(ctx, '/accounts/' + found.acct + '/files/' + found.file.id + '?' + THUMB);
     const f = (got && got.data) || found.file;
-    return { name: clean(f.name), rows: isVideo(f) ? [row(f, found.openUrl)] : [], cut: false, openUrl: found.openUrl };
+    return { acct: found.acct, name: clean(f.name), rows: isVideo(f) ? [row(f, found.openUrl)] : [], cut: false, openUrl: found.openUrl };
   }
   const { acct, s } = await openShare(ctx, accounts, resolved.shareId);
   const shareUrl = 'https://next.frame.io/share/' + resolved.shareId;
@@ -327,7 +345,7 @@ async function listLink(ctx, link) {
   } else {
     walk = await collectVideos(ctx, acct, '/accounts/' + acct + '/shares/' + resolved.shareId + '/assets?page_size=' + LIST_PAGE + '&' + THUMB, resolved.shareId);
   }
-  return { name, rows: walk.rows, cut: walk.cut, openUrl: shareUrl + (resolved.assetId ? '/view/' + resolved.assetId : '') };
+  return { acct, name, rows: walk.rows, cut: walk.cut, openUrl: shareUrl + (resolved.assetId ? '/view/' + resolved.assetId : '') };
 }
 
 // ---------------------------------------------------------------- the video address
@@ -381,16 +399,32 @@ async function playable(ctx, acct, fileId) {
   const renditions = pickRenditions(f.media_links);
   const url = renditions.high_quality || renditions.efficient || renditions.original || '';
   if (!url) throw fail(f.status === 'uploaded' ? 'still_processing' : 'no_playable_address');
-  return { name: clean(f.name), url, renditions };
+  return { name: clean(f.name), url, renditions, mediaType: clean(f.media_type) };
 }
 
+// Also the upload's video codec and size, for post-source's choice of file (plan row F4, D2). A codec is any field
+// named "... Codec" other than the audio one (live: it named H.264, F4's check on 3 Nov). The size: that check found no
+// "Width" / "Height", so it is also read from one "W x H" field (Resolution, Dimensions, Frame Size) and from values
+// with a unit ("1080 px"); `fields` lists the field names (never values) so the live check can show Frame's real one
+// (P1a, OPEN_REPAIRS 650). Absent stays empty, and post-source reads an empty codec as "not known to be H.264".
+const SIZE_PAIR_RE = /^(resolution|dimensions|frame size|video size|image size)$/i;
 async function videoFacts(ctx, acct, fileId) {
   const got = await api(ctx, '/accounts/' + acct + '/files/' + fileId + '/metadata', { optional: true });
-  const out = { fps: null, duration: null };
+  const out = { fps: null, duration: null, codec: '', width: null, height: null, fields: [] };
+  const num = (v) => { const n = parseFloat(String(v == null ? '' : v)); return Number.isFinite(n) && n > 0 ? n : null; };
   for (const m of ((got && got.metadata) || (got && got.data && got.data.metadata) || [])) {
+    const name = clean(m && m.field_definition_name);
+    if (name && out.fields.length < 60) out.fields.push(name.slice(0, 60));
     const n = Number(m && m.value);
-    if (m && m.field_definition_name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
-    if (m && m.field_definition_name === 'Duration' && n > 0) out.duration = n;
+    if (name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
+    if (name === 'Duration' && n > 0) out.duration = n;
+    if (/codec$/i.test(name) && !/audio/i.test(name) && !out.codec) out.codec = clean(m.value);
+    if (/width$/i.test(name) && !out.width) out.width = num(m.value);
+    if (/height$/i.test(name) && !out.height) out.height = num(m.value);
+    if (SIZE_PAIR_RE.test(name)) {
+      const pair = String(m.value == null ? '' : m.value).match(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/);
+      if (pair) { out.width = out.width || Number(pair[1]); out.height = out.height || Number(pair[2]); }
+    }
   }
   return out;
 }
@@ -507,8 +541,10 @@ export async function lookup(rawLink, deps, opts = {}) {
     if (part === 'list') {
       const got = await listLink(ctx, link);
       got.rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const videos = got.rows.slice(0, MAX_LIST_VIDEOS);
+      await fillDurations(ctx, got.acct, videos);
       return {
-        ok: true, name: got.name, videos: got.rows.slice(0, MAX_LIST_VIDEOS), truncated: got.cut || got.rows.length > MAX_LIST_VIDEOS,
+        ok: true, name: got.name, videos, truncated: got.cut || got.rows.length > MAX_LIST_VIDEOS,
         open_url: got.openUrl, fetched_at: new Date(deps.now()).toISOString(), took_ms: deps.now() - started,
       };
     }
@@ -528,7 +564,7 @@ export async function lookup(rawLink, deps, opts = {}) {
     const [video, facts] = await Promise.all([playable(ctx, found.acct, found.file.id), videoFacts(ctx, found.acct, found.file.id)]);
     const addr = { url: video.url, renditions: video.renditions, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps };
     if (client) return { ok: true, video: addr, fetched_at: fetchedAt };
-    const shaped = { ...addr, name: video.name, file_id: found.file.id };
+    const shaped = { ...addr, name: video.name, file_id: found.file.id, media_type: video.mediaType, codec: facts.codec, width: facts.width, height: facts.height, metadata_fields: facts.fields };
     if (part === 'video') return { ok: true, video: shaped, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';

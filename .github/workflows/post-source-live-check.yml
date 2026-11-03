@@ -1,0 +1,49 @@
+name: post-source live check (manual)
+
+# The live check for post-source (plan row F4, OPEN_REPAIRS 649): one test-client card's video copied from Frame.io
+# into Post for Me storage. Storage only: no post is ever created (D6). Prints only the measured numbers (which Frame
+# file went, its size, shape and length, how long the copy took, whether the storage address answers), never an
+# address, a file name or a key (scripts/post-source-live-check.js, safeSummary). Run by hand after post-source deploys.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: 'A test-client card id with a Frame link (not one linked to Production work)'
+        required: true
+        type: string
+      letter:
+        description: 'Optional trial version letter (B to G); empty = the card itself'
+        required: false
+        type: string
+        default: ''
+      side:
+        description: 'instagram or tiktok (the size limit to apply)'
+        required: false
+        type: string
+        default: 'instagram'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-source-live-check
+  cancel-in-progress: false
+
+jobs:
+  copy-once:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Copy one test-client card to Post for Me storage and report the numbers
+        env:
+          # The SMM role key, a repository secret (as the dawn check uses). Never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          POST_SOURCE_CARD: ${{ inputs.card }}
+          POST_SOURCE_LETTER: ${{ inputs.letter }}
+          POST_SOURCE_SIDE: ${{ inputs.side }}
+        run: node scripts/post-source-live-check.js

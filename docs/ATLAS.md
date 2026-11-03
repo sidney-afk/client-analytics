@@ -150,7 +150,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 #### Client profiles, Create client and the onboarding checklist (Admin)
 
 - Where: **Kasper › More › Pipeline & Admin › Clients**. Admin only. Search a client or open **All clients**; one profile at a time.
-- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Instagram (Post for Me), Facebook Page (Post for Me), YouTube (Post for Me), LinkedIn (Post for Me), a **YouTube: made for kids** switch (off unless turned on), Upload-Post; every account id is checked with Post For Me when saved, and one account can be on one client only), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
+- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Instagram (Post for Me), Facebook Page (Post for Me), YouTube (Post for Me), LinkedIn (Post for Me), a **YouTube: made for kids** switch (off unless turned on), Upload-Post; every account id is checked with Post For Me when saved, and one account can be on one client only; **Check Post for Me accounts** links new Post for Me accounts to clients whose saved handle matches exactly, and lists the rest as needing a person, which also runs every hour), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
 - **HubSpot** band: deal stage, contract and payment state (only for clients the `client_hubspot_sync` switch lists: three today).
 - **Onboarding** section (folded): its header reads "19 of 24 required steps done" or "Onboarded".
   - **Resources**: found / missing / unknown for each thing the client should have (profile fields, review link, filming plan link, Templates page, Canva link, logins saved, form answers, Calendar cards, Samples, Analytics numbers, Drive folders, HubSpot contact, brain folder, and more). Logins and links show as present or missing only.
@@ -653,6 +653,14 @@ Switch values below are the live values read on 2026-10-28.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
 
+- **From a card (behind the switch `post_sources_v1`; both sides, a single video only):** under the media type, choose **From files** (as before) or **From a card**.
+  - Pick one of the client's Approved or Scheduled cards from today on.
+  - SyncView copies the card's video from Frame.io into Post for Me on its server ("Copying… from Frame"). Nothing is downloaded to your device, so this works on a phone.
+  - You then see Frame's small copy playing and one line with the file name, its size, length and which Frame file goes (its original file, or its full-size copy).
+  - The card's caption fills an empty caption box, with **Undo**. On Instagram the card's thumbnail becomes the cover; **Remove** it to pick another.
+  - If the copy fails, the reason shows with **Try again**. "Download it from Frame and drop it here" always works instead.
+  - A copy older than 20 hours is made again when you press Post.
+
 **TikTok side**
 - **Media: Video or Photo carousel.**
   - Video: MP4, MOV or WebM, up to 287 MB.
@@ -956,6 +964,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |
@@ -1701,6 +1710,7 @@ There are **54 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/native-notification-sender.yml -->[`native-notification-sender.yml`](../.github/workflows/native-notification-sender.yml) | Manual, Cron `*/5 * * * *` (database timer) | Sends admitted native notifications when its enable variable is true. |
 | <!-- atlas:action .github/workflows/pages-site.yml -->[`pages-site.yml`](../.github/workflows/pages-site.yml) | Manual, Push, Pull request | Builds index and publishes GitHub Pages for matching source paths. |
 | <!-- atlas:action .github/workflows/post-source-live-check.yml -->[`post-source-live-check.yml`](../.github/workflows/post-source-live-check.yml) | Manual | Copies one test-client card's video to Post for Me storage (no post) and prints only the measured numbers. |
+| <!-- atlas:action .github/workflows/post-from-card-live-check.yml -->[`post-from-card-live-check.yml`](../.github/workflows/post-from-card-live-check.yml) | Manual | The no-publish check for "From a card" (D6): one card copied, posted scheduled 8 days ahead (TikTok also private and to drafts), cancelled at once and read back as cancelled. Exit 3 names the queue row to cancel by hand. |
 | <!-- atlas:action .github/workflows/production-polish-gate.yml -->[`production-polish-gate.yml`](../.github/workflows/production-polish-gate.yml) | Manual, Push, Pull request, Cron `17 9 * * 1-5` (database timer) | Runs production visual and interaction gate. |
 | <!-- atlas:action .github/workflows/pto-ui-tests.yml -->[`pto-ui-tests.yml`](../.github/workflows/pto-ui-tests.yml) | Manual, Push, Pull request | Runs PTO browser checks. |
 | <!-- atlas:action .github/workflows/rename-propagation-drain.yml -->[`rename-propagation-drain.yml`](../.github/workflows/rename-propagation-drain.yml) | Manual, Cron `*/5 * * * *` (database timer) | Drains admitted rename propagation jobs. |
@@ -1963,6 +1973,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration migrations/ttpilot-schema-migration.sql -->[`migrations/ttpilot-schema-migration.sql`](../migrations/ttpilot-schema-migration.sql) | `public.tiktok_accounts`, `public.tiktok_oauth_state`, `public.tiktok_pilot_posts` |
 | <!-- atlas:migration migrations/workload-issues-supabase-migration.sql -->[`migrations/workload-issues-supabase-migration.sql`](../migrations/workload-issues-supabase-migration.sql) | `public.workload_issues` |
 | <!-- atlas:migration migrations/2026-10-03-native-client-test-provision.sql -->[`migrations/2026-10-03-native-client-test-provision.sql`](../migrations/2026-10-03-native-client-test-provision.sql) | `public.production_native_client_test_provisions` |
+| <!-- atlas:migration migrations/2026-11-02-pfm-account-link-runs.sql -->[`migrations/2026-11-02-pfm-account-link-runs.sql`](../migrations/2026-11-02-pfm-account-link-runs.sql) | `public.pfm_account_link_runs` (the Post for Me auto-link run log, 30 days) |
 | <!-- atlas:migration supabase/migrations/20260912174907_card_atomic_admission_preparation.sql -->[`supabase/migrations/20260912174907_card_atomic_admission_preparation.sql`](../supabase/migrations/20260912174907_card_atomic_admission_preparation.sql) | `public.card_write_admission_v1`, `public.card_write_operations_v1`, `public.card_write_followups_v1` |
 | <!-- atlas:migration supabase/migrations/20260912183653_application_dml_admission_preparation.sql -->[`supabase/migrations/20260912183653_application_dml_admission_preparation.sql`](../supabase/migrations/20260912183653_application_dml_admission_preparation.sql) | `public.card_write_transaction_context_v1` |
 | <!-- atlas:migration supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql -->[`supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql`](../supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql) | `linear_exit_install.journal_v1` |

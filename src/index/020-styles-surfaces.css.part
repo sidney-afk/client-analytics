@@ -5425,6 +5425,13 @@
         .ca-switch[aria-checked="true"] .ca-switch-knob { transform: translateX(14px); }
         .ca-switch.is-conflict .ca-switch-track { box-shadow: 0 0 0 2px var(--sv-fg-b91c1c); }
         @media (prefers-reduced-motion: reduce) { .ca-switch-track, .ca-switch-knob { transition: none; } }
+        .ca-pfm { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+        .ca-pfm-msg { margin: 10px 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--text-secondary); }
+        .ca-pfm-msg p { margin: 0 0 4px; }
+        .ca-pfm-msg.is-error { color: var(--sv-fg-b91c1c); }
+        .ca-pfm-list { margin: 0 0 8px; padding-left: 18px; }
+        .ca-pfm-list li { margin: 2px 0; color: var(--text-primary); }
+        .ca-pfm-to, .ca-pfm-why { color: var(--text-secondary); }
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
@@ -5512,7 +5519,7 @@
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
             html.pocket-admin-phone #kasperContent .ca-drop .ca-row { min-height: 52px; padding: 6px 10px; }
             .ca-row.is-active { box-shadow: none; }
-            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn, .ca-switch { min-height: 44px; }
+            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn, .ca-switch, .ca-pfm-btn { min-height: 44px; }
             .ca-iconbtn { min-width: 44px; }
             .ca-hero { padding: 18px 16px; border-radius: 16px; }
             .ca-hero-top { flex-wrap: wrap; gap: 14px; }

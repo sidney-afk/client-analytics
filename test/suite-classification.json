@@ -22,7 +22,9 @@
     "prod-comment-restored-request-id.js",
     "samples-notes-lifecycle-busy.js",
     "tiktok-create-keeps-key.js",
+    "post-folder-sort.js",
     "post-source-logic.js",
+    "post-from-card-live-check.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
@@ -536,6 +538,7 @@
     "popstate-hash-route.js",
     "port-fidelity-check.js",
     "post-asset-resolution.js",
+    "postforme-accounts.js",
     "private-postgres-proof-runner.js",
     "probes-assert-native-write-lane.js",
     "probes-register-native-work-items.js",
@@ -782,6 +785,7 @@
     "workload-tweak-exclusive-bucket.js",
     "workload-tweak-feedback-source.js",
     "write-failure-receipt.js",
+    "write-ui-error-where.js",
     "write-path-refusal-coverage.js",
     "write-refusal-beacon-card-id.js",
     "write-refusal-browser-codes.js",
@@ -1627,6 +1631,14 @@
       "ci": "representative"
     },
     {
+      "file": "post-from-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's From a card behind post_sources_v1 on both sides: the card list, the copy through post-source, the media line and the small-copy preview, the caption and cover from the card, the post carrying the copied addresses with no browser upload, a failed copy and Try again, a copy older than 20 hours made again under the same key, the switch off showing today's drop zones, and 390 wide.",
+      "reproduce": "node test/post-from-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "postforme-link-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1737,6 +1749,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-facebook-page-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "pfm-account-link-runs-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and PFM_ACCOUNT_LINK_RUNS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database (pg_cron, pg_net and Vault are stood in for locally)",
+      "reproduce": "PFM_ACCOUNT_LINK_RUNS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/pfm-account-link-runs-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

@@ -36090,6 +36090,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
+
 ## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
@@ -36421,3 +36422,148 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   Pass/fail and every wait are unchanged.
 - **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
 - **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+
+## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
+
+- **What happened:** "Calendar unit tests" gave every push to main its own run group (one per commit), and a main run is never cancelled. On the night of 2 to 3 Nov about a dozen merges landed in four hours. Each main run starts roughly 25 browser jobs, and the account runs at most 20 jobs at once. So 14 main runs waited at the same time, the oldest since 22:05. The pull-request runs, which wait for runner seats, sat for up to 3.5 hours: F4's browser-guards and repair-checkpoint waited from 23:26.
+- **Done by hand meanwhile:** the supervisor cancelled the superseded main runs that were still waiting (11 at 02:03 UTC, 4 at 02:57 UTC). It never cancelled a started one. Each later main run tests everything the cancelled ones would have.
+- **Fix:** pushes to main now share one run group, `calendar-unit-tests-main`, with cancel-in-progress still false. GitHub keeps one run going and one waiting per group, and a newer push replaces the waiting one. So a started main run always finishes, and a busy evening tests main's tip instead of a backlog of older commits. Pull requests are unchanged (a newer push cancels the run it replaces). Manual runs keep a group per commit.
+- **What this gives up:** a commit whose main run was replaced while it waited has no main run of its own. The next one tests it together with the commits after it. When that run goes red, the culprit is any commit since the last green main run, not one commit.
+- **Proof:** `test/ci-runner-seats.js` pins the new group and that main never cancels a started run. Against main's workflow it fails; with the change it passes (139 checks). `ci-shards-wired` 230 and `workflow-plain-scalars` (56 files) pass.
+- **Way back:** revert the PR.
+
+## 677. [2026-11-03 UTC, BUILT, NOT MERGED] TikTok carousel browser journey: a red that comes and goes on PRs that never touch TikTok, and a Cancel that sometimes said "Could not prepare image 2" (session Chanfix)
+
+The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` on PRs with no TikTok change (#2538 at `faaf869f`, green on re-run; #2545 at `152a5e77`). Both stopped at `page.waitForFunction: Timeout 30000ms` in `attachThreeImagesAndCaption` (line 259, Submit never enabled), right after the client pick. Main stayed green.
+
+- **Measured on origin/main `deba3bc`:** runs in loops, 6 to 8 at once, with the page's CPU slowed 4x and 8x (`Emulation.setCPUThrottlingRate`). 8 at once at full speed: 5 of 48 red. Slowed 4x: 19 of 30 red. Slowed 8x: 22 of 32 red. **Not one was the line-259 stall** (0 of 110). Every red was in case 2, the cancel journey, in one of two ways:
+  1. `image 3 was never minted`: the test cancelled behind a fixed 250 ms mint delay; on a slow machine the click came after the delay ran out, so image 2 finished and image 3 started. A race in the test, not the page.
+  2. `the form reports the cancellation (got "Could not prepare image 2 — no upload url returned.")`: **a real page bug a staff member can hit.** A Cancel that lands after an image's answer arrives but before its body is read makes that read fail with the cancellation, and `try { mint = await mintResp.json(); } catch {}` swallowed it. The empty answer then threw "no upload url", so the person saw a failure instead of "Upload cancelled.", and the page logged it as a failed save in the write-refusal log.
+- **Fixed (failing first):**
+  - **Page** (`src/index/300-tiktok-upload.js.part`, `_tkSubmitPhotoCarousel`): the cancel is decided by the abort signal, not only by the error's name, so a cancel that surfaces as any later error still reads "Upload cancelled." and is not logged as a failure.
+  - **New case 2b** in the journey: image 2's answer arrives but its body never finishes until the page cancels. It failed on main with exactly the wrong message and passes now.
+  - **Case 2 is deterministic:** the mock holds image 2's mint open until the test has clicked Cancel (`holdMintAt`), instead of a 250 ms delay.
+- **The line-259 stall itself is not reproduced**, so it has on-miss diagnostics instead, like Reviewguard's 676. When either wait in `attachThreeImagesAndCaption` runs out, the test prints `DIAG <wait>: {...}` with the form's state before failing as before: client set, client in the client map, account id set and its source, photos in state, on screen and in the file input, caption length in state and in the box, submitting, Submit disabled, and the form's error. Counts and yes/no only, fictional data. The next CI red names the missing piece (most likely the account id, which comes from the asynchronously loaded client map).
+- **Proof:** the journey passes; under the same 8x slowdown, 6 at once, the fixed version passed 30 of 30 runs (before: 22 of 32 red). Way back: revert the PR.
+
+## 675. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper's admin phone suite waited 5 s for every state, and one wait ran out in a busy CI lane (session Reviewguard)
+
+- **Seen:** #2527's `staff-phone-rules (430, 2)` at dd88b902 failed 1 of 4832 checks: "quiz-refresh-actions light 430: locator.waitFor: Timeout 5000ms exceeded", waiting for "Could not load quiz leads". The same suite passed locally four times at that head and at main (0 failures), and the code path it tests is not one #2527 changes. One 5 s wait for an error state ran out in a parallel lane on a shared runner.
+- **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
+- **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
+- **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+
+## 680. [2026-11-03 UTC, BUILT, NOT MERGED] The calm-refresh suite read Production's scroll while the loading skeleton was still up (session Reviewguard, test only)
+
+- **Seen:** `browser-guards (1)` on #2547 (job 125638320835) failed in `test/calm-refresh-pages-browser.js` with "CALM_PAGES Production: the list stays where it was scrolled (-1)". #2547 changes only another suite's wait, and the same suite passes on main and locally.
+- **Cause (reproduced):** with the CPU slowed 4 to 8 times and four to six runs in parallel, 3 of 6 runs fail the same way. In every miss `#prodRoot` still holds the loading skeleton: 173 elements, no `.prod-listwrap`. The real list arrives 8 to 14 s later, so the app is fine. The suite waited a fixed 2.5 s, then drew until two draws in a row matched. Two skeleton draws match, so it took the skeleton for a settled list, and the scroll read found no list (-1). Its "has a real list" check counted nodes (more than 100), which the skeleton passes too.
+- **Fix (test only):**
+  - wait up to 60 s for a real row in `.prod-listwrap` before measuring;
+  - the settle loop also needs a real row;
+  - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
+- **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.
+
+## 681. [2026-11-03 UTC, BUILT, NOT MERGED] popup-behaviour (phone): four card clicks timed out when the Calendar drew after the test asked for the list view (session Chanfix)
+
+Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/syncview-design/tests/popup-behaviour-browser.js`, phone pass only, four `page.click: Timeout 5000ms exceeded` on `.cal-card[data-pid="pb1"]`'s caption toggle, notes button, Set all and status pill. The desktop pass was clean and main passed locally.
+
+- **Not the hard-coded-month trap.** On a phone the Sheet opens as a grid of tiles, and the grid lists every post whatever its date. The October fixture dates play no part.
+- **Cause (a test race, not a page bug).** Each grid tile is also a `.cal-card[data-pid]`, but has none of the card's controls. The shared helper `openEditableSheet` (`docs/syncview-design/tests/staff-phone-browser.js`) switched to the list only if the "List view" button already existed (`if (await button.count() …)`). When the Calendar drew its bar a moment later, the switch was skipped silently. The test's wait for `.cal-card[data-pid="pb1"]` was then satisfied by the tile, and the four clicks inside the card timed out. A person sees the bar and taps List view, so the page is fine.
+- **Reproduced deterministically, failing first.** The new `lateListCheck` in popup-behaviour holds the posts answer for 2.5 s on a phone. On main it fails with `{"tile":true,"toggle":false,"listPressed":"false"}`; with the fix it passes. A 4x CPU slowdown alone did not trigger it (0 of 4 on main), because the race needs the posts to land after the Calendar has drawn, not a slow page.
+- **Fix.** `openEditableSheet` now waits until the page has drawn either the list/grid switch (phone) or a full card (desktop), switches to the list, and waits until the list is on. If neither ever appears, for example an empty desktop collection, it carries on as before after 15 s rather than failing. No longer timeout anywhere.
+- **Proof.** popup-behaviour passes in full (377 checks, one new); phone-only, 4x CPU slowdown, 4 at once: 12 of 12 green. staff-calendar-expanded and calendar-refresh-scroll, which also use the helper, pass. Way back: revert the PR.
+
+## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
+
+- **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.
+- **Now (299):** `svSortDroppedFiles(entries)` takes `{ path }` entries ("Folder/name.ext", or "name.ext" for a loose file) and returns, without reading any file:
+  - the video, cover and caption;
+  - every video, image and text file in natural name order;
+  - a carousel when there are images and no video;
+  - `ask` / `askText` when a person must pick a video ("This folder has 3 videos. Pick one.") or a cover;
+  - `captionNote` when several text files leave the caption empty;
+  - `ignoredLine` ("Ignored 2 files: .prproj, .wav").
+  It refuses two folders ("Drop one folder at a time."). Hidden and system files (dot files, `._*`, `Thumbs.db`, `desktop.ini`) are skipped without a word. Nothing calls it yet, so it is not exported (`check-modules` refuses an export no fragment uses); P2 exports it when the drop zones use it.
+- **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
+- **Way back:** revert the PR. Nothing calls the function.
+
+## 667. [2026-11-02 UTC, BUILT, NOT MERGED] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
+
+- **Asked:** Sidney, 2 Nov (D4, relayed by the supervisor): he does not want to link accounts or click a pick list. Link automatically when it is certain; list anything unsure so he can be asked in one line.
+- **Built:**
+  - **`_shared/postforme-accounts.mjs` (pure):** `safeAccount` keeps only id, platform, username, user_id, display name and status (a whitelist; Post for Me's list carries each client's `access_token` and `refresh_token`). `planLinks` links an account only if it is connected, on no client in any slot, its username (trimmed, no @, lower case) equals exactly one client's saved handle for that network (archived clients count, making it ambiguous; for YouTube the saved channel id may instead equal the account's `user_id` exactly), that client's slot is empty, and no other account wants the same slot. Facebook and LinkedIn have no saved handle, so they always need a person. `runAccountSync` reads every page of 50 (a list past 40 full pages is refused as incomplete, Codex P2 on #2538), saves once per client, sends one Sheet copy, and never retries a refused save with an overwrite; a second run changes nothing.
+  - **`client-profile-write`, action `pfm_accounts_sync` (`dry_run` optional):** from an admin (the Publishing card's **Check Post for Me accounts**) or from the hourly timer, which signs with `X-Pfm-Link-Key` and may call this action only. Vault is the only copy of that key: the function asks the security-definer `pfm_account_link_key_ok` (sha256 digests of a 32+ character secret) and holds no secret of its own (supervisor's change, 3 Nov). Each link goes through the Post for Me network check and `client_profile_admin_edit` with the row's version, actor "Post for Me auto-link". Every run is recorded (best effort).
+  - **Migration `migrations/2026-11-02-pfm-account-link-runs.sql` (cope marker):** `pfm_account_link_runs` (run time, trigger, counts, and per account only account id, network, username, reason, slug and candidates; any other key at any depth is dropped), kept 30 days; all four roles revoked from the table and its sequence; service_role may only run the security-definer `pfm_account_link_run_record`, `pfm_account_link_runs_read` and `pfm_account_link_key_ok` (the timer's key check against Vault).
+  - **Migration `migrations/2026-11-02-pfm-account-link-schedule.sql` (cope marker; applied last):** one pg_cron job at minute 41 of every hour, signed with the Vault secret `pfm_account_link_key` read at run time. It refuses to schedule until that secret exists (at least 32 characters) and the run log is applied. The supervisor creates the key inside the database (`vault.create_secret(encode(extensions.gen_random_bytes(48), 'hex'), 'pfm_account_link_key')`), so the value never leaves Vault; nobody else does anything.
+- **Proof:** `test/postforme-accounts.js` (new, 43 checks: exact unique match links; a duplicate handle, a filled slot, an archived-only match, two accounts for one slot, Facebook and LinkedIn, disconnected all need a person; no token at any depth of any answer; paging; a failed read writes nothing; a refused save is not retried; the second run is a no-op; the timer key reaches this action only). `test/pfm-account-link-runs-postgres.js` (new, disposable PostgreSQL: whitelist storage, 30 days, the four roles, the schedule refuses without the secret). `clients-admin-browser.js` (the button, its result, an unreachable Post for Me, the reload, 44px on phones).
+- **Live check (after F3 and this are applied):** a `dry_run` on live, reported as counts only.
+- **Follow-up (Pbuild, once this is live):** the Post tab's "Ask Sidney to add its Connection ID" wording.
+- **Way back:** `select cron.unschedule('pfm-account-link-hourly');` then revert the PR; the run log's header gives its drop statements.
+
+## 645. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
+
+- **Seen (live, read-only):** 20 reports from board `workload` between 18:03 and 18:31 UTC on 2 Nov: `workload_uncaught` / `unhandled_rejection`, one staff session (role creative, Chrome on Windows, build 2026-11-02T17:13), all "TypeError at workload:0:0". No other uncaught report on any board in 3 days. The gaps (60 or 120 s) are the reports' own 60-second repeat filter, not a timer, so the error itself was at least once a minute.
+- **Cause (in the logging, OPEN_REPAIRS 626 and 638):** the rejection's stack had no frame from this site, so `_writeUiStackWhere` fell back to an empty file, and `_writeUiErrWhere` ran `new URL('', location.href)`, which is the page's own address. So every such report read "<page>:0:0" and said nothing about the error. The helper is shared by Kasper's board, the client link, Workload and the Calendar.
+- **Now (120, shared):** a report says `<Name> <kind> at <where>`, and nothing else.
+  - **kind**, one fixed word from the message (the message itself is never sent): `failed_to_fetch`, `load_failed`, `cannot_read_properties`, `not_a_function`, `not_iterable`, `not_defined`, `aborted`, `quota_exceeded`, `script_error`, `extension`, or `other`.
+  - **where:** this site's file with its build hash dropped (`app_version` says which build), `:line:col` and a plain function name; else the first frame on another site as its scheme, host and file name only (`https cdn.example.net lib.min.js`: no path, no query, no fragment, written without "://" so the server's link redaction keeps it); else `extension` for a browser extension, never its id; else no place at all.
+  - Chrome, Edge, Safari and Firefox stack formats are read. Every result passes the server's detail redaction (`clean_detail_v1`) unchanged; a split-build file name used to be long enough to be redacted.
+- **Listeners (080 Workload, 195 review stage, 170 Calendar, from 639):** an uncaught error is read from its own stack when it has one, and a cross-origin "Script error." is now reported as `script_error` instead of dropped.
+- **Proof:**
+  - `test/write-ui-error-where.js` (new, unit): runs 120's helpers on a frameless "Failed to fetch", an off-site frame with a token in its query, an extension frame, this site's hashed file, Safari's stack, "Script error." and an unknown message; checks no message, path, query or hash is sent and each result survives the redaction. On main it fails with exactly the live text, "TypeError at workload:0:0".
+  - `test/workload-reports-browser.js` case 4 (real Workload board), `test/calendar-reports-browser.js` case 3 (the Calendar) and `test/review-board-gauntlet-browser.js` case 9 (Kasper's board, the shared review-stage listener): a frameless rejection reads "TypeError failed_to_fetch" and an off-site one names its host and file, with no query or message. The Workload case fails on main.
+- **Next:** once the next report says which error it is, the cause is fixed in its own PR, failing-first.
+- **Way back:** revert the PR.
+
+## 682. [2026-11-03 UTC, BUILT, NOT MERGED] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
+
+Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six main runs (`e77b492` at 1024, `36e1536` at 1920), each time only on `client <width> Notes dialog two-tabs delete: locator.waitFor: Timeout 15000ms exceeded`. All 336 other checks passed, two-tabs reply and edit included.
+
+- **What the case does.** The first tab deletes its note and confirms. Only then does the test open a fresh second tab, open its Notes and send a note there. The second tab is opened after the delete, so the case cannot show a deleted note lingering in an already-open tab. Whether that can happen to a client is not tested here, and nothing in this failure points to it.
+- **Which wait.** Two 15-second waits in this path could have run out: the second tab's own boot (`setup`, `#ta` in the review stage) and its Notes box showing (`#calCommentComposer`). The log does not say which.
+- **Not reproduced.** Firefox is not installed in this sandbox, and the environment's rule is not to run `playwright install`, so the Firefox runs under load that were asked for could not be made. In Chromium every step is quick: the second tab opens in 0.6 to 0.9 s, its Notes open in 0.1 to 0.3 s, and the box shows within 50 ms. Delete and reply match, and the first tab has no confirm box left open. Only a run in Firefox can say whether the delete is special there.
+- **So, diagnostics (pass/fail unchanged).** The second tab's work is now four named steps: open the second tab, open its Notes, its Notes box shows, send its note. A miss prints `DIAG two-tabs <kind>: stuck at "<step>" after <ms>; done: <steps with times>; tabs: {first, peer}`. For each tab that is: card loaded, number of caption notes, whether the root is present, deleted or absent, Notes open, rows drawn, the Notes box visible, hidden or absent, a confirm box open, loading, and tab visibility. The page keeps no last-refresh time, so none is printed. Checked by forcing a miss locally: both tabs agreed the root was deleted and the box was visible. Fictional data only.
+- **Next:** the next Firefox red names the step and what each tab held, and the fix is chosen from that. Way back: revert the PR.
+- **The gap the supervisor asked to test was a real page bug, and it is fixed here.** New case `Notes dialog open tab drops a note deleted in another tab` (client, Chromium):
+  - Both tabs have the card's Notes open, and the second tab has half-written text in its box.
+  - The first tab deletes the note.
+  - The person comes back to the second tab after the page's own floor for a refresh on return (91 s on the test clock).
+  - On main the second tab's data did refresh (its copy of the note reads deleted), but the open Notes still drew the deleted note until Notes was closed and reopened. A background load redraws the cards and the Notes dots, never the open Notes.
+- **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
+- **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
+
+## 651. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
+
+- **Asked:** plan row P1 (`docs/plans/2026-11-trial-and-posting/combined.md`), split with the supervisor into P1a (server, 650) and P1b (this, the page).
+- **Before:** a card on the Post tab gave only its cover and caption, and only on Instagram. The video had to be downloaded from Frame and dropped in, so it passed through the browser (and a phone).
+- **Now (299 and 300; the switch is read in 188):**
+  - for a client listed in `post_sources_v1`, each side's video card has **From files** (as before) and **From a card**. This applies to a single video only, never a carousel or photos;
+  - the card list is the existing one: the client's Approved or Scheduled cards from today on;
+  - picking a card asks `post-source` (F4) to copy its video, and the card's thumbnail, from Frame.io into Post for Me storage. Nothing is downloaded to the device;
+  - the page shows Frame's small copy in a plain `<video>`. It is asked of frameio-view, as the Calendar's player asks, and also plays in TikTok's phone preview;
+  - one line names the file, its size, length and which Frame file goes. The resolution shows only when Frame gives it (650 measures the field);
+  - the card's caption fills an empty caption box, with Undo. Its second caption is used when it was written for that network;
+  - on Instagram, the copied thumbnail is the cover (Remove picks another), and the cover card's own card picker hides while the card is the source;
+  - the post carries the copied address(es): no storage address is asked for and nothing is uploaded from the browser. TikTok uses the server path only; on the old n8n path it says to drop the file instead;
+  - a failed copy shows the server's plain reason and **Try again**. Post stays off until a copy is in;
+  - a copy older than 20 hours is made again at the press, because Post for Me deletes an unused upload after 24 hours;
+  - the press key is tied to the card, not the copy's address, so a re-copy after a lost answer keeps the **same** key and the server adopts the first post;
+  - a client change, Remove, or a finished post clears the card;
+  - switch missing, unreadable or not listing the client: each side exactly as before.
+- **Proof:** `test/post-from-card-browser.js` (new, isolated browser, 37 checks) covers:
+  - both sides end to end;
+  - a past card and an in-progress card left out;
+  - the post body carries the copied addresses with no mint or PUT;
+  - a failed copy, then Try again;
+  - a copy aged 21 hours made again under the same key;
+  - the switch off showing no "From a card" and asking neither function;
+  - 390 wide with no sideways scroll.
+  On main it fails (`waiting for locator('input[name="tkSrcMode"]')`). Every other Post tab browser suite passes, except two that fail identically on main in this sandbox (`postforme-link-browser`, `tiktok-upload-redesign-browser`).
+- **Live check (D6), after merge:** `.github/workflows/post-from-card-live-check.yml` runs `scripts/post-from-card-live-check.js`, one side per run, on one of the owner's two clients:
+  - it makes the page's own calls (post-source, then the side's create);
+  - the post is SCHEDULED 8 days ahead (TikTok also private and to drafts), cancelled at once through the queue's own cancel, and read back as `cancelled`;
+  - exit 3 means a cancel or read-back failed. The summary then names the queue row to cancel by hand;
+  - the card id is the only input. The client is read from the card (`calendar_posts.client`), and the run is refused unless its slug's SHA-256 is on the script's allowlist: the test client and the owner's two own clients, by hash only. Nothing that names the client is an input or is printed;
+  - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
+  `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
+- **Way back:** clear `post_sources_v1`, or revert the PR.

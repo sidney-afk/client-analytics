@@ -452,6 +452,32 @@ async function pass(browser, origin, label, viewport) {
   await t.ctx.close();
 }
 
+// OPEN_REPAIRS 681: on a phone the Sheet opens as a grid of tiles, and each
+// tile is also a `.cal-card[data-pid]`, without the card's caption toggle,
+// notes button, Set all or status pill. When the Calendar drew its bar after
+// gotoCalendar asked for the list, the switch was skipped, the wait for pb1
+// found the tile, and those four clicks timed out (main 817100f, phone only).
+// Here the posts answer late on purpose: the cards must still be the list's.
+async function lateListCheck(browser, origin) {
+  const t = await newPage(browser, origin, { width: 390, height: 844 });
+  try {
+    await t.page.route('**/rest/v1/calendar_posts**', async route => {
+      await new Promise(r => setTimeout(r, 2500));
+      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(CARDS) }).catch(() => {});
+    });
+    await gotoCalendar(t.page, origin);
+    const state = await t.page.evaluate(() => {
+      const card = document.querySelector('.cal-card[data-pid="pb1"]');
+      const list = [...document.querySelectorAll('[data-thumb-display="list"]')].find(b => b.offsetParent);
+      return { tile: !!(card && card.classList.contains('thumb-grid-card')), toggle: !!(card && card.querySelector('.cal-cap-toggle')), listPressed: list ? list.getAttribute('aria-pressed') : null };
+    });
+    expect(!state.tile && state.toggle, '[phone, posts late] the Calendar opens on the list\'s full cards, not the grid\'s tiles ' + JSON.stringify(state));
+  } catch (e) {
+    expect(false, '[phone, posts late] raised: ' + String(e && e.message || e).slice(0, 240));
+  }
+  await t.ctx.close();
+}
+
 function summary(name) {
   if (process.env.POPUP_TABLE) fs.writeFileSync(process.env.POPUP_TABLE, JSON.stringify(table, null, 1));
   console.log(failures.length
@@ -459,7 +485,7 @@ function summary(name) {
     : `\n${name}: all ${checks} checks passed`);
   return failures.length ? 1 : 0;
 }
-module.exports = { serve, newPage, gotoCalendar, gotoSamples, runSurface, expect, summary, fromStub, overlayOpen, STUB, SLUG, CLIENT, CORS, root };
+module.exports = { serve, newPage, gotoCalendar, gotoSamples, runSurface, expect, summary, lateListCheck, fromStub, overlayOpen, STUB, SLUG, CLIENT, CORS, root };
 if (require.main === module) (async () => {
   const server = await serve();
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -467,6 +493,7 @@ if (require.main === module) (async () => {
   try {
     await pass(browser, origin, 'desktop', { width: 1280, height: 1500 });
     await pass(browser, origin, 'phone', { width: 390, height: 844 });
+    await lateListCheck(browser, origin);
   } finally {
     await browser.close();
     server.close();

@@ -660,7 +660,7 @@ Switch values below are the live values read on 2026-10-28.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
 
-- **From a card (behind the switch `post_sources_v1`; both sides, a single video only):** under the media type, choose **From files** (as before) or **From a card**.
+- **From Content Calendar (behind the switch `post_sources_v1`; every side, a single video only):** under the media type, a small **Video from** row offers **From Content Calendar** (the default) or **From files**. It is a smaller control than the Video / Carousel one above it, so the two never read as the same choice.
   - Pick one of the client's Approved or Scheduled cards from today on.
   - SyncView copies the card's video from Frame.io into Post for Me on its server ("Copying… from Frame"). Nothing is downloaded to your device, so this works on a phone.
   - You then see Frame's small copy playing and one line with the file name, its size, length and which Frame file goes (its original file, or its full-size copy).
@@ -708,11 +708,12 @@ Switch values below are the live values read on 2026-10-28.
   - A carousel can never be a trial.
   - **A trial card (behind `post_sources_v1`, "From a card"; plan row P4):** pick a card that has trial versions and switch Trial reel on. Each **approved** version is listed, ticked, with its own thumbnail and caption. One press posts each ticked version as its own trial reel, with that version's own video, thumbnail and caption. The cover card hides, and the caption box is used only for a version with no caption of its own. Instagram only; nothing is posted anywhere afterwards. If one version fails, press again: only the versions that did not go are sent.
 - **Also post to Facebook:** shown once a client is picked. Ticked by default when the client's Facebook Page is on file; the same post then also goes to the Page (a Reel as a Facebook Reel; a carousel of photos as one Facebook post). Untick it for Instagram only. It is off, with the reason, for a trial reel, a carousel with a video, or a client with no Page. No runtime switch: the server allow-list above still decides who can post.
-- **Post to (behind the switch `post_networks_v1`; a single Reel):** the Facebook box becomes a **Post to** card with Instagram, Facebook, YouTube and LinkedIn. One press makes one post on every ticked network, and each network's result shows on its own in the queue.
-  - Instagram can be unticked, for a post that goes only to the others. A carousel and a trial reel stay Instagram only.
-  - **YouTube:** the title is the caption's first line until you type one (100 characters at most). **Short** (the default: vertical and 3 minutes or less; YouTube itself puts it on the Shorts shelf) or **Regular video**. Always Public. "Made for kids" comes from the client's profile (Kasper > Clients > Publishing), never from this form.
-  - **LinkedIn:** posts as whichever account (a page or a person) is connected in Post for Me.
-  - A network with no account says so, with **Open Post for Me**. A YouTube account links itself within the hour; a LinkedIn account needs Sidney to link it on the client's profile.
+- **YouTube and LinkedIn sides (behind the switch `post_networks_v1`):** the switch at the top reads TikTok, Instagram, YouTube and LinkedIn. YouTube and LinkedIn show once the switch lists any client, and a side says so when the picked client is not on it.
+  - Each is the Instagram side's form with that network as the only target: the client, the video (From Content Calendar or From files), the caption and the schedule. A single video only: no carousel and no trial reel. Each side's queue lists its own network's posts.
+  - **YouTube:** a YouTube card with the title (the caption's first line until you type one, 100 characters at most), **Short** (the default: vertical and 3 minutes or less; YouTube itself puts it on the Shorts shelf) or **Regular video**, and the cover. Always Public. "Made for kids" comes from the client's profile (Kasper > Clients > Publishing), never from this form.
+  - **LinkedIn:** posts as whichever account (a page or a person) is connected in Post for Me. No cover.
+  - A side with no account says so, with **Open Post for Me**. A YouTube account links itself within the hour; a LinkedIn account needs Sidney to link it on the client's profile.
+  - With this switch on, the Instagram side has no Instagram tick: only **Also post to Facebook**, on by default when the client has a connected Facebook Page, and not shown when there is none.
 - **Scheduling:** works the same way as TikTok (date, hour, minutes in 5-minute steps, AM/PM, timezone).
 - **Button:** "Post to Instagram" or "Schedule on Instagram".
   - If SyncView could not confirm the post went through, press the button again. It will not post twice.
@@ -980,10 +981,10 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `review_stage_kasper_layout2` | Kasper's second layout (wide screens) | 3 staff members |
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
-| `post_networks_v1` | Post tab, Instagram side: YouTube and LinkedIn ticks, and Instagram can be unticked (P3) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_networks_v1` | Post tab: YouTube and LinkedIn as their own sides of the platform switch; the Instagram side keeps only "Also post to Facebook" (P3; OPEN_REPAIRS 687) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card; on the review page (V4), each version's thumbnail and caption, one Approve covering its parts, and a change that picks its part | Off until set; the test client first, by its slug in `{"clients": [...]}` |
-| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_sources_v1` | Post tab: "From Content Calendar" (the default) on every side (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

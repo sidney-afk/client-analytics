@@ -13,6 +13,7 @@
 import { videoCards } from "./videocards.mjs";
 import { toolGet, toolList, toolSave } from "./sharedtools.mjs";
 import { trialReels } from "./trialreels.mjs";
+import { watchVideo } from "./watchvideo.mjs";
 
 export const STUDIO_ACTIONS = {
   review_notes: {
@@ -59,6 +60,16 @@ export const STUDIO_ACTIONS = {
       views: "update: 24 hour numbers, also watch_time_s, shares, saves, follows (optional)",
     },
     run: (deps, args) => trialReels(deps.trials(), args),
+  },
+  watch_video: {
+    does: "Google's Gemini Flash-Lite watches and hears a video and answers about it: feedback on an edit, what is said and shown, timings. Costs about 2 cents per 10 minutes of video, logged and inside a monthly Gemini cap. Use it to check your own edits too.",
+    args: {
+      video: "link to the video: get_upload_link's public_url, a Drive or Dropbox link shared as anyone with the link, a Frame.io download link, or a YouTube link (required)",
+      question: "what to look for or ask (optional; default is full edit feedback with times)",
+      detail: "\"high\" to read small on-screen text better, at about 3 times the price (optional)",
+      client: "the client it is for (optional, for the log)",
+    },
+    run: (deps, args) => watchVideo(deps.watch(), args),
   },
 };
 

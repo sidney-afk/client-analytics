@@ -241,4 +241,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((err) => { console.error('trial version status live check failed:', err && (err.name + ' ' + code(String(err.message)))); process.exit(1); });
-module.exports = { TEST_CLIENT_SHA256, WALK, sha256, isTestClient, guardTarget, judgeStep, stepPassed, planWalk, run, publishableKey };
+module.exports = { TEST_CLIENT_SHA256, WALK, sha256, isTestClient, guardTarget, judgeStep, stepPassed, planWalk, run, publishableKey, makeIo, code, SUPA };

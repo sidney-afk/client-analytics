@@ -337,6 +337,27 @@ const DID = 'del_vid_1';
     S.setCardField(PID, patch, 'review-page');
     return st;
   }
+  // What the page had when the review page did not come up (OPEN_REPAIRS 676; fictional fixture data only).
+  async function journeyTrace(t, mode, asStatus) {
+    const page = await t.page.evaluate(pid => {
+      const out = { url: location.pathname + location.search.replace(/([?&]t=)[^&]*/, '$1…') };
+      try { out.clientLink = !!_isClientLink; } catch (e) { out.clientLink = 'unset'; }
+      try { const p = (calState.posts || []).find(x => x.id === pid); out.cal = { loading: !!calState.loading, view: calState.view || '', posts: (calState.posts || []).length, card: p ? { status: p.status, video_status: p.video_status } : null }; } catch (e) { out.cal = 'unavailable: ' + (e && e.name); }
+      try {
+        const c = new URLSearchParams(location.search).get('c') || '';
+        const call = f => { try { return f(); } catch (x) { return 'err'; } };
+        out.switches = { loaded: call(() => svRsFlagsLoaded()), clientReview: call(() => svRsClientReviewOn(c)), trial: call(() => svTrialReelsOn(_trvSlug(c))) };
+      } catch (e) { out.switches = 'unavailable'; }
+      try {
+        const h = document.getElementById('svReviewStage'), r = h && h.shadowRoot;
+        const st = r && r.getElementById('stepper');
+        out.stage = { there: !!h, hidden: h ? h.hidden : null, root: !!r, stepper: st ? st.children.length : null,
+          text: r ? [...r.children].filter(c => c.tagName !== 'STYLE' && c.tagName !== 'LINK').map(c => c.innerText || '').join(' ').replace(/\s+/g, ' ').trim().slice(0, 160) : '' };
+      } catch (e) { out.stage = 'unavailable'; }
+      return out;
+    }, PID).catch(e => ({ evalFailed: String(e && e.message || e).slice(0, 120) }));
+    return { mode, asStatus: asStatus || null, flagReads: t.state && t.state.flagReads, errors: (t.errors || []).slice(0, 5), page };
+  }
   async function openReview(mode, asStatus, calendarOnly, extra) {
     toReview(asStatus);
     const t = await RS.open(rbrowser, rorigin, Object.assign({ stage: mode, state: rstate, flags: 'on', flagValues: { trial_reels_pages: { clients: W.flagClients.length ? W.flagClients : ['someotherclient'] } } },
@@ -358,7 +379,11 @@ const DID = 'del_vid_1';
     if (calendarOnly) await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
     // Kasper's second layout has no steps: it is ready once its list of parts is drawn.
     else if (extra && extra.layout2) await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
-    else await RS.waitNew(t);
+    else {
+      // OPEN_REPAIRS 676: on #2563 (job 125867861223) the client link's review page never came up here, right after
+      // step 8's calendar look. On a miss only, print what the page had (fictional fixture data), then fail as before.
+      try { await RS.waitNew(t); } catch (e) { console.log('TRV_TRACE ' + JSON.stringify(await journeyTrace(t, mode, asStatus))); throw e; }
+    }
     await sleep(1500);
     t.n0 = rstate.upserts.length; t.g0 = rstate.gateway.length;
     return t;

@@ -1,0 +1,64 @@
+name: trial versions fields and import live check (manual)
+
+# The live check for V3 and V2 (plan rows V3 and V2, OPEN_REPAIRS 660), as the robot SMM key: on one test-client trial
+# card, one version's own caption and thumbnail are set, read back and cleared (V3); when a source letter is given, the
+# Frame share that version holds on the card is listed, its new videos are imported as new versions in one write, read
+# back, and the same video under another letter is refused (V2). No input is ever a link: inputs and the step's env are
+# printed on this public repository's run page, so a share's token given here would be published. A new share is put
+# on a spare version through the page first (test/trial-versions-fields-import-live-check.js checks the inputs). Everything is put back in a finally step: fields cleared, imported versions dropped (the summary counts them),
+# and a trial switch turned on for the run turned off. It WRITES, on the test client only, and refuses first,
+# read-only, as the V1 check does, then again by V2's and V3's own rules (scripts/trial-versions-fields-import-live-check.js).
+# Prints only counts, true/false and refusal codes, never an address, an id, a name or a key. Run by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      client:
+        description: 'The test client slug (given here, never written in the repository; any other client is refused)'
+        required: true
+        type: string
+      card:
+        description: 'A test-client trial card that is not Posted and is not linked to any Production work item'
+        required: true
+        type: string
+      fields_letter:
+        description: 'The version whose caption and thumbnail are set and cleared (A to G): live, not the one on the card, not yet answered'
+        required: true
+        type: string
+      source_letter:
+        description: 'Optional version (A to G) whose Frame share, as saved on the card, is imported from; never a link. Empty runs the thumbnail and caption part only'
+        required: false
+        type: string
+        default: ''
+      switch_for_run:
+        description: 'Turn the card''s trial switch on for this run and off again afterwards (refused if it is already on). Default off.'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trial-versions-fields-import-live-check
+  cancel-in-progress: false
+
+jobs:
+  check-once:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Set and clear one version's fields, import a share's new videos, put everything back, report what was read back
+        env:
+          # The SMM role key, a repository secret (as the V1 live check uses). Never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          LIVE_CHECK_CLIENT: ${{ inputs.client }}
+          LIVE_CHECK_CARD: ${{ inputs.card }}
+          LIVE_CHECK_FIELDS_LETTER: ${{ inputs.fields_letter }}
+          LIVE_CHECK_SOURCE_LETTER: ${{ inputs.source_letter }}
+          LIVE_CHECK_SWITCH_FOR_RUN: ${{ inputs.switch_for_run }}
+        run: node scripts/trial-versions-fields-import-live-check.js

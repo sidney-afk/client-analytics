@@ -36197,6 +36197,34 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Live result:** filled in by the supervisor's dispatch.
 - **Way back:** delete the workflow. It runs only by hand.
 
+## 678. [2026-11-03 UTC, BUILT, NOT MERGED] The Edge Functions merge lane held a function because of a rollback file, after its migration was already applied (SyncView supervisor)
+
+- **What happened:** F3 (#2533) added `migrations/2026-11-02-client-postforme-accounts.sql`, which carries the cope marker, and its `.ROLLBACK.sql`, which does not. The lane's planner counts every added `.sql` under `migrations/` as a migration, so the unmarked rollback file held `client-profile-write`. The migration had been applied live at once, but the function stayed at its old version for about 1 h 40 min. The red merge run was easy to miss: the lane counts from the last fully green run, so the next merge (V1, #2535) went red for the same hold.
+- **Released by hand** at 01:40 UTC with the merge lane (`commit_sha` = main's tip, `migrations_applied` = true), after reading back the migration's applied-when probe (true).
+- **Fix:** `scripts/ef-auto-deploy-plan.js` leaves `*.ROLLBACK.sql` out of the migrations a merge adds. A rollback file is applied only to undo its migration, never forward, so it never holds a function. An unmarked forward migration still holds exactly as before.
+- **Proof, failing first:** two new cases in `test/ef-auto-deploy.js`. A cope-marked migration plus its rollback deploys; an unmarked migration plus its rollback still holds, and the reason names the migration, not the rollback. On main both fail. With the fix the whole suite passes. Re-planning the window from the last green run to main's tip now gives `client-profile-write: deploy` and `trial-reels: deploy`, with no hold.
+- **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
+- **Way back:** revert the PR.
+
+## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+
+- **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
+- **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - after the list is sorted and cut to 50, each kept row without a length gets the file's metadata "Duration", the same read the video part makes;
+  - it runs 5 at a time, one call per kept row at most, and none for rows that were cut;
+  - a metadata call that fails, is refused (429) or runs out of the function's time leaves that row's length `null`. It never fails the list;
+  - a length already on the listing is used as is, with no metadata call;
+  - the answer shape is unchanged.
+- **Live check (`scripts/frameio-list-live-check.js`):** also prints `video_has_duration`, whether the listed video's own lookup has a length, beside `rows_with_duration`. The next dispatch settles both.
+- **Proof:**
+  - `test/frameio-view-source.js` has a mock that matches the live shape: no `duration` on listed files, the length only in the metadata, and one metadata call answering 500 and another 429. On main, 0 rows get a length. Now 4 of 6 do, the two failed rows stay `null`, and the list still answers.
+  - A 60-video folder makes exactly 50 metadata calls.
+  - A listing that already carries lengths makes none.
+  - 167 checks pass; every earlier check is unchanged.
+  - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
+- **Way back:** revert the PR. Rows go back to a `null` length.
+
 ## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
 
 - **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.

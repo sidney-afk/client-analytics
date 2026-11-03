@@ -36010,7 +36010,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+## 642. [2026-11-02 UTC, LIVE (merged #2526 as 225595b on 2026-11-02; WebKit phone lane green on main three times)] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
 
 - **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
   - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
@@ -36037,6 +36037,9 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - D: while the page is leaving, no re-ask. On main it asks once.
   - E: control, the page stays after all, and it re-asks once again.
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
+- **Live:** merged in #2526 as 225595b. The #2513 trace merged as 14c325b. The last main run without the fix (94f2d49) still went red at 00:29 UTC on 3 Nov, with the same report.
+  - After the fix, `review-stage-phones` passed on three main runs in a row: 288ad4c (job 125682156074), 6dc6349 (job 125697967913) and 817100f (job 125709994956).
+  - The front end is a page change, so it went live with the Pages publish of 225595b. No function is involved.
 - **Way back:** revert the PR.
 
 ## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
@@ -36224,7 +36227,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
 - **Way back:** revert the PR. Rows go back to a `null` length.
 
-## 649. [2026-11-02 UTC, BUILT, NOT MERGED] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
+## 649. [2026-11-02 UTC, LIVE 2026-11-03] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
 
 - **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
 - **Now:**
@@ -36245,6 +36248,101 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
   - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
 - **Way back:** revert the PR. Nothing calls the function yet.
+- **Live (2026-11-03, merged as #2543, merge lane run 41572842991; live check run 41573085174, one test-client card, no letter, Instagram side):** `ok`, rendition `original` (no fallback), 28,291,416 bytes, 57.28 s long, copied in 4,875 ms (5,628 ms wall). The storage address answered 206 `video/mp4` with the same byte count. So route (a), the streamed copy, works; routes (b) and (c) are not needed for a file this size. Width and height came back empty: Frame gives the size under another field name, which P1a (650) reads and measures. No post was created.
+
+## 650. [2026-11-03 UTC, LIVE 2026-11-03] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
+
+- **Asked:** plan row P1 ("thumbnail copied server side"), split with the supervisor into P1a (server) and P1b (the page, behind `post_sources_v1`). Also the supervisor, 3 Nov: F4's live check (649) answered `width` and `height` empty.
+- **Now (`supabase/functions/post-source/handler.mjs`):**
+  - after the video, the card's thumbnail goes into its own Post for Me address, and the answer carries `thumb_url`. The thumbnail is read from `calendar_posts.thumbnail_url` on the server, never from the request;
+  - which thumbnails are fetched (`thumbSource`):
+    - a Drive file, from Google's image host at 1080 wide (the host the Calendar uses);
+    - otherwise only a direct https link to a .jpg, .jpeg or .png;
+    - never http, a bare IP, localhost, a port, or a redirect;
+  - it must come back as a JPEG or PNG of at most 8 MB (Instagram's cover limits);
+  - a thumbnail that cannot be used never fails the video. `thumb_url` is then null and `thumb_note` says why in plain words. A failed video copy copies no thumbnail;
+  - a trial version has no thumbnail of its own until V3, so none is read for one.
+- **frameio-view `videoFacts` (shared, so frameio-view and higgsfield-mcp redeploy):**
+  - the size is also read from one "W x H" field (Resolution, Dimensions, Frame Size), from any field ending in Width or Height, and from values with a unit ("1080 px");
+  - the staff answer lists Frame's metadata field **names** (`metadata_fields`, never values). The client answer is unchanged.
+- **The live check** (`scripts/post-source-live-check.js`) also prints `thumb_copied` (true or false, never the address) and `metadata_fields`. The next run shows the field name Frame really uses for the size.
+- **Proof, failing first:**
+  - `test/post-source-logic.js`: 29 checks, 7 new:
+    - a Drive thumbnail is copied as a JPEG;
+    - a direct PNG is copied as a PNG;
+    - eleven thumbnails that cannot be used (too big, WebP, 404, network error, none, http, IP, localhost, IPv6, a Frame link, YouTube) leave the video copied, reach no storage address and say why;
+    - a refused thumbnail upload;
+    - a version gets no thumbnail;
+    - a failed video copy copies no thumbnail;
+    - the field names pass through to the live line.
+    On main the first new case fails (no thumbnail is fetched).
+  - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
+- **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).
+- **Live (2026-11-03, merged as #2554; merge lane green):** two runs of `post-source-live-check.yml`, both storage only, no post:
+  - **Run 41575393444, a test-client card with no thumbnail:** 200, the Original, 28.3 MB, 1080×1920, 57.3 s, `thumb_copied` false. That is right: the card's `thumbnail_url` reads back empty.
+  - **A test-client card with a Drive thumbnail:** 200, the Original, 18.2 MB, 1080×1920, 45.1 s, `thumb_copied` true. The stored file is `video/mp4` with the same size.
+  - **Frame's real metadata field names:** "Resolution - Width" and "Resolution - Height" for the size (read by the any-field-ending-in-Width/Height rule), "Duration", and "Video Codec".
+- **Follow-up (2026-11-03, after #2554 merged; supervisor and Codex P2 on #2554):** the thumbnail is now read piece by piece and stopped as soon as it passes 8 MB, so a server that states no size, or a wrong one, cannot make the function hold more. Redirects were already refused (`redirect: "error"`), so a redirect to a private or link-local address cannot be followed. Proof: a new case in `test/post-source-logic.js` (30 checks). A headerless 12 MB thumbnail is stopped after at most 9 MB read, with the video still copied and "over 8 MB" said; a headerless 3 MB one is still copied. It fails on main (main only reads the whole body at once).
+
+
+## 652. [2026-11-03 UTC, BUILT, NOT MERGED] instagram-upload posts to YouTube and LinkedIn too, in the same one post (plan row P3, server half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The supervisor, 3 Nov: start the server half now; the page half waits for P1b.
+- **Now (`supabase/functions/instagram-upload/logic.mjs` and `index.ts`):**
+  - **`create` takes:**
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }`;
+    - `linkedin: { accountId }`;
+    - `instagram: false`.
+    Every ticked account goes in the same one Post for Me post. YouTube is sent its title, `privacy_status: public` and `made_for_kids`; LinkedIn gets nothing extra.
+  - **Made for kids comes from the client's profile only** (`extra.youtube_made_for_kids === true`, F3), set by `applyProfileSettings` after the profile is read. The page cannot set it.
+  - **Account checks (`checkNetworkAccounts`):** every YouTube or LinkedIn account, and the first network's when Instagram is unticked, must be the one on the profile and on that network according to Post for Me. This runs before the row is written or the post is created. The Instagram and Facebook checks are unchanged.
+  - **Short or regular:** a Short is refused when the file is known to be over 3 minutes ("this video is 4:00. Post it as a regular video.") or not vertical. An unknown length or shape is left to YouTube.
+  - **Limits:**
+    - YouTube title 1 to 100 characters, no `<` or `>`;
+    - caption 2,200 characters for every network, because `instagram_uploads.title` holds 2,200 (no migration; Codex P2 on #2557), and 5,000 bytes with YouTube;
+    - a trial and a carousel stay Instagram's;
+    - one account per network.
+  - **Queue row:**
+    - `options.network` names the row's own network when Instagram is not ticked (absent = Instagram, so every earlier row reads as before);
+    - `options.networks.{youtube,linkedin}` keep each one's own status, link and error, read from Post for Me's per-account results;
+    - a failed create, a cancel, the queue's group and the status poll cover every part;
+    - `publicRow` shows `network`, `networks` and the YouTube title and format, never an account id.
+- **No migration** (JSON columns, as Facebook). No new secret.
+- **Proof:**
+  - `test/instagram-networks.js` (new, unit, 66 checks):
+    - one post with three accounts;
+    - Instagram unticked (YouTube first, Facebook first, nothing ticked refused);
+    - a 4-minute vertical file refused as a Short and accepted as regular;
+    - horizontal refused as a Short;
+    - title and caption limits;
+    - trial and carousel kept Instagram's;
+    - a duplicate account;
+    - made for kids from the profile only;
+    - wrong account (403), no account (409), wrong platform (400), unknown id, Post for Me down;
+    - the handler checking before `.insert(row)` and before the create;
+    - the same key returning the same post;
+    - results per network;
+    - a cancel covering every network;
+    - no account id to the page.
+    On main it fails (`applyProfileSettings` is not there).
+  - Every existing Instagram and Facebook suite passes unchanged: `instagram-upload-source` (139), `instagram-facebook-crosspost` (79).
+  - Codex P2 on #2557, fixed: a YouTube-, LinkedIn- or Facebook-only post answered "processed" now waits for its own result instead of being marked posted.
+- **Live check (D6), after merge:** on one of the owner's clients with YouTube and LinkedIn connected, schedule 7+ days ahead through Post for Me's `scheduled_at`, cancel at once, read back gone. The page half and its live check follow P1b.
+- **Way back:** revert the PR. Rows already written keep reading as Instagram.
+
+## 674. [2026-11-02 UTC, BUILT, NOT MERGED] A CI run's Firefox reports reached the live diagnostics log, counted as a person's (session Reviewguard)
+
+- **Seen (read-only, live):** between 19:22 and 21:29 UTC on 2 Nov, 10 reports with traffic `person`, all surface calendar, board client, operation status, code `landed_after_retry`, all on card `rs1` (the review-stage fixture's card, not a real one), all Firefox on Linux, `app_version` equal to the CI build's minute, about one per CI run. No Chromium or WebKit run leaked.
+- **Source:** the shared review-stage fixture (`test/fixtures/review-stage-fixture.js`), in its Firefox runs. Those are `test/repair-checkpoint-browser.js` (its client-link note, change and approve cases) and `test/review-stage-gauntlet3-browser.js`. The landing report (OPEN_REPAIRS 639, so only since #2519) is sent as the save finishes, right before the test closes its context. The report goes with `keepalive`, so a request still on its way can outlive the page. In these Firefox runs it reached the real write-diagnostics past the fixture's route, which answers every `/functions/v1/` call. A refusal sent mid-test was always caught. This is inferred from the rows and the code; Firefox is not installed in the sandbox where this was built.
+- **Why "person":** the server's traffic check reads the user agent, and headless Firefox's looks like a person's (Chrome's says HeadlessChrome).
+  - **The page says when a test robot drives it** (120 `_writeRefusalBeacon`): `automation: true` when `navigator.webdriver` is true, as it is in every Playwright and Selenium browser and never in a person's. write-diagnostics then records the report as automation, whatever the user agent. The check is in write-diagnostics' own code; the shared `requestTraffic` (production-write imports it) is unchanged. The flag can only mark a report as automation, never hide a person's.
+  - **The fixture sends diagnostics reports as plain requests** (no keepalive, counted in `window.__svDiagKeepaliveDropped`), so its route answers them and they die with the page.
+- **Telling the 10 rows apart (read-only advice, nothing deleted):** once this is live, a test run's report is traffic `automation`, which the daily read already leaves out and the signature read lists apart. The 10 rows already stored are card_ref `rs1` from firefox/linux; no real card has that id. A watcher can leave them out with `card_ref <> 'rs1'`, or by their attempt ids. The 30-day retention removes them on its own.
+  - `test/diagnostics-test-traffic-browser.js` (new, on the review-stage fixture, Chromium): a robot-driven page's report carries the flag, the fixture sends it without keepalive, and a page with `navigator.webdriver` false sends no flag. On main it fails: the report has no flag.
+  - `test/linear-exit-write-diagnostics-handlers.js`: a Firefox user agent with the flag is automation, without it a person, and only `true` counts. On main it fails ("a robot-driven page is automation").
+  - The client-requests golden's two diagnostics reports gained `automation: true` (added by hand; the requests and every source hash are unchanged).
+  - Unchanged and passing on the fixture: `test/review-board-gauntlet-browser.js`, `test/review-stage-save-browser.js`, `test/review-stage-browser.js`, `test/client-calendar-read-only-browser.js`, `test/first-paint-theme-browser.js`.
+
 
 ## 651. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
 
@@ -36281,4 +36379,3 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
   `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
-

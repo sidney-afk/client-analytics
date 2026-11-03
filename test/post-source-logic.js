@@ -36,7 +36,7 @@ function world(over = {}) {
   const sizes = Object.assign({ original: 120 * MB, high_quality: 40 * MB, efficient: 6 * MB }, over.sizes || {});
   const deps = {
     allowedClients: 'test-client',
-    readCard: async (client, postId) => (over.cards || [{ id: 'p_1', client: 'test-client', asset_url: CARD_LINK }])
+    readCard: async (client, postId) => (over.cards || [{ id: 'p_1', client: 'test-client', asset_url: CARD_LINK, thumbnail_url: over.thumb === undefined ? '' : over.thumb }])
       .find((c) => c.client === client && c.id === postId) || null,
     // Every stored row for the card, as the table holds them (duplicates of a letter are allowed: the table is unique
     // on client, batch, video and letter, not on the card and letter).
@@ -52,9 +52,27 @@ function world(over = {}) {
     fetchFn: async (url, init = {}) => {
       if ((init.method || 'GET') === 'PUT') {
         calls.puts.push({ url, body: init.body, headers: init.headers || {}, duplex: init.duplex });
-        return { ok: !over.putFails, status: over.putFails ? 500 : 200, body: null };
+        const fails = over.putFails || (over.thumbPutFails && /image\//.test((init.headers || {})['Content-Type'] || ''));
+        return { ok: !fails, status: fails ? 500 : 200, body: null };
       }
       calls.gets.push(url);
+      if (over.images && Object.prototype.hasOwnProperty.call(over.images, url)) {
+        const img = over.images[url];
+        if (img instanceof Error) throw img;
+        // The body arrives in 1 MB pieces, as a real stream would; `read` counts what the handler took.
+        const total = img.bytes || 2048;
+        img.read = 0; img.cancelled = false;
+        const body = new ReadableStream({
+          pull(ctrl) {
+            if (img.read >= total) { ctrl.close(); return; }
+            const n = Math.min(MB, total - img.read);
+            img.read += n; ctrl.enqueue(new Uint8Array(n));
+          },
+          cancel() { img.cancelled = true; },
+        }, { highWaterMark: 0 });
+        const headers = new Map([['content-type', img.type || 'image/jpeg']].concat(img.noLength ? [] : [['content-length', String(total)]]));
+        return { ok: img.status ? img.status < 300 : true, status: img.status || 200, headers, body };
+      }
       const name = Object.keys(FRAME).find((k) => FRAME[k] === url);
       if (over.forbidOriginal && name === 'original') return { ok: false, status: 403, headers: new Map(), body: { cancel() {} } };
       const len = sizes[name];
@@ -237,6 +255,82 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
     answers.push((await run(world({ putFails: true }), { client: 'test-client', post_id: 'p_1' })).body);
     answers.push((await run(world({ sizes: { original: 900 * MB } }), { client: 'test-client', post_id: 'p_1', side: 'tiktok' })).body);
     for (const a of answers) assert.doesNotMatch(JSON.stringify(a), /frame\.io/i);
+  });
+
+  // ---- 6. the card's thumbnail, copied server side too (plan row P1, part P1a, OPEN_REPAIRS 650)
+  const DRIVE = 'https://drive.google.com/file/d/AbCdEf123456/view?usp=sharing';
+  const LH3 = 'https://lh3.googleusercontent.com/d/AbCdEf123456=w1080';
+  await ok('a Drive thumbnail is fetched from Google\'s image host and copied into its own storage address', async () => {
+    const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg', bytes: 5000 } } });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.status, 200); assert.equal(r.body.ok, true);
+    assert.ok(w.calls.gets.includes(LH3));
+    assert.equal(w.calls.mints, 2);
+    assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.equal(r.body.thumb_note, '');
+    const put = w.calls.puts[1];
+    assert.equal(put.headers['Content-Type'], 'image/jpeg'); assert.equal(put.headers['Content-Length'], '5000');
+    assert.equal(r.body.media_url, 'https://data.postforme.dev/m/1');
+  });
+  await ok('a direct https PNG link is copied as a PNG', async () => {
+    const png = 'https://cdn.example.test/thumbs/card.png?v=2';
+    const w = world({ thumb: png, images: { [png]: { type: 'image/png' } } });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.equal(w.calls.puts[1].headers['Content-Type'], 'image/png');
+  });
+  await ok('a thumbnail that cannot be used never fails the video, never reaches a storage address, and says why', async () => {
+    const big = 'https://cdn.example.test/big.jpg', webp = 'https://cdn.example.test/x.jpg?fmt=webp', webpLink = 'https://cdn.example.test/y.webp', gone = 'https://cdn.example.test/gone.jpg', down = 'https://cdn.example.test/down.jpg';
+    const images = { [big]: { type: 'image/jpeg', bytes: 9 * MB }, [webp]: { type: 'image/webp' }, [gone]: { status: 404 }, [down]: new Error('reset') };
+    for (const [thumb, fetched] of [[big, true], [webp, true], [gone, true], [down, true], ['', false], ['http://cdn.example.test/a.jpg', false],
+      ['https://127.0.0.1/a.jpg', false], ['https://localhost/a.jpg', false], ['https://[::1]/a.jpg', false], ['https://next.frame.io/share/x/view/y', false],
+      ['https://www.youtube.com/watch?v=abcdefghijk', false], [webpLink, false]]) {
+      const w = world({ thumb, images });
+      const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+      assert.equal(r.status, 200, thumb); assert.equal(r.body.ok, true, thumb);
+      assert.equal(r.body.thumb_url, null, thumb); assert.equal(w.calls.mints, 1, thumb);
+      assert.equal(w.calls.gets.includes(thumb) || w.calls.gets.some((g) => g.startsWith('https://lh3.')), fetched, thumb);
+      assert.equal(typeof r.body.thumb_note, 'string'); assert.ok(r.body.thumb_note.length > 0, thumb);
+      assert.doesNotMatch(JSON.stringify(r.body), /cdn\.example\.test|127\.0\.0\.1|localhost/, thumb);
+    }
+  });
+  await ok('a thumbnail with no stated size is read only up to 8 MB, then stopped (supervisor and Codex P2 on #2554)', async () => {
+    const huge = 'https://cdn.example.test/huge.jpg';
+    const images = { [huge]: { type: 'image/jpeg', bytes: 12 * MB, noLength: true } };
+    const w = world({ thumb: huge, images });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.body.ok, true); assert.equal(r.body.thumb_url, null); assert.match(r.body.thumb_note, /over 8 MB/);
+    assert.ok(images[huge].read <= 9 * MB, 'read ' + images[huge].read + ' bytes'); assert.equal(images[huge].cancelled, true);
+    assert.equal(w.calls.mints, 1);
+    const ok8 = 'https://cdn.example.test/ok.jpg';
+    const w2 = world({ thumb: ok8, images: { [ok8]: { type: 'image/jpeg', bytes: 3 * MB + 5, noLength: true } } });
+    const r2 = await run(w2, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r2.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.equal(w2.calls.puts[1].headers['Content-Length'], String(3 * MB + 5));
+  });
+  await ok('a refused thumbnail upload leaves the video copied and the thumbnail empty', async () => {
+    const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } }, thumbPutFails: true });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.body.ok, true); assert.equal(r.body.media_url, 'https://data.postforme.dev/m/1');
+    assert.equal(r.body.thumb_url, null); assert.match(r.body.thumb_note, /\S/);
+  });
+  await ok('a trial version has no thumbnail of its own yet: none is read or copied', async () => {
+    const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } } });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
+    assert.equal(r.body.ok, true); assert.equal(r.body.thumb_url, null); assert.equal(w.calls.mints, 1);
+    assert.ok(!w.calls.gets.includes(LH3));
+  });
+  await ok('a failed video copy copies no thumbnail', async () => {
+    const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } }, putFails: true });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.body.ok, false); assert.ok(!w.calls.gets.includes(LH3)); assert.equal(w.calls.mints, 1);
+  });
+  await ok('the answer passes on Frame\'s metadata field names (names only) for the live check', async () => {
+    const w = world();
+    w.deps.fileFacts = async () => ({ media_type: 'video/mp4', codec: 'H.264', width: null, height: null, metadata_fields: ['Video Codec', 'Resolution'] });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.deepEqual(r.body.metadata_fields, ['Video Codec', 'Resolution']);
+    const { safeSummary } = require('../scripts/post-source-live-check.js');
+    const line = safeSummary(r.body);
+    assert.deepEqual(line.metadata_fields, ['Video Codec', 'Resolution']); assert.equal(line.thumb_copied, false);
+    assert.ok(!('thumb_url' in line));
   });
 
   // ---- 5. the live check prints numbers only

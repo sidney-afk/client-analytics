@@ -7,7 +7,9 @@
 //   POST { client, post_id, letter?, side? }   header X-Syncview-Key: a staff role key (admin, smm or creative)
 //     letter: "B".."G" for a trial version; empty or "A" is the card itself. side: "instagram" (default) or "tiktok".
 //     -> 200 { ok:true, media_url, file_name, rendition:"original"|"high_quality"|"efficient", fell_back_from_original,
-//              bytes, width, height, duration_seconds, took_ms }
+//              bytes, width, height, duration_seconds, thumb_url, thumb_note, metadata_fields, took_ms }
+//        thumb_url: the card's thumbnail copied into its own Post for Me address (P1a, OPEN_REPAIRS 650), or null with
+//        the reason in thumb_note; a version has none until plan row V3. metadata_fields: Frame's field names only.
 //     -> { ok:false, error, message }  bad_request 400, client_not_allowed 403, card_not_found 404,
 //        version_not_found 404, no_link 409, no_h264_copy 409, too_large 413, copy_failed 502, frameio_unavailable 502,
 //        and frameio-view's own refusals (folder_link 422, file_not_in_share 404, still_processing 409, ...)
@@ -81,15 +83,15 @@ Deno.serve(async (req) => {
       body,
       deps: {
         allowedClients: env("INSTAGRAM_UPLOAD_ALLOWED_CLIENTS"),
-        readCard: (client: string, id: string) => rest("calendar_posts?select=id,client,asset_url&client=" + eq(client) + "&id=" + eq(id) + "&limit=1"),
+        readCard: (client: string, id: string) => rest("calendar_posts?select=id,client,asset_url,thumbnail_url&client=" + eq(client) + "&id=" + eq(id) + "&limit=1"),
         // Every row of the card, matched as trial-reels matches them (client case-insensitively, exactly); the handler
         // keeps the one trial-reels shows for each letter.
         readVersions: (client: string, postId: string) =>
           restAll("studio_trial_versions?select=id,letter,frame_url,created_at&post_id=" + eq(postId) + "&client=ilike." + encodeURIComponent(likeExact(client))),
         lookupVideo: async (link: string) =>
           (await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now }, { part: "video", strict: true })).video,
-        fileFacts: async (video: { media_type?: string; codec?: string; width?: number; height?: number }) =>
-          ({ media_type: video.media_type, codec: video.codec, width: video.width, height: video.height }),
+        fileFacts: async (video: { media_type?: string; codec?: string; width?: number; height?: number; metadata_fields?: string[] }) =>
+          ({ media_type: video.media_type, codec: video.codec, width: video.width, height: video.height, metadata_fields: video.metadata_fields }),
         mint: async () => {
           const r = await fetch(PFM + "/media/create-upload-url", {
             method: "POST", headers: { Authorization: "Bearer " + pfmKey, "Content-Type": "application/json", Accept: "application/json" },

@@ -332,6 +332,9 @@ function deps(f, over = {}) {
       const log = [];
       const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => data });
       const B = '/accounts/' + ACCT_B;
+      // o.liveShape: as measured live on 2026-11-03 (two runs, 0 of 1 listed rows had a length), a listed file
+      // carries no `duration`; the length is only in the file's metadata ("Duration"), as the video part reads it.
+      const strip = (arr) => (o.liveShape ? arr.map((x) => Object.assign({}, x, { duration: undefined })) : arr);
       const fn = async (url) => {
         log.push({ url });
         const m = url.replace('https://api.frame.io/v4', '');
@@ -348,21 +351,41 @@ function deps(f, over = {}) {
           const p = Number((m.match(/after=(\d+)/) || [0, 0])[1]);
           return reply(200, { data: [img(500 + p), ...(p < 3 ? [vid(300 + p)] : [])], links: { next: 'https://api.frame.io/v4' + B + '/folders/' + DIR + '/children?page_size=50&after=' + (p + 1) } });
         }
-        if (m.startsWith(B + '/folders/' + DIR + '/children')) return reply(200, { data: [six[0], img(7), six[1], six[2], img(8), six[3], six[4], six[5]], links: { next: null } });
+        if (m.startsWith(B + '/folders/' + DIR + '/children')) return reply(200, { data: strip([six[0], img(7), six[1], six[2], img(8), six[3], six[4], six[5]]), links: { next: null } });
         if (m.startsWith(B + '/folders/' + BIG + '/children')) {
-          if (/after=2/.test(m)) return reply(200, { data: Array.from({ length: 30 }, (_, i) => vid(130 + i)), links: { next: null } });
-          return reply(200, { data: Array.from({ length: 30 }, (_, i) => vid(100 + i)), links: { next: 'https://api.frame.io/v4' + B + '/folders/' + BIG + '/children?page_size=50&after=2' } });
+          if (/after=2/.test(m)) return reply(200, { data: strip(Array.from({ length: 30 }, (_, i) => vid(130 + i))), links: { next: null } });
+          return reply(200, { data: strip(Array.from({ length: 30 }, (_, i) => vid(100 + i))), links: { next: 'https://api.frame.io/v4' + B + '/folders/' + BIG + '/children?page_size=50&after=2' } });
         }
         const fm = m.match(/^\/accounts\/[^/]+\/files\/([0-9a-f-]{36})/);
         if (fm && fm[1].startsWith('ffffffff-2000-')) {
           const n = Number(fm[1].slice(-12));
-          if (/\/metadata$/.test(m)) return reply(200, { data: { metadata: [] } });
+          if (/\/metadata$/.test(m)) {
+            if (o.liveShape && n === 3) return reply(500, {});
+            if (o.liveShape && n === 4) return reply(429, {});
+            return reply(200, { data: { metadata: o.liveShape ? [{ field_definition_name: 'Duration', value: 20 + n }] : [] } });
+          }
           return reply(200, { data: vid(n, { media_links: { high_quality: { download_url: 'https://cdn.frame.io/' + n + '.mp4' }, thumbnail: { download_url: 'https://assets.frame.io/thumb/' + n + '.jpg' } } }) });
         }
         return reply(404, {});
       };
       return { fn, log };
     };
+    // a listed file with no `duration` gets its length from the file's metadata, as the video part does (F1 follow-up)
+    {
+      const lv = listFake({ liveShape: true });
+      const got = await lookup('https://next.frame.io/share/' + SH, deps(lv), { part: 'list' });
+      eq(got.videos.length, 6, 'with the live shape the list still lists all 6 videos');
+      eq(got.videos.filter((v) => v.duration_seconds > 0).map((v) => v.name).sort(), ['Clip 1.mp4', 'Clip 2.mp4', 'Clip 5.mp4', 'Clip 6.mp4'], "a listed video's length comes from its metadata when the listing has none");
+      eq(got.videos.find((v) => v.name === 'Clip 5.mp4').duration_seconds, 25, 'the metadata Duration is the length');
+      eq(got.videos.filter((v) => v.duration_seconds === null).map((v) => v.name).sort(), ['Clip 3.mp4', 'Clip 4.mp4'], 'a metadata call that fails (500) or is refused (429) leaves that length empty and never fails the list');
+      const big = listFake({ liveShape: true, big: true });
+      const b = await lookup('https://next.frame.io/share/' + SH, deps(big), { part: 'list' });
+      eq([b.videos.length, big.log.filter((e) => /\/metadata$/.test(e.url)).length], [50, 50], 'at most one metadata call per row kept (50), none for the rows cut');
+      ok(b.videos.every((v) => v.duration_seconds > 0), 'and every kept row gets its length');
+    }
+    { const plain = listFake(); await lookup('https://next.frame.io/share/' + SH, deps(plain), { part: 'list' });
+      eq(plain.log.filter((e) => /\/metadata$/.test(e.url)).length, 0, 'a listing that already carries the length makes no metadata call'); }
+
     const lf = listFake();
     const out = await lookup('https://next.frame.io/share/' + SH, deps(lf), { part: 'list' });
     eq(out.videos.length, 6, 'a folder of 6 videos and 2 images lists the 6 videos');

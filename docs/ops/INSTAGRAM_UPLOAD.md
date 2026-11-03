@@ -79,6 +79,15 @@ nothing posted from SyncView reached Facebook.
   an Instagram account; its Clients Info copy is queued as with `roster-write`, which still works too). Saving either
   needs `migrations/2026-10-31-client-facebook-page.sql` applied; until then the page says the database update is not
   applied yet and saves nothing (every other field still saves).
+- **YouTube and LinkedIn accounts, made for kids (2026-11-02, OPEN_REPAIRS 666):** the Publishing card also has
+  **YouTube (Post for Me)** and **LinkedIn (Post for Me)** (paste the Connection ID, checked as a YouTube or LinkedIn
+  account, kept in `extra.postforme_youtube_account_id` / `extra.postforme_linkedin_account_id`) and a
+  **YouTube: made for kids** switch (`extra.youtube_made_for_kids = true`; off when absent, so every client is off
+  until an admin turns it on). The TikTok **Post for Me** id is now checked as a TikTok account on save too. One
+  Post for Me account can be on one client only, per slot, archived clients included: a unique index refuses the
+  second, and the page says "That Post for Me account is already on another client." Needs
+  `migrations/2026-11-02-client-postforme-accounts.sql` applied; none of these is a Clients Info column. Posting to
+  YouTube and LinkedIn is a later PR (P3 of `docs/plans/2026-11-trial-and-posting/combined.md`).
 - **Composer:** with a Page on file, an **Also post to Facebook** box sits above Scheduling, ticked by default. Untick
   it for an Instagram-only post (it stays unticked for that client until the client changes). It is unticked and
   disabled, with the reason, for a **trial reel** (an Instagram feature), for a **carousel with a video** (Facebook

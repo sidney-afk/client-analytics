@@ -219,7 +219,10 @@ import { wlState } from './066-core-workload-state.js';
                 if (on) {
                     if (!_fphDisconnectedCopy.has(line)) _fphDisconnectedCopy.set(line, [...line.childNodes].filter(node => node !== warning));
                     const guidance = ' Ask an admin to connect this client in Clients, Publishing before uploading.';
-                    if (line.textContent !== warning.textContent + guidance) line.replaceChildren(warning, document.createTextNode(guidance));
+                    // The Open Post for Me link (plan row N1) stays beside the shorter phone wording.
+                    const link = line.querySelector('.tk-pfm-link');
+                    const tail = link ? ' ' : '';
+                    if (line.textContent !== warning.textContent + guidance + tail + (link ? link.textContent : '')) line.replaceChildren(warning, document.createTextNode(guidance + tail), ...(link ? [link] : []));
                 } else if (_fphDisconnectedCopy.has(line)) {
                     line.replaceChildren(warning, ..._fphDisconnectedCopy.get(line));
                     _fphDisconnectedCopy.delete(line);

@@ -81,6 +81,12 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     let _igAbort = null;           // aborts every step before the post is created
 
     const _igEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    // Beside every "no account" message on both sides of the Post tab: a link that opens Post for Me in a new tab,
+    // where the account is connected (plan row N1, decision D7, OPEN_REPAIRS 646). A link and nothing else.
+    const SV_POSTFORME_URL = 'https://www.postforme.dev';
+    function svPostForMeLinkHtml() {
+        return ` <a class="tk-pfm-link" href="${SV_POSTFORME_URL}" target="_blank" rel="noopener">Open Post for Me</a>`;
+    }
 
     // The client's Instagram connection id. Staff pages read the sheet columns directly, or (once the analytics
     // database is on) receive any column the copy does not know by name inside `extra`; both are accepted.
@@ -100,7 +106,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igFacebookState() {
         if (!igState.client) return { enabled: false, checked: false, reason: '' };
         const fb = _igResolveFacebook(igState.client);
-        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, reason: 'No Facebook Page connected for this client. Ask Sidney to add its Post for Me Facebook connection (spc_...) on the client\'s profile.' };
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page connected for this client. Ask Sidney to add its Post for Me Facebook connection (spc_...) on the client\'s profile.' };
         if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
         if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
         return { enabled: true, checked: !igState.facebookOff, reason: '' };
@@ -118,7 +124,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                         Also post to Facebook
                     </label>
                 </div>
-                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}</div>
+                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
             </div>`;
     }
 
@@ -628,7 +634,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (igState.client) {
             accountLine = accountOk
                 ? `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`
-                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}</div>`;
+                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}${svPostForMeLinkHtml()}</div>`;
         }
         const media = igState.file
             ? `<div class="tk-file-card">
@@ -704,7 +710,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 ${igState.submitting
                     ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
                     : ''}
-                ${igState.error ? `<div class="tk-error" role="alert">${_igEsc(igState.error)}</div>` : (igState.notice ? `<div class="tk-step-note" role="status">${_igEsc(igState.notice)}</div>` : '')}
+                ${igState.error ? `<div class="tk-error" role="alert">${_igEsc(igState.error)}${igState.error === IG_NO_ACCOUNT_MSG ? svPostForMeLinkHtml() : ''}</div>` : (igState.notice ? `<div class="tk-step-note" role="status">${_igEsc(igState.notice)}</div>` : '')}
             </div>
         `;
         _igWireForm();
@@ -1165,5 +1171,5 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 
 export {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, teardownInstagramPanel
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel
 };

@@ -36039,6 +36039,17 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.
 
+## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
+
+- **Asked:** Sidney, 2 Nov (D7 in `docs/plans/2026-11-trial-and-posting/combined.md`): wherever the Post tab says a client has no account on a network, a link beside the message opens Post for Me (https://www.postforme.dev) in a new tab.
+- **Before:** the message said what was missing and who should add it, and nothing else.
+- **Now:** one helper, `svPostForMeLinkHtml()` in 299, writes `Open Post for Me` (`target="_blank"`, `rel="noopener"`) after: TikTok's account line (300) and its refusal on submit; Instagram's account line (299) and its refusal on submit; the Facebook box's "No Facebook Page connected" reason. The wording is unchanged; it changes with the linking pick list (plan row L1, held). No flag: it is a link and nothing else. YouTube and LinkedIn get the same link with plan row P3.
+- **Found while building, fixed here:**
+  - On a phone the staff shell (099) rewrites the account line to a shorter sentence and replaced every child of the line, so the link vanished there. It now keeps the link after the phone wording.
+  - On desktop the TikTok account line is a flex row, and its message (text, a bold word and a code chip) was split into three side-by-side columns. The message is now one span, so it reads as a sentence, with the link beside it.
+- **Proof:** `test/postforme-link-browser.js` (new, offline, nothing posted): with no account on any network, each of the five messages has exactly one link to Post for Me that opens in a new tab with `noopener`, the new tab gets no `window.opener`, the form keeps its client, and the wording is unchanged; on a 390-wide phone both account lines keep the link after the phone wording; with every account on file there is no link anywhere. Fails on main at the first check (no link). The Post tab, Instagram + Facebook, platform switch, cover client switch, TikTok steps and TikTok layout suites pass unchanged.
+- **Way back:** revert the PR.
+
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
 
 - **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
@@ -36067,6 +36078,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/review-board-diagnostics-postgres.js` runs the migration's own applied-when check (false before, true after), applies it twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
   - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
 - **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.
+
 ## 647. [2026-11-02 UTC, BUILT, NOT MERGED] TikTok kept a lost create's key in memory only, so a reload and a re-press could post twice (plan row P0; session Pbuild)
 
 - **Plan's wording, corrected:** the plan (posting.md, combined.md row P0) said TikTok "mints a fresh key on every press". In a page that stays open it already does what Instagram does: a create whose answer is lost (no answer, a 5xx, a cancel during the create, or a 200 with a failed row) keeps its key and storage address in `tkState.retryCreate`, and an unchanged re-press sends them again (OPEN_REPAIRS 404). The real gap was a **reload**: that attempt lived in memory only, while the TikTok draft (client, caption, options, schedule) survives a reload. After the reload, attaching the same file and pressing again minted a new key and a new upload, so the function could not adopt the first post.
@@ -36075,7 +36087,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
-## 673. [2026-11-02 UTC, BUILT, NOT APPLIED, NOT MERGED] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
+## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
 
@@ -36086,6 +36098,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Proof:** `test/slack-channel-stall-guard.js` + `scripts/slack-channel-stall-proof.sql` (disposable PostgreSQL, on top of the Create client proof): both orders (profile then form, form then profile), a typed email never overwritten, a test client and a channelled client left alone, a refusing roster and a broken web call never fail the write, one nudge per new email, the view's rows and its privileges. Fails without the file; mutation-checked. The view's query was run read-only on live: one row today (a client created 29 Oct, waiting for its form and email).
 - **Not done here, n8n (proposed on the PR, for the supervisor and owner):** make an empty profile email WAIT instead of park, so a job also recovers on its own when the email is typed by hand; and stop the manual-reconcile DM from carrying the form answers (it holds the account-access lines). Never applied by this session.
 - **Owner steps:** Lighthouse applies the migration; the supervisor adds the watcher query from the PR. Rollback is in the file's header.
+- **LIVE (2026-11-02, about 23:13 UTC, applied by the supervisor; re-read by Chanfix):** merged in #2540 (`bd1fea9`); the migration is applied (all 4 triggers present, the view returns 1 row, and neither anon nor service_role can read it); the hourly onboarding watcher now reads `client_slack_channel_stalls_v1`. n8n change 1 is live on the owner's go: in the finalizer's "Check Readiness and Slack Decision", an empty profile email now WAITS (`waiting_for_readiness`) instead of parking, active version `49a29c76` (before `aedcda8b`, see `docs/ops/N8N_EDIT_LOG.md`). n8n change 2 (dropping the form answers from the manual-reconcile DM) was **declined by the owner**: he wants the logins in his DM. Leave it as it is.
 
 ## 670. [2026-11-02 UTC, BUILT, NOT MERGED] frameio-view lists the videos in a Frame.io folder, and has a strict lookup (session Framefix, plan item F1)
 
@@ -36109,6 +36122,108 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
 
+## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
+
+- **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.
+- **Measured first (read-only, 2 Nov):** 41 client profiles, none archived. Post for Me ids: TikTok column 13, Instagram 4, Facebook Page 2, YouTube 0, LinkedIn 0. **0 duplicate ids on every slot**, 0 ids with stray spaces, 0 not shaped `spc_...`. The live function is the 2026-10-31 body.
+- **Built:**
+  - **Migration `migrations/2026-11-02-client-postforme-accounts.sql` (needs Lighthouse; carries `functions-cope-without-this`):** `client_profile_admin_edit` takes `postforme_youtube_account_id`, `postforme_linkedin_account_id` (spc_ or blank) and `youtube_made_for_kids` (true / false / blank; stored as JSON `true`, removed when off), each in `extra` with one history row. Five unique partial indexes `client_profiles_<field>_uniq` on the trimmed value of every slot (TikTok column, Instagram, Facebook, YouTube, LinkedIn), archived rows included. Its header has the precheck, the read-back and the four-role revoke. Rollback: `...ROLLBACK.sql` (drops the indexes, restores the 2026-10-31 body; saved values stay).
+  - **`client-profile-write`:** every non-blank account id in a save, the TikTok column included, is checked against Post for Me's `platform` before the database is called (TikTok accepts `tiktok` and `tiktok_business`, as `tiktok-upload` does); only `platform` is read, the body is never passed on. A unique-index refusal (23505) answers `postforme_account_taken` with the slot, not `write_failed`. Logic in `_shared/client-profile-edit.mjs` (`ACCOUNT_FIELD_PLATFORMS`, `accountChecks`; `EXTRA_ACCOUNT_PLATFORM` is gone).
+  - **Kasper > Clients, Publishing card:** **YouTube (Post for Me)** and **LinkedIn (Post for Me)** paste boxes and a **YouTube: made for kids** switch (Off/On; 44px on phones). Plain messages for a taken account and for a wrong network on every slot.
+- **Proof:** `test/client-postforme-accounts-postgres.js` (new, disposable PostgreSQL: refused before, saved after, made-for-kids on/off and history, a second client refused on all five slots even padded, archived ids count, the rollback restores the 2026-10-31 body exactly); `test/client-profile-edit.js` (+14 checks); `clients-admin-browser.js` (the two fields, the switch on and off, a taken account, a wrong TikTok network, at 1440, 390 and 375). Each fails on main.
+- **Codex P2 on #2533, fixed:** the Sheet-first lane (only while `client_profiles_authority` is `sheet`; live it is `syncview`) writes the Sheet before the database, so the index alone would have left a duplicate account in the Sheet. It now reads whether another client holds the account and refuses (`postforme_account_taken`) before any Sheet write.
+- **Why the functions cope:** before the migration the three new fields answer `field_not_editable` (the page says the database update is not applied yet) and nothing is written; the TikTok check needs no database change.
+- **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
+- **Way back:** revert the PR and run the ROLLBACK file.
+
+## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+
+- **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
+- **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
+  - `trial-reels` has a new action, `version_status_set` (`logic.mjs` `versionStatusPatches`). Each word is stored in the columns the review already uses, so no migration is needed:
+    - In Progress and For SMM Approval: one state, no OKs. The page shows For SMM Approval when the version has a link and In Progress when it has none.
+    - Kasper Approval: the SMM's OK.
+    - Client Approval: the SMM's and Kasper's OKs.
+    - Approved: all three OKs.
+    - Tweaks Needed: a change asked by the SMM. No note is needed, as on a card.
+  - Refused: an unknown word, a dropped version, a version on trial or decided, a review word on a version with no link (the card's empty-part rule), and a pick the card's own state would read back as another word (`status_follows_card`, for example a card sent on whole to the client).
+  - The staff read gains `card_status` for each version.
+  - One `calendar_post_events` row per pick, in the card's `status_change` shape but under action `trial_status`, with from and to in the card's words. A pick that changes nothing writes nothing.
+  - The page (189), behind `trial_versions_v2`: the label slot becomes the card's status pill and menu (the card's menu, colours and phone sheet). The capability is `trial-version-status` (admin, SMM).
+- **One pick never moves another version** (Codex P2 on #2535, fixed):
+  - On a card sent on whole, stamping one version's SMM OK ended the "sent on whole" reading for every version, so an untouched version went back to the team.
+  - A pick that would change how any other version reads is now refused with `status_follows_card`.
+  - Kasper's OK is stamped only where Kasper is on the card's route, so a card the SMM sent straight to the client does not put Kasper back on it.
+- **Narrower than the card, on purpose:** on a card, an editor may set the status of their own assigned video. On a version, a creative key may not: a version has no assignee to check, and Sidney asked for "the SMM, at least".
+- **Readers of `calendar_post_events` checked for the new action:**
+  - The Kasper history (330) reads `status_change` and `mirror_in_status_change` only.
+  - The archive restore (186) reads `archive`.
+  - `calendar-auto-posted` reads `status_change` with its own source. Its due list skips any card with an event in the last hour; today's `trial_*` rows already have that effect.
+  - The caption history reads caption rows only.
+  - The link-gap and leak checks read `link_set` and `create` only.
+  - The status bridges and repair scripts write, never count this action.
+  - The drift robot (`card-calendar-status-drift-check.js`) reads cards and work items, not events.
+  - The n8n status sync is not touched.
+- **Never writes the card:** the card reaches Approved only through today's approve, when `card_approvable` says every live version is approved.
+  - `test/trial-version-status-logic.js` (52 checks). The list is read from the page's `CAL_STATUSES`. On main it fails at once (`versionStatusPatches is not a function`).
+  - `test/trial-version-status-browser.js` (38 checks, 1440 and 390, mocked). On main's page it fails at the first picker check.
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` is unchanged and passes.
+- **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+
+## 659. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
+- **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
+  - **Refused first, read-only, and nothing is written:**
+    - any client but the test client (compared by SHA-256, so no slug is in the repository);
+    - a card that is not that client's;
+    - a Posted card (a staff call starts its trial);
+    - a card with a Production video or graphic sub-issue, or any row in `production_deliverables_browser_v1` (so the status sync and the drift robot never see these writes; entry 373);
+    - a card whose switch is off, or with no such version;
+    - a card whose first staff read healed a version link;
+    - a walk V1's own rules would refuse. The script runs `logic.mjs` `versionStatusPatches` from the checkout over the card's state from that read, for every pick and the put-back (`planWalk`), so an expected refusal such as `status_follows_card` stops the run before it writes. A refusal the live function gives anyway still fails the run.
+  - **The walk:** For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, then back to the word the version started at.
+    - After each pick it reads back the version's `card_status`.
+    - It checks there is exactly one new `trial_status` row with that from, to, `source = trial-reels` and the letter. A pick of the word the version already has must add none.
+    - It checks that `calendar_posts.updated_at` and `video_status` are unchanged.
+  - **Put back, always:** once any pick was sent, the put-back runs in a `finally` and is read back, even when a read fails mid-walk (Codex on #2549).
+  - **Opt-in switch (`switch_for_run`, default off, supervisor 3 Nov):** the card's trial switch is turned on through trial-reels `switch_set`, the page's own call, never SQL. It is refused when the switch is already on. The walk runs, then the switch is turned off again in a `finally` step, even after a failure. The run reads back that it ended off, and that neither flip added or removed a version (no `trial_version_add`, `drop`, `restore` or `versions_import` row). It prints `switch_ended_off`.
+  - **Put back:** the version returns to its starting word. Exact OK times and a client pass are not restored, because a pick sets them by its own rules. A Tweaks Needed note is not restored either.
+  - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
+- **Proof:** `test/trial-version-status-live-check.js` (40 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, the put-back after a read that fails mid-walk, and the opt-in switch: on and off, refused when already on, a seeding switch-on, and a switch that will not turn off, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
+- **Live result:** filled in by the supervisor's dispatch.
+- **Way back:** delete the workflow. It runs only by hand.
+
+## 678. [2026-11-03 UTC, BUILT, NOT MERGED] The Edge Functions merge lane held a function because of a rollback file, after its migration was already applied (SyncView supervisor)
+
+- **What happened:** F3 (#2533) added `migrations/2026-11-02-client-postforme-accounts.sql`, which carries the cope marker, and its `.ROLLBACK.sql`, which does not. The lane's planner counts every added `.sql` under `migrations/` as a migration, so the unmarked rollback file held `client-profile-write`. The migration had been applied live at once, but the function stayed at its old version for about 1 h 40 min. The red merge run was easy to miss: the lane counts from the last fully green run, so the next merge (V1, #2535) went red for the same hold.
+- **Released by hand** at 01:40 UTC with the merge lane (`commit_sha` = main's tip, `migrations_applied` = true), after reading back the migration's applied-when probe (true).
+- **Fix:** `scripts/ef-auto-deploy-plan.js` leaves `*.ROLLBACK.sql` out of the migrations a merge adds. A rollback file is applied only to undo its migration, never forward, so it never holds a function. An unmarked forward migration still holds exactly as before.
+- **Proof, failing first:** two new cases in `test/ef-auto-deploy.js`. A cope-marked migration plus its rollback deploys; an unmarked migration plus its rollback still holds, and the reason names the migration, not the rollback. On main both fail. With the fix the whole suite passes. Re-planning the window from the last green run to main's tip now gives `client-profile-write: deploy` and `trial-reels: deploy`, with no hold.
+- **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
+- **Way back:** revert the PR.
+
+## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+
+- **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
+- **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - after the list is sorted and cut to 50, each kept row without a length gets the file's metadata "Duration", the same read the video part makes;
+  - it runs 5 at a time, one call per kept row at most, and none for rows that were cut;
+  - a metadata call that fails, is refused (429) or runs out of the function's time leaves that row's length `null`. It never fails the list;
+  - a length already on the listing is used as is, with no metadata call;
+  - the answer shape is unchanged.
+- **Live check (`scripts/frameio-list-live-check.js`):** also prints `video_has_duration`, whether the listed video's own lookup has a length, beside `rows_with_duration`. The next dispatch settles both.
+- **Proof:**
+  - `test/frameio-view-source.js` has a mock that matches the live shape: no `duration` on listed files, the length only in the metadata, and one metadata call answering 500 and another 429. On main, 0 rows get a length. Now 4 of 6 do, the two failed rows stay `null`, and the list still answers.
+  - A 60-video folder makes exactly 50 metadata calls.
+  - A listing that already carries lengths makes none.
+  - 167 checks pass; every earlier check is unchanged.
+  - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
+- **Way back:** revert the PR. Rows go back to a `null` length.
+
 ## 649. [2026-11-02 UTC, BUILT, NOT MERGED] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
 
 - **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
@@ -36127,7 +36242,6 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - **Writes no table, creates no post.** A signed Frame address is never returned, stored or logged.
 - **frameio-view (shared logic, also redeploys higgsfield-mcp):** the staff `video` answer now also carries the upload's `media_type`, video `codec`, `width` and `height`, read from the file and the metadata Frame already returns. The field names are not measured yet: a codec is any metadata field named "... Codec" other than the audio one, and a size is "Width"/"Height" with or without "Video ". The client's answer is unchanged. The live check confirms which fields Frame really sends.
 - **Live check (by hand, after merge):** `.github/workflows/post-source-live-check.yml` copies one test-client card. It uses the `ROBOT_ROLE_KEY_SMM` repository secret, never printed. It is storage only, with no post (D6). It prints only which file went, size, shape, length and copy time, and whether the storage address answers with the same size (`scripts/post-source-live-check.js`, `safeSummary`). Those numbers decide route (a), streaming, against (b) and (c) in posting.md. Not built unless (a) fails: route (b), and the thumbnail copy (P1).
-- **Proof:**
   - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
   - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
 - **Way back:** revert the PR. Nothing calls the function yet.

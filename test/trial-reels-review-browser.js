@@ -60,6 +60,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
       const b = JSON.parse(r.postData() || '{}');
       T.calls.push(b);
+      if (b.action === 'list') (T.lists || (T.lists = [])).push(Date.now() - (T.gotoAt || Date.now()));
       const client = mode === 'client';
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
         L.readShape(T.versions, { client, mainLink: T.mainLink || T.versions[0].frame_url, cardStatus: 'Client Approval' }));
@@ -96,6 +97,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     });
     // A route of the check's own (a video that cannot play), added last so it wins over the ones above.
     if (extra && extra.beforeOpen) await extra.beforeOpen(t);
+    T.gotoAt = Date.now();
     if (mode === 'client') {
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
     } else if (mode === 'kasper') {
@@ -112,6 +114,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     // Kasper's second layout has no steps: it is ready once its list of parts is drawn.
     if (extra && extra.layout2) await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
     else await waitNew(t);
+    T.stageAt = Date.now() - T.gotoAt;
     await sleep(1500);
     return t;
   }
@@ -123,6 +126,28 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     const all = ([...r.children].map(c => c.innerText || '').join(' ').match(/\btrial\b/gi) || []).length;
     return on + ' x' + all;
   });
+  // OPEN_REPAIRS 676: what the page's trial reads had done, for a check that missed (fictional fixture data only).
+  const trvTrace = async (t, extra) => Object.assign({
+    stageReadyMs: t.T.stageAt, nowMs: Date.now() - t.T.gotoAt, listCallsMs: t.T.lists || [], calls: t.T.calls.map(c => c.action), flagReads: t.state && t.state.flagReads,
+    page: await t.page.evaluate(() => {
+      const out = {};
+      try { out.clientLink = !!_isClientLink; } catch (e) { out.clientLink = 'unset'; }
+      try {
+        const now = Date.now();
+        out.reads = Object.keys(_trv).map(slug => { const e = _trv[slug] || {}; return { slug, on: (() => { try { return svTrialReelsOn(slug); } catch (x) { return 'err'; } })(),
+          atAgoMs: e.at ? now - e.at : null, startedAgoMs: e.started ? now - e.started : null, failedAgoMs: e.failedAt ? now - e.failedAt : null,
+          inFlight: !!e.promise, cards: Object.keys(e.cards || {}).map(id => id + ':' + (((e.cards[id] || {}).versions || []).map(v => v.letter + '=' + v.status).join(','))) }; });
+      } catch (e) { out.reads = 'unavailable: ' + (e && e.name); }
+      try {
+        const r = document.getElementById('svReviewStage'), root = r && r.shadowRoot;
+        const shown = root ? [...root.children].filter(c => c.tagName !== 'STYLE' && c.tagName !== 'LINK').map(c => c.innerText || '').join(' ') : '';
+        out.stage = { hidden: !r || r.hidden, text: shown.replace(/\s+/g, ' ').trim().slice(0, 160) };
+      } catch (e) { out.stage = 'unavailable'; }
+      // The switch: a client the trial-reels switch does not list draws today's page and reads nothing ("" and "x0").
+      try { out.switch = { flagsReady: typeof svRsFlagsReady === 'function', on: (() => { const c = new URLSearchParams(location.search).get('c') || ''; try { return svTrialReelsOn(_trvSlug(c)); } catch (x) { return 'err'; } })() }; } catch (e) { out.switch = 'unavailable'; }
+      return out;
+    })
+  }, extra || {});
   const bar = t => t.page.evaluate(() => {
     const r = document.getElementById('svReviewStage').shadowRoot;
     const b = r.querySelector('.trv');
@@ -345,10 +370,16 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     t = await start('client', true, fresh({ A: { status: 'lost' }, B: { status: 'lost' }, C: { status: 'winner' }, D: { status: 'lost' }, E: { status: 'lost' } }));
     // With the winner picked the bar draws only once the trial read answers (up to TRV_HOLD_MS, 2 s, since PR 2486):
     // wait for it rather than read it after a fixed sleep (a busy runner read "" and "x0"; found by session Sheetzoom).
-    await t.page.waitForFunction(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r && r.querySelector('.trv'); return !!(b && b.innerText.trim()); }, null, { timeout: 5000 }).catch(() => {});
+    let pickWait = '';
+    await t.page.waitForFunction(() => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r && r.querySelector('.trv'); return !!(b && b.innerText.trim()); }, null, { timeout: 5000 }).catch(e => { pickWait = String(e && e.message || e).split('\n')[0].slice(0, 160); });
     b = await bar(t);
+    const pickTags = await tags(t);
+    // OPEN_REPAIRS 676: this check missed twice in CI (2 Nov, "" and "x0": no trial drawn ~6.5 s after the review was
+    // ready) and has not been reproduced locally. On a miss only, say why, from this fixture's fictional page; the check
+    // itself, and every wait, are unchanged.
+    if (b.text !== 'Video C: the one we are posting' || pickTags !== 'Trial x1') console.log('TRV_TRACE ' + JSON.stringify(await trvTrace(t, { pickWait })));
     ok(b.text === 'Video C: the one we are posting' && !b.dots.length, 'client after the pick: only "Video C: the one we are posting" (' + b.text + ')');
-    ok(await tags(t) === 'Trial x1', 'client after the pick: still the one "Trial" marker (' + await tags(t) + ')');
+    ok(pickTags === 'Trial x1', 'client after the pick: still the one "Trial" marker (' + pickTags + ')');
     await t.ctx.close();
 
     // ---------- the SMM's Review tab ----------

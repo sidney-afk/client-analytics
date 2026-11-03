@@ -1653,6 +1653,11 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             if (Object.keys(env).length) claim.env = env;
             const version = _writeRefusalAppVersion();
             if (version) claim.app_version = version;
+            /* OPEN_REPAIRS 674: a page driven by a test robot (Playwright, Selenium: navigator.webdriver is true in every
+               such browser) says so. Headless Firefox's user agent looks like a person's, so its reports were counted
+               as people's. A claim like the rest of this beacon: it can only mark a report as automation, never hide a
+               person's. */
+            try { if (typeof navigator !== 'undefined' && navigator.webdriver === true) claim.automation = true; } catch (e) {}
             const headers = { 'content-type': 'application/json' };
             // A staff page sends its role key so the server can VERIFY the
             // role it records; the key is checked, never stored. A client

@@ -12,7 +12,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, teardownInstagramPanel
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel
 } from './299-instagram-upload.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
@@ -285,6 +285,8 @@ import {
         .tk-select:focus { border-color: var(--text-primary); background-color: var(--white); }
         .tk-profile-line { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
         .tk-profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; background: var(--bg); border-radius: 99px; font-weight: 600; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.74rem; }
+        .tk-pfm-link { flex: none; color: var(--text-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+        .tk-pfm-link:hover { text-decoration-thickness: 2px; }
         .tk-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
         .tk-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
         .tk-drop:hover, .tk-drop.tk-drag { border-color: var(--text-primary); background: var(--white); }
@@ -846,7 +848,7 @@ import {
             if (tkState.profileSource === 'sheet') {
                 profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> <span>Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</span>${svPostForMeLinkHtml()}</div>`;
             }
         }
 
@@ -909,7 +911,7 @@ import {
         const photoCard = `${photoGrid}${photoDropZone}${photoReattachHint}`;
 
         const opts = tkState.options;
-        const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}</div>` : '';
+        const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}${tkState.client && !tkState.profile ? svPostForMeLinkHtml() : ''}</div>` : '';
 
         // Scheduling: parse stored "YYYY-MM-DDTHH:MM" into date / 12-hr / minute / AM-PM pieces.
         // If the current minute isn't on the 5-min grid we add it as its own option so picking it
@@ -1895,8 +1897,12 @@ import {
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
-            if (e.name !== 'AbortError') _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
-            tkState.error = e.name === 'AbortError' ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
+            // A Cancel that lands while an answer is being read can surface as
+            // "no upload url returned" (the read fails, mint stays {}), so the
+            // signal decides, not only the error's name (OPEN_REPAIRS 677).
+            const cancelled = controller.signal.aborted || e.name === 'AbortError';
+            if (!cancelled) _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
+            tkState.error = cancelled ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
             _tkRenderForm();
             return;
         }

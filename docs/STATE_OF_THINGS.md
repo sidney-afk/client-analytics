@@ -18,6 +18,16 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-11-03 daytime): posting from a card, trial version import and fields, Post for Me accounts link themselves
+
+- **Live and checked:**
+  - Post for Me accounts link themselves to a client on an exact, unique handle match, hourly (L1 #2538, 667; pg_cron job at minute 41; the key lives only in Vault). Timer runs at 10:41, 11:41 and 12:41 UTC were all ok: 23 accounts, 19 already linked, 4 need a person (3 TikTok accounts match no client, 1 is not connected). The Post tab's no-account wording says so (#2563): TikTok and Instagram link themselves once connected; a Facebook Page has no handle and needs the owner to link it.
+  - The Post tab's "From a card" on both sides (P1b #2555, 651), behind `post_sources_v1`, on for the test client only. Live check (D6) on one of the owner's own clients' Approved cards: Instagram and TikTok each copied Frame's original file plus the thumbnail, scheduled 8 days ahead, cancelled at once, read back "cancelled"; nothing published. Neither of the owner's two clients has an Approved or Scheduled card dated today or later, so the list is empty for them until a card gets a date.
+  - Trial versions V2 (#2545, 658: import several versions' videos from one Frame folder in one write) is deployed. V3 (a version's own thumbnail and caption) passed its live check (#2568/#2569, 660). V2's import live check has not passed yet: the 660 test card's versions hold placeholder links (refused safely, 404, nothing written), and a real multi-video import needs a Frame folder link from the owner, added to a card through the page. The check never takes a link as a workflow input (the repo is public, so inputs and step env are readable).
+- **Uncaught-error reports name the error and where it came from** (#2527, 645). A deleted note no longer stays in another tab's open Notes (#2562, 682; green on main in Gauntlet Three).
+- **Test fixes:** the Kasper fast-boot check no longer compares two page loads' clocks (#2564, 683); the trial-reels journey prints TRV_TRACE when its client-review wait misses (#2565, 676, cause not found yet).
+- **Still open on this track:** P2 #2566 (a dropped folder fills the Post tab form) and P3b #2567 (YouTube and LinkedIn ticks on the Instagram side, behind `post_networks_v1`) in CI; V4 building; P4 not started (ledger 684).
+
 ## Latest (SyncView supervisor, 2026-11-03 overnight): trial versions and posting, first pieces live; deploy lane and CI queue fixes
 
 - **Live and checked on the test client:**

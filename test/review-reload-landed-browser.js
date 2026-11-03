@@ -57,8 +57,11 @@ const KASPER = { stage: 'kasper', flags: 'on', staff: STAFF, layout2: true, fast
 // The requests the fixture is holding unanswered (state.writeHang / gatewayHang), dropped once their page has gone:
 // they never reach the server, and the browser does not keep their connections open for the next page.
 const releaseHung = t => { const h = t.state.hung || []; t.state.hung = []; h.forEach(f => { try { f(); } catch (e) {} }); };
-// WebKit reports a request the reload cancels as "... due to access control checks"; that is the reload, not a page fault.
-const pageErrors = t => t.errors.filter(e => !/due to access control checks/.test(e));
+// WebKit reports a request the reload cancels as "Fetch API cannot load .../<function> due to access control checks".
+// Only the two requests this test cuts off on purpose (the status write and the reload's own report) are excused:
+// review-stage-phone and review-stage-player-leaving fixed the cause of the same wording, because there it was a
+// page fault (a request asked again after its page had moved on).
+const pageErrors = t => t.errors.filter(e => !/\/functions\/v1\/(production-write|write-diagnostics) due to access control checks/.test(e));
 async function goKasper(t, origin, afterGoto) {
   await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   if (afterGoto) afterGoto();

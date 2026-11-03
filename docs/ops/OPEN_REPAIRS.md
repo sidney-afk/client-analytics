@@ -36582,3 +36582,41 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `upload-schedule-zone-and-queue-guards` now checks that TikTok's refusal names Post for Me and "links itself", and still never the sheet.
   - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
 
+## 660. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V2 and V3: one live check of a version's own thumbnail and caption and of Import from Frame, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after V3 (#2539) and V2 (#2545) merged. Run one test-client walk covering both: set a version's caption and thumbnail, import from a Frame share, and read both back. Build it as a workflow like 659's.
+- **Built:** `.github/workflows/trial-versions-fields-import-live-check.yml` (manual: client, card, fields_letter, frame_share, switch_for_run) runs `scripts/trial-versions-fields-import-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed. It reuses 659's script for its guards; that script only gains three exports.
+  - **Refused first, read-only:**
+    - the same guards as 659: the test client by hash; not Posted; not linked to Production; a trial card (or `switch_for_run`); a first read that heals nothing;
+    - V3's and V2's own rules from the checkout (`versionFieldsPatch`, `importPlan`), run over the card's state as read;
+    - a fields version that is the one on the card, dropped, on trial, or already answered (a fields change would send it back to the SMM);
+    - a fields version that already has its own caption or thumbnail (the put-back clears both, so it would lose them; Codex on #2568);
+    - a share with no new video, or no free letter left.
+  - **V3:**
+    - The version's caption is set to a fixed fixture text. Its thumbnail is set to the card's own thumbnail, or, when the card has none, `syncview-favicon.png` from the SyncView site (supervisor: never a third-party host).
+    - Read back: the version's own fields and its effective fields, another version still reading the card's, and the card row unchanged.
+    - Then both fields are cleared and read back as the card's again.
+    - The `trial_version_fields_set` rows each write adds are counted. If there are none, the summary says "writes none".
+  - **V2, only when `frame_share` is given:**
+    - The share is listed through frameio-view `part: "list"`. Every listed video no version already holds is imported as a new letter, in one `versions_import`.
+    - Read back: the new letters are waiting, there is one `trial_versions_import` row each, and the card is unchanged.
+    - Then the same video is offered under another letter: it must be refused (`link_used_by_another_version`) and write nothing.
+  - **Put back, always, from what was sent (Codex on #2568):** a write whose reply is lost still counts. The put-back reads the card afresh and undoes whatever it finds: the fields set, any attempted letter not yet dropped, and the switch.
+  - **Put back, always:**
+    - In a `finally`: the fields are cleared, and every imported letter is dropped (the table has no delete grant). The summary reports `imported_rows_left_dropped`.
+    - In an outer `finally`: a switch turned on for the run is turned off and read back, with no version changed.
+  - **Empty `frame_share`:** the run does V3 only and says `import_skipped: no_frame_share`.
+- **Proof:** `test/trial-versions-fields-import-live-check.js` (34 checks, offline, against a fake backend that answers with V2's and V3's real rules). It covers:
+  - a full run, and a V3-only run;
+  - the placeholder thumbnail, and a run that logs no fields rows ("writes none");
+  - the switch opt-in;
+  - refusals before any write: an answered version, the version on the card, another client, a share with nothing new;
+  - runs that must fail: a card written by the function, and an import that is not refused the second time;
+  - a failure mid-run that still drops the imported letters and clears the fields;
+  - a version with its own caption refused before any write; an import, a fields write and a switch-on whose replies are lost, each still put back;
+  - and that the summary never prints the card, the client, a link, a caption or a key.
+
+  659's own test is unchanged and passes (40). On main the script does not exist.
+- **Target (supervisor):** `p_allactions_1793209592511`, fields letter C, `switch_for_run` on. The only test-client shares today hold one video each, so an import of 2 or more still needs a real multi-video Frame folder from Sidney. `frame_share` is an input, so the same run covers it.
+- **Live result:** filled in by the supervisor's dispatch.
+- **Way back:** delete the workflow. It runs only by hand.

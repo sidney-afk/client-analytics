@@ -158,7 +158,16 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
   const end2 = gateSrc.indexOf('/* The one place the three classifiers', start2);
   const stageFn = start2 >= 0 && end2 > start2 ? gateSrc.slice(start2, end2) : '';
   ok(!!stageFn, 'the stage classifier is findable (harness is not vacuous)');
-  const failedStage = new Function('SMOKE_STAGES', stageFn + '\nreturn smokeFailedStage;')(stages);
+  /* The marker scan is shared with the comment-thread suite since 2026-11-02
+     (OPEN_REPAIRS 641), so it is pulled from the gate's source and injected,
+     like the allowlists; the comment stages are injected empty here, which is
+     what a smoke run produces. */
+  const helperStart = gateSrc.indexOf('function lastAnnouncedStage(');
+  const helperSrc = helperStart >= 0 ? gateSrc.slice(helperStart, gateSrc.indexOf('\n}', helperStart) + 2) : '';
+  ok(!!helperSrc, 'the shared marker scan is findable (harness is not vacuous)');
+  const stageFor = commentStages => new Function('SMOKE_STAGES', 'COMMENTS_STAGES',
+    helperSrc + '\n' + stageFn + '\nreturn smokeFailedStage;')(stages, commentStages);
+  const failedStage = stageFor(new Set());
 
   ok(failedStage('SMOKE_STAGE boot\nSMOKE_STAGE list_rows\nlocator.click: Timeout') === 'list_rows',
     'the LAST stage announced is the one reported -- it is the section that did not finish');
@@ -168,6 +177,31 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
     'and an unknown token after a real one falls back to the last KNOWN stage rather than emitting it');
   ok(failedStage('') === '' && failedStage(null) === '' && failedStage('no markers here') === '',
     'a suite that announces nothing classifies exactly as it did before, rather than wrongly');
+
+  /* The comment-thread suite announces its steps the same way, under its own
+     marker and its own harvested allowlist (added 2026-11-02, OPEN_REPAIRS 641:
+     its reds used to name no step at all). */
+  {
+    const COMMENTS = path.join(ROOT, 'docs', 'syncview-design', 'tests', 'prod-comments-browser.js');
+    const commentsSrc = fs.readFileSync(COMMENTS, 'utf8');
+    const commentStages = new Set();
+    const cre = /\bstage\('([a-z0-9_]+)'\)/g;
+    let cm;
+    while ((cm = cre.exec(commentsSrc))) commentStages.add(cm[1]);
+    ok(commentStages.size >= 10, 'the comment-thread suite announces its steps (' + commentStages.size + ' stages)');
+    ok(/function stage\(name\) \{ console\.log\('COMMENTS_STAGE ' \+ name\); \}/.test(commentsSrc),
+      'with a bare token under its own marker');
+    ok(commentsSrc.indexOf("stage('boot')") < commentsSrc.indexOf("stage('client_boot')")
+      && commentsSrc.indexOf("stage('client_boot')") < commentsSrc.indexOf("stage('write_audit')"),
+      'in the order the suite runs, so "last announced" means "did not finish"');
+    const both = stageFor(commentStages);
+    ok(both('COMMENTS_STAGE boot\nCOMMENTS_STAGE reopen\npage.waitForSelector: Timeout') === 'reopen',
+      'the last comment step announced is the one reported');
+    ok(both('COMMENTS_STAGE not_a_real_stage') === '',
+      'a comment token the allowlist does not know is dropped');
+    ok(both('SMOKE_STAGE reopen') === '' && stageFor(new Set())('COMMENTS_STAGE boot') === '',
+      'and neither marker is read against the other suite\'s allowlist');
+  }
 
   const start3 = gateSrc.indexOf('function failureReason(');
   const reasonFn = gateSrc.slice(start3, gateSrc.indexOf('\n}', start3) + 2);

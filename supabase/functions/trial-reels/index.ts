@@ -61,6 +61,8 @@ import {
   autoTrialPatches,
   fieldsAvailable,
   versionFieldsPatch,
+  statusLedgerRows,
+  versionStatusPatches,
 } from "./logic.mjs";
 
 const FN = "trial-reels";
@@ -75,7 +77,7 @@ const CORS: Record<string, string> = {
 
 type JsonMap = Record<string, unknown>;
 type Version = Record<string, unknown> & { id: string; letter: string; status: string };
-type Change = { id: string; letter: string; from: string; patch: JsonMap };
+type Change = { id: string; letter: string; from: string; patch: JsonMap; from_word?: string | null; to_word?: string | null };
 type Principal = { kind: "staff" | "client"; actor: string; role: string; source: string };
 
 class Refusal extends Error {
@@ -593,6 +595,11 @@ Deno.serve(async (req: Request) => {
       const r = answerPatches(versions, { stage, kind, letter, note: body.note, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
+    } else if (action === "version_status_set") {
+      // V1: the card's own status picker on one version (admin and SMM keys; staffAllows). Never writes the card.
+      const r = versionStatusPatches(versions, { letter, status: body.status, cardStatus: card.video_status }, now);
+      if (r.error) throw new Refusal(r.error === "status_follows_card" ? 409 : 400, r.error);
+      changes = r.patches as Change[];
     } else if (action === "version_fields_set") {
       // V3: a version's own thumbnail and caption. Needs F2's columns (migration 20261102200000) and the V3 switch.
       await assertFieldsOn(supabase, client);
@@ -644,7 +651,8 @@ Deno.serve(async (req: Request) => {
     }
     const ledger = async () => {
       if (!changes.length) return;
-      const rows = ledgerRows(client, postId, changes, principal!, now, action === "answer" ? clean(body.kind, 20).toLowerCase() : action);
+      const rows = action === "version_status_set" ? statusLedgerRows(client, postId, changes, principal!, now)
+        : ledgerRows(client, postId, changes, principal!, now, action === "answer" ? clean(body.kind, 20).toLowerCase() : action);
       const { error } = await supabase.from("calendar_post_events").insert(rows);
       if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
     };

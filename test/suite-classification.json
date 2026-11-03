@@ -62,6 +62,7 @@
     "client-onboarding-handler.js",
     "client-review-alert-handler.js",
     "client-create-migration.js",
+    "slack-channel-stall-guard.js",
     "client-resource-match.js",
     "client-hubspot-sync-handler.js",
     "client-hubspot-sync-migration.js",
@@ -80,6 +81,7 @@
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
     "trial-version-fields-migration.js",
+    "trial-version-status-logic.js",
     "trial-version-fields-logic.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
@@ -1620,6 +1622,14 @@
       "ci": "representative"
     },
     {
+      "file": "tiktok-press-key-reload-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that the TikTok side keeps a create's key across a reload while its outcome is unknown: the same key and storage address after a reload with an unchanged form and no new upload; a new key for a changed form, after a success and after a 4xx; the same key with a new upload for an attempt older than 20 hours.",
+      "reproduce": "node test/tiktok-press-key-reload-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "post-tab-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1714,6 +1724,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-facebook-page-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "client-postforme-accounts-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_POSTFORME_ACCOUNTS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "CLIENT_POSTFORME_ACCOUNTS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-postforme-accounts-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },
@@ -2301,6 +2320,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-player-leaving-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. On a switched-on client link's Review, checks the player never asks frameio-view for a new address for a video taken out of the page, or for the previous card's video after the stage moved, and still re-asks once for the video on stage.",
+      "reproduce": "node test/review-stage-player-leaving-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "scrollbars-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2362,6 +2389,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Starts trial reels on a card with no version rows, as found live on 2026-10-27: switching on opens a place to paste the first link, Video A goes on the card first through today's attach and is then added, Video B is added on its own, a link another version has is refused, and a card that already has a link starts with Video A, at desktop and 390 pixel width.",
       "reproduce": "node test/trial-reels-empty-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-version-status-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V1: behind trial_versions_v2 each version row shows the card's status picker (the card's list up to Approved), a pick sends version_status_set for that letter only and never writes the card, a version with no link has the review statuses disabled, a refusal puts the row back with words, and a creative key gets today's label, at 1440 and 390 pixel width.",
+      "reproduce": "node test/trial-version-status-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

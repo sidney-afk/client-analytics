@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_fields_set"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_status_set", "version_fields_set"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -563,6 +563,8 @@ export function readShape(versions, { client, mainLink, cardStatus, card }) {
       posted_at: v.posted_at || null, trial_ends_at: v.trial_ends_at || null,
       // Where it is now (per-version routing): every staff surface says it per version.
       place: placeOf(v, sorted, cardStatus),
+      // The same place in the card's status words, for the version's status picker (V1); null where it has none.
+      card_status: versionCardStatus(v, sorted, cardStatus),
     });
   });
   const mainRow = sorted.find((v) => v.letter === main);
@@ -580,6 +582,77 @@ export function readShape(versions, { client, mainLink, cardStatus, card }) {
     out.trial_ends_at = ends;
   }
   return out;
+}
+
+/*
+ * A version's status set with the card's own status picker (plan combined.md row V1; Sidney's D1, 2 Nov 2026).
+ * The words are the card's video-part list (CAL_STATUSES, page 120) up to and including Approved. N/A is left out
+ * (Drop covers "not this one"); Scheduled and Posted stay card-only, because Posted starts the trial for the whole
+ * post (supervisor, 2 Nov). Each word is stored in the columns the review already uses, no new one:
+ *   In Progress, For SMM Approval  waiting, no OK          (one state: no link reads In Progress, a link For SMM Approval)
+ *   Kasper Approval                waiting, the SMM's OK
+ *   Client Approval                waiting, the SMM's and Kasper's OKs (Kasper's only where he is on the card's route)
+ *   Approved                       approved, all three OKs, the same way (an SMM may go straight to Approved, as on a card)
+ *   Tweaks Needed                  change asked by the SMM, no note needed (as on a card); OKs kept, as a change keeps them
+ * Admin and SMM keys only (staffAllows); a client link never. The card's own status is never written here: once every
+ * live version is Approved, card_approvable tells the page, which calls today's approve.
+ */
+export const VERSION_STATUSES = ["In Progress", "For SMM Approval", "Kasper Approval", "Client Approval", "Tweaks Needed", "Approved"];
+const REVIEW_WORDS = ["For SMM Approval", "Kasper Approval", "Client Approval", "Approved"];
+
+/** A version's place in the card's words, or null where the picker has nothing to say (dropped, passed, on trial, decided). */
+export function versionCardStatus(v, versions, cardStatus) {
+  if (!v) return null;
+  const place = placeOf(v, versions || [v], cardStatus);
+  if (place === "smm") return clean(v.frame_url, 2048) ? "For SMM Approval" : "In Progress";
+  return { kasper: "Kasper Approval", client: "Client Approval", approved: "Approved", new_cut: "Tweaks Needed" }[place] || null;
+}
+
+export function versionStatusPatches(versions, { letter, status, cardStatus }, now) {
+  const word = clean(status, 40);
+  if (!VERSION_STATUSES.includes(word)) return { error: "status_invalid" };
+  const v = versions.find((x) => x.letter === letter);
+  if (!v) return { error: "version_not_found" };
+  if (!live(v)) return { error: "version_dropped" };
+  if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
+  const link = !!clean(v.frame_url, 2048);
+  // The card refuses its review statuses on an empty part (_calReviewBlockReason): nothing to watch, nothing to review.
+  if (!link && REVIEW_WORDS.includes(word)) return { error: "version_has_no_link" };
+  const want = word === "In Progress" || word === "For SMM Approval" ? (link ? "For SMM Approval" : "In Progress") : word;
+  const from = versionCardStatus(v, versions, cardStatus);
+  if (from === want && !passed(v)) return { patches: [] };
+  const noChange = { change_by: null, change_note: null, change_at: null };
+  // Kasper's OK only where Kasper is on the card's route (a card the SMM sent straight to the client has none to give).
+  const kasperOk = kasperOnRoute(versions, cardStatus) ? (v.kasper_ok_at || now) : (v.kasper_ok_at || null);
+  const patch = {
+    "In Progress": { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, ...noChange },
+    "For SMM Approval": { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, ...noChange },
+    "Kasper Approval": { status: STATUS.waiting, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: null, client_ok_at: null, ...noChange },
+    "Client Approval": { status: STATUS.waiting, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: kasperOk, client_ok_at: null, ...noChange },
+    "Approved": { status: STATUS.approved, smm_ok_at: v.smm_ok_at || now, kasper_ok_at: kasperOk, client_ok_at: v.client_ok_at || now, ...noChange },
+    "Tweaks Needed": { status: STATUS.change, change_by: "smm", change_note: null, change_at: now },
+  }[word];
+  Object.assign(patch, clearPass(v));
+  // The card's own state can place a version elsewhere (a card sent on whole to the client counts every version
+  // through the SMM): a pick that would read back as another word is refused, never shown as something it is not.
+  const after = { ...v, ...patch };
+  const next = versions.map((x) => (x.id === v.id ? after : x));
+  const to = versionCardStatus(after, next, cardStatus);
+  if (to !== want) return { error: "status_follows_card" };
+  // One pick never moves another version (Codex on #2535): a card sent on whole counts every version through the SMM
+  // only while none has the SMM's OK, so stamping one would send the others back with the team.
+  const others = (vs) => vs.filter((x) => x.id !== v.id && live(x)).map((x) => x.letter + ":" + placeOf(x, vs, cardStatus)).join();
+  if (others(versions) !== others(next)) return { error: "status_follows_card" };
+  return { patches: [{ id: v.id, letter: v.letter, from: v.status, from_word: from, to_word: to, patch }] };
+}
+
+/** The ledger row of a version status pick: the card's status_change shape, under its own action. */
+export function statusLedgerRows(client, postId, changes, actor, now) {
+  return changes.map((c) => ({
+    client, post_id: postId, ts: now, actor: actor.actor || null, role: actor.role || null,
+    action: "trial_status", component: "video", from_status: c.from_word || null, to_status: c.to_word || null,
+    source: "trial-reels", payload: { letter: c.letter, label: "Video " + c.letter },
+  }));
 }
 
 /*

@@ -35,10 +35,34 @@ export const MAX_FIELD_CHARS = 20000;
 // Facebook" is ticked; the Instagram account sits beside it (roster-write can still set it too). Saved only
 // when SyncView is the main copy, through client_profile_admin_edit; its Sheet copy queue carries the
 // Instagram id to its Clients Info column; the Facebook Page is not a Sheet column.
-export const EXTRA_EDITABLE_FIELDS = Object.freeze(['postforme_instagram_account_id', 'postforme_facebook_account_id']);
-// The network Post For Me must report for each extra account field.
-export const EXTRA_ACCOUNT_PLATFORM = Object.freeze({ postforme_instagram_account_id: 'instagram', postforme_facebook_account_id: 'facebook' });
+export const EXTRA_EDITABLE_FIELDS = Object.freeze([
+  'postforme_instagram_account_id', 'postforme_facebook_account_id',
+  // Added 2026-11-02 (OPEN_REPAIRS 666, migrations/2026-11-02-client-postforme-accounts.sql): YouTube and LinkedIn
+  // Post for Me accounts, and whether this client's YouTube uploads are "made for kids" (stored as true; off when
+  // absent). None of the three is a Sheet column.
+  'postforme_youtube_account_id', 'postforme_linkedin_account_id', 'youtube_made_for_kids',
+]);
+// The network Post For Me must report for each account field, columns included (the TikTok column
+// postforme_account_id; TikTok accounts read 'tiktok' or 'tiktok_business', as tiktok-upload accepts).
+export const ACCOUNT_FIELD_PLATFORMS = Object.freeze({
+  postforme_account_id: Object.freeze(['tiktok', 'tiktok_business']),
+  postforme_instagram_account_id: Object.freeze(['instagram']),
+  postforme_facebook_account_id: Object.freeze(['facebook']),
+  postforme_youtube_account_id: Object.freeze(['youtube']),
+  postforme_linkedin_account_id: Object.freeze(['linkedin']),
+});
 export const POSTFORME_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
+const MADE_FOR_KIDS = 'youtube_made_for_kids';
+
+// The account ids in a normalized change map that Post For Me must confirm before a save: every non-blank one.
+export function accountChecks(changes) {
+  const out = [];
+  for (const [field, platforms] of Object.entries(ACCOUNT_FIELD_PLATFORMS)) {
+    const value = text(changes && changes[field]);
+    if (value) out.push({ field, value, platforms: platforms.slice() });
+  }
+  return out;
+}
 
 // Splits normalized changes into real columns and extra fields.
 export function splitChanges(changes) {
@@ -49,10 +73,11 @@ export function splitChanges(changes) {
 }
 
 // Post For Me's answer for an account (GET /v1/social-accounts/{id}) must name the expected network.
+// `want` is one network or a list of them.
 export function accountPlatformProblem(account, want) {
   const platform = text(account && account.platform).toLowerCase();
   if (!platform) return 'postforme_platform_unknown';
-  return platform === want ? '' : 'postforme_wrong_platform';
+  return [].concat(want).includes(platform) ? '' : 'postforme_wrong_platform';
 }
 
 function text(v) {
@@ -80,7 +105,11 @@ export function normalizeChanges(raw) {
       if (!id.ok) return { ok: false, error: 'bad_value', field: k };
       t = id.value;
     }
-    if (EXTRA_EDITABLE_FIELDS.includes(k) && t && !POSTFORME_ACCOUNT_RE.test(t)) return { ok: false, error: 'bad_value', field: k };
+    if (k === MADE_FOR_KIDS) {
+      const b = t.toLowerCase();
+      if (b !== 'true' && b !== 'false' && b !== '') return { ok: false, error: 'bad_value', field: k };
+      t = b === 'true' ? 'true' : '';
+    } else if (EXTRA_EDITABLE_FIELDS.includes(k) && t && !POSTFORME_ACCOUNT_RE.test(t)) return { ok: false, error: 'bad_value', field: k };
     out[k] = t;
   }
   if (!Object.keys(out).length) return { ok: false, error: 'no_changes' };

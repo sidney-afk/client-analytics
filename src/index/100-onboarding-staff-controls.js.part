@@ -1356,6 +1356,8 @@ import {
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
         if (capability === 'notify-client') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
+        // A trial version's status picker (V1): the SMM's, as the trial-reels function holds (staffAllows).
+        if (capability === 'trial-version-status') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';

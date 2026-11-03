@@ -150,7 +150,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 #### Client profiles, Create client and the onboarding checklist (Admin)
 
 - Where: **Kasper › More › Pipeline & Admin › Clients**. Admin only. Search a client or open **All clients**; one profile at a time.
-- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Instagram (Post for Me), Facebook Page (Post for Me), Upload-Post; the two account ids are checked with Post For Me when saved), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
+- Profile cards: **Contact and team** (email, Slack channel, Creative channel, Slack person to tag), **Social accounts**, **Publishing** (Post for Me, Instagram (Post for Me), Facebook Page (Post for Me), YouTube (Post for Me), LinkedIn (Post for Me), a **YouTube: made for kids** switch (off unless turned on), Upload-Post; every account id is checked with Post For Me when saved, and one account can be on one client only), a folded **Content research** (description, keywords, competitors), **Managed by** (change the social media manager), **Save changes**, and **See history**.
 - **HubSpot** band: deal stage, contract and payment state (only for clients the `client_hubspot_sync` switch lists: three today).
 - **Onboarding** section (folded): its header reads "19 of 24 required steps done" or "Onboarded".
   - **Resources**: found / missing / unknown for each thing the client should have (profile fields, review link, filming plan link, Templates page, Canva link, logins saved, form answers, Calendar cards, Samples, Analytics numbers, Drive folders, HubSpot contact, brain folder, and more). Logins and links show as present or missing only.
@@ -290,6 +290,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - Each version has: paste its Frame.io link, change link, "New cut ready", **Drop this version** / Bring back, and, once the 24 h are over, a trophy (**Make this the winner**). Its "Video C is the winner · Undo" toast shows on the click; if the pick is refused, the toast goes and the page says why.
   - The client can say "Not this one" on a version; the team then sees "Client dropped" and drops it.
   - Each version says where it is: **with SMM**, **with Kasper**, **with client**, approved or change asked.
+  - **Setting a version's status (behind `trial_versions_v2`, admin and SMM keys only):** that label becomes the card's own status pill, in the card's words. Click it for the card's menu, which offers **In Progress, For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed and Approved**. N/A is missing because Drop does that job. Scheduled and Posted stay on the card, because Posted starts the trial for the whole post. An SMM can set a version straight to Approved, as on a card. A version with no link cannot be sent for review yet. The pick changes only that version, never the card, and shows in the card's history. Editors (creative keys) still see the plain label.
   - **Each version's own thumbnail and caption (behind `trial_versions_v2`):**
     - A line under each version shows its **Thumbnail** and **Caption**. "Same as the card" means it uses the card's own.
     - Click one to set it. A thumbnail needs an https link. A caption saves with Cmd/Ctrl+Enter or by clicking away. Escape leaves it as it was.
@@ -947,7 +948,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's own thumbnail and caption on the staff card (V3) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

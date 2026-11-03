@@ -1460,8 +1460,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         addEventListener('error', e => {
             try {
                 if (!on() || !e) return;
-                if (!e.error && (/ResizeObserver/.test(String(e.message || '')) || !e.filename)) return;
-                _calReportEvent('calendar_uncaught', 'uncaught_error', '', _writeUiErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno));
+                const msg = String(e.message || '');
+                // OPEN_REPAIRS 645: a cross-origin "Script error." is kept (as script_error); other empty ones are noise.
+                if (!e.error && (/ResizeObserver/.test(msg) || (!e.filename && !/^script error\.?$/i.test(msg)))) return;
+                _calReportEvent('calendar_uncaught', 'uncaught_error', '', e.error && e.error.stack ? _writeUiStackWhere(e.error) : _writeUiErrWhere(e.error && e.error.name, e.filename, e.lineno, e.colno, (e.error && e.error.message) || msg));
             } catch (x) {}
         });
         addEventListener('unhandledrejection', e => {

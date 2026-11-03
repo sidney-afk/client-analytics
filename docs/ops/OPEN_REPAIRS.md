@@ -36039,6 +36039,17 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.
 
+## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
+
+- **Asked:** Sidney, 2 Nov (D7 in `docs/plans/2026-11-trial-and-posting/combined.md`): wherever the Post tab says a client has no account on a network, a link beside the message opens Post for Me (https://www.postforme.dev) in a new tab.
+- **Before:** the message said what was missing and who should add it, and nothing else.
+- **Now:** one helper, `svPostForMeLinkHtml()` in 299, writes `Open Post for Me` (`target="_blank"`, `rel="noopener"`) after: TikTok's account line (300) and its refusal on submit; Instagram's account line (299) and its refusal on submit; the Facebook box's "No Facebook Page connected" reason. The wording is unchanged; it changes with the linking pick list (plan row L1, held). No flag: it is a link and nothing else. YouTube and LinkedIn get the same link with plan row P3.
+- **Found while building, fixed here:**
+  - On a phone the staff shell (099) rewrites the account line to a shorter sentence and replaced every child of the line, so the link vanished there. It now keeps the link after the phone wording.
+  - On desktop the TikTok account line is a flex row, and its message (text, a bold word and a code chip) was split into three side-by-side columns. The message is now one span, so it reads as a sentence, with the link beside it.
+- **Proof:** `test/postforme-link-browser.js` (new, offline, nothing posted): with no account on any network, each of the five messages has exactly one link to Post for Me that opens in a new tab with `noopener`, the new tab gets no `window.opener`, the form keeps its client, and the wording is unchanged; on a 390-wide phone both account lines keep the link after the phone wording; with every account on file there is no link anywhere. Fails on main at the first check (no link). The Post tab, Instagram + Facebook, platform switch, cover client switch, TikTok steps and TikTok layout suites pass unchanged.
+- **Way back:** revert the PR.
+
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
 
 - **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
@@ -36067,6 +36078,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/review-board-diagnostics-postgres.js` runs the migration's own applied-when check (false before, true after), applies it twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
   - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
 - **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.
+
 ## 647. [2026-11-02 UTC, BUILT, NOT MERGED] TikTok kept a lost create's key in memory only, so a reload and a re-press could post twice (plan row P0; session Pbuild)
 
 - **Plan's wording, corrected:** the plan (posting.md, combined.md row P0) said TikTok "mints a fresh key on every press". In a page that stays open it already does what Instagram does: a create whose answer is lost (no answer, a 5xx, a cancel during the create, or a 200 with a failed row) keeps its key and storage address in `tkState.retryCreate`, and an unchanged re-press sends them again (OPEN_REPAIRS 404). The real gap was a **reload**: that attempt lived in memory only, while the TikTok draft (client, caption, options, schedule) survives a reload. After the reload, attaching the same file and pressing again minted a new key and a new upload, so the function could not adopt the first post.

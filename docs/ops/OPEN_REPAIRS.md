@@ -36090,6 +36090,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
+
 ## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
@@ -36443,3 +36444,17 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Reproduced deterministically, failing first.** The new `lateListCheck` in popup-behaviour holds the posts answer for 2.5 s on a phone. On main it fails with `{"tile":true,"toggle":false,"listPressed":"false"}`; with the fix it passes. A 4x CPU slowdown alone did not trigger it (0 of 4 on main), because the race needs the posts to land after the Calendar has drawn, not a slow page.
 - **Fix.** `openEditableSheet` now waits until the page has drawn either the list/grid switch (phone) or a full card (desktop), switches to the list, and waits until the list is on. If neither ever appears, for example an empty desktop collection, it carries on as before after 15 s rather than failing. No longer timeout anywhere.
 - **Proof.** popup-behaviour passes in full (377 checks, one new); phone-only, 4x CPU slowdown, 4 at once: 12 of 12 green. staff-calendar-expanded and calendar-refresh-scroll, which also use the helper, pass. Way back: revert the PR.
+
+## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
+
+- **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.
+- **Now (299):** `svSortDroppedFiles(entries)` takes `{ path }` entries ("Folder/name.ext", or "name.ext" for a loose file) and returns, without reading any file:
+  - the video, cover and caption;
+  - every video, image and text file in natural name order;
+  - a carousel when there are images and no video;
+  - `ask` / `askText` when a person must pick a video ("This folder has 3 videos. Pick one.") or a cover;
+  - `captionNote` when several text files leave the caption empty;
+  - `ignoredLine` ("Ignored 2 files: .prproj, .wav").
+  It refuses two folders ("Drop one folder at a time."). Hidden and system files (dot files, `._*`, `Thumbs.db`, `desktop.ini`) are skipped without a word. Nothing calls it yet, so it is not exported (`check-modules` refuses an export no fragment uses); P2 exports it when the drop zones use it.
+- **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
+- **Way back:** revert the PR. Nothing calls the function.

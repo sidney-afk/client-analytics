@@ -1897,8 +1897,12 @@ import {
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
-            if (e.name !== 'AbortError') _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
-            tkState.error = e.name === 'AbortError' ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
+            // A Cancel that lands while an answer is being read can surface as
+            // "no upload url returned" (the read fails, mint stays {}), so the
+            // signal decides, not only the error's name (OPEN_REPAIRS 677).
+            const cancelled = controller.signal.aborted || e.name === 'AbortError';
+            if (!cancelled) _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
+            tkState.error = cancelled ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
             _tkRenderForm();
             return;
         }

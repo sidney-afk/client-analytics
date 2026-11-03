@@ -158,7 +158,10 @@ function f27PinsAt(root) {
 
 function migrationsAdded(root, files, head) {
   return files
-    .filter(f => f.status === 'A' && MIGRATION_DIRS.some(d => f.path.startsWith(d)) && /\.sql$/i.test(f.path))
+    // A *.ROLLBACK.sql ships beside its migration and is applied only to undo it, never
+    // forward, so it never holds a function (OPEN_REPAIRS 678).
+    .filter(f => f.status === 'A' && MIGRATION_DIRS.some(d => f.path.startsWith(d)) && /\.sql$/i.test(f.path)
+      && !/\.rollback\.sql$/i.test(f.path))
     .map(f => {
       let head40 = '';
       try { head40 = git(root, ['show', `${head}:${f.path}`]).split('\n').slice(0, 40).join('\n'); } catch (e) { /* unreadable: treated as unmarked */ }

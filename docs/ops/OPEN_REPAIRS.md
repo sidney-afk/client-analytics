@@ -36195,3 +36195,12 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
 - **Live result:** filled in by the supervisor's dispatch.
 - **Way back:** delete the workflow. It runs only by hand.
+
+## 678. [2026-11-03 UTC, BUILT, NOT MERGED] The Edge Functions merge lane held a function because of a rollback file, after its migration was already applied (SyncView supervisor)
+
+- **What happened:** F3 (#2533) added `migrations/2026-11-02-client-postforme-accounts.sql`, which carries the cope marker, and its `.ROLLBACK.sql`, which does not. The lane's planner counts every added `.sql` under `migrations/` as a migration, so the unmarked rollback file held `client-profile-write`. The migration had been applied live at once, but the function stayed at its old version for about 1 h 40 min. The red merge run was easy to miss: the lane counts from the last fully green run, so the next merge (V1, #2535) went red for the same hold.
+- **Released by hand** at 01:40 UTC with the merge lane (`commit_sha` = main's tip, `migrations_applied` = true), after reading back the migration's applied-when probe (true).
+- **Fix:** `scripts/ef-auto-deploy-plan.js` leaves `*.ROLLBACK.sql` out of the migrations a merge adds. A rollback file is applied only to undo its migration, never forward, so it never holds a function. An unmarked forward migration still holds exactly as before.
+- **Proof, failing first:** two new cases in `test/ef-auto-deploy.js`. A cope-marked migration plus its rollback deploys; an unmarked migration plus its rollback still holds, and the reason names the migration, not the rollback. On main both fail. With the fix the whole suite passes. Re-planning the window from the last green run to main's tip now gives `client-profile-write: deploy` and `trial-reels: deploy`, with no hold.
+- **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
+- **Way back:** revert the PR.

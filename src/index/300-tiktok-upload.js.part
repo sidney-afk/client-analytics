@@ -865,7 +865,7 @@ import {
             if (tkState.profileSource === 'sheet') {
                 profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> <span>Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</span>${svPostForMeLinkHtml()}</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> <span>No TikTok account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney.</span>${svPostForMeLinkHtml()}</div>`;
             }
         }
 
@@ -1475,7 +1475,7 @@ import {
 
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
-        if (!tkState.profile) return 'This client has no Post For Me account yet. An admin adds its Connection ID under Kasper, Clients, Publishing, "Post for Me".';
+        if (!tkState.profile) return 'No TikTok account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney.';
         if (tkState.mediaType === 'photo') {
             if (!tkState.photos.length) return 'Attach at least one image.';
         } else if (tkState.source && tkState.source.active) {

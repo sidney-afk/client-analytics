@@ -36126,6 +36126,34 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
 
+## 658. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V2: import several versions' videos from a Frame folder in one write (plan combined.md row V2; session Vbuild)
+
+- **Asked:** Sidney's item 1: a Frame folder import with a matching step. Built on F1 (#2537), where `frameio-view` gained `part: "list"`.
+- **Before:** every version's link was pasted one at a time.
+- **Now:**
+  - **`trial-reels`:** new action `versions_import` (admin, SMM, editor, like pasting a link). `logic.mjs` `importPlan` decides everything before anything is written:
+    - a new letter becomes a new row;
+    - an existing letter takes the link by today's rules, so a replaced link on an answered version starts it again;
+    - refused: the version on the card (`version_is_card`: it changes from its own row through today's attach), a dropped version, one letter twice, one video twice, a link another version has, a bad link, more than seven, and anything once the trial has started.
+    - The updates go first, because they can be put back. Then every new row goes in one insert. If that insert is refused, the updates are put back. The table has no delete grant, so a row is never inserted and then removed.
+    - One ledger row per version, `trial_versions_import`.
+  - **Page (189, behind `trial_versions_v2`):** "Import from Frame" beside "+ Add version". It opens a sheet on the Calendar import's own dialog.
+    - **Step 1** takes the link and has a Back button.
+    - **Step 2** shows the folder's name and the card's name, then one letter picker per video. Letters are pre-set only from clear file names. The version on the card and still-processing videos are disabled, and one letter never sits on two videos.
+    - Back keeps the link. Cancel writes nothing.
+    - Replacing an answered version asks first.
+    - A refused import writes nothing and says why.
+- **Codex on #2545, fixed:**
+  - **The letter pickers are the house select** (100 `_svSelectHtml`), never a browser-native one (AGENTS.md). The house select also now measures against the box that scrolls around it, not only the window, so its menu is no longer cut off inside a dialog's body. This is a small change to `_svSelectPlace`.
+  - **Import stays on a card whose seven letters are all taken,** because an import can still give existing versions their new cuts.
+  - **The last asked-for new cut** arriving by import sends a Tweaks Needed card back to For SMM Approval (`_trlBackToReview`), as a pasted link does.
+- **Not built (cut by combined.md):** the filter box, paging past 50, and project (non-share) folder links. Frame's own message covers those.
+- **Proof:**
+  - `test/trial-versions-import-logic.js` (21 checks; on main `importPlan is not a function`).
+  - `test/trial-versions-import-browser.js` (50 checks, 1440 and 390, mocked; on main's page it fails at the Import button).
+  - A Deno case in `test/trial-reels-function-deno.ts` (card `pv2`).
+- **Way back:** turn `trial_versions_v2` off (no Import button), or revert the PR.
+
 ## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
 
 - **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.
@@ -36394,6 +36422,17 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   Pass/fail and every wait are unchanged.
 - **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
 - **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+- **Second suite, same surface (3 Nov):** on #2563 (job 125867861223, only Post tab wording), `test/trial-reels-journey-browser.js` timed out after 30 s waiting for the client link's review page. That is the step right after "8 client link: no other version's link anywhere on the page", where the card is reopened for the client's review.
+  - It is the same client-link surface, and it fits the lead above (the switch read late, or off, when the stage drew), but here the review page never came up at all.
+  - That wait (`openReview` in the journey suite) now prints the same kind of `TRV_TRACE`, on a miss only, and then fails as before. The trace has:
+    - the mode and the status the card was set to;
+    - the fixture's switch-read count and any page errors;
+    - whether the page is a client link;
+    - the calendar's loading state, view and the card's status;
+    - the three switches (loaded, client review, trial reels);
+    - the review page's own state (there, hidden, steps, visible text).
+  - The share-link token is cut from the address.
+  - Proof: with the wait forced to miss at that step, the trace prints and the step fails exactly as before. A normal run passes and prints nothing.
 
 ## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
 
@@ -36540,6 +36579,85 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 
+## 653. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages say the account links itself once it is connected in Post for Me (follow-up to N1, 646; session Pbuild)
+
+- **Asked:** the supervisor, 3 Nov, after L1 went live at 10:41 UTC: a client's Post for Me accounts now link themselves every hour on an exact, unique handle match, so the "no account" messages no longer need someone to paste an id.
+- **Now (299, 300, 099):** every "no account" message on the Post tab reads "No [TikTok / Instagram] account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney."
+  - It covers TikTok's account line and its refusal, and Instagram's account line and refusal.
+  - **Facebook is different** (Codex P2 on #2563): the linker matches on a saved handle, and a Facebook Page has none (`_shared/postforme-accounts.mjs` sends it to `needs_person`). So the Facebook box says "No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client's profile: a Page does not link itself." LinkedIn is the same, for P3b.
+  - The phone's shorter line says "Connect it in Post for Me: it links itself here within the hour."
+  - N1's **Open Post for Me** link stays beside each one.
+  - Page only; no server change.
+  - `test/postforme-link-browser.js` and `test/instagram-platform-switch-browser.js` now expect the new words. On main they fail ("TikTok: connect it in Post for Me, it links itself"; "the flag says to connect it in Post for Me"). Here every wording check passes.
+  - `postforme-link-browser` checks the Facebook wording too. `instagram-facebook-browser` (38) and `instagram-facebook-crosspost` (79) pass with the Facebook line.
+  - `upload-schedule-zone-and-queue-guards` now checks that TikTok's refusal names Post for Me and "links itself", and still never the sheet.
+  - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
+
+## 660. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V2 and V3: one live check of a version's own thumbnail and caption and of Import from Frame, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after V3 (#2539) and V2 (#2545) merged. Run one test-client walk covering both: set a version's caption and thumbnail, import from a Frame share, and read both back. Build it as a workflow like 659's.
+- **Built:** `.github/workflows/trial-versions-fields-import-live-check.yml` (manual: client, card, fields_letter, frame_share, switch_for_run) runs `scripts/trial-versions-fields-import-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed. It reuses 659's script for its guards; that script only gains three exports.
+  - **Refused first, read-only:**
+    - the same guards as 659: the test client by hash; not Posted; not linked to Production; a trial card (or `switch_for_run`); a first read that heals nothing;
+    - V3's and V2's own rules from the checkout (`versionFieldsPatch`, `importPlan`), run over the card's state as read;
+    - a fields version that is the one on the card, dropped, on trial, or already answered (a fields change would send it back to the SMM);
+    - a fields version that already has its own caption or thumbnail (the put-back clears both, so it would lose them; Codex on #2568);
+    - a share with no new video, or no free letter left.
+  - **V3:**
+    - The version's caption is set to a fixed fixture text. Its thumbnail is set to the card's own thumbnail, or, when the card has none, `syncview-favicon.png` from the SyncView site (supervisor: never a third-party host).
+    - Read back: the version's own fields and its effective fields, another version still reading the card's, and the card row unchanged.
+    - Then both fields are cleared and read back as the card's again.
+    - The `trial_version_fields_set` rows each write adds are counted. If there are none, the summary says "writes none".
+  - **V2, only when `frame_share` is given:**
+    - The share is listed through frameio-view `part: "list"`. Every listed video no version already holds is imported as a new letter, in one `versions_import`.
+    - Read back: the new letters are waiting, there is one `trial_versions_import` row each, and the card is unchanged.
+    - Then the same video is offered under another letter: it must be refused (`link_used_by_another_version`) and write nothing.
+  - **Put back, always, from what was sent (Codex on #2568):** a write whose reply is lost still counts. The put-back reads the card afresh and undoes whatever it finds: the fields set, any attempted letter not yet dropped, and the switch.
+  - **Put back, always:**
+    - In a `finally`: the fields are cleared, and every imported letter is dropped (the table has no delete grant). The summary reports `imported_rows_left_dropped`.
+    - In an outer `finally`: a switch turned on for the run is turned off and read back, with no version changed.
+  - **Empty `frame_share`:** the run does V3 only and says `import_skipped: no_frame_share`.
+- **Proof:** `test/trial-versions-fields-import-live-check.js` (34 checks, offline, against a fake backend that answers with V2's and V3's real rules). It covers:
+  - a full run, and a V3-only run;
+  - the placeholder thumbnail, and a run that logs no fields rows ("writes none");
+  - the switch opt-in;
+  - refusals before any write: an answered version, the version on the card, another client, a share with nothing new;
+  - runs that must fail: a card written by the function, and an import that is not refused the second time;
+  - a failure mid-run that still drops the imported letters and clears the fields;
+  - a version with its own caption refused before any write; an import, a fields write and a switch-on whose replies are lost, each still put back;
+  - and that the summary never prints the card, the client, a link, a caption or a key.
+
+  659's own test is unchanged and passes (40). On main the script does not exist.
+- **Target (supervisor):** `p_allactions_1793209592511`, fields letter C, `switch_for_run` on. The only test-client shares today hold one video each, so an import of 2 or more still needs a real multi-video Frame folder from Sidney. `frame_share` is an input, so the same run covers it.
+- **Change, 3 Nov (supervisor), after #2568 merged: no input is a link.** The repo is public, and a workflow_dispatch input and the step's env are printed on the run page, so a Frame share given as `frame_share` would publish its token. That input is gone; none was ever dispatched with one.
+  - It is replaced by `source_letter` (A to G). The script takes that version's own Frame link from the staff read it already does, lists it, and imports from it. The link never passes through an input, the env or the log.
+  - When every listed video is already on the card (a share of one video, held by the source version), the run shows only the refusal: the video offered under a free letter must be refused with `link_used_by_another_version` and write nothing. An import of new videos shows only with a share holding a video not yet on the card. Such a share, including Sidney's multi-video folder, reaches a spare version through the page first.
+  - New refusals before any write: `source_letter_invalid` (not A to G, a pasted link included) and `source_letter_has_no_link`.
+  - Proof: the test now has 43 checks. It covers the listed share being the source version's own link, the refusal-only run, both new refusals, and the workflow's inputs: none is named for a link, share or URL, none defaults to a link, and neither the workflow nor the script reads a share from the env. On main it fails at the first full run, because the import needs `frame_share`.
+- **Live result, V3: LIVE.** The supervisor dispatched run 41638897988 on 3 Nov. Inputs: card `p_allactions_1793209592511`, fields letter C, `switch_for_run` on, no share. The run succeeded.
+  - `fields_passed` was true.
+  - The set and the clear both answered 200. Each read back as intended: the version's own fields, its effective fields, and another version still reading the card's. `card_unchanged` was true, and each write added one `trial_version_fields_set` row.
+  - `fields_put_back` was true. The switch went on and ended off, seeding or changing 0 versions.
+  - The thumbnail source was the site placeholder, because the card has no thumbnail of its own.
+- **Live result, V2: not yet.** The import was skipped (`no_frame_share`), so `import_passed` was null. It will run on this check's next dispatch, using `source_letter`.
+- **Way back:** delete the workflow. It runs only by hand.
+
+## 683. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper fast-boot's "first video asked sooner" check compared two page loads' clocks, and could not see the warm-up removed (session Reviewguard, test only)
+
+- **Seen:** `test/kasper-fast-boot-browser.js` failed on #2545 (job 125784853921), which does not touch Kasper's tab: "the first card's video address is asked for sooner with the flag on (2185 ms vs 2252 ms after the list was asked for)". Session Bootrace had already moved this check on 2 Nov (#2502: 2153 vs 2238 ms).
+- **Why the old check was wrong:**
+  - **It compared two page loads.** It took the time the test server saw the first `frameio-view` request in a flag-on visit and in a separate flag-off visit, and asked for a 300 ms gap. Measured in the page itself, the flag-on request starts about 20 ms after the list lands (+1527 ms), while the server logged it 90 ms later (+1611 to +1621 ms). On a loaded runner that lag grew until the two visits' numbers met.
+  - **It could not see the warm-up removed.** With the warm-up call in 330 (`_kasperWarmFirstVideo` in the list paint) taken out, a flag-on visit still asked at about +1620 ms against about +2260 ms flag off, because the player's switch is read at page start. So the check passed on a broken build.
+- **The feature's claim** (its own comment in 330): the first card's video address is asked for "while the list is still being drawn (not when the stage mounts)".
+- **Fix (test only):** the check now records, inside the page's own `fetch` call for the first `frameio-view` request, whether the review page and its player were already on screen. That is an order of events in one page, with no clocks.
+  - Flag on: neither is on screen.
+  - Flag off (control): both are, because the player asks from inside its own mount.
+  - The cross-visit comparison is removed. The other checks are unchanged.
+  - Flag on: `{"stageOnScreen":false,"player":false}`. Flag off: `{"stageOnScreen":true,"player":true}`. All 53 checks pass in 124 s.
+  - With the warm-up call removed in a scratch copy, the new check fails with `{"stageOnScreen":true,"player":true}`, and every other check passes.
+  - Under load (CPU slowed 4 times, 4 copies at once), 4 of 4 runs pass all 53 checks.
+- **Not touched:** the "next card's video is ready sooner" check at the end of the suite still compares two page loads (on < off - 400 ms). It has not failed in CI yet.
+
 ## 655. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's Instagram side posts to YouTube and LinkedIn too, behind post_networks_v1 (plan row P3, page half, decision D5; session Pbuild)
 
 - **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The server half merged as 652 (#2557); this is the page half, after P1b.
@@ -36568,4 +36686,4 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   The Instagram and Facebook suites pass unchanged: instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-cover-client-switch (8), instagram-carousel (51), post-from-card (51), post-tab (58).
 - **Live check (D6):** on one of the owner's two clients with YouTube and LinkedIn connected: schedule 7+ days ahead, cancel at once, and read back that it is gone. It waits for those accounts to be connected; then 652 can be marked LIVE.
 - **Way back:** clear `post_networks_v1`, or revert the PR.
-- **Ledger number:** 655 was held for P4. P4 needs a new number from the supervisor.
+- **Ledger number:** 655 was held for P4; the supervisor gave P4 684 instead.

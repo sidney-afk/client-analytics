@@ -537,6 +537,10 @@
       ],
       "note": "Trial reels (trial-reels function): the switch, a version link (from the card or from Production's Assets), a drop, the trial, the winner and its Undo. A refused write is recorded as trial_reels_<action> on the calendar or production surface; list and read are reads."
     },
+    "189-trial-reels-card.js.part|svTrialImportList|TRL_FRAME_VIEW_URL|POST": {
+      "status": "read",
+      "note": "Trial reels Import from Frame: asks the frameio-view function for the videos in a Frame folder (part list). A POST only to carry the link; it reads from Frame.io and saves nothing. The import itself goes through svTrialCall (versions_import)."
+    },
     "189-trial-reels-card.js.part|_trlSetCardLink|TRL_PROD_WRITE_URL|POST": {
       "status": "reports",
       "within": [

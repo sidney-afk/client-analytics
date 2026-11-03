@@ -45,7 +45,9 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
     const IG_YT_DESCRIPTION_MAX_BYTES = 5000;
     const IG_MAX_CAPTION = 2200;
     // Client info lives on the SyncView client profile; the Clients Info sheet is only a copy of it.
-    const IG_NO_ACCOUNT_MSG = "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile.";
+    // Since L1 (3 Nov) a client's Post for Me accounts link themselves every hour on an exact handle match, so the
+    // message says to connect it there (OPEN_REPAIRS 653).
+    const IG_NO_ACCOUNT_MSG = "No Instagram account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney.";
     const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
     const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
     const IG_COVER_MAX_BYTES = 8 * 1024 * 1024;     // Instagram's own limit for a cover image
@@ -126,7 +128,7 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
     function _igFacebookState() {
         if (!igState.client) return { enabled: false, checked: false, reason: '' };
         const fb = _igResolveFacebook(igState.client);
-        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page connected for this client. Ask Sidney to add its Post for Me Facebook connection (spc_...) on the client\'s profile.' };
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
         if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
         if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
         return { enabled: true, checked: !igState.facebookOff, reason: '' };

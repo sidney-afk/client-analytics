@@ -6,7 +6,9 @@ name: trial version status live check (manual)
 # the version's status, its one trial_status history row and that the card row itself was not written.
 # It WRITES, on the test client only, and refuses first, read-only, unless the client is the test client (by hash),
 # the card is not Posted, nothing in Production links to it, and it is a trial card with that version
-# (scripts/trial-version-status-live-check.js). Prints only counts, true/false, refusal codes and the card's status
+# (scripts/trial-version-status-live-check.js). With switch_for_run (default off) it first turns the card's trial
+# switch on through trial-reels switch_set, the page's own call, refusing if it is already on, and turns it off
+# again afterwards even after a failure, reading back that it ended off and that no version was added or removed. Prints only counts, true/false, refusal codes and the card's status
 # words, never an address, an id, a name or a key. Run by hand.
 
 on:
@@ -24,6 +26,11 @@ on:
         description: 'The version letter to walk (A to G)'
         required: true
         type: string
+      switch_for_run:
+        description: 'Turn the card''s trial switch on for this run and off again afterwards (refused if it is already on). Default off.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -48,4 +55,5 @@ jobs:
           LIVE_CHECK_CLIENT: ${{ inputs.client }}
           LIVE_CHECK_CARD: ${{ inputs.card }}
           LIVE_CHECK_LETTER: ${{ inputs.letter }}
+          LIVE_CHECK_SWITCH_FOR_RUN: ${{ inputs.switch_for_run }}
         run: node scripts/trial-version-status-live-check.js

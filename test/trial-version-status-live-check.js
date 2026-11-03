@@ -31,6 +31,7 @@ function backend(logic, over = {}) {
     ],
     events: [],
     writes: 0,
+    switchCalls: [],
   };
   const shaped = () => st.versions.map((v) => ({ ...v, card_status: logic.versionCardStatus(v, st.versions, st.card.video_status) }));
   const reply = (status, body) => ({ ok: status < 400, status, json: async () => body });
@@ -41,6 +42,8 @@ function backend(logic, over = {}) {
       if (table === 'calendar_posts') return reply(200, u.searchParams.get('id') === 'eq.' + st.card.id && u.searchParams.get('client') === 'eq.' + st.card.client ? [{ ...st.card }] : []);
       if (table === 'production_deliverables_browser_v1') return reply(200, st.production);
       if (table === 'calendar_post_events') {
+        // A read that fails once, right after the write numbered breakAtWrite (Codex on #2549).
+        if (over.breakAtWrite && st.writes === over.breakAtWrite && !st.broke) { st.broke = true; return reply(503, { message: 'down' }); }
         const action = (u.searchParams.get('action') || '').replace(/^eq\./, '');
         return reply(200, st.events.filter((x) => x.action === action).map((x) => ({ ...x })));
       }
@@ -51,7 +54,16 @@ function backend(logic, over = {}) {
       if (over.healOnRead) st.events.push({ action: 'trial_version_link_set', source: 'trial-reels', payload: { letter: 'A' } });
       return reply(200, st.enabled ? { ok: true, enabled: true, versions: shaped() } : { ok: true, enabled: false });
     }
+    if (body.action === 'switch_set') {
+      st.switchCalls.push(body.enabled === true);
+      if (over.switchOffFails && body.enabled !== true) return reply(500, { ok: false, error: 'write_failed' });
+      st.enabled = body.enabled === true;
+      st.events.push({ action: st.enabled ? 'trial_on' : 'trial_off', source: 'trial-reels', payload: null });
+      if (st.enabled && over.seedOnSwitch) st.events.push({ action: 'trial_version_add', source: 'trial-reels', payload: { letter: 'D' } });
+      return reply(200, { ok: true, enabled: st.enabled });
+    }
     if (body.action === 'version_status_set') {
+      if (!st.enabled) return reply(409, { ok: false, error: 'trial_reels_off' });
       st.writes += 1;
       if (over.refuse && over.refuse === body.status) return reply(409, { ok: false, error: 'status_follows_card' });
       const r = logic.versionStatusPatches(st.versions, { letter: body.letter, status: body.status, cardStatus: st.card.video_status }, 't' + st.writes);
@@ -131,6 +143,30 @@ async function go(over = {}, envOver = {}) {
   const k = refused.summary.steps[1];
   ok(refused.exit === 1 && k.ok === false && k.error === 'status_follows_card' && k.http_status === 409, 'a refusal the rules did not predict still fails the run and names its code');
   ok(refused.summary.steps[2].ok === true && refused.summary.steps[2].event_ok === true, 'after a refusal the walk goes on from the word the version really has');
+
+  // Codex on #2549: a read that fails mid-walk still puts the version back.
+  const broken = await go({ breakAtWrite: 2 });
+  ok(broken.exit === 1 && broken.summary.walk_error === 'rest_' && broken.summary.restored_read_back === true
+    && LOGIC.versionCardStatus(broken.st.versions[0], broken.st.versions, 'Client Approval') === 'Client Approval',
+    'a failed read after a write stops the walk, and the version is still put back and read back (' + JSON.stringify([broken.summary.walk_error, broken.summary.restored_read_back]) + ')');
+
+  // The opt-in switch: on through switch_set, the walk, then off again whatever happened.
+  const on = await go({ enabled: false }, { LIVE_CHECK_SWITCH_FOR_RUN: 'true' });
+  ok(on.exit === 0 && on.st.switchCalls.join() === 'true,false' && on.st.enabled === false, 'with the opt-in, the switch goes on for the run and off after (' + on.st.switchCalls.join() + ')');
+  ok(on.summary.switch_on_seeded_versions === 0 && on.summary.switch_off_deleted_versions === 0 && on.summary.switch_ended_off === true && on.summary.steps_passed === 5 && on.summary.restored,
+    'it reads back that the switch ended off and that no version was seeded or removed');
+  const offDefault = await go({ enabled: false });
+  ok(offDefault.exit === 1 && offDefault.summary.refused === 'not_a_trial_card' && offDefault.st.switchCalls.length === 0 && offDefault.st.writes === 0, 'without the opt-in (the default) a switched-off card is refused and the switch is never touched');
+  const already = await go({}, { LIVE_CHECK_SWITCH_FOR_RUN: 'true' });
+  ok(already.exit === 1 && already.summary.refused === 'switch_already_on' && already.st.switchCalls.length === 0 && already.st.writes === 0, 'with the opt-in, a switch already on is refused and left as it is');
+  const seeded = await go({ enabled: false, seedOnSwitch: true }, { LIVE_CHECK_SWITCH_FOR_RUN: 'true' });
+  ok(seeded.exit === 1 && seeded.summary.refused === 'switch_on_seeded_a_version' && seeded.st.writes === 0 && seeded.st.enabled === false && seeded.summary.switch_ended_off === true,
+    'a switch-on that seeded a version stops before any pick, and the switch is still turned off');
+  const brokenSw = await go({ enabled: false, breakAtWrite: 3 }, { LIVE_CHECK_SWITCH_FOR_RUN: 'true' });
+  ok(brokenSw.exit === 1 && brokenSw.summary.restored_read_back === true && brokenSw.st.enabled === false && brokenSw.summary.switch_ended_off === true,
+    'after a failure mid-walk the version is put back first, then the switch is turned off');
+  const stuck = await go({ enabled: false, switchOffFails: true }, { LIVE_CHECK_SWITCH_FOR_RUN: 'true' });
+  ok(stuck.exit === 1 && stuck.summary.switch_off_ok === false && stuck.summary.switch_ended_off === false, 'a switch that would not turn off fails the run and says so');
 
   // The log is public.
   const printed = good.logs.join('\n') + JSON.stringify(good.summary) + JSON.stringify(touched.summary) + JSON.stringify(refused.summary);

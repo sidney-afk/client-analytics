@@ -21,8 +21,13 @@
  * Prints only counts, true/false, HTTP statuses, refusal codes and the card's fixed status words: never a title, a
  * link, a name, an id or a key. The repository and its CI logs are public.
  *
+ * The version is always put back once any pick was sent, even when a read fails mid-walk (Codex on #2549).
+ * Opt-in LIVE_CHECK_SWITCH_FOR_RUN=true (default off): the card's trial switch is turned on through trial-reels
+ * switch_set (the page's own call, never SQL), refused when it is already on, and turned off again in a finally
+ * step even after a failure; it reads back that the switch ended off and that the flips added or removed no version.
+ *
  * Env: SYNCVIEW_STAFF_KEY (an SMM or admin role key), LIVE_CHECK_CLIENT (the test client's slug, given at dispatch),
- *      LIVE_CHECK_CARD (the card id), LIVE_CHECK_LETTER (A to G).
+ *      LIVE_CHECK_CARD (the card id), LIVE_CHECK_LETTER (A to G), LIVE_CHECK_SWITCH_FOR_RUN (optional, true or false).
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -123,6 +128,9 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   const client = String(env.LIVE_CHECK_CLIENT || '').trim().toLowerCase();
   const card = String(env.LIVE_CHECK_CARD || '').trim();
   const letter = String(env.LIVE_CHECK_LETTER || '').trim().toUpperCase();
+  // Opt-in (default off): turn the card's trial switch on for the run through trial-reels switch_set, the call the
+  // page's switch makes, and off again afterwards whatever happened. Refused when the switch is already on.
+  const switchForRun = String(env.LIVE_CHECK_SWITCH_FOR_RUN || '').trim().toLowerCase() === 'true';
   if (!key || !client || !card) return { exit: 2, summary: { refused: 'inputs_missing' } };
   // The client is checked before anything is read.
   if (!isTestClient(client, testHash)) return { exit: 1, summary: { refused: 'not_test_client' } };
@@ -131,43 +139,99 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   const readCard = async () => (await rest('calendar_posts?select=id,client,video_status,updated_at,video_deliverable_id,graphic_deliverable_id&id=eq.' + e(card) + '&client=eq.' + e(client)))[0] || null;
   const readEvents = (action) => rest('calendar_post_events?select=action,from_status,to_status,source,payload,ts&post_id=eq.' + e(card)
     + '&client=eq.' + e(client) + '&action=eq.' + e(action) + '&order=ts.asc,id.asc');
+  // Rows that add, drop or bring back a version: a switch flip must add none of them.
+  const versionEvents = async () => (await Promise.all(['trial_version_add', 'trial_version_drop', 'trial_version_restore', 'trial_versions_import'].map(readEvents)))
+    .reduce((n, rows) => n + rows.length, 0);
+  const fail = (summary) => ({ exit: 1, summary });
 
   const cardRow = await readCard();
   const productionRows = cardRow ? await rest('production_deliverables_browser_v1?select=card_id&card_id=eq.' + e(card)) : [];
   const pre = guardTarget({ client, card, cardRow, productionRows, read: { json: { ok: true, enabled: true, versions: [{ letter, card_status: 'x' }] } }, letter, testHash });
-  if (pre) return { exit: 1, summary: { refused: pre } };
+  if (pre) return fail({ refused: pre });
 
-  // The first staff call. Nothing may have healed: a link change here means the card is not one this check may use.
-  const linkEventsBefore = await readEvents('trial_version_link_set');
-  const read = await call({ action: 'read', client, post_id: card });
-  const linkEventsAfter = await readEvents('trial_version_link_set');
-  const refused = guardTarget({ client, card, cardRow, productionRows, read, letter, testHash });
-  if (refused) return { exit: 1, summary: { refused, read_http_status: read.status } };
-  if (linkEventsAfter.length !== linkEventsBefore.length) return { exit: 1, summary: { refused: 'read_healed_a_link' } };
+  // A read of a card whose switch is off writes nothing and answers enabled: false.
+  const first = await call({ action: 'read', client, post_id: card });
+  if (!first.json || first.json.ok !== true) return fail({ refused: 'read_failed', read_http_status: first.status });
+  if (switchForRun && first.json.enabled === true) return fail({ refused: 'switch_already_on' });
+  if (!switchForRun && first.json.enabled !== true) return fail({ refused: 'not_a_trial_card' });
 
-  const start = read.json.versions.find((x) => x.letter === letter).card_status;
-  const blocked = planWalk(logic || await loadLogic(), read.json.versions, letter, cardRow.video_status, start);
-  if (blocked) return { exit: 1, summary: { refused: 'walk_not_allowed', start_status: start, blocked } };
-  let current = start;
+  const out = { refused: null, switch_for_run: switchForRun };
+  let switchedOn = false;
+  let started = false, start = null, current = null, steps = [], restore = null;
   const pick = async (want) => {
     const cardBefore = await readCard();
     const eventsBefore = await readEvents('trial_status');
+    started = true;
+    const from = current;
     const resp = await call({ action: 'version_status_set', client, post_id: card, letter, status: want });
+    if (resp.json && resp.json.ok === true) current = want;
     const eventsAfter = await readEvents('trial_status');
     const cardAfter = await readCard();
-    const step = judgeStep({ want, from: current, resp, letter, eventsBefore, eventsAfter, cardBefore, cardAfter });
-    if (step.ok) current = want;
-    return step;
+    return judgeStep({ want, from, resp, letter, eventsBefore, eventsAfter, cardBefore, cardAfter });
   };
-  const steps = [];
-  for (const want of WALK) steps.push(await pick(want));
-  const restore = await pick(start);
-  const summary = {
-    refused: null, start_status: start, steps, restore,
-    steps_passed: steps.filter(stepPassed).length, steps_total: steps.length, restored: stepPassed(restore),
-  };
-  say('trial version status live check: ' + JSON.stringify(summary));
-  return { exit: summary.steps_passed === steps.length && summary.restored ? 0 : 1, summary };
+  try {
+    if (switchForRun) {
+      const adds = await versionEvents();
+      const on = await call({ action: 'switch_set', client, post_id: card, enabled: true });
+      switchedOn = !!(on.json && on.json.ok === true);
+      out.switch_on_ok = switchedOn;
+      if (!switchedOn) { out.refused = 'switch_on_failed'; out.switch_on_http_status = on.status; return fail(out); }
+      out.switch_on_seeded_versions = (await versionEvents()) - adds;
+      if (out.switch_on_seeded_versions !== 0) { out.refused = 'switch_on_seeded_a_version'; return fail(out); }
+    }
+    // The first staff read of a switched-on card. Nothing may have healed: a link change means this card may not be used.
+    const linkEventsBefore = await readEvents('trial_version_link_set');
+    const read = await call({ action: 'read', client, post_id: card });
+    const linkEventsAfter = await readEvents('trial_version_link_set');
+    const refused = guardTarget({ client, card, cardRow, productionRows, read, letter, testHash });
+    if (refused) { out.refused = refused; out.read_http_status = read.status; return fail(out); }
+    if (linkEventsAfter.length !== linkEventsBefore.length) { out.refused = 'read_healed_a_link'; return fail(out); }
+    out.versions_at_start = read.json.versions.length;
+
+    start = read.json.versions.find((x) => x.letter === letter).card_status;
+    current = start;
+    out.start_status = start;
+    const blocked = planWalk(logic || await loadLogic(), read.json.versions, letter, cardRow.video_status, start);
+    if (blocked) { out.refused = 'walk_not_allowed'; out.blocked = blocked; return fail(out); }
+    try {
+      for (const want of WALK) steps.push(await pick(want));
+    } catch (err) {
+      out.walk_error = code(String(err && err.message)) || 'error';
+    } finally {
+      // Always put the version back once any pick was sent (Codex on #2549), even after a failed read mid-walk.
+      if (started) {
+        try { restore = await pick(start); } catch (err) { out.restore_error = code(String(err && err.message)) || 'error'; }
+        try {
+          const back = await call({ action: 'read', client, post_id: card });
+          const v = back.json && (back.json.versions || []).find((x) => x.letter === letter);
+          out.restored_read_back = !!v && v.card_status === start;
+        } catch (err) { out.restored_read_back = false; }
+      }
+    }
+  } finally {
+    if (switchedOn) {
+      try {
+        const before = await versionEvents();
+        const off = await call({ action: 'switch_set', client, post_id: card, enabled: false });
+        out.switch_off_ok = !!(off.json && off.json.ok === true);
+        out.switch_off_deleted_versions = (await versionEvents()) - before;
+        const after = await call({ action: 'read', client, post_id: card });
+        out.switch_ended_off = !!(after.json && after.json.ok === true && after.json.enabled === false);
+      } catch (err) {
+        out.switch_off_ok = false;
+        out.switch_ended_off = false;
+        out.switch_off_error = code(String(err && err.message)) || 'error';
+      }
+    }
+  }
+  Object.assign(out, {
+    steps, restore,
+    steps_passed: steps.filter(stepPassed).length, steps_total: WALK.length,
+    restored: !!restore && stepPassed(restore) && out.restored_read_back === true,
+  });
+  const switchClean = !switchForRun || (out.switch_ended_off === true && out.switch_off_deleted_versions === 0);
+  say('trial version status live check: ' + JSON.stringify(out));
+  return { exit: out.steps_passed === WALK.length && out.restored && !out.walk_error && switchClean ? 0 : 1, summary: out };
 }
 
 async function main() {

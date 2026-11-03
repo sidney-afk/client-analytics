@@ -14,9 +14,14 @@
  *   V3: the fields version gets a caption and a thumbnail (the card's own thumbnail when it has one, else an image the
  *       SyncView site publishes), read back as its own and as its effective fields, with another version still
  *       reading the card's; then both are cleared and read back as the card's again. The card row is never written.
- *   V2 (only when a Frame share is given): the share is listed through frameio-view part "list", every listed video
- *       no version already holds is imported as a new letter in one versions_import, read back, and the same video
- *       offered again under another letter must be refused (link_used_by_another_version) and write nothing.
+ *   V2 (only when a source letter is given): that version's own Frame link, read from the card by the staff read, is
+ *       listed through frameio-view part "list". Every listed video no version already holds is imported as a new
+ *       letter in one versions_import and read back, and the same video offered again under another letter must be
+ *       refused (link_used_by_another_version) and write nothing. When every listed video is already on the card (a
+ *       share of one video, held by the source version itself), only that refusal is shown. The link is never an
+ *       input: a workflow_dispatch input and the step's env are printed on the run page of this public repository,
+ *       so a share's token given there would be published (supervisor, OPEN_REPAIRS 660). A new share reaches the
+ *       card the way the team adds one, through the page.
  *   Put back, always (finally): fields cleared, every imported letter dropped (the table has no delete grant, so a
  *       dropped row is the only way back; the summary counts them), and a switch turned on for the run turned off.
  *
@@ -24,7 +29,7 @@
  * Prints only counts, true/false, HTTP statuses and refusal codes: never a title, a link, a name, an id or a key.
  *
  * Env: SYNCVIEW_STAFF_KEY, LIVE_CHECK_CLIENT, LIVE_CHECK_CARD, LIVE_CHECK_FIELDS_LETTER (A to G),
- *      LIVE_CHECK_FRAME_SHARE (optional: empty runs V3 only), LIVE_CHECK_SWITCH_FOR_RUN (optional, true or false).
+ *      LIVE_CHECK_SOURCE_LETTER (optional, A to G: empty runs V3 only), LIVE_CHECK_SWITCH_FOR_RUN (optional, true or false).
  */
 const path = require('path');
 const V1 = require('./trial-version-status-live-check.js');
@@ -72,7 +77,15 @@ function planRun(logic, versions, { letter, mainLink, thumb, caption, listed }) 
   const free = LETTERS.filter((l) => !versions.some((x) => x.letter === l));
   const videos = listed.filter((r) => r && !r.processing && r.link && !used.has(r.link));
   const items = videos.slice(0, free.length).map((r, i) => ({ letter: free[i], link: r.link }));
-  if (!items.length) return { refused: free.length ? 'import_nothing_new' : 'import_no_free_letter' };
+  if (!free.length) return { refused: 'import_no_free_letter' };
+  if (!items.length) {
+    // Nothing new on the share: show only that a video already on the card is refused under a free letter.
+    const held = listed.find((r) => r && !r.processing && r.link && used.has(r.link));
+    if (!held) return { refused: 'import_nothing_new' };
+    const p = logic.importPlan(versions, [{ letter: free[0], link: held.link }], mainLink);
+    if (p.error !== 'link_used_by_another_version') return { refused: 'import_refusal_not_expected', code: code(p.error) };
+    return { refused: null, items: [], refusalOnly: { letter: free[0], link: held.link } };
+  }
   const p = logic.importPlan(versions, items, mainLink);
   if (p.error) return { refused: 'import_not_allowed', code: code(p.error) };
   if ((p.updates || []).length) return { refused: 'import_would_change_a_version' };
@@ -85,10 +98,11 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   const client = String(env.LIVE_CHECK_CLIENT || '').trim().toLowerCase();
   const card = String(env.LIVE_CHECK_CARD || '').trim();
   const letter = String(env.LIVE_CHECK_FIELDS_LETTER || '').trim().toUpperCase();
-  const share = String(env.LIVE_CHECK_FRAME_SHARE || '').trim();
+  const source = String(env.LIVE_CHECK_SOURCE_LETTER || '').trim().toUpperCase();
   const switchForRun = String(env.LIVE_CHECK_SWITCH_FOR_RUN || '').trim().toLowerCase() === 'true';
   if (!key || !client || !card) return { exit: 2, summary: { refused: 'inputs_missing' } };
   if (!isTestClient(client, testHash)) return { exit: 1, summary: { refused: 'not_test_client' } };
+  if (source && !LETTERS.includes(source)) return { exit: 2, summary: { refused: 'source_letter_invalid' } };
   const L = logic || await loadLogic();
   const { rest, call, frame } = io({ fetchImpl, key, anon });
   const e = encodeURIComponent;
@@ -137,14 +151,17 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
     out.thumbnail_source = cardRow.thumbnail_url ? 'card' : 'site_placeholder';
 
     let listed = null;
-    if (share) {
+    if (source) {
+      const src = versions.find((x) => x.letter === source);
+      const share = src && src.status !== 'dropped' ? String(src.frame_url || '').trim() : '';
+      if (!share) { out.refused = 'source_letter_has_no_link'; return fail(out); }
       const list = await frame({ link: share, part: 'list' });
       out.list_http_status = list.status;
       if (!ok(list)) { out.refused = 'share_list_failed'; out.list_error = err(list); return fail(out); }
       listed = Array.isArray(list.json.videos) ? list.json.videos : [];
       out.listed_videos = listed.length;
     } else {
-      out.import_skipped = 'no_frame_share';
+      out.import_skipped = 'no_source_letter';
     }
     const plan = planRun(L, versions, { letter, mainLink, thumb, caption: FIELDS_CAPTION, listed });
     if (plan.refused) { out.refused = plan.refused; if (plan.code) out.refused_code = plan.code; return fail(out); }
@@ -180,7 +197,18 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
     out.fields_events_per_write = out.fields_set.events_added === 0 && out.fields_cleared.events_added === 0 ? 'writes none' : out.fields_set.events_added;
 
     // V2: one import, read back; the same video again under another letter refused.
-    if (plan.items.length) {
+    if (plan.refusalOnly) {
+      out.import_ran = true;
+      out.import = { skipped: 'nothing_new_on_share' };
+      const evR = await events('trial_versions_import');
+      attemptedLetters.push(plan.refusalOnly.letter);
+      const again = await call({ action: 'versions_import', client, post_id: card, items: [plan.refusalOnly] });
+      const after = await call({ action: 'read', client, post_id: card });
+      out.import_again = {
+        http_status: again.status, refused: !ok(again), error: err(again),
+        wrote_nothing: (await events('trial_versions_import')) === evR && !find(after, plan.refusalOnly.letter),
+      };
+    } else if (plan.items.length) {
       out.import_ran = true;
       const evI = await events('trial_versions_import');
       const c3 = await readCard();
@@ -254,7 +282,9 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   const fieldsPass = out.fields_put_back !== false && fs.ok && !fs.restarted && fs.own_read_back && fs.effective_read_back && fs.other_reads_card && fs.card_unchanged
     && fc.ok && fc.own_cleared && fc.effective_is_card && fc.card_unchanged;
   const im = out.import || {}, ia = out.import_again || {};
-  const importPass = !out.import_ran || (im.ok && im.letters_read_back && im.card_unchanged && im.events_added === im.videos
+  const refusalPass = ia.refused && ia.error === 'link_used_by_another_version' && ia.wrote_nothing;
+  const importPass = !out.import_ran || (im.skipped === 'nothing_new_on_share' ? refusalPass && out.imported_all_dropped
+    : im.ok && im.letters_read_back && im.card_unchanged && im.events_added === im.videos
     && (ia.skipped || (ia.refused && ia.error === 'link_used_by_another_version' && ia.wrote_nothing)) && out.imported_all_dropped);
   const switchPass = !switchForRun || (out.switch_ended_off === true && out.switch_off_changed_versions === 0);
   out.fields_passed = !!fieldsPass;

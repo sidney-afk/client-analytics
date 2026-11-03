@@ -36618,7 +36618,17 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 
   659's own test is unchanged and passes (40). On main the script does not exist.
 - **Target (supervisor):** `p_allactions_1793209592511`, fields letter C, `switch_for_run` on. The only test-client shares today hold one video each, so an import of 2 or more still needs a real multi-video Frame folder from Sidney. `frame_share` is an input, so the same run covers it.
-- **Live result:** filled in by the supervisor's dispatch.
+- **Change, 3 Nov (supervisor), after #2568 merged: no input is a link.** The repo is public, and a workflow_dispatch input and the step's env are printed on the run page, so a Frame share given as `frame_share` would publish its token. That input is gone; none was ever dispatched with one.
+  - It is replaced by `source_letter` (A to G). The script takes that version's own Frame link from the staff read it already does, lists it, and imports from it. The link never passes through an input, the env or the log.
+  - When every listed video is already on the card (a share of one video, held by the source version), the run shows only the refusal: the video offered under a free letter must be refused with `link_used_by_another_version` and write nothing. An import of new videos shows only with a share holding a video not yet on the card. Such a share, including Sidney's multi-video folder, reaches a spare version through the page first.
+  - New refusals before any write: `source_letter_invalid` (not A to G, a pasted link included) and `source_letter_has_no_link`.
+  - Proof: the test now has 43 checks. It covers the listed share being the source version's own link, the refusal-only run, both new refusals, and the workflow's inputs: none is named for a link, share or URL, none defaults to a link, and neither the workflow nor the script reads a share from the env. On main it fails at the first full run, because the import needs `frame_share`.
+- **Live result, V3: LIVE.** The supervisor dispatched run 41638897988 on 3 Nov. Inputs: card `p_allactions_1793209592511`, fields letter C, `switch_for_run` on, no share. The run succeeded.
+  - `fields_passed` was true.
+  - The set and the clear both answered 200. Each read back as intended: the version's own fields, its effective fields, and another version still reading the card's. `card_unchanged` was true, and each write added one `trial_version_fields_set` row.
+  - `fields_put_back` was true. The switch went on and ended off, seeding or changing 0 versions.
+  - The thumbnail source was the site placeholder, because the card has no thumbnail of its own.
+- **Live result, V2: not yet.** The import was skipped (`no_frame_share`), so `import_passed` was null. It will run on this check's next dispatch, using `source_letter`.
 - **Way back:** delete the workflow. It runs only by hand.
 
 ## 683. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper fast-boot's "first video asked sooner" check compared two page loads' clocks, and could not see the warm-up removed (session Reviewguard, test only)

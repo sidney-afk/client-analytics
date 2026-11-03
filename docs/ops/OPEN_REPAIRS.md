@@ -36123,3 +36123,11 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
 - **Way back:** revert the PR and run the ROLLBACK file.
 
+
+## 675. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper's admin phone suite waited 5 s for every state, and one wait ran out in a busy CI lane (session Reviewguard)
+
+- **Seen:** #2527's `staff-phone-rules (430, 2)` at dd88b902 failed 1 of 4832 checks: "quiz-refresh-actions light 430: locator.waitFor: Timeout 5000ms exceeded", waiting for "Could not load quiz leads". The same suite passed locally four times at that head and at main (0 failures), and the code path it tests is not one #2527 changes. One 5 s wait for an error state ran out in a parallel lane on a shared runner.
+- **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
+- **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
+- **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+- **Way back:** revert the PR.

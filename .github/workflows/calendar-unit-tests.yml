@@ -730,6 +730,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-reports-browser.js
+      - name: A test run's diagnostics reports say they are automation and never outlive the test (OPEN_REPAIRS 674)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/diagnostics-test-traffic-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

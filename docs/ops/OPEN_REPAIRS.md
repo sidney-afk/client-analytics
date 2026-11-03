@@ -36280,3 +36280,62 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - **A test-client card with a Drive thumbnail:** 200, the Original, 18.2 MB, 1080×1920, 45.1 s, `thumb_copied` true. The stored file is `video/mp4` with the same size.
   - **Frame's real metadata field names:** "Resolution - Width" and "Resolution - Height" for the size (read by the any-field-ending-in-Width/Height rule), "Duration", and "Video Codec".
 - **Follow-up (2026-11-03, after #2554 merged; supervisor and Codex P2 on #2554):** the thumbnail is now read piece by piece and stopped as soon as it passes 8 MB, so a server that states no size, or a wrong one, cannot make the function hold more. Redirects were already refused (`redirect: "error"`), so a redirect to a private or link-local address cannot be followed. Proof: a new case in `test/post-source-logic.js` (30 checks). A headerless 12 MB thumbnail is stopped after at most 9 MB read, with the video still copied and "over 8 MB" said; a headerless 3 MB one is still copied. It fails on main (main only reads the whole body at once).
+
+
+## 652. [2026-11-03 UTC, BUILT, NOT MERGED] instagram-upload posts to YouTube and LinkedIn too, in the same one post (plan row P3, server half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The supervisor, 3 Nov: start the server half now; the page half waits for P1b.
+- **Now (`supabase/functions/instagram-upload/logic.mjs` and `index.ts`):**
+  - **`create` takes:**
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }`;
+    - `linkedin: { accountId }`;
+    - `instagram: false`.
+    Every ticked account goes in the same one Post for Me post. YouTube is sent its title, `privacy_status: public` and `made_for_kids`; LinkedIn gets nothing extra.
+  - **Made for kids comes from the client's profile only** (`extra.youtube_made_for_kids === true`, F3), set by `applyProfileSettings` after the profile is read. The page cannot set it.
+  - **Account checks (`checkNetworkAccounts`):** every YouTube or LinkedIn account, and the first network's when Instagram is unticked, must be the one on the profile and on that network according to Post for Me. This runs before the row is written or the post is created. The Instagram and Facebook checks are unchanged.
+  - **Short or regular:** a Short is refused when the file is known to be over 3 minutes ("this video is 4:00. Post it as a regular video.") or not vertical. An unknown length or shape is left to YouTube.
+  - **Limits:**
+    - YouTube title 1 to 100 characters, no `<` or `>`;
+    - caption 2,200 characters for every network, because `instagram_uploads.title` holds 2,200 (no migration; Codex P2 on #2557), and 5,000 bytes with YouTube;
+    - a trial and a carousel stay Instagram's;
+    - one account per network.
+  - **Queue row:**
+    - `options.network` names the row's own network when Instagram is not ticked (absent = Instagram, so every earlier row reads as before);
+    - `options.networks.{youtube,linkedin}` keep each one's own status, link and error, read from Post for Me's per-account results;
+    - a failed create, a cancel, the queue's group and the status poll cover every part;
+    - `publicRow` shows `network`, `networks` and the YouTube title and format, never an account id.
+- **No migration** (JSON columns, as Facebook). No new secret.
+- **Proof:**
+  - `test/instagram-networks.js` (new, unit, 66 checks):
+    - one post with three accounts;
+    - Instagram unticked (YouTube first, Facebook first, nothing ticked refused);
+    - a 4-minute vertical file refused as a Short and accepted as regular;
+    - horizontal refused as a Short;
+    - title and caption limits;
+    - trial and carousel kept Instagram's;
+    - a duplicate account;
+    - made for kids from the profile only;
+    - wrong account (403), no account (409), wrong platform (400), unknown id, Post for Me down;
+    - the handler checking before `.insert(row)` and before the create;
+    - the same key returning the same post;
+    - results per network;
+    - a cancel covering every network;
+    - no account id to the page.
+    On main it fails (`applyProfileSettings` is not there).
+  - Every existing Instagram and Facebook suite passes unchanged: `instagram-upload-source` (139), `instagram-facebook-crosspost` (79).
+  - Codex P2 on #2557, fixed: a YouTube-, LinkedIn- or Facebook-only post answered "processed" now waits for its own result instead of being marked posted.
+- **Live check (D6), after merge:** on one of the owner's clients with YouTube and LinkedIn connected, schedule 7+ days ahead through Post for Me's `scheduled_at`, cancel at once, read back gone. The page half and its live check follow P1b.
+- **Way back:** revert the PR. Rows already written keep reading as Instagram.
+
+## 674. [2026-11-02 UTC, BUILT, NOT MERGED] A CI run's Firefox reports reached the live diagnostics log, counted as a person's (session Reviewguard)
+
+- **Seen (read-only, live):** between 19:22 and 21:29 UTC on 2 Nov, 10 reports with traffic `person`, all surface calendar, board client, operation status, code `landed_after_retry`, all on card `rs1` (the review-stage fixture's card, not a real one), all Firefox on Linux, `app_version` equal to the CI build's minute, about one per CI run. No Chromium or WebKit run leaked.
+- **Source:** the shared review-stage fixture (`test/fixtures/review-stage-fixture.js`), in its Firefox runs. Those are `test/repair-checkpoint-browser.js` (its client-link note, change and approve cases) and `test/review-stage-gauntlet3-browser.js`. The landing report (OPEN_REPAIRS 639, so only since #2519) is sent as the save finishes, right before the test closes its context. The report goes with `keepalive`, so a request still on its way can outlive the page. In these Firefox runs it reached the real write-diagnostics past the fixture's route, which answers every `/functions/v1/` call. A refusal sent mid-test was always caught. This is inferred from the rows and the code; Firefox is not installed in the sandbox where this was built.
+- **Why "person":** the server's traffic check reads the user agent, and headless Firefox's looks like a person's (Chrome's says HeadlessChrome).
+  - **The page says when a test robot drives it** (120 `_writeRefusalBeacon`): `automation: true` when `navigator.webdriver` is true, as it is in every Playwright and Selenium browser and never in a person's. write-diagnostics then records the report as automation, whatever the user agent. The check is in write-diagnostics' own code; the shared `requestTraffic` (production-write imports it) is unchanged. The flag can only mark a report as automation, never hide a person's.
+  - **The fixture sends diagnostics reports as plain requests** (no keepalive, counted in `window.__svDiagKeepaliveDropped`), so its route answers them and they die with the page.
+- **Telling the 10 rows apart (read-only advice, nothing deleted):** once this is live, a test run's report is traffic `automation`, which the daily read already leaves out and the signature read lists apart. The 10 rows already stored are card_ref `rs1` from firefox/linux; no real card has that id. A watcher can leave them out with `card_ref <> 'rs1'`, or by their attempt ids. The 30-day retention removes them on its own.
+  - `test/diagnostics-test-traffic-browser.js` (new, on the review-stage fixture, Chromium): a robot-driven page's report carries the flag, the fixture sends it without keepalive, and a page with `navigator.webdriver` false sends no flag. On main it fails: the report has no flag.
+  - `test/linear-exit-write-diagnostics-handlers.js`: a Firefox user agent with the flag is automation, without it a person, and only `true` counts. On main it fails ("a robot-driven page is automation").
+  - The client-requests golden's two diagnostics reports gained `automation: true` (added by hand; the requests and every source hash are unchanged).
+  - Unchanged and passing on the fixture: `test/review-board-gauntlet-browser.js`, `test/review-stage-save-browser.js`, `test/review-stage-browser.js`, `test/client-calendar-read-only-browser.js`, `test/first-paint-theme-browser.js`.

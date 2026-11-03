@@ -341,6 +341,7 @@
     "index-split.js",
     "instagram-upload-source.js",
     "instagram-facebook-crosspost.js",
+    "instagram-networks.js",
     "intake-created-status-server-guard.js",
     "intake-not-assigned.js",
     "intake-post-names.js",
@@ -2095,6 +2096,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; the shared staff-Calendar harness (docs/syncview-design/tests/lost-work-lib.js, fictional client, card and staff member), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 639: the content Calendar reports a refused card save with board calendar and its later landing (landed_after_retry), a reload during a card save, a press dropped while the same part is saving, and an uncaught error, ids and the client slug only; failed without the change.",
       "reproduce": "node test/calendar-reports-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "diagnostics-test-traffic-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared review-stage fixture (test/fixtures/review-stage-fixture.js, fictional client and cards), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 674: a diagnostics report from a page a test robot drives says so (navigator.webdriver), so the server counts it as automation whatever its user agent; under the fixture the report is a plain request that dies with the page; a person's report is unchanged. Failed on main.",
+      "reproduce": "node test/diagnostics-test-traffic-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

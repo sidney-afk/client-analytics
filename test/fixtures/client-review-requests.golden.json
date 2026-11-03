@@ -56,6 +56,7 @@
             "action": "browser_claim",
             "app_version": "<ts>",
             "attempt": "<uuid>",
+            "automation": true,
             "code": "legacy_tweak_confirmation_pending",
             "env": {
               "board": "client",
@@ -130,6 +131,7 @@
             "action": "browser_claim",
             "app_version": "<ts>",
             "attempt": "<uuid>",
+            "automation": true,
             "code": "legacy_tweak_confirmation_pending",
             "env": {
               "storage_kc": "<n>",

@@ -30,6 +30,10 @@
  * a client link names its board; Samples names none); added to the golden by hand. The approve and request-changes requests, and every source
  * hash, are unchanged.
  *
+ * OPEN_REPAIRS 674 (2026-11-02): both write-diagnostics REPORTS gained `automation: true` (the page says a test robot
+ * drives it, so a test run's report is never counted as a person's); added to the golden by hand. The approve and
+ * request-changes requests, and every source hash, are unchanged.
+ *
  * OPEN_REPAIRS 626 (2026-11-01): the two write-diagnostics REPORTS gained `env` (the browser store's fill, numbers
  * only), added to the golden by hand with the numbers normalised; the approve and request-changes requests, and every
  * source hash, are unchanged.

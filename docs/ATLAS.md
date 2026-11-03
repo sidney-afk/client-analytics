@@ -639,6 +639,14 @@ Switch values below are the live values read on 2026-10-28.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
 
+- **From a card (behind the switch `post_sources_v1`; both sides, a single video only):** under the media type, choose **From files** (as before) or **From a card**.
+  - Pick one of the client's Approved or Scheduled cards from today on.
+  - SyncView copies the card's video from Frame.io into Post for Me on its server ("Copying… from Frame"). Nothing is downloaded to your device, so this works on a phone.
+  - You then see Frame's small copy playing and one line with the file name, its size, length and which Frame file goes (its original file, or its full-size copy).
+  - The card's caption fills an empty caption box, with **Undo**. On Instagram the card's thumbnail becomes the cover; **Remove** it to pick another.
+  - If the copy fails, the reason shows with **Try again**. "Download it from Frame and drop it here" always works instead.
+  - A copy older than 20 hours is made again when you press Post.
+
 **TikTok side**
 - **Media: Video or Photo carousel.**
   - Video: MP4, MOV or WebM, up to 287 MB.
@@ -942,6 +950,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: first, each version's status picker on the staff card (V1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

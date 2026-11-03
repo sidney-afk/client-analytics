@@ -1604,6 +1604,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .tt-sw .trl-sw-slot { display: inline-flex; align-items: center; border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; }
 .tt-sw .trl-sw { position: relative; display: block; width: 24px; height: 14px; border-radius: 999px; background: var(--sv-slot-video-fg); }
 .tt-sw .trl-sw::after { content: ""; position: absolute; top: 2px; left: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--sv-knob); }
+.cal-link-pill-open .tt-pick { position: absolute; right: 12px; }
 .tt-pick.trl-v { display: inline-flex; align-items: center; margin-left: auto; padding: 0 4px 0 0; min-height: 0; border: 0; background: none; }
 .cal-card[data-tt] .trl-main .cal-link-pill-open { flex: 1 1 auto; min-width: 0; }
 .tt-a { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
@@ -1612,7 +1613,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .tt-a button.on { color: var(--text-primary); border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); }
 .tt-a button.tt-drop { color: var(--text-muted); border-style: dashed; }
 .tt-a button.tt-add { color: var(--text-muted); padding: 0 10px; }
-.tt-b { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.tt-b { position: absolute; left: 56px; right: 56px; bottom: 10px; z-index: 3; display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .tt-b button { flex: 1; height: 28px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--tt) 30%, transparent); font: inherit; font-size: 13px; font-weight: 700; color: #3a3a37; position: relative; cursor: pointer; }
 .tt-b button::after { content: ''; position: absolute; left: 32%; right: 32%; bottom: 4px; height: 3px; border-radius: 2px; background: var(--tt); }
 .tt-b button.on { background: #fff; color: #111110; box-shadow: 0 1px 2px rgba(0,0,0,.14), inset 0 0 0 1.5px var(--tt); }
@@ -1695,6 +1696,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const pill = _trlStatusPickOn(post, sel) ? _trlStatusPickHtml(pid, sel) : svTrialLabelHtml(sel.status, sel);
             const open = row.querySelector('.cal-link-pill-open');
             if (open) open.insertAdjacentHTML('afterend', '<span class="tt-x tt-pick trl-v">' + pill + '</span>');
+        }
+        if (!row) {
+            // The phone editor draws the Video field without the trial row: name the version and its status there too.
+            const f = [...card.querySelectorAll('.cal-link-field')].find(x => { const l = x.querySelector('.cal-link-label'); return l && /^\s*Video\s*$/.test(l.textContent || ''); });
+            const lab = f && f.querySelector('.cal-link-label');
+            if (lab) {
+                lab.textContent = 'Video ' + sel.letter;
+                const pill = _trlStatusPickOn(post, sel) ? _trlStatusPickHtml(pid, sel) : svTrialLabelHtml(sel.status, sel);
+                (f.querySelector('.cal-link-pill-open') || lab).insertAdjacentHTML('beforeend', '<span class="tt-x tt-pick trl-v">' + pill + '</span>');
+            }
         }
         const cap = card.querySelector('textarea.cal-fld-cap');
         if (cap) { const c = String((sel.effective && sel.effective.caption) || ''); if (cap.value !== c) cap.value = c; cap.readOnly = true; }

@@ -356,7 +356,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         return { ok: false, message: _svPostSourceFail(res) };
     }
     /* One press, one post per ticked version, each with its own key. Each version keeps its key and its "sent" for
-       this card, whatever else changes (Codex P1 on #2573): a version that went is never sent again, even when the
+       this card, whatever else changes (Codex P1 on PR 2573): a version that went is never sent again, even when the
        ticks, the fallback caption or the time change after a partial failure; a version whose answer was lost keeps
        its key while what it would post is unchanged, so the server adopts that post instead of making a second. A
        request that throws (a timeout, a lost connection) counts as a lost answer, and the form is always given back. */
@@ -1222,7 +1222,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igWireForm() {
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
-        // A trial card's versions are checked by their own rule (their captions are their own; Codex on #2573).
+        // A trial card's versions are checked by their own rule (their captions are their own; Codex on PR 2573).
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = _igTrialVersionsOn() ? !!_igTrialVersionsProblem() : !!_igValidateSoft(); };
         $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } _igLeaveClient(); _igRenderForm(); if (igState.file) _igTryCaptionFill(igState.file); });
         $('igTitle')?.addEventListener('input', (e) => {

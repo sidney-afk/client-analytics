@@ -536,6 +536,7 @@
     "popstate-hash-route.js",
     "port-fidelity-check.js",
     "post-asset-resolution.js",
+    "postforme-accounts.js",
     "private-postgres-proof-runner.js",
     "probes-assert-native-write-lane.js",
     "probes-register-native-work-items.js",
@@ -1737,6 +1738,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "CLIENT_FACEBOOK_PAGE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-facebook-page-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "pfm-account-link-runs-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and PFM_ACCOUNT_LINK_RUNS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database (pg_cron, pg_net and Vault are stood in for locally)",
+      "reproduce": "PFM_ACCOUNT_LINK_RUNS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/pfm-account-link-runs-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

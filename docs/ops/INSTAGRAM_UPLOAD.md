@@ -88,6 +88,16 @@ nothing posted from SyncView reached Facebook.
   second, and the page says "That Post for Me account is already on another client." Needs
   `migrations/2026-11-02-client-postforme-accounts.sql` applied; none of these is a Clients Info column. Posting to
   YouTube and LinkedIn is a later PR (P3 of `docs/plans/2026-11-trial-and-posting/combined.md`).
+- **Accounts link themselves (2026-11-02, OPEN_REPAIRS 667):** connect the account in Post for Me as usual. Every
+  hour (and when an admin presses **Check Post for Me accounts** on any client's Publishing card) SyncView reads Post
+  for Me's account list and links an account to a client only on an exact, unique match: the account's username
+  equals one client's saved Instagram or TikTok handle (case and a leading @ ignored), or for YouTube the saved
+  `UC...` channel id or @handle; that client's slot is empty; no other client has that handle. It never overwrites a
+  filled slot. Everything else (Facebook and LinkedIn, which have no saved handle; no match; two matches) is listed
+  as "needs a person" and kept 30 days in `pfm_account_link_runs`, where the supervisor's watcher reads it. Each link
+  goes through the same save as the paste box (Post for Me's network check, a history row by "Post for Me auto-link",
+  the Clients Info copy for Instagram). Only safe account fields are read; the clients' social tokens never leave
+  the function.
 - **Posting to YouTube and LinkedIn, server side (2026-11-03, P3, OPEN_REPAIRS 652):** `create` also takes
   `youtube: { accountId, title, format: "short" | "regular", durationSeconds?, width?, height? }` and
   `linkedin: { accountId }`, and `instagram: false` to leave Instagram out.

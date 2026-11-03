@@ -71,6 +71,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         role_not_allowed: 'Your key cannot do this. Ask the SMM.',
         no_letter_left: 'This card already has seven versions, Video A to Video G.',
         post_id_too_long: 'This card cannot take versions. Tell the SyncView team.',
+        version_is_card: 'This version is the one on the card, so it uses the card\'s own thumbnail and caption. Change them on the card.',
+        thumbnail_not_https: 'Paste the thumbnail\'s https link.',
+        thumbnail_too_long: 'This thumbnail link is too long. Paste a shorter link.',
+        caption_too_long: 'A caption can be at most 4000 characters.',
+        fields_off: 'Version thumbnails and captions are not switched on for this client.',
+        fields_unavailable: 'Version thumbnails and captions are not ready yet. Tell the SyncView team.',
         status_invalid: 'A version takes the card\'s statuses up to Approved. Scheduled and Posted are set on the card.',
         status_follows_card: 'The card was sent on as a whole, so this version follows the card. Set the card\'s Video status instead.',
     };
@@ -529,7 +535,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // A link being typed in this list is never wiped by an answer landing for an earlier change: the repaint
         // waits for its save (which repaints).
         const typing = document.activeElement;
-        if (list && list.classList.contains('trl-list') && typing && typing.classList.contains('trl-link-input') && list.contains(typing)) { _trlDirty.add(pid); return; }
+        if (list && list.classList.contains('trl-list') && typing && (typing.classList.contains('trl-link-input') || typing.classList.contains('trl-f-input')) && list.contains(typing)) { _trlDirty.add(pid); return; }
         _trlDirty.delete(pid);
         if (list && list.classList.contains('trl-list')) list.remove();
         const input = field.querySelector('.cal-link-input');
@@ -686,7 +692,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const pick = up && v.status === 'on trial'
                 ? '<button type="button" class="trl-pick" title="Make this the winner" aria-label="Make this the winner" onclick="svTrialPick(\'' + p + '\',\'' + l + '\')">' + TRL_TROPHY + '</button>' : '';
             return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>'
-                + (v.status === 'dropped' ? '' : _trlElsewhereHtml(pid, v.frame_url));
+                + (v.status === 'dropped' ? '' : _trlFieldsHtml(pid, v) + _trlElsewhereHtml(pid, v.frame_url));
         }).join('');
         // The 24 h start by themselves once the card is Posted (owner, 2026-10-28): no "Start the 24 h" link here.
         return '<div class="trl-list">' + rows + _trlAddHtml(pid, vs) + '</div>';
@@ -1026,6 +1032,89 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) Object.assign(x, { card_status: want, status: stored }); return s; },
             () => _trlRun(pid, 'status-' + letter, { action: 'version_status_set', letter, status }, 'Video ' + letter));
     }
+    /* V3 (plan docs/plans/2026-11-trial-and-posting/combined.md row V3; switch trial_versions_v2): each version's own
+       thumbnail and caption, under its row. Empty reads "Same as the card" (the function's rule: the version's own
+       field, else the card's). The version on the card is the card: its two fields are the card's own, edited on the
+       card. A version out on trial or decided shows them and cannot change them. An answered version that gets a new
+       thumbnail or caption starts again through the SMM, as a new link does (the function decides and says so). */
+    const _trlFieldEdit = {};   // pid -> { letter, k: 'thumbnail_url' | 'caption' } being typed
+    function _trlFieldsOn(post) {
+        return !!post && _trlStaffOn(post) && svTrialVersionsV2On(post.client || calState.client);
+    }
+    function _trlFieldsHtml(pid, v) {
+        const post = _trlPost(pid);
+        // A version that lost has nothing left to set or show: the card carries the winner's.
+        if (!_trlFieldsOn(post) || v.status === 'lost') return '';
+        if (v.on_card) return '<div class="trl-fields"><span class="trl-f-note">Thumbnail and caption: the card\'s own</span></div>';
+        const p = _calEscAttr(pid), l = _calEscAttr(v.letter);
+        const frozen = ['on trial', 'winner', 'lost'].includes(v.status);
+        const ed = _trlFieldEdit[pid] && _trlFieldEdit[pid].letter === v.letter ? _trlFieldEdit[pid].k : '';
+        const one = (k, word) => {
+            const own = String(v[k] || '');
+            if (ed === k) {
+                const attrs = ' data-pid="' + p + '" data-letter="' + l + '" data-k="' + k + '" onkeydown="svTrialFieldKey(event,this)" onblur="svTrialFieldSave(this)"'
+                    + ' aria-label="' + word + ' for Video ' + l + '"';
+                return k === 'caption'
+                    ? '<textarea class="trl-f-input trl-f-caption" rows="3" maxlength="4000" placeholder="Same as the card"' + attrs + '>' + _calEsc(own) + '</textarea>'
+                    : '<input class="trl-f-input" type="url" placeholder="Same as the card: paste a thumbnail link" value="' + _calEscAttr(own) + '"' + attrs + '>';
+            }
+            const shown = own ? (k === 'caption' ? own.replace(/\s+/g, ' ').slice(0, 80) : 'own image') : 'Same as the card';
+            const img = k === 'thumbnail_url' && own ? '<img class="trl-f-img" alt="" src="' + _calEscAttr(own) + '" loading="lazy" onerror="this.hidden=true">' : '';
+            const body = '<span class="trl-f-k">' + word + '</span>' + img + '<span class="trl-f-v' + (own ? '' : ' trl-f-same') + '">' + _calEsc(shown) + '</span>';
+            return frozen ? '<span class="trl-f">' + body + '</span>'
+                : '<button type="button" class="trl-f" title="' + _calEscAttr(own || ('Video ' + v.letter + ' uses the card\'s ' + word.toLowerCase())) + '"'
+                    + ' onclick="svTrialFieldEdit(\'' + p + '\',\'' + l + '\',\'' + k + '\')">' + body + '</button>';
+        };
+        return '<div class="trl-fields">' + one('thumbnail_url', 'Thumbnail') + one('caption', 'Caption') + '</div>';
+    }
+    function svTrialFieldEdit(pid, letter, k) {
+        _trlFieldEdit[pid] = { letter, k };
+        _trlRepaintField(pid);
+        const input = document.querySelector('.trl-f-input[data-pid="' + pid + '"]');
+        if (input) { input.focus(); try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} }
+    }
+    function svTrialFieldKey(ev, input) {
+        // A caption takes new lines; Enter saves a thumbnail link, Cmd/Ctrl+Enter a caption, Escape leaves either as it was.
+        if (ev.key === 'Enter' && (input.dataset.k !== 'caption' || ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); input.dataset.cancel = '1'; input.blur(); }
+    }
+    function svTrialFieldSave(input) {
+        const pid = input.dataset.pid, letter = input.dataset.letter, k = input.dataset.k;
+        if (!_trlFieldEdit[pid] || _trlFieldEdit[pid].letter !== letter || _trlFieldEdit[pid].k !== k) return;
+        delete _trlFieldEdit[pid];
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const v = shape && _trlFind(shape, letter);
+        const value = String(input.value || '').trim();
+        if (input.dataset.cancel === '1' || !v || value === String(v[k] || '')) { _trlRepaintField(pid); return; }
+        if (k === 'thumbnail_url' && value && !/^https:\/\/[^\s<>"']+$/i.test(value)) { _trlSay({ code: 'thumbnail_not_https' }, 'Video ' + letter + "'s thumbnail"); _trlRepaintField(pid); return; }
+        const what = 'Video ' + letter + "'s " + (k === 'caption' ? 'caption' : 'thumbnail');
+        return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) x[k] = value || null; return s; }, async () => {
+            const json = await _trlRun(pid, 'fields-' + letter, { action: 'version_fields_set', letter, [k]: value }, what);
+            if (json && json.restarted) showToast('Video ' + letter + ' goes back to the SMM, then Kasper');
+            return json;
+        });
+    }
+    /* The winner's thumbnail and caption go on the card (its effective fields), through today's card save, as its video
+       goes on through today's attach. Undo (the pick's toast, on this page only) puts back the card's own from before. */
+    const _trlCardFieldsBefore = {};   // pid -> { before, wrote }: the card's fields before the pick, and what the pick wrote
+    async function _trlSetCardFields(post, f) {
+        const edits = {};
+        for (const k of ['thumbnail_url', 'caption']) {
+            const next = String((f && f[k]) || '');
+            if (next !== String(post[k] || '')) edits[k] = next;
+        }
+        if (!Object.keys(edits).length) return true;
+        if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
+        Object.assign(_calPendingEdits[post.id], edits);
+        Object.assign(post, edits);
+        // Today's card save answers a failure on the card (Save failed · Retry), not by throwing: read it back here.
+        delete post._saveError;
+        await _calFlushCardSave(post.id);
+        const now = (calState.posts || []).find(p => p.id === post.id) || post;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        return !now._saveError;
+    }
     /* Dropping the version on the card (default (c), awaiting the owner): today's attach first puts the next live
        version's link on the card, so it becomes the one on the card, then the old one drops. */
     function svTrialDrop(pid, letter, restore) {
@@ -1127,10 +1216,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         let mine = '';
         try { mine = await _trlSetCardLink(post, v.frame_url); }
         catch (e) { _trlSay(e, 'The winner'); return; }
+        // V3: the winner's thumbnail and caption follow its video onto the card.
+        const fieldsOn = _trlFieldsOn(post) && !!v.effective;
+        const before = { thumbnail_url: post.thumbnail_url || '', caption: post.caption || '' };
+        // A copy that did not save stops the pick (Codex on #2539): the card would keep the old thumbnail and caption
+        // beside the winner's video. The fields and the video link go back, and nothing is picked.
+        if (fieldsOn && !(await _trlSetCardFields(post, v.effective))) {
+            await _trlSetCardFields(post, before);
+            await _trlPutBack(post, mine, v.frame_url);
+            showNotify('The winner was not picked', "The card's thumbnail and caption could not be saved, so nothing changed. Try again in a moment.");
+            return null;
+        }
         const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
         // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
         // so the card and the versions never disagree (the refusal is already on screen).
-        if (!json) { await _trlPutBack(post, mine, v.frame_url); return null; }
+        if (!json) {
+            if (fieldsOn) await _trlSetCardFields(post, before);
+            await _trlPutBack(post, mine, v.frame_url);
+            return null;
+        }
+        if (fieldsOn) _trlCardFieldsBefore[pid] = { before, wrote: { thumbnail_url: v.effective.thumbnail_url || '', caption: v.effective.caption || '' } };
         return json;
     }
     function _trlStale(pid) {
@@ -1182,6 +1287,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         try { mine = await _trlSetCardLink(post, link); }
         catch (e) { _trlSay(e, 'Undo'); return; }
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
+        const kept = _trlCardFieldsBefore[pid];
+        delete _trlCardFieldsBefore[pid];
+        if (json && kept) {
+            // Someone edited the card's thumbnail or caption since the pick: theirs stands, nothing is overwritten.
+            const now = { thumbnail_url: String(post.thumbnail_url || ''), caption: String(post.caption || '') };
+            if (now.thumbnail_url !== kept.wrote.thumbnail_url || now.caption !== kept.wrote.caption) {
+                showNotify('The card\'s thumbnail and caption were not put back', 'The card was edited after the winner was picked; check its thumbnail and caption by hand.');
+            } else await _trlSetCardFields(post, kept.before);
+        }
         if (json) showToast('Back on trial');
         else await _trlPutBack(post, mine, link);   // the winner stands, so its link does too
         return json;
@@ -1256,8 +1370,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svTrialDrop, svTrialEdit, svTrialLinkKey, svTrialLinkSave, svTrialNewCut, svTrialNotesPick,
-        svTrialOpen, svTrialPick, svTrialStatusMenu, svTrialStatusPick, svTrialToggle
+        svTrialDrop, svTrialEdit, svTrialFieldEdit, svTrialFieldKey, svTrialFieldSave, svTrialLinkKey,
+        svTrialLinkSave, svTrialNewCut, svTrialNotesPick, svTrialOpen, svTrialPick, svTrialStatusMenu,
+        svTrialStatusPick, svTrialToggle
     });
 export {
   svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,

@@ -36224,6 +36224,58 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
 - **Way back:** revert the PR. Rows go back to a `null` length.
 
+## 649. [2026-11-02 UTC, LIVE 2026-11-03] post-source: a card's video copied from Frame.io into Post for Me storage, server to server (plan row F4, decision D2; session Pbuild)
+
+- **Asked:** plan row F4 (`docs/plans/2026-11-trial-and-posting/combined.md`). "From a card" on the Post tab (P1) needs the card's full-HD video in Post for Me storage without a phone downloading and uploading it. Sidney's D2: full HD is the highest-quality H.264 file Frame has.
+- **Now:**
+  - **New function `post-source`** (`index.ts` wires; `handler.mjs` holds the whole flow and runs under Node). POST `{ client, post_id, letter?, side? }` with a staff role key.
+  - **The link is read on the server**, never taken from the request: from `calendar_posts.asset_url` (matched on client and id, so another client's card is not found), or from `studio_trial_versions.frame_url` for letters B to G (A is the card). A letter with two rows uses the one trial-reels shows (`oneRowPerLetter`: earliest, then smallest id; Codex P1 on #2543).
+  - **Frame is read through frameio-view's own lookup with `strict`:** a folder link is refused (`folder_link`) and a missing file too (`file_not_in_share`). There is no Frame code of its own (plan, settled row 3).
+  - **Which file (D2), `pickPostRendition`:**
+    - the Original, when Frame says `media_type` is `video/mp4` AND its video codec names H.264/AVC;
+    - else the full-size H.264 proxy (`high_quality`), else the small one (`efficient`), so never a smaller proxy while a bigger one exists;
+    - facts Frame did not give never pick the Original;
+    - a 403 on the Original falls to the largest proxy, and the answer says so (`fell_back_from_original`);
+    - no H.264 copy at all is refused (`no_h264_copy`).
+  - **The copy:** Frame's response body is streamed straight into one Post for Me upload address (`duplex: "half"`, Content-Length from Frame). It is never buffered.
+  - **Refusals:** over 287 MB is refused before any upload (both sides, until P1 measures Instagram). A failed upload says "Download it from Frame and drop the file on the Post tab instead". The client must be in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` (currently "*").
+  - **Writes no table, creates no post.** A signed Frame address is never returned, stored or logged.
+- **frameio-view (shared logic, also redeploys higgsfield-mcp):** the staff `video` answer now also carries the upload's `media_type`, video `codec`, `width` and `height`, read from the file and the metadata Frame already returns. The field names are not measured yet: a codec is any metadata field named "... Codec" other than the audio one, and a size is "Width"/"Height" with or without "Video ". The client's answer is unchanged. The live check confirms which fields Frame really sends.
+- **Live check (by hand, after merge):** `.github/workflows/post-source-live-check.yml` copies one test-client card. It uses the `ROBOT_ROLE_KEY_SMM` repository secret, never printed. It is storage only, with no post (D6). It prints only which file went, size, shape, length and copy time, and whether the storage address answers with the same size (`scripts/post-source-live-check.js`, `safeSummary`). Those numbers decide route (a), streaming, against (b) and (c) in posting.md. Not built unless (a) fails: route (b), and the thumbnail copy (P1).
+  - `test/post-source-logic.js` (new, unit, offline, 21 checks) covers every refusal, the link from the server, D2 in each case, the 403 fallback, the streamed copy, and that no Frame address is ever in an answer or the live log line. It fails on main ("Cannot find module .../post-source/handler.mjs").
+  - `test/frameio-view-source.js` gains: the staff video answer carries media type, codec and size, and a client lookup gets none of them. That check fails on main; 162 checks pass here.
+- **Way back:** revert the PR. Nothing calls the function yet.
+- **Live (2026-11-03, merged as #2543, merge lane run 41572842991; live check run 41573085174, one test-client card, no letter, Instagram side):** `ok`, rendition `original` (no fallback), 28,291,416 bytes, 57.28 s long, copied in 4,875 ms (5,628 ms wall). The storage address answered 206 `video/mp4` with the same byte count. So route (a), the streamed copy, works; routes (b) and (c) are not needed for a file this size. Width and height came back empty: Frame gives the size under another field name, which P1a (650) reads and measures. No post was created.
+
+## 650. [2026-11-03 UTC, BUILT, NOT MERGED] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
+
+- **Asked:** plan row P1 ("thumbnail copied server side"), split with the supervisor into P1a (server) and P1b (the page, behind `post_sources_v1`). Also the supervisor, 3 Nov: F4's live check (649) answered `width` and `height` empty.
+- **Now (`supabase/functions/post-source/handler.mjs`):**
+  - after the video, the card's thumbnail goes into its own Post for Me address, and the answer carries `thumb_url`. The thumbnail is read from `calendar_posts.thumbnail_url` on the server, never from the request;
+  - which thumbnails are fetched (`thumbSource`):
+    - a Drive file, from Google's image host at 1080 wide (the host the Calendar uses);
+    - otherwise only a direct https link to a .jpg, .jpeg or .png;
+    - never http, a bare IP, localhost, a port, or a redirect;
+  - it must come back as a JPEG or PNG of at most 8 MB (Instagram's cover limits);
+  - a thumbnail that cannot be used never fails the video. `thumb_url` is then null and `thumb_note` says why in plain words. A failed video copy copies no thumbnail;
+  - a trial version has no thumbnail of its own until V3, so none is read for one.
+- **frameio-view `videoFacts` (shared, so frameio-view and higgsfield-mcp redeploy):**
+  - the size is also read from one "W x H" field (Resolution, Dimensions, Frame Size), from any field ending in Width or Height, and from values with a unit ("1080 px");
+  - the staff answer lists Frame's metadata field **names** (`metadata_fields`, never values). The client answer is unchanged.
+- **The live check** (`scripts/post-source-live-check.js`) also prints `thumb_copied` (true or false, never the address) and `metadata_fields`. The next run shows the field name Frame really uses for the size.
+- **Proof, failing first:**
+  - `test/post-source-logic.js`: 29 checks, 7 new:
+    - a Drive thumbnail is copied as a JPEG;
+    - a direct PNG is copied as a PNG;
+    - eleven thumbnails that cannot be used (too big, WebP, 404, network error, none, http, IP, localhost, IPv6, a Frame link, YouTube) leave the video copied, reach no storage address and say why;
+    - a refused thumbnail upload;
+    - a version gets no thumbnail;
+    - a failed video copy copies no thumbnail;
+    - the field names pass through to the live line.
+    On main the first new case fails (no thumbnail is fetched).
+  - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
+- **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).
+
 ## 677. [2026-11-03 UTC, BUILT, NOT MERGED] TikTok carousel browser journey: a red that comes and goes on PRs that never touch TikTok, and a Cancel that sometimes said "Could not prepare image 2" (session Chanfix)
 
 The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` on PRs with no TikTok change (#2538 at `faaf869f`, green on re-run; #2545 at `152a5e77`). Both stopped at `page.waitForFunction: Timeout 30000ms` in `attachThreeImagesAndCaption` (line 259, Submit never enabled), right after the client pick. Main stayed green.

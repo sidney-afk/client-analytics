@@ -131,10 +131,17 @@ const LINK = (l) => 'https://f.io/fixture-status-' + l.toLowerCase();
         await other.hover(); await sleep(250);
         await page.mouse.down(); await sleep(50);
         const held = await page.evaluate((el) => ({ title: el.getAttribute('title'), tip: !!(document.getElementById('globalTooltip') || {}).isConnected }), other);
-        await page.mouse.up();
         ok(held.title === null && !held.tip, `${label}: pressing another titled control hides the tip and keeps its native title off while the pointer rests on it`);
+        // Leave with the button still down and let go elsewhere, so no click fires: the pencil's click redraws the row,
+        // and a check on the old button would read a node that is no longer on the page (CI on #2579).
         await page.mouse.move(5, 5); await sleep(200);
-        ok((await other.getAttribute('title')) !== null, `${label}: the title comes back once the pointer leaves (screen readers keep it)`);
+        await page.mouse.up(); await sleep(100);
+        // The row may have been redrawn meanwhile: read the same control as the page has it now, found by its name.
+        const back = await page.evaluate((el) => {
+          const now = el.isConnected ? el : [...document.querySelectorAll('.trl-v .trl-ico')].find(b => b.getAttribute('aria-label') === el.getAttribute('aria-label'));
+          return { redrawn: !el.isConnected, found: !!now, title: now ? now.getAttribute('title') : null, oldTitle: el.getAttribute('title') };
+        }, other);
+        ok(back.found && back.title !== null && back.oldTitle !== null, `${label}: the title comes back once the pointer leaves (screen readers keep it) (${JSON.stringify(back)})`);
       }
       if (page.errors.length) console.log('page errors', page.errors);
       ok(!page.errors.length, `${label}: no page errors`);

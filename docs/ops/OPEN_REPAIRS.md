@@ -36620,3 +36620,19 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **Target (supervisor):** `p_allactions_1793209592511`, fields letter C, `switch_for_run` on. The only test-client shares today hold one video each, so an import of 2 or more still needs a real multi-video Frame folder from Sidney. `frame_share` is an input, so the same run covers it.
 - **Live result:** filled in by the supervisor's dispatch.
 - **Way back:** delete the workflow. It runs only by hand.
+
+## 683. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper fast-boot's "first video asked sooner" check compared two page loads' clocks, and could not see the warm-up removed (session Reviewguard, test only)
+
+- **Seen:** `test/kasper-fast-boot-browser.js` failed on #2545 (job 125784853921), which does not touch Kasper's tab: "the first card's video address is asked for sooner with the flag on (2185 ms vs 2252 ms after the list was asked for)". Session Bootrace had already moved this check on 2 Nov (#2502: 2153 vs 2238 ms).
+- **Why the old check was wrong:**
+  - **It compared two page loads.** It took the time the test server saw the first `frameio-view` request in a flag-on visit and in a separate flag-off visit, and asked for a 300 ms gap. Measured in the page itself, the flag-on request starts about 20 ms after the list lands (+1527 ms), while the server logged it 90 ms later (+1611 to +1621 ms). On a loaded runner that lag grew until the two visits' numbers met.
+  - **It could not see the warm-up removed.** With the warm-up call in 330 (`_kasperWarmFirstVideo` in the list paint) taken out, a flag-on visit still asked at about +1620 ms against about +2260 ms flag off, because the player's switch is read at page start. So the check passed on a broken build.
+- **The feature's claim** (its own comment in 330): the first card's video address is asked for "while the list is still being drawn (not when the stage mounts)".
+- **Fix (test only):** the check now records, inside the page's own `fetch` call for the first `frameio-view` request, whether the review page and its player were already on screen. That is an order of events in one page, with no clocks.
+  - Flag on: neither is on screen.
+  - Flag off (control): both are, because the player asks from inside its own mount.
+  - The cross-visit comparison is removed. The other checks are unchanged.
+  - Flag on: `{"stageOnScreen":false,"player":false}`. Flag off: `{"stageOnScreen":true,"player":true}`. All 53 checks pass in 124 s.
+  - With the warm-up call removed in a scratch copy, the new check fails with `{"stageOnScreen":true,"player":true}`, and every other check passes.
+  - Under load (CPU slowed 4 times, 4 copies at once), 4 of 4 runs pass all 53 checks.
+- **Not touched:** the "next card's video is ready sooner" check at the end of the suite still compares two page loads (on < off - 400 ms). It has not failed in CI yet.

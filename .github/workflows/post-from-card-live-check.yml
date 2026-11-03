@@ -1,0 +1,45 @@
+name: post-from-card live check (manual)
+
+# The D6 live check for the Post tab's "From a card" (plan row P1, OPEN_REPAIRS 651): one card's video copied
+# through post-source, posted SCHEDULED 8 days ahead (TikTok: also private and to drafts), cancelled at once, and
+# read back as cancelled. It never publishes. Exit 3 means a cancel or read-back failed: the summary names the
+# queue row to cancel by hand in the Post tab, now. Prints no client name, account, caption, address or key
+# (scripts/post-from-card-live-check.js). Run by hand, one side per run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: 'The card id (its client must be on the allowlist in scripts/post-from-card-live-check.js)'
+        required: true
+        type: string
+      side:
+        description: 'instagram or tiktok'
+        required: true
+        type: string
+        default: 'instagram'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-from-card-live-check
+  cancel-in-progress: false
+
+jobs:
+  schedule-cancel-read-back:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Schedule 8 days ahead, cancel at once, read back cancelled
+        env:
+          # The SMM role key, a repository secret, never printed. The client is read from the card itself and must be
+          # on the script's allowlist (by hash); nothing that names it is an input or reaches this log.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          POST_LIVE_CHECK_CARD: ${{ inputs.card }}
+          POST_LIVE_CHECK_SIDE: ${{ inputs.side }}
+        run: node scripts/post-from-card-live-check.js

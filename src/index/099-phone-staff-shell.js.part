@@ -218,7 +218,8 @@ import { wlState } from './066-core-workload-state.js';
             if (warning) {
                 if (on) {
                     if (!_fphDisconnectedCopy.has(line)) _fphDisconnectedCopy.set(line, [...line.childNodes].filter(node => node !== warning));
-                    const guidance = ' Ask an admin to connect this client in Clients, Publishing before uploading.';
+                    // Since L1 the account links itself once it is connected in Post for Me (OPEN_REPAIRS 653).
+                    const guidance = ' Connect it in Post for Me: it links itself here within the hour.';
                     // The Open Post for Me link (plan row N1) stays beside the shorter phone wording.
                     const link = line.querySelector('.tk-pfm-link');
                     const tail = link ? ' ' : '';

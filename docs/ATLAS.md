@@ -298,6 +298,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
     - A version that has already been answered starts again with the SMM when its thumbnail or caption changes, as with a new link.
     - A version on trial cannot change.
     - Picking the winner puts its thumbnail and caption on the card along with its video. Undo on that toast puts the card's own back.
+  - **Import from Frame (behind `trial_versions_v2`):** beside "+ Add version". Paste the Frame share link of the folder that holds the versions, then "Show videos".
+    - The next step names the folder and the card, so a wrong folder shows before anything is added.
+    - Give each video a letter, or Skip it. A letter is pre-set only when the file name clearly says one ("_B", "v3").
+    - The version on the card and a video still processing in Frame cannot be picked.
+    - "Add" puts every picked video in at once, all or nothing.
+    - Replacing a version that was already answered asks first; it then goes back to the SMM.
+    - Back returns to the link. Cancel changes nothing.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - **Dropping a version** (Kasper's tile) that was the last one waiting for him moves the card on, as his last approve would.
   - **On the client link,** the video's answer waits a moment ("Loading…", 2 s at most) until the card's versions are read, so an Approve never answers a trial card's whole video.
@@ -639,12 +646,20 @@ Switch values below are the live values read on 2026-10-28.
 **Who can use it:** any signed-in staff member (admin, SMM, or editor/designer). The server turns away anyone without a staff sign-in. Clients never see this tab.
 
 - **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
-- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account. Beside that message (and beside the Facebook box's "No Facebook Page connected"), **Open Post for Me** opens postforme.dev in a new tab, where the account is connected.
+- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is linked, you see "⚠ No account" and cannot post; the message says to connect the account in Post for Me, where it links itself to the client within the hour (since 3 Nov), and to ask Sidney if it still does not appear. A Facebook Page does not link itself (it has no handle to match): its message says to connect it in Post for Me and ask Sidney to link it. Nothing ever falls back to another account. Beside that message (and beside the Facebook box's "No Facebook Page linked"), **Open Post for Me** opens postforme.dev in a new tab, where the account is connected.
   - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
   - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`). An admin adds it under **Kasper > More > Clients > Publishing > "Instagram (Post for Me)"** (or through roster-write). The Clients Info sheet only holds a copy of it.
   - The client's Facebook Page (for "Also post to Facebook") is added the same way, under **"Facebook Page (Post for Me)"**. It is not in the sheet.
 - **Instagram only, server allow-list:** Instagram posting works only for clients on a server allow-list that the owner manages. Which clients are on it is not published (unconfirmed). TikTok has no such client list, but it does check that the account on file is a TikTok account.
 - **Live switch `tiktok_upload_source` = supabase:** TikTok uploads and the queue run through SyncView's own server, not the old n8n and Sheet route. You do nothing differently because of it.
+
+- **From a card (behind the switch `post_sources_v1`; both sides, a single video only):** under the media type, choose **From files** (as before) or **From a card**.
+  - Pick one of the client's Approved or Scheduled cards from today on.
+  - SyncView copies the card's video from Frame.io into Post for Me on its server ("Copying… from Frame"). Nothing is downloaded to your device, so this works on a phone.
+  - You then see Frame's small copy playing and one line with the file name, its size, length and which Frame file goes (its original file, or its full-size copy).
+  - The card's caption fills an empty caption box, with **Undo**. On Instagram the card's thumbnail becomes the cover; **Remove** it to pick another.
+  - If the copy fails, the reason shows with **Try again**. "Download it from Frame and drop it here" always works instead.
+  - A copy older than 20 hours is made again when you press Post.
 
 **TikTok side**
 - **Media: Video or Photo carousel.**
@@ -948,7 +963,8 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |
@@ -1678,6 +1694,7 @@ There are **54 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/higgsfield-catalog-watch.yml -->[`higgsfield-catalog-watch.yml`](../.github/workflows/higgsfield-catalog-watch.yml) | Manual (no schedule; run by hand or by the Connector supervisor's daily check) | Compares the connector's model list with Higgsfield's live docs and goes red on any difference. |
 | <!-- atlas:action .github/workflows/review-note-backfill.yml -->[`review-note-backfill.yml`](../.github/workflows/review-note-backfill.yml) | Manual | Adds client review-page notes missing from the comment store, or rolls a run back; dry run by default. |
 | <!-- atlas:action .github/workflows/trial-version-status-live-check.yml -->[`trial-version-status-live-check.yml`](../.github/workflows/trial-version-status-live-check.yml) | Manual | One-off live check of V1's version status picker as the robot SMM key: walks one version of a test-client trial card that is not Posted and not linked to Production, reads back each status, its trial_status row and an untouched card, then puts the version back; prints counts only (OPEN_REPAIRS 659). |
+| <!-- atlas:action .github/workflows/trial-versions-fields-import-live-check.yml -->[`trial-versions-fields-import-live-check.yml`](../.github/workflows/trial-versions-fields-import-live-check.yml) | Manual | One-off live check of V3 (a version's own caption and thumbnail, set, read back and cleared) and V2 (a Frame share's new videos imported in one write, the same video refused again) as the robot SMM key, on a test-client trial card not linked to Production; puts everything back and counts the imported rows left dropped; prints counts only (OPEN_REPAIRS 660). |
 | <!-- atlas:action .github/workflows/graphics-f2-evidence.yml -->[`graphics-f2-evidence.yml`](../.github/workflows/graphics-f2-evidence.yml) | Manual, Pull request | Captures private graphics evidence. |
 | <!-- atlas:action .github/workflows/graphics-f2-preflight.yml -->[`graphics-f2-preflight.yml`](../.github/workflows/graphics-f2-preflight.yml) | Manual | Runs graphics read-only preflight. |
 | <!-- atlas:action .github/workflows/linear-deliverables-reconcile.yml -->[`linear-deliverables-reconcile.yml`](../.github/workflows/linear-deliverables-reconcile.yml) | Manual (schedule commented out 2026-09-20) | Retained Linear reconciliation lane; dry run by default. |
@@ -1694,6 +1711,7 @@ There are **54 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/native-notification-sender.yml -->[`native-notification-sender.yml`](../.github/workflows/native-notification-sender.yml) | Manual, Cron `*/5 * * * *` (database timer) | Sends admitted native notifications when its enable variable is true. |
 | <!-- atlas:action .github/workflows/pages-site.yml -->[`pages-site.yml`](../.github/workflows/pages-site.yml) | Manual, Push, Pull request | Builds index and publishes GitHub Pages for matching source paths. |
 | <!-- atlas:action .github/workflows/post-source-live-check.yml -->[`post-source-live-check.yml`](../.github/workflows/post-source-live-check.yml) | Manual | Copies one test-client card's video to Post for Me storage (no post) and prints only the measured numbers. |
+| <!-- atlas:action .github/workflows/post-from-card-live-check.yml -->[`post-from-card-live-check.yml`](../.github/workflows/post-from-card-live-check.yml) | Manual | The no-publish check for "From a card" (D6): one card copied, posted scheduled 8 days ahead (TikTok also private and to drafts), cancelled at once and read back as cancelled. Exit 3 names the queue row to cancel by hand. |
 | <!-- atlas:action .github/workflows/production-polish-gate.yml -->[`production-polish-gate.yml`](../.github/workflows/production-polish-gate.yml) | Manual, Push, Pull request, Cron `17 9 * * 1-5` (database timer) | Runs production visual and interaction gate. |
 | <!-- atlas:action .github/workflows/pto-ui-tests.yml -->[`pto-ui-tests.yml`](../.github/workflows/pto-ui-tests.yml) | Manual, Push, Pull request | Runs PTO browser checks. |
 | <!-- atlas:action .github/workflows/rename-propagation-drain.yml -->[`rename-propagation-drain.yml`](../.github/workflows/rename-propagation-drain.yml) | Manual, Cron `*/5 * * * *` (database timer) | Drains admitted rename propagation jobs. |

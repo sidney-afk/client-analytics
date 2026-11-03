@@ -79,7 +79,8 @@ async function check(page) {
       if (getComputedStyle(node).gridTemplateColumns.split(' ').length !== 2) failures.push('Client analytics loading metrics need two columns');
     });
     nodes('html.fph-on[data-fph="tiktok-upload"] .tk-profile-line:has(.tk-warn-chip)').forEach(node => {
-      if (!node.textContent.includes('Clients, Publishing') || /Sheet|Connection ID/.test(node.textContent)) failures.push('Disconnected account guidance must name the native phone action');
+      // Since L1 (OPEN_REPAIRS 653) a connected Post for Me account links itself: the guidance says so.
+      if (!node.textContent.includes('Post for Me') || !node.textContent.includes('links itself') || /Sheet|Connection ID/.test(node.textContent)) failures.push('Disconnected account guidance must say to connect it in Post for Me, where it links itself');
     });
     minimum('html.fph-on[data-fph="tiktok-upload"] :is(.tk-q-day,.tk-q-meta,.tk-queue-title), html.boot-client :is(.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub), html.sv-staff-phone .arx-row-meta','fontSize',13);
     nodes('html.fph-on[data-fph="tiktok-upload"] .tk-q-meta').forEach(node=>{if(getComputedStyle(node).whiteSpace!=='normal'||getComputedStyle(node).flexWrap!=='wrap')failures.push('Queue metadata must wrap without clipping');});

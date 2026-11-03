@@ -1289,11 +1289,11 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             if (fromCard) svPostSourceClear(src);
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
-            igState.yt = { title: '', edited: false, format: igState.yt.format };
-            _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0; igState.videoDims = null;
+            _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = names.length > 1
                 ? (utc ? 'Scheduled for ' + _igAnd(names) + '. It will appear in the queue.' : 'Sent to ' + _igAnd(names) + '. Each shows as Posted here once it confirms.')
                 : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to ' + names[0] + '. It will show as Posted here once ' + names[0] + ' confirms.');
+            igState.yt = { title: '', edited: false, format: igState.yt.format }; igState.videoDims = null;
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
         } catch (e) {

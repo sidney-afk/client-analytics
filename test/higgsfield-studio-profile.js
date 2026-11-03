@@ -107,6 +107,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   assert.ok(shown.includes(p.SAVE_REMINDER) && /without asking/.test(p.SAVE_REMINDER), "a profile read reminds SyncMate to save as it goes");
   assert.strictEqual(p.withSavedLook("brain", ""), "brain", "no saved look leaves client_brain unchanged");
   assert.ok(p.withSavedLook("brain", shown).startsWith("brain\n\n---\nSAVED VIDEO LOOK") && p.withSavedLook("brain", shown).includes("#ff0000"), "client_brain carries the saved look");
+  assert.ok(/NO SAVED VIDEO LOOK YET/.test(p.NO_LOOK_NOTE) && /without asking/.test(p.NO_LOOK_NOTE), "a client with no saved look is told to save a first draft");
   assert.ok(shown.startsWith('Test Client, video profile from the Synchro Brain') && shown.includes('"accent": "#ff0000"'));
   const broken = p.profileReply('Test Client', '{oops');
   assert.ok(broken.startsWith('Could not read'));

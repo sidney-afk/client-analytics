@@ -158,7 +158,18 @@ export const live = (v) => v.status !== STATUS.dropped;
  */
 export const passed = (v) => !!v.client_pass_at;
 const counted = (v) => live(v) && !passed(v);
-const clearPass = (v) => (passed(v) ? { client_pass_at: null } : {});
+// A version's answers start again: the client's pass goes, and (V4) the part a change was asked on, so a new cut never
+// reads as "thumbnail change asked". Each key only when it is set, so a row without the column writes nothing new.
+const clearPass = (v) => ({ ...(passed(v) ? { client_pass_at: null } : {}), ...(v && v.change_part ? { change_part: null } : {}) });
+
+/* V4 (plan combined.md row V4): the part of a version a change is asked on. The review page names it; null is the
+   video, today's meaning (F2's change_part column). Only a non-video part needs the V3 switch (index.ts). */
+export const CHANGE_PARTS = ["video", "thumbnail", "caption"];
+export function changePart(raw) {
+  if (raw === undefined || raw === null || raw === "") return { part: null };
+  const p = clean(raw, 12).toLowerCase();
+  return CHANGE_PARTS.includes(p) ? { part: p } : { error: "part_invalid" };
+}
 
 /*
  * One row per letter. Two writers add rows: the AI editor's studio log, keyed by its batch and video number, and
@@ -313,8 +324,11 @@ export function sentOnWhole(versions, stage, cardStatus) {
   return (SENT_TO[stage] || []).includes(clean(cardStatus, 40)) && !versions.some((v) => live(v) && v.smm_ok_at);
 }
 
-export function answerPatches(versions, { stage, kind, letter, note, cardStatus }, now) {
+export function answerPatches(versions, { stage, kind, letter, note, cardStatus, part }, now) {
   if (!STAGES.includes(stage)) return { error: "stage_invalid" };
+  const cp = changePart(part);
+  if (cp.error) return { error: cp.error };
+  if (cp.part && kind !== "change") return { error: "part_change_only" };
   const whole = sentOnWhole(versions, stage, cardStatus);
   if (!["approve", "change", "approve_all", "pass"].includes(kind)) return { error: "kind_invalid" };
   if (kind === "pass" && stage !== "client") return { error: "pass_client_only" };
@@ -348,7 +362,9 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
   const patches = targets.map((v) => {
     if (kind === "change") {
       const text = clean(note, 4000);
-      return { id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.change, change_by: stage, change_note: text || null, change_at: now } };
+      // The part, when the page names one (V4): the video writes null (today's meaning), a thumbnail or caption its word.
+      const named = cp.part ? { change_part: cp.part === "video" ? null : cp.part } : {};
+      return { id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.change, change_by: stage, change_note: text || null, change_at: now, ...named } };
     }
     if (kind === "pass") return { id: v.id, letter: v.letter, from: v.status, patch: { client_pass_at: now } };
     const patch = { [okField(stage)]: now };
@@ -591,6 +607,8 @@ export function readShape(versions, { client, mainLink, cardStatus, card }) {
       client_ok_at: v.client_ok_at || null,
       // The client's own "Not this one" (shown to the team as "Client passed").
       client_pass_at: v.client_pass_at || null,
+      // V4: the part a change is asked on (video, thumbnail or caption); null with no change, or a video change.
+      change_part: v.status === STATUS.change ? (v.change_part || null) : null,
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
       ready: client ? throughTeam(v, sorted, cardStatus) || whole : !!v.smm_ok_at || whole,

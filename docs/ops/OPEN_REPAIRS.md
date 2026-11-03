@@ -36660,7 +36660,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Under load (CPU slowed 4 times, 4 copies at once), 4 of 4 runs pass all 53 checks.
 - **Not touched:** the "next card's video is ready sooner" check at the end of the suite still compares two page loads (on < off - 400 ms). It has not failed in CI yet.
 
-## 654. [2026-11-03 UTC, BUILT, NOT MERGED] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
+## 654. [2026-11-03 UTC, BUILT: merged as 58f407f; a real folder dragged from a computer stays unproven by choice] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
 
 - **Asked:** plan row P2 (`docs/plans/2026-11-trial-and-posting/combined.md`; `posting.md` section 2, "From files"). The sorting (P2a, 648) merged first; this wires it to the drop zones.
 - **Before:** a dropped folder did nothing useful. The browser handed the page a folder as an empty file, so the video, the cover and the caption each had to be dropped or typed one by one.
@@ -36682,6 +36682,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - **this branch:** `post-folder-drop-browser: 55 checks passed`.
   The Post tab suites still pass: post-from-card (51), post-tab (58), instagram-carousel (51), instagram-cover (38), instagram-facebook (38), instagram-platform-switch (59), tiktok-upload (35), tiktok-upload-steps (14), tiktok-press-key-reload (21), tiktok-carousel-browser-journey, tiktok-carousel-transport, post-folder-sort (13).
 - **Live check:** drop a folder on the test client's Post tab once the switch lists it: the form fills. No post is made.
+- **Status (owner's decision, 3 Nov):** this stays BUILT, not LIVE. The browser test builds the dropped folder in the page, in the shape browsers hand over, but a real folder dragged from a computer's file manager (Chrome, Safari) has not been tried. The owner chose to skip that hand check. The page is behind `post_sources_v1`, which lists the test client only.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 
 ## 655. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's Instagram side posts to YouTube and LinkedIn too, behind post_networks_v1 (plan row P3, page half, decision D5; session Pbuild)
@@ -36748,3 +36749,33 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - The team guide (ATLAS) now describes the review page's V4 controls and the switch.
 - **Live check (still to do):** walk SMM, Kasper and the client link on a test-client trial card at 1440 and 390, in WebKit too (plan row V4).
 - **Way back:** switch `trial_versions_v2` off for the client, which gives today's trial page, or revert the PR. No migration.
+
+## 684. [2026-11-03 UTC, BUILT, NOT MERGED] A trial card posts each approved version as its own Instagram trial reel, from the Post tab (plan row P4, decision D3; session Pbuild)
+
+- **Asked:** plan row P4 (`docs/plans/2026-11-trial-and-posting/combined.md`), after V3 (657) and P1 (651). Ledger number from the supervisor.
+- **Before:** a trial card picked "From a card" with Trial reel on posted only the video on the card, as one trial reel. The other versions had to be downloaded and posted one by one, each with its own thumbnail and caption typed in again.
+- **Now, page (299; styles in 300), behind `post_sources_v1`:**
+  - a card picked "From a card", with Trial reel on, is read as the Calendar reads it (trial-reels `list`). A card with versions lists each **approved** version (a version waiting on a change, dropped or not yet approved is left out), ticked, with its own thumbnail and the first line of its own caption (V3's effective fields);
+  - one press posts each ticked version as its own Instagram trial reel. Each version gets:
+    - its own video and thumbnail, copied by post-source: the version on the card as the card, any other by its letter;
+    - its own caption (the caption box is used only for a version with none);
+    - `trial_reel_type` manual;
+    - its own key, the press key plus the letter;
+  - Facebook, YouTube and LinkedIn stay off (a trial is Instagram only), and nothing is posted afterwards (D3). The cover card hides, because each version carries its own thumbnail;
+  - each row shows its own state (Copying from Frame, Posting, Sent, Failed with the reason). When some went and some did not, a press again sends only the versions with no post yet, under the same keys, so the server adopts a post whose answer was lost;
+  - a card with no versions, or Trial reel off, posts exactly as before.
+- **Codex on #2573, all three fixed with a case:**
+  - **(P1) duplicate reel:** a change of ticks, of the fallback caption or of the time after a partial failure made a new key for the whole batch, so a version that went would have been sent again. Each version now keeps its own key and its "sent" for the card. A version that went is never sent again, and stays ticked and fixed;
+  - **(P1) locked form:** a create request that throws (a timeout, a lost connection) left the form locked. It now counts as a lost answer: the key is kept, and the form is always given back;
+  - **(P2) button state:** typing in the caption box switched Post off when every version had its own caption. The quick check now uses the versions' own rule.
+- **Now, post-source (server):**
+  - a letter is read from that version's own row, A included. Before, A was always the card, which is the wrong video once the SMM has put another version on the card. A card with no row for A is still the card;
+  - a version's copy carries its thumbnail too: its own, else the card's (V3's rule). Before, a version's copy had no thumbnail;
+  - a version's card must belong to the client asked for.
+- **Live check script:** `post-from-card-live-check.yml` takes an optional version letter. That run copies the version and schedules it as an Instagram trial reel 8 days ahead, then cancels it and reads it back (D6). It handles one version per run and is refused on the TikTok side.
+  - `test/post-trial-versions-browser.js` (new, isolated browser, 43 checks): **main** `TimeoutError` waiting for the version rows; **this branch** `post-trial-versions-browser: 43 checks passed`. Before the Codex fixes, the new case fails at the caption check, and with that check skipped the locked form times out;
+  - `test/post-source-logic.js` now has 34 checks. On main the new cases fail (`AssertionError`): letter A with its own row, a version's own or fallback thumbnail, and another client's card. One pin passes on main and on the branch alike, as asked by the supervisor: a card with no version rows at all is read exactly as before, with no letter and with letter A (the card's link and thumbnail; with no letter the version rows are never read);
+  - `test/post-from-card-live-check.js` now has 11 checks: the letter run, and a bad letter or the TikTok side refused before anything is called.
+  The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.
+- **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
+- **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.

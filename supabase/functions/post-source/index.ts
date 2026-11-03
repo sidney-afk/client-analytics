@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
         // Every row of the card, matched as trial-reels matches them (client case-insensitively, exactly); the handler
         // keeps the one trial-reels shows for each letter.
         readVersions: (client: string, postId: string) =>
-          restAll("studio_trial_versions?select=id,letter,frame_url,created_at&post_id=" + eq(postId) + "&client=ilike." + encodeURIComponent(likeExact(client))),
+          restAll("studio_trial_versions?select=id,letter,frame_url,thumbnail_url,created_at&post_id=" + eq(postId) + "&client=ilike." + encodeURIComponent(likeExact(client))),
         lookupVideo: async (link: string) =>
           (await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now }, { part: "video", strict: true })).video,
         fileFacts: async (video: { media_type?: string; codec?: string; width?: number; height?: number; metadata_fields?: string[] }) =>

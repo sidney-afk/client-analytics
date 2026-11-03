@@ -18,6 +18,11 @@ on:
         required: true
         type: string
         default: 'instagram'
+      letter:
+        description: 'Optional: a trial version letter (A to G), posted as an Instagram trial reel (plan row P4); empty = the card'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -42,4 +47,5 @@ jobs:
           SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
           POST_LIVE_CHECK_CARD: ${{ inputs.card }}
           POST_LIVE_CHECK_SIDE: ${{ inputs.side }}
+          POST_LIVE_CHECK_LETTER: ${{ inputs.letter }}
         run: node scripts/post-from-card-live-check.js

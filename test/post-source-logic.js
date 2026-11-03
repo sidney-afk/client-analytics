@@ -181,6 +181,27 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
       assert.deepEqual(w.calls.lookups, [CARD_LINK]);
     }
   });
+  await ok('P4: a card with no version rows at all is read exactly as before: no letter and letter A both copy the card', async () => {
+    const DRIVE_THUMB = 'https://drive.google.com/file/d/AbCdEf123456/view?usp=sharing';
+    const LH3_THUMB = 'https://lh3.googleusercontent.com/d/AbCdEf123456=w1080';
+    for (const letter of [undefined, 'A']) {
+      const w = world({ versions: [], thumb: DRIVE_THUMB, images: { [LH3_THUMB]: { type: 'image/jpeg' } } });
+      let read = 0; const inner = w.deps.readVersions; w.deps.readVersions = async (...a) => { read++; return inner(...a); };
+      const r = await run(w, { client: 'test-client', post_id: 'p_1', letter });
+      assert.equal(r.status, 200, String(letter)); assert.deepEqual(w.calls.lookups, [CARD_LINK]);
+      assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.ok(w.calls.gets.includes(LH3_THUMB));
+      if (!letter) assert.equal(read, 0, 'no letter: the version rows are never read');
+    }
+  });
+  await ok('P4: letter A with a row of its own (another version is on the card) is A\'s own link, not the card\'s', async () => {
+    const A_LINK = 'https://next.frame.io/share/eeee/view/ffff';
+    const w = world({ versions: [
+      { id: 'v_a', client: 'test-client', post_id: 'p_1', letter: 'A', frame_url: A_LINK, created_at: '2026-10-01T00:00:00Z' },
+      { id: 'v_b', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: CARD_LINK, created_at: '2026-10-01T00:00:00Z' },
+    ] });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'A' });
+    assert.equal(r.status, 200); assert.deepEqual(w.calls.lookups, [A_LINK]);
+  });
   await ok('letter B uses version B\'s own link', async () => {
     const w = world();
     const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
@@ -311,11 +332,24 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
     assert.equal(r.body.ok, true); assert.equal(r.body.media_url, 'https://data.postforme.dev/m/1');
     assert.equal(r.body.thumb_url, null); assert.match(r.body.thumb_note, /\S/);
   });
-  await ok('a trial version has no thumbnail of its own yet: none is read or copied', async () => {
+  await ok('P4: a trial version with no thumbnail of its own takes the card\'s (V3\'s rule), copied after the video', async () => {
     const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } } });
     const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
-    assert.equal(r.body.ok, true); assert.equal(r.body.thumb_url, null); assert.equal(w.calls.mints, 1);
-    assert.ok(!w.calls.gets.includes(LH3));
+    assert.equal(r.body.ok, true); assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.equal(w.calls.mints, 2);
+    assert.ok(w.calls.gets.includes(LH3));
+  });
+  await ok('P4: a trial version\'s own thumbnail is the one copied, never the card\'s', async () => {
+    const OWN = 'https://images.example.test/version-b.jpg';
+    const w = world({ thumb: DRIVE, images: { [OWN]: { type: 'image/jpeg' }, [LH3]: { type: 'image/jpeg' } },
+      versions: [{ id: 'v_b', client: 'test-client', post_id: 'p_1', letter: 'B', frame_url: B_LINK, thumbnail_url: OWN, created_at: '2026-10-01T00:00:00Z' }] });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
+    assert.equal(r.body.thumb_url, 'https://data.postforme.dev/m/2');
+    assert.ok(w.calls.gets.includes(OWN)); assert.ok(!w.calls.gets.includes(LH3));
+  });
+  await ok('P4: a version of another client\'s card is refused even when the version row reads', async () => {
+    const w = world({ cards: [{ id: 'p_1', client: 'other-client', asset_url: CARD_LINK, thumbnail_url: '' }] });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1', letter: 'B' });
+    assert.equal(r.status, 404); assert.equal(r.body.error, 'card_not_found'); assert.deepEqual(w.calls.lookups, []);
   });
   await ok('a failed video copy copies no thumbnail', async () => {
     const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } }, putFails: true });

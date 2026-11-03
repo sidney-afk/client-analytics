@@ -321,6 +321,17 @@ import {
         .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        /* A trial card's versions on the Instagram side (plan row P4): one row per approved version, ticked by default,
+           with its thumbnail, its caption's first line and, once pressed, its own state. Hover lights only the row. */
+        .ig-trv { display: grid; gap: 6px; margin-top: 10px; }
+        .ig-trv-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); cursor: pointer; min-width: 0; }
+        .ig-trv-row:hover { border-color: var(--sv-border-aaa); }
+        .ig-trv-thumb { width: 27px; height: 48px; flex: 0 0 27px; border-radius: 5px; object-fit: cover; background: var(--bg); border: 1px solid var(--border); }
+        .ig-trv-text { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 0.82rem; color: var(--text-primary); }
+        .ig-trv-cap { color: var(--text-secondary); font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ig-trv-state { flex-shrink: 0; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+        .ig-trv-state.is-failed { color: var(--sv-fg-b91c1c); }
+        .ig-trv-why { margin: -2px 0 2px 8px; }
         /* The Instagram side's "Post to" card (post_networks_v1, plan row P3): one toggle row per network, YouTube's
            fields under its row. */
         .ig-net-row + .ig-net-row, .ig-yt + .ig-net-row { margin-top: 12px; }

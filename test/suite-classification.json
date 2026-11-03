@@ -1649,6 +1649,14 @@
       "ci": "representative"
     },
     {
+      "file": "post-trial-versions-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks posting a trial card from the Post tab's Instagram side (From a card, Trial reel on): only approved versions listed and ticked, one trial reel per ticked version with its own copied video, thumbnail and caption and its own key, Instagram only, a press again after a lost answer sending only what did not go, a missing caption keeping Post off, a plain card and Trial reel off as before, and 390 wide.",
+      "reproduce": "node test/post-trial-versions-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "postforme-link-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

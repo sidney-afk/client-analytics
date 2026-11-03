@@ -36791,7 +36791,12 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Kasper's session is switched on for three named staff. Only this page's read of `review_stage_kasper_staff` and `review_stage_kasper_layout2` is widened, as the dawn check does for `analytics_hidden`.
   - It prints counts and true/false only. It takes no screenshots, because Kasper's queue holds other clients' cards and the repository is public.
 - **Proof:**
-  - `test/trial-v4-review-live-walk.js` (20 checks, offline). It covers which requests are writes, that a summary line drops anything but counts, the verdict, and the workflow's two inputs with no link and no upload.
-  - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed the block at 1440 and 390, with nothing scrolling sideways.
+  - `test/trial-v4-review-live-walk.js` (25 checks, offline). It covers which requests are writes, that a summary line drops anything but counts, the verdict, and the workflow's two inputs with no link and no upload.
+  - **Codex on #2577:** the verdict used to pass a surface that never loaded, and it looked only at the version first on screen. Now:
+    - a stage that never mounted fails (it is not read as an empty queue);
+    - every version of every opened trial card is checked by its letter;
+    - a missing block, a broken picture, an uncaught page error or a picker without Video, Thumbnail and Caption (Video first) fails the run;
+    - a run that opened no trial card anywhere fails, because it proved nothing.
+  - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed each of the card's 3 versions' blocks with their pictures, at 1440 and 390, with nothing scrolling sideways.
   - SMM and Kasper opened no trial card, because none of the test client's non-archived trial cards waits for them (OPEN_REPAIRS 662).
 - **Way back:** delete the workflow. It only runs when dispatched by hand.

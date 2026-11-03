@@ -40,16 +40,28 @@ function isWrite(method, url, body) {
 
 /** One surface's line: counts and true/false only. */
 function surfaceLine(o) {
-  const keep = ['surface', 'width', 'engine', 'stage', 'trialCardsOpened', 'withFields', 'ownCaption', 'noCaption', 'picturesLoaded', 'pickerOpened', 'pickerParts', 'tiles', 'tilePictures', 'sidewaysScroll', 'pageErrors', 'error'];
+  const keep = ['surface', 'width', 'engine', 'stage', 'trialCardsOpened', 'versionsChecked', 'withFields', 'missingFields', 'ownCaption', 'noCaption', 'picturesLoaded', 'brokenPictures', 'pickerOpened', 'pickerParts', 'tiles', 'tilePictures', 'sidewaysScroll', 'pageErrors', 'error'];
   const out = {};
   for (const k of keep) if (o[k] !== undefined) out[k] = typeof o[k] === 'string' ? String(o[k]).replace(/[^a-z0-9 _:,*-]/gi, '').slice(0, 60) : o[k];
   return out;
 }
 
-/** The run passes when nothing was written, no surface failed, nothing scrolled sideways, and every opened block had a picture or the mark. */
+/*
+ * The run passes only when nothing was written and every surface loaded and showed what V4 promises (Codex on #2577):
+ *   - a surface whose review stage never mounted fails (not counted as an empty queue);
+ *   - every version looked at on a trial card shows its thumbnail-and-caption block, with no broken picture;
+ *   - a picker that opened offers Video, Thumbnail and Caption, Video first;
+ *   - no page error (an uncaught script error; a refused resource is not one), and nothing scrolls sideways;
+ *   - and at least one trial card was opened somewhere, so a green run always proved something.
+ * A surface that loaded and has no trial card waiting is reported as such (trialCardsOpened 0) and does not fail.
+ */
 function verdict(lines, blocked) {
-  const bad = lines.filter((l) => l.error || l.sidewaysScroll);
-  return { passed: blocked === 0 && bad.length === 0, writesBlocked: blocked, failedSurfaces: bad.length };
+  const why = (l) => (l.error ? 'error' : l.stage === false ? 'stage_not_loaded' : l.sidewaysScroll ? 'sideways_scroll' : l.pageErrors ? 'page_errors'
+    : l.missingFields ? 'missing_fields' : l.brokenPictures ? 'broken_pictures' : l.pickerOpened && l.pickerParts !== 'video*,thumbnail,caption' ? 'picker_parts' : '');
+  const bad = lines.map(why).filter(Boolean);
+  const opened = lines.reduce((n, l) => n + (Number(l.trialCardsOpened) || 0), 0);
+  const nothing = opened === 0;
+  return { passed: blocked === 0 && bad.length === 0 && !nothing, writesBlocked: blocked, failedSurfaces: bad.length, reasons: [...new Set(bad.concat(nothing ? ['no_trial_card_opened'] : []))].join(','), trialCardsOpened: opened };
 }
 
 async function run({ engine = 'chromium', card = '', log = console.log } = {}) {
@@ -87,12 +99,15 @@ async function run({ engine = 'chromium', card = '', log = console.log } = {}) {
       const ctx = await browser.newContext(ctxOpts);
       await harden(ctx);
       const page = await ctx.newPage();
-      page._errs = [];
-      page.on('pageerror', () => page._errs.push(1));
+      page._pageErrs = [];
+      page.on('pageerror', () => page._pageErrs.push(1));
       await E.gotoTestClientEntry(page, { origin: L.ORIGIN, view: 'calendar', name: E.TEST_CLIENT.name, token, gotoOptions: { waitUntil: 'domcontentloaded', timeout: 60000 } });
       return page;
     }
     const page = await L.open(browser, '/qa/dawn/blank.html', ctxOpts);
+    // Only uncaught script errors count (the shared harness's own list also holds refused resources).
+    page._pageErrs = [];
+    page.on('pageerror', () => page._pageErrs.push(1));
     await harden(page.context());
     if (name === 'kasper') {
       await page.context().route((u) => u.toString().startsWith(SUPA + '/rest/v1/syncview_runtime_flags?'), async (r) => {
@@ -118,32 +133,47 @@ async function run({ engine = 'chromium', card = '', log = console.log } = {}) {
   }
   async function surface(browser, name, width) {
     const page = await open(browser, name, width);
-    const out = { surface: name, width, engine, trialCardsOpened: 0, withFields: 0, ownCaption: 0, noCaption: 0, picturesLoaded: 0, pickerOpened: false, pickerParts: '', tiles: 0, tilePictures: 0, sidewaysScroll: false };
+    const out = { surface: name, width, engine, trialCardsOpened: 0, versionsChecked: 0, withFields: 0, missingFields: 0, ownCaption: 0, noCaption: 0, picturesLoaded: 0, brokenPictures: 0, pickerOpened: false, pickerParts: '', tiles: 0, tilePictures: 0, sidewaysScroll: false };
     await page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!(h && !h.hidden && h.shadowRoot && h.shadowRoot.querySelector('[data-id], #stepper')); }, null, { timeout: 90000 }).catch(() => {});
     await sleep(6000);
-    out.stage = await page.evaluate(() => !!document.getElementById('svReviewStage'));
-    if (!out.stage) { out.pageErrors = (page._errs || []).length; await page.context().close(); return out; }
+    out.stage = await page.evaluate(() => { const h = document.getElementById('svReviewStage'); return !!(h && !h.hidden && h.shadowRoot && h.shadowRoot.querySelector('[data-id], #stepper')); });
+    if (!out.stage) { out.pageErrors = (page._pageErrs || []).length; await page.context().close(); return out; }
     for (const id of ids) {
       const went = await inStage(page, (x) => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r && r.querySelector('[data-id="' + CSS.escape(x) + '"]'); if (!b) return false; b.click(); return true; }, id);
       if (!went) continue;
       await sleep(2500);
       await inStage(page, () => { const r = document.getElementById('svReviewStage').shadowRoot; const st = r.querySelector('.stp[data-step="video"]'); if (st) st.click(); });
       await sleep(2500);
-      const s = await inStage(page, () => {
-        const r = document.getElementById('svReviewStage').shadowRoot, fx = r.querySelector('.trv-fx'), img = fx && fx.querySelector('img');
-        return { trial: !!r.querySelector('.trv-under, .trk'), fx: !!fx && !!fx.getClientRects().length, none: !!(fx && fx.querySelector('.trv-fx-cap.none')),
-          pic: !!img && !img.hidden && img.complete && img.naturalWidth > 0, mark: !!(fx && fx.querySelector('.trk-mark')),
-          tiles: r.querySelectorAll('.trk-v').length, tilePics: [...r.querySelectorAll('.trk-v .trk-pic img')].filter((i) => !i.hidden && i.naturalWidth > 0).length,
-          wide: document.documentElement.scrollWidth > window.innerWidth + 1 };
+      const head = await inStage(page, () => {
+        const r = document.getElementById('svReviewStage').shadowRoot;
+        const letters = [...r.querySelectorAll('[data-trv-go], [data-trk-go]')].map((b) => b.dataset.trvGo || b.dataset.trkGo);
+        return { trial: !!r.querySelector('.trv-under, .trk'), letters: [...new Set(letters)], tiles: r.querySelectorAll('.trk-v').length,
+          tilePics: [...r.querySelectorAll('.trk-v .trk-pic img')].filter((i) => !i.hidden && i.naturalWidth > 0).length };
       });
-      if (!s.trial) continue;
+      if (!head.trial) continue;
       out.trialCardsOpened++;
-      if (s.fx) out.withFields++;
-      if (s.fx && !s.none) out.ownCaption++;
-      if (s.none) out.noCaption++;
-      if (s.pic) out.picturesLoaded++;
-      if (s.wide) out.sidewaysScroll = true;
-      out.tiles += s.tiles; out.tilePictures += s.tilePics;
+      out.tiles += head.tiles; out.tilePictures += head.tilePics;
+      // Every version of the card, not only the one first on screen (Codex on #2577): its own block, by its letter.
+      const letters = head.letters.length ? head.letters : [''];
+      for (const letter of letters) {
+        if (letter) {
+          await inStage(page, (l) => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-trv-go="' + l + '"], [data-trk-go="' + l + '"]'); if (b) b.click(); }, letter);
+          await sleep(1200);
+        }
+        const s = await inStage(page, (l) => {
+          const r = document.getElementById('svReviewStage').shadowRoot, fx = r.querySelector(l ? '.trv-fx[data-trv-fx="' + l + '"]' : '.trv-fx'), img = fx && fx.querySelector('img');
+          return { fx: !!fx && !!fx.getClientRects().length, none: !!(fx && fx.querySelector('.trv-fx-cap.none')),
+            pic: !!img && !img.hidden && img.complete && img.naturalWidth > 0, broken: !!img && !img.hidden && img.complete && img.naturalWidth === 0,
+            wide: document.documentElement.scrollWidth > window.innerWidth + 1 };
+        }, letter);
+        out.versionsChecked++;
+        if (s.fx) out.withFields++; else out.missingFields++;
+        if (s.fx && !s.none) out.ownCaption++;
+        if (s.none) out.noCaption++;
+        if (s.pic) out.picturesLoaded++;
+        if (s.broken) out.brokenPictures++;
+        if (s.wide) out.sidewaysScroll = true;
+      }
       if (!out.pickerOpened) {
         const opened = await inStage(page, () => { const r = document.getElementById('svReviewStage').shadowRoot; const b = r.querySelector('[data-chg="video"]'); if (!b) return false; b.click(); return true; });
         if (opened) {
@@ -155,7 +185,7 @@ async function run({ engine = 'chromium', card = '', log = console.log } = {}) {
         }
       }
     }
-    out.pageErrors = (page._errs || []).length;
+    out.pageErrors = (page._pageErrs || []).length;
     await page.context().close();
     return out;
   }

@@ -33,10 +33,19 @@ ok(line.withFields === 2 && line.pickerParts === 'video*,thumbnail,caption' && !
   'a surface line keeps counts and true/false, and drops anything else');
 ok(!JSON.stringify(W.surfaceLine({ surface: 'https://f.io/abc', error: 'TypeError: at p_secret_card' })).includes('https://'), 'a surface line strips a link even from its own fields');
 
-ok(W.verdict([{ surface: 'client' }, { surface: 'smm' }], 0).passed, 'a run with nothing written and no failed surface passes');
-ok(!W.verdict([{ surface: 'client' }], 1).passed, 'a run that blocked a write fails');
-ok(!W.verdict([{ surface: 'client', error: 'TimeoutError' }], 0).passed && !W.verdict([{ surface: 'client', sidewaysScroll: true }], 0).passed,
+const good = { surface: 'client', stage: true, trialCardsOpened: 1, versionsChecked: 3, withFields: 3, missingFields: 0, brokenPictures: 0, pageErrors: 0, pickerOpened: true, pickerParts: 'video*,thumbnail,caption' };
+const empty = { surface: 'smm', stage: true, trialCardsOpened: 0, versionsChecked: 0, missingFields: 0, pageErrors: 0 };
+ok(W.verdict([good, empty], 0).passed, 'a run with nothing written, every surface loaded and every version showing its block passes; a loaded empty queue does not fail it');
+ok(!W.verdict([good], 1).passed, 'a run that blocked a write fails');
+ok(!W.verdict([good, { surface: 'smm', error: 'TimeoutError' }], 0).passed && !W.verdict([Object.assign({}, good, { sidewaysScroll: true })], 0).passed,
   'a failed surface or a sideways scroll fails the run');
+// Codex on #2577: the verdict looks at what V4 promises, not only at errors.
+const v = (over) => W.verdict([Object.assign({}, good, over)], 0);
+ok(!v({ stage: false }).passed && /stage_not_loaded/.test(v({ stage: false }).reasons), 'a review stage that never loaded fails the run, not read as an empty queue');
+ok(!v({ missingFields: 1 }).passed && /missing_fields/.test(v({ missingFields: 1 }).reasons), 'a version with no thumbnail-and-caption block fails the run');
+ok(!v({ brokenPictures: 1 }).passed && !v({ pageErrors: 2 }).passed, 'a broken picture or an uncaught page error fails the run');
+ok(!v({ pickerParts: 'video,thumbnail' }).passed && v({ pickerOpened: false, pickerParts: '' }).passed, 'a picker that opened must offer Video, Thumbnail and Caption, Video first');
+ok(!W.verdict([empty], 0).passed && /no_trial_card_opened/.test(W.verdict([empty], 0).reasons), 'a run that opened no trial card anywhere proves nothing and fails');
 ok(W.SURFACES.join() === 'client,smm,kasper' && W.WIDTHS.join() === '1440,390', 'it walks the client link, the SMM tab and Kasper at 1440 and 390');
 
 const wf = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/trial-v4-review-live-walk.yml'), 'utf8');

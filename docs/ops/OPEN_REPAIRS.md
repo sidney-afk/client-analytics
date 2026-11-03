@@ -36039,6 +36039,17 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
 - **Way back:** revert the PR.
 
+## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
+
+- **Asked:** Sidney, 2 Nov (D7 in `docs/plans/2026-11-trial-and-posting/combined.md`): wherever the Post tab says a client has no account on a network, a link beside the message opens Post for Me (https://www.postforme.dev) in a new tab.
+- **Before:** the message said what was missing and who should add it, and nothing else.
+- **Now:** one helper, `svPostForMeLinkHtml()` in 299, writes `Open Post for Me` (`target="_blank"`, `rel="noopener"`) after: TikTok's account line (300) and its refusal on submit; Instagram's account line (299) and its refusal on submit; the Facebook box's "No Facebook Page connected" reason. The wording is unchanged; it changes with the linking pick list (plan row L1, held). No flag: it is a link and nothing else. YouTube and LinkedIn get the same link with plan row P3.
+- **Found while building, fixed here:**
+  - On a phone the staff shell (099) rewrites the account line to a shorter sentence and replaced every child of the line, so the link vanished there. It now keeps the link after the phone wording.
+  - On desktop the TikTok account line is a flex row, and its message (text, a bold word and a code chip) was split into three side-by-side columns. The message is now one span, so it reads as a sentence, with the link beside it.
+- **Proof:** `test/postforme-link-browser.js` (new, offline, nothing posted): with no account on any network, each of the five messages has exactly one link to Post for Me that opens in a new tab with `noopener`, the new tab gets no `window.opener`, the form keeps its client, and the wording is unchanged; on a 390-wide phone both account lines keep the link after the phone wording; with every account on file there is no link anywhere. Fails on main at the first check (no link). The Post tab, Instagram + Facebook, platform switch, cover client switch, TikTok steps and TikTok layout suites pass unchanged.
+- **Way back:** revert the PR.
+
 ## 644. [2026-11-02 UTC, BUILT, NOT MERGED] A Frame.io share link that names a video plays that video, or refuses; it never plays another one (session Framefix, plan item F0)
 
 - **Before:** for a `next.frame.io/share/<id>/view/<file>` link, `frameio-view` looked for the named file only among the share's top-level assets, and read only the first page of them (no page size, no paging). A file inside a shared folder, or one past the first page, was never found, and the code silently fell back to the share's first asset, so the player showed the wrong video. On a review board a client could approve the wrong video. Latent today: no live card link has that shape (measured read-only by the supervisor), so nothing needs repair.
@@ -36067,6 +36078,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - `test/review-board-diagnostics-postgres.js` runs the migration's own applied-when check (false before, true after), applies it twice, records a Workload receipt and reads `workload` back, filters the staff list by it, still refuses an unknown surface in the table and in the list, and keeps the list closed to anon and authenticated.
   - Unchanged and passing: `test/write-refusal-attempts-network-postgres.js`, `test/write-refusal-detail-viewer-postgres.js`.
 - **Way back:** revert the PR. The migration only widens a check and replaces one read, so it can stay.
+
 ## 647. [2026-11-02 UTC, BUILT, NOT MERGED] TikTok kept a lost create's key in memory only, so a reload and a re-press could post twice (plan row P0; session Pbuild)
 
 - **Plan's wording, corrected:** the plan (posting.md, combined.md row P0) said TikTok "mints a fresh key on every press". In a page that stays open it already does what Instagram does: a create whose answer is lost (no answer, a 5xx, a cancel during the create, or a 200 with a failed row) keeps its key and storage address in `tkState.retryCreate`, and an unchanged re-press sends them again (OPEN_REPAIRS 404). The real gap was a **reload**: that attempt lived in memory only, while the TikTok draft (client, caption, options, schedule) survives a reload. After the reload, attaching the same file and pressing again minted a new key and a new upload, so the function could not adopt the first post.
@@ -36186,3 +36198,29 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` unchanged and passing.
 - **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.
+
+
+## 659. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+
+- **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
+- **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
+  - **Refused first, read-only, and nothing is written:**
+    - any client but the test client (compared by SHA-256, so no slug is in the repository);
+    - a card that is not that client's;
+    - a Posted card (a staff call starts its trial);
+    - a card with a Production video or graphic sub-issue, or any row in `production_deliverables_browser_v1` (so the status sync and the drift robot never see these writes; entry 373);
+    - a card whose switch is off, or with no such version;
+    - a card whose first staff read healed a version link;
+    - a walk V1's own rules would refuse. The script runs `logic.mjs` `versionStatusPatches` from the checkout over the card's state from that read, for every pick and the put-back (`planWalk`), so an expected refusal such as `status_follows_card` stops the run before it writes. A refusal the live function gives anyway still fails the run.
+  - **The walk:** For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, then back to the word the version started at.
+    - After each pick it reads back the version's `card_status`.
+    - It checks there is exactly one new `trial_status` row with that from, to, `source = trial-reels` and the letter. A pick of the word the version already has must add none.
+    - It checks that `calendar_posts.updated_at` and `video_status` are unchanged.
+  - **Put back, always:** once any pick was sent, the put-back runs in a `finally` and is read back, even when a read fails mid-walk (Codex on #2549).
+  - **Opt-in switch (`switch_for_run`, default off, supervisor 3 Nov):** the card's trial switch is turned on through trial-reels `switch_set`, the page's own call, never SQL. It is refused when the switch is already on. The walk runs, then the switch is turned off again in a `finally` step, even after a failure. The run reads back that it ended off, and that neither flip added or removed a version (no `trial_version_add`, `drop`, `restore` or `versions_import` row). It prints `switch_ended_off`.
+  - **Put back:** the version returns to its starting word. Exact OK times and a client pass are not restored, because a pick sets them by its own rules. A Tweaks Needed note is not restored either.
+  - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
+- **Proof:** `test/trial-version-status-live-check.js` (40 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, the put-back after a read that fails mid-walk, and the opt-in switch: on and off, refused when already on, a seeding switch-on, and a switch that will not turn off, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
+- **Live result:** filled in by the supervisor's dispatch.
+- **Way back:** delete the workflow. It runs only by hand.

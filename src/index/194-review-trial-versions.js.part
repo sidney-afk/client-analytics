@@ -390,12 +390,34 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // The card's part a version's change goes on as today's change request: the thumbnail's is the graphic part.
     function svTrialReviewPartComp(part) { return part === 'thumbnail' ? 'graphic' : part === 'caption' ? 'caption' : 'video'; }
+
+    /* PROTOTYPE, plan row 688 (?trialtabs=a|b|c), never merged: the versions drawn as A pills, B a segmented control or
+       C a filmstrip, in place of the dots (and of Kasper's tiles). Same buttons and bindings as today. */
+    function _tvOpt() {
+        try { const q = new URLSearchParams(location.search).get('trialtabs') || window.__trialtabs || ''; return /^[abc]$/i.test(q) ? q.toLowerCase() : ''; } catch (e) { return ''; }
+    }
+    const _tvTone = (a, stage) => a === 'ok' ? 'ok' : a === 'chg' ? 'chg' : a === 'wait' ? stage : 'mute';
+    const TT_SAY = { ok: 'approved', chg: 'change asked', wait: 'waiting', team: 'with the team', pass: 'not this one', cpass: 'client dropped' };
+    function _ttSwitchHtml(m, mode, attr) {
+        const o = _tvOpt(), stage = _trvStage(mode), cur = _trvCurOf(m, mode);
+        const vs = m.trial.versions.filter(v => v.status !== 'dropped');
+        const items = vs.map(v => {
+            const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter), on = v === cur;
+            const head = '<button type="button" class="tt-' + o + 'i' + (on ? ' on' : '') + '" data-tone="' + _tvTone(a, stage) + '" ' + attr + '="' + l + '" aria-pressed="' + on + '" aria-label="Video ' + l + ', ' + TT_SAY[a] + '">';
+            if (o === 'a') return head + '<i></i>Video ' + _calEsc(v.letter) + '</button>';
+            if (o === 'b') return head + 'Video ' + _calEsc(v.letter) + '</button>';
+            const pic = _trvPicOf(m, v) || m.thumb || '';
+            return head + '<span class="tt-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : TRV_PLAY) + '</span><span class="tt-n"><i></i>' + _calEsc(v.letter) + '</span></button>';
+        }).join('');
+        return '<div class="tt tt-' + o + '" role="group" aria-label="Versions of this video">' + items + '</div>';
+    }
     function svTrialReviewUnderHtml(m, mode) {
         if (!m || !m.trial || m.trial.winner) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
         const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
         const cok = _trvClientOk(cur, stage) ? '<span class="trv-cok" title="The client approved Video ' + _calEscAttr(cur.letter) + '">Client approved</span>' : '';
         if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + cok + busy + '</div>' + svTrialReviewFieldsHtml(m, mode);
+        if (_tvOpt()) return _ttSwitchHtml(m, mode, 'data-trv-go') + busy + svTrialReviewFieldsHtml(m, mode);
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
@@ -692,6 +714,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // mark there instead of a black square (owner, 2026-10-28).
         const poster = m.thumb ? '<img alt="" src="' + _calEscAttr(m.thumb) + '">' : TRV_PLAY;
         const own = svTrialReviewFieldsOn(m);
+        const ttActs = {};
         const tiles = vs.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter);
             // V4: each tile shows its version's own thumbnail (else the card's poster, as before).
@@ -707,10 +730,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     + dropBtn
                 // A version the SMM has not looked at is with the team, never "change asked" (follow-up, 2026-10-28).
                 : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : a === 'team' ? 'team' : 'change') + '">' + (a === 'ok' ? 'approved' : a === 'team' ? 'with the team' : 'change asked') + '</span>';
+            ttActs[v.letter] = acts;
             return '<div class="trk-v' + (v === cur ? ' cur' : '') + '"><button type="button" class="trk-go" data-trk-go="' + l + '" aria-label="Put Video ' + l + ' on stage"' + (v === cur ? ' aria-current="true"' : '') + '>'
                 + '<span class="trk-pic">' + vposter + '</span><span class="trk-nm"><span class="trk-n">Video ' + l + '</span>'
                 + (_trvClientOk(v, stage) ? '<span class="trv-cok" title="The client approved Video ' + l + '">Client approved</span>' : '') + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
+        if (_tvOpt()) return '<div class="trk tt-k"><div class="tt-row">' + _ttSwitchHtml(m, mode, 'data-trk-go') + '<div class="trk-acts tt-acts">' + (ttActs[cur.letter] || '') + '</div>'
+            + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '') + '</div>' + svTrialReviewFieldsHtml(m, mode) + '</div>';
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t"><span class="trv-tag trk-tag">Trial</span> ' + vs.length + ' versions</span>'
             + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
             + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div>' + svTrialReviewFieldsHtml(m, mode) + '</div>';
@@ -853,6 +879,35 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-pt:hover{background:var(--fill-hover)}
 .trv-pt[aria-pressed="true"]{border-color:var(--text-primary);box-shadow:0 0 0 1px var(--text-primary)}
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
+
+/* PROTOTYPE 688 (?trialtabs) */
+.tt [data-tone],.tt [data-tone]{--tt:var(--text-muted)}
+.tt [data-tone="ok"]{--tt:var(--cal-status-approved-bg)}
+.tt [data-tone="chg"]{--tt:var(--cal-status-tweaks-needed-bg)}
+.tt [data-tone="client"]{--tt:var(--cal-status-client-approval-bg)}
+.tt [data-tone="kasper"]{--tt:var(--cal-status-kasper-approval-bg)}
+.tt [data-tone="smm"]{--tt:var(--cal-status-for-smm-approval-bg)}
+.tt{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:12px auto 10px;max-width:460px}
+.tt-ai{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--hair);background:var(--deck);font:inherit;font-size:.86rem;font-weight:600;color:var(--text-secondary);cursor:pointer}
+.tt-ai i,.tt-ci i{width:8px;height:8px;border-radius:50%;background:var(--tt)}
+.tt-ai.on{color:var(--text-primary);border-color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--text-primary)}
+.tt-b{flex-wrap:nowrap;gap:3px;padding:3px;border-radius:12px;background:var(--fill-hover);width:100%}
+.tt-bi{flex:1;height:36px;border:0;border-radius:9px;background:color-mix(in srgb,var(--tt) 26%,transparent);font:inherit;font-size:.88rem;font-weight:700;color:var(--text-secondary);position:relative;cursor:pointer}
+.tt-bi::after{content:'';position:absolute;left:34%;right:34%;bottom:5px;height:3px;border-radius:2px;background:var(--tt)}
+.tt-bi.on{background:var(--deck);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.12),inset 0 0 0 1.5px var(--tt)}
+.tt-c{gap:12px}
+.tt-ci{display:grid;justify-items:center;gap:5px;border:0;background:none;padding:0;font:inherit;cursor:pointer}
+.tt-ci .tt-p{width:54px;height:76px;border-radius:9px;overflow:hidden;background:var(--fill-hover);box-shadow:0 0 0 1px var(--hair);display:grid;place-items:center;color:var(--text-muted)}
+.tt-ci .tt-p img{width:100%;height:100%;object-fit:cover;display:block}
+.tt-ci .tt-p .trk-mark{width:16px;height:16px}
+.tt-ci.on .tt-p{box-shadow:0 0 0 2px var(--deck),0 0 0 4px var(--text-primary)}
+.tt-ci .tt-n{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:700;color:var(--text-secondary)}
+.tt-ci.on .tt-n{color:var(--text-primary)}
+.tt ~ .trv-fx .trv-fx-l{display:none}
+.tt-k .tt-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tt-k .tt{margin:0;justify-content:flex-start;max-width:none}
+.tt-k .tt-b{width:auto;flex:1;min-width:240px}
+.tt-acts{display:flex;gap:6px;align-items:center;margin-left:auto}
 `;
 export {
   TRV_CSS, svTrialReviewFieldsOn, svTrialReviewPartPickHtml, svTrialReviewPartComp, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles

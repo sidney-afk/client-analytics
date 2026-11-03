@@ -378,7 +378,12 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-entry-{0}', matrix.part) || format('calendar-unit-tests-{0}-entry-links-boot-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 15
+    # 25, not 15 (3 Nov 2026): part 3's suites alone ran about 12.5 minutes, and
+    # an ordinary checkout takes 1 to 3 minutes, so the job was cancelled at 15
+    # with nothing failing (#2579, and 12 to 14.5 minutes on other PRs that day).
+    # The lasting fix is to move suites into a fourth part; until then this
+    # limit is a safety net, not a test budget.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

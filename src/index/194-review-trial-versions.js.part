@@ -389,7 +389,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svTrialReviewPartView(m, mode) {
         if (!_trvTabs(m)) return null;
         const cur = _trvCurOf(m, mode), eff = (cur && cur.effective) || {};
-        return { letter: cur.letter, onCard: !!cur.on_card, thumb: _trvPicOf(m, cur), caption: eff.caption != null ? String(eff.caption) : String(m.caption || ''),
+        return { letter: cur.letter, onCard: !!cur.on_card, ownCaption: !!String(cur.caption || '').trim() || (eff.caption != null && String(eff.caption) !== String(m.caption || '')), thumb: _trvPicOf(m, cur), caption: eff.caption != null ? String(eff.caption) : String(m.caption || ''),
             answer: _trvAnswer(cur, _trvStage(mode)), status: cur.status, part: cur.status === 'change asked' ? (cur.change_part || 'video') : '', note: String(cur.change_note || '') };
     }
     // The quiet "Trial" chip a trial card carries on the review boards ('' for any other card, or with the switch off).

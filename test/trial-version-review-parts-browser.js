@@ -51,6 +51,7 @@ const PNG = require('node:fs').readFileSync(require('node:path').join(__dirname,
     const x = extra || {};
     const T = { versions: fresh(), calls: [], failList: !!x.failList };
     if (x.thumbs) T.versions.forEach(v => { if (v.letter in x.thumbs) v.thumbnail_url = x.thumbs[v.letter]; });
+    if (x.caps) T.versions.forEach(v => { if (v.letter in x.caps) v.caption = x.caps[v.letter]; });
     if (mode !== 'smm') T.versions.forEach(v => { v.smm_ok_at = '2026-11-03T08:00:00.000Z'; if (mode === 'client') v.kasper_ok_at = '2026-11-03T08:10:00.000Z'; });
     const flagValues = { trial_reels_pages: { clients: [SLUG] }, trial_versions_v2: { clients: v2 ? [SLUG] : ['someotherclient'] } };
     if (x.layout2) flagValues.review_stage_kasper_layout2 = { all: true };
@@ -207,6 +208,34 @@ const PNG = require('node:fs').readFileSync(require('node:path').join(__dirname,
     s = await see(t, 'graphic');
     ok(/Change asked on Version C's thumbnail/.test(s.text), 'client: Version C\'s Thumbnail part then reads "Change asked on Version C\'s thumbnail"');
     ok(!t.errors.length, 'client part change: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- a part change keeps the version its box was opened on, if another tab is picked before it is sent (Codex on #2590) ----------
+    // Kasper's second layout shows every part and the tabs at once, so the tab can change while a part's box is open.
+    t = await start('kasper', true, { layout2: true });
+    await inS(t.page, '.trs [data-trk-go="C"]').click(); await sleep(900);
+    await inS(t.page, '[data-chg="graphic"]').first().click(); await sleep(500);
+    await inS(t.page, '#ta').first().fill('Less contrast, please.');
+    await inS(t.page, '.trs [data-trk-go="B"]').click(); await sleep(700);
+    const stillOpen = await inS(t.page, '#ta').count() && /Less contrast/.test(await inS(t.page, '#ta').first().inputValue());
+    if (stillOpen) await inS(t.page, '#ta').first().press('Enter');
+    await waitFor(async () => t.T.calls.some(c => c.action === 'answer' && c.kind === 'change'));
+    await sleep(600);
+    const swAns = t.T.calls.filter(c => c.action === 'answer' && c.kind === 'change');
+    ok(stillOpen && swAns.length === 1 && swAns[0].letter === 'C' && swAns[0].part === 'thumbnail' && t.T.versions[1].status === 'waiting',
+      'Kasper: a Thumbnail change opened on Version C is stored on C even after Version B is picked (' + JSON.stringify(swAns.map(c => c.letter + ':' + c.part)) + ', box ' + !!stillOpen + ')');
+    ok(!t.errors.length, 'Kasper part change across tabs: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- the version on the card with its own caption: no Edit, which would write the card's hidden caption (Codex on #2590) ----------
+    t = await start('client', true, { caps: { A: 'Version A own words, fixture.' } });
+    s = await see(t, 'caption');
+    const editOwn = await inS(t.page, '#editBtn').count();
+    ok(s.caps.length === 1 && s.caps[0] === 'Version A own words, fixture.' && !editOwn, 'client: Version A (on the card) with its own caption shows it and offers no Edit (' + editOwn + ')');
+    await t.ctx.close();
+    t = await start('client', true);
+    s = await see(t, 'caption');
+    ok(await inS(t.page, '#editBtn').count() === 1, 'client: Version A with no caption of its own keeps the card caption\'s Edit');
     await t.ctx.close();
 
     // ---------- the same change with the client page's polish on: its queue watches the graphic part (Codex on #2571) ----------

@@ -2628,8 +2628,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const x = m.parts.find(p => p.key === k);
         const editing = S.editing === k, yt = k === 'title';
         const vw = k === 'caption' ? _rsShown(m)._vw : null;
-        // A version that is not the one on the card is shown, not edited here: its caption is its own (688).
-        const canEdit = R.mode !== 'kasper' && _rsActive(m) && x.st === 'wait' && !_rsWriting(x) && !S.editSaving[m.id + '|' + k] && !(vw && !vw.onCard);
+        // A version that is not the one on the card is shown, not edited here: its caption is its own (688). Nor is the
+        // one on the card when it has its own caption: Edit writes the card's caption, which that caption hides (Codex on #2590).
+        const canEdit = R.mode !== 'kasper' && _rsActive(m) && x.st === 'wait' && !_rsWriting(x) && !S.editSaving[m.id + '|' + k] && !(vw && (!vw.onCard || vw.ownCaption));
         const head = '<div class="tc-h">' + (canEdit && !editing ? '<button class="b-edit" type="button" id="editBtn">' + RI.pen + 'Edit the ' + _rsLname(k) + '</button>' : '') + '</div>';
         const fold = R.mode === 'kasper' && x.st === 'ok' && !yt;
         const open = !!S.exp[m.id + k];
@@ -3362,7 +3363,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, pm = _rsCur(), px = pm && pm.parts.find(p => p.key === key);
         S.note.part = key; S.note.where = 'chat'; S.note.aat = false; S.note.pick = false;
         S.note.was = px ? px.st : '';
-        S.note.trialLetter = key === 'video' ? svTrialReviewLetter(pm, R.mode) : '';
+        // A thumbnail or caption change on a version tab is about the version on screen as the box opens, too (Codex on #2590).
+        S.note.trialLetter = key === 'video' || ((key === 'graphic' || key === 'caption') && svTrialReviewPartView(pm, R.mode)) ? svTrialReviewLetter(pm, R.mode) : '';
         S.note.trialPart = '';
     }
     /* "Ask for a change" (session Linkpolish, 2026-11-01). A part picked, or the stage's own change box: it sends as before.
@@ -3603,7 +3605,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // Version tabs (688): a change on the selected version's thumbnail or caption goes on that version, with its part,
         // the way V4's part picker sends it (the request still reaches the card's thumbnail or caption part).
         const vw = (comp === 'graphic' || comp === 'caption') && !opts.trial && m && m.trial ? svTrialReviewPartView(m, R.mode) : null;
-        if (vw) return _rsSendChange(m, 'video', text, Object.assign({}, opts, { trialLetter: vw.letter, trialPart: comp === 'graphic' ? 'thumbnail' : 'caption' }));
+        if (vw) return _rsSendChange(m, 'video', text, Object.assign({}, opts, { trialLetter: opts.trialLetter || vw.letter, trialPart: comp === 'graphic' ? 'thumbnail' : 'caption' }));
         // Trial reels (194): the change is recorded on the version it was asked on (else the one on screen) and today's
         // request names it ("Video C: ..."). Kasper's "Approve after tweaks" too: it says which version the editor
         // fixes (Probe rule-miss 11), and then goes on as today.
@@ -3926,7 +3928,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         S.note.part = key; S.note.where = where || 'stage'; S.note.aat = !!aat; S.note.re = null;
         const cm = _rsCur(), cx = cm && cm.parts.find(p => p.key === key);
         // A trial card's change is about the version on screen as the box opens (Probe bugs 10 and 10b).
-        S.note.trialLetter = key === 'video' ? svTrialReviewLetter(cm, R.mode) : '';
+        S.note.trialLetter = key === 'video' || ((key === 'graphic' || key === 'caption') && svTrialReviewPartView(cm, R.mode)) ? svTrialReviewLetter(cm, R.mode) : '';
         S.note.trialPart = '';
         S.note.was = cx ? cx.st : '';
         if (S.step !== key) S.step = key;
@@ -3960,7 +3962,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
-        const trialLetter = k === 'video' ? (S.note.trialLetter || svTrialReviewLetter(m, R.mode)) : '';
+        const trialLetter = k === 'video' ? (S.note.trialLetter || svTrialReviewLetter(m, R.mode)) : (k === 'graphic' || k === 'caption') ? String(S.note.trialLetter || '') : '';
         const trialPart = k === 'video' ? String(S.note.trialPart || '') : '';
         const reply = !k && S.note.re && S.note.re.part && m.parts.some(p => p.key === S.note.re.part) ? S.note.re.part : '';
         const replyTo = reply && (R.mode === 'client' || R.cp) ? String(S.note.re.id || '') : '';

@@ -745,6 +745,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: Kasper's Redo on each part (Chromium and WebKit; the first click arms it and sends nothing, the second sends the fixed team-only note once and the part goes to Tweaks Needed, left alone it disarms; a post, a sample, phone width; never on the client's or the SMM's page; OPEN_REPAIRS 694)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          KASPER_REDO_REQUIRE_WEBKIT: '1'
+        run: node test/review-stage-kasper-redo-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -36290,7 +36290,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - **Short or regular:** a Short is refused when the file is known to be over 3 minutes ("this video is 4:00. Post it as a regular video.") or not vertical. An unknown length or shape is left to YouTube.
   - **Limits:**
     - YouTube title 1 to 100 characters, no `<` or `>`;
-    - caption 5,000 bytes with YouTube, 3,000 characters with LinkedIn, Instagram's 2,200 only when Instagram is ticked;
+    - caption 2,200 characters for every network, because `instagram_uploads.title` holds 2,200 (no migration; Codex P2 on #2557), and 5,000 bytes with YouTube;
     - a trial and a carousel stay Instagram's;
     - one account per network.
   - **Queue row:**
@@ -36300,7 +36300,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     - `publicRow` shows `network`, `networks` and the YouTube title and format, never an account id.
 - **No migration** (JSON columns, as Facebook). No new secret.
 - **Proof:**
-  - `test/instagram-networks.js` (new, unit, 62 checks):
+  - `test/instagram-networks.js` (new, unit, 66 checks):
     - one post with three accounts;
     - Instagram unticked (YouTube first, Facebook first, nothing ticked refused);
     - a 4-minute vertical file refused as a Short and accepted as regular;
@@ -36317,7 +36317,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     - no account id to the page.
     On main it fails (`applyProfileSettings` is not there).
   - Every existing Instagram and Facebook suite passes unchanged: `instagram-upload-source` (139), `instagram-facebook-crosspost` (79).
-  - The test also found and fixed one bug before commit: Instagram's 2,200-character limit had been applied with Instagram unticked.
+  - Codex P2 on #2557, fixed: a YouTube-, LinkedIn- or Facebook-only post answered "processed" now waits for its own result instead of being marked posted.
 - **Live check (D6), after merge:** on one of the owner's clients with YouTube and LinkedIn connected, schedule 7+ days ahead through Post for Me's `scheduled_at`, cancel at once, read back gone. The page half and its live check follow P1b.
 - **Way back:** revert the PR. Rows already written keep reading as Instagram.
 

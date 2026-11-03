@@ -71,9 +71,9 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
     ok(/over 100/.test(build({ youtube: yt({ title: 'x'.repeat(101) }) }).error), 'a title over 100 characters is refused');
     ok(build({ youtube: yt({ title: 'x'.repeat(100) }) }).ok, '100 characters is fine');
     ok(/< or >/.test(build({ youtube: yt({ title: 'a <b>' }) }).error), 'YouTube refuses < and > in a title');
-    ok(/LinkedIn's 3000/.test(build({ title: 'x'.repeat(2100), linkedin: { accountId: LI }, socialAccountId: '', instagram: false }).error) === false, '2,100 characters is fine for LinkedIn');
-    ok(/LinkedIn's 3000/.test(build({ title: 'x'.repeat(3001), instagram: false, socialAccountId: '', linkedin: { accountId: LI } }).error), 'over 3,000 characters is refused for LinkedIn');
-    ok(/5,000 bytes/.test(build({ title: 'é'.repeat(2600), instagram: false, socialAccountId: '', youtube: yt() }).error), 'a caption over 5,000 bytes is refused for YouTube');
+    ok(build({ title: 'x'.repeat(2200), linkedin: { accountId: LI }, socialAccountId: '', instagram: false }).ok, '2,200 characters is fine with Instagram unticked');
+    eq(build({ title: 'x'.repeat(2201), instagram: false, socialAccountId: '', linkedin: { accountId: LI } }).error, 'caption is over 2200 characters', 'over 2,200 is refused with Instagram unticked too: the queue table holds 2,200 (Codex P2 on #2557)');
+    ok(/5,000 bytes/.test(build({ title: '漢'.repeat(1700), instagram: false, socialAccountId: '', youtube: yt() }).error), 'a caption over 5,000 bytes is refused for YouTube, within 2,200 characters');
     ok(/Instagram only/.test(build({ options: { trial_reel_type: 'manual' }, youtube: yt() }).error), 'a trial cannot go to YouTube');
     ok(/Instagram only/.test(build({ options: { trial_reel_type: 'manual' }, linkedin: { accountId: LI } }).error), 'or LinkedIn');
     ok(/carousel goes to Instagram/.test(build({ kind: 'carousel', mediaUrl: '', mediaUrls: ['https://data.postforme.dev/a.jpg', 'https://data.postforme.dev/b.jpg'], youtube: yt() }).error), 'a carousel stays Instagram\'s');
@@ -126,6 +126,11 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
     eq([created.status, created.options.networks.youtube.status, created.options.networks.linkedin.status], ['scheduled', 'scheduled', 'scheduled'], 'an accepted post moves every network');
     const now = L.applyCreateResponse({ ...b.row, status: 'uploading', scheduled_for: null }, { id: 'sp_2', status: 'processed' }, 'x');
     eq(now.status, 'processing', '"processed" with other networks waits for each one\'s result');
+    for (const only of [{ youtube: yt() }, { linkedin: { accountId: LI } }, { alsoFacebook: true, facebookAccountId: FB }]) {
+      const single = build(Object.assign({ socialAccountId: '', instagram: false }, only)).row;
+      eq(L.applyCreateResponse(single, { id: 'sp_9', status: 'processed' }, 'x').status, 'processing', single.options.network + '-only: "processed" waits for its own result (Codex P2 on #2557)');
+    }
+    eq(L.applyCreateResponse(build({}).row, { id: 'sp_8', status: 'processed' }, 'x').status, 'posted', 'an Instagram-only row keeps its old shortcut');
     const failed = L.applyCreateResponse(b.row, { message: 'nope' }, 'x');
     eq([failed.options.networks.youtube.status, failed.options.networks.linkedin.error], ['failed', 'nope'], 'a refused create fails every network');
     const results = { data: [

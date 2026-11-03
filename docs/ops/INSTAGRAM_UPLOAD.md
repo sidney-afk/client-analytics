@@ -98,9 +98,9 @@ nothing posted from SyncView reached Facebook.
     the one on the profile, and on that network according to Post for Me, before anything is written.
   - **Short or regular:** a Short is refused when the page knows the file is over 3 minutes or not vertical, and the
     same file goes as a regular video. YouTube itself decides the shelf; Post for Me has no Shorts flag.
-  - **Limits:** the caption limits are each network's: Instagram 2,200 characters when ticked, LinkedIn 3,000,
-    YouTube's description 5,000 bytes. A trial and a carousel stay Instagram's (and Facebook's, for a photo
-    carousel).
+  - **Limits:** every caption is 2,200 characters at most, whichever networks are ticked, because the queue table
+    holds 2,200. With YouTube the caption (its description) must also be 5,000 bytes or less. A trial and a carousel
+    stay Instagram's (and Facebook's, for a photo carousel).
   - **Queue row:** `options.network` names the row's own network when it is not Instagram;
     `options.networks.{youtube,linkedin}` keep each one's own status, link and error; `options.youtube` keeps the
     title, format and made for kids. Rows written before keep reading as Instagram. The page half (the ticks on the

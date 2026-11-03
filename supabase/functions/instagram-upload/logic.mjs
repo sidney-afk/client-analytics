@@ -14,9 +14,9 @@ export const CAROUSEL_PLACEMENT = 'timeline';
 export const CAROUSEL_MIN_ITEMS = 2;
 export const CAROUSEL_MAX_ITEMS = 10;
 export const KINDS = Object.freeze(['reel', 'carousel']);
+// Instagram's own limit, and also what instagram_uploads.title holds (migrations/2026-09-30-instagram-uploads.sql), so
+// it is the limit for every network posted through this function (Codex P2 on #2557: no migration for a longer one).
 export const MAX_CAPTION_CHARS = 2200;
-// With Instagram unticked, the longest caption any other network here takes (YouTube's description, 5,000 bytes).
-export const OTHER_CAPTION_MAX_CHARS = 5000;
 // A trial reel is shown to non-followers first. Only Post For Me's "manual" kind is offered: the reel stays
 // a trial until someone shares it to followers in the Instagram app. "performance" (Instagram shares it by
 // itself if it does well) is refused, so a trial can never reach followers without a person deciding.
@@ -168,7 +168,6 @@ export const MADE_FOR_KIDS_COLUMN = 'youtube_made_for_kids';
 export const ACCOUNT_COLUMNS = Object.freeze({ instagram: ACCOUNT_COLUMN, facebook: FACEBOOK_ACCOUNT_COLUMN, youtube: YOUTUBE_ACCOUNT_COLUMN, linkedin: LINKEDIN_ACCOUNT_COLUMN });
 export const YOUTUBE_TITLE_MAX = 100;
 export const YOUTUBE_DESCRIPTION_MAX_BYTES = 5000;
-export const LINKEDIN_CAPTION_MAX = 3000;
 export const YOUTUBE_FORMATS = Object.freeze(['short', 'regular']);
 export const YOUTUBE_SHORT_MAX_SECONDS = 180;
 export const YOUTUBE_PRIVACY = 'public';
@@ -211,7 +210,6 @@ function networksFromInput(body, { trial, title, instagramOn, ids }) {
     const l = typeof body.linkedin === 'object' ? body.linkedin : {};
     const got = takeId(l.accountId, 'LinkedIn');
     if (got.error) return { ...out, error: got.error };
-    if (title.length > LINKEDIN_CAPTION_MAX) return { ...out, error: 'the caption is over LinkedIn\'s ' + LINKEDIN_CAPTION_MAX + ' characters' };
     out.linkedin = { account_id: got.id };
   }
   return out;
@@ -303,8 +301,7 @@ export function buildCreate(input, nowMs, actor) {
   if (instagramOn && !ACCOUNT_ID_RE.test(accountId)) return { ok: false, error: 'socialAccountId must be a Post For Me connection id (spc_...)' };
   if (!instagramOn && clean(accountId)) return { ok: false, error: 'socialAccountId is for Instagram, which is not ticked' };
   if (!title) return { ok: false, error: 'caption required' };
-  // Instagram's 2,200 is the limit only when Instagram is ticked; YouTube and LinkedIn check their own below.
-  if (title.length > (instagramOn ? MAX_CAPTION_CHARS : OTHER_CAPTION_MAX_CHARS)) return { ok: false, error: 'caption is over ' + (instagramOn ? MAX_CAPTION_CHARS : OTHER_CAPTION_MAX_CHARS) + ' characters' };
+  if (title.length > MAX_CAPTION_CHARS) return { ok: false, error: 'caption is over ' + MAX_CAPTION_CHARS + ' characters' };
   if (!MEDIA_URL_RE.test(mediaUrl)) return { ok: false, error: 'mediaUrl must be a Post For Me media url' };
   if (body.mediaUrls != null) return { ok: false, error: 'mediaUrls is only for a carousel' };
 
@@ -503,7 +500,8 @@ export function applyCreateResponse(row, resp, nowIso) {
   // "processed" means Post For Me handled the post, not that each network took it. On a cross-post both
   // networks wait for their own result (a failure on either must show); an Instagram-only row keeps its
   // old behaviour.
-  else if (pf === 'processed' && !facebookPart(row) && !networkParts(row).length) status = 'posted';
+  // Only for an Instagram row (Codex P2 on #2557): a YouTube-, LinkedIn- or Facebook-only post waits for its own result.
+  else if (pf === 'processed' && !(row.options && row.options.network) && !facebookPart(row) && !networkParts(row).length) status = 'posted';
   const next = { ...row, status, post_id: postId, error: '', posted_at: status === 'posted' ? nowIso : row.posted_at, updated_at: nowIso };
   return withAllParts(next, { status, error: '' });
 }

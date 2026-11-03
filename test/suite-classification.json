@@ -341,6 +341,7 @@
     "index-split.js",
     "instagram-upload-source.js",
     "instagram-facebook-crosspost.js",
+    "instagram-networks.js",
     "intake-created-status-server-guard.js",
     "intake-not-assigned.js",
     "intake-post-names.js",

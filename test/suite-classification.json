@@ -80,6 +80,7 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "frameio-list-live-check.js",
     "trial-version-fields-migration.js",
     "trial-version-status-logic.js",
     "alert-digest.js",

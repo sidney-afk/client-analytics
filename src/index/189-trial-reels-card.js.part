@@ -610,8 +610,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         if (s === 'dropped') return '<span class="sv-dropped-note" data-l="dropped">dropped</span>';
         // The client said "Not this one" (owner, 2026-10-28): the team sees it and drops the version.
-        if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client dropped" title="' + _calEscAttr('The client dropped this version: take it off the card. ' + _trlStagesTitle(v)) + '">Client dropped</span>';
-        return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '"' + (v ? ' title="' + _calEscAttr(_trlStagesTitle(v)) + '"' : '') + '>' + _calEsc(s) + '</span>';
+        if (v && v.client_pass_at && s === 'waiting') return '<span class="trl-lab" data-l="client dropped" data-tip="' + _calEscAttr('The client dropped this version: take it off the card. ' + _trlStagesTitle(v)) + '">Client dropped</span>';
+        return '<span class="trl-lab" data-l="' + _calEscAttr(s) + '"' + (v ? ' data-tip="' + _calEscAttr(_trlStagesTitle(v)) + '"' : '') + '>' + _calEsc(s) + '</span>';
     }
 
     /* The switch alone, for a card whose switch is off (today's row plus this), with a small muted "Trial reels" word so
@@ -994,7 +994,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _trlStatusPickHtml(pid, v) {
         const l = _calEscAttr(v.letter), p = _calEscAttr(pid), s = String(v.card_status), word = _calEscAttr(s);
-        return '<button type="button" class="trl-lab trl-st" data-l="' + word + '" aria-haspopup="menu" title="' + _calEscAttr(_trlStagesTitle(v)) + '"'
+        // Who approved it, in the shared tooltip only (data-tip, never a native title that sits over the menu; OPEN_REPAIRS 686).
+        return '<button type="button" class="trl-lab trl-st" data-l="' + word + '" aria-haspopup="menu" aria-expanded="false" data-tip="' + _calEscAttr(_trlStagesTitle(v)) + '"'
             + ' aria-label="Video ' + l + ' status: ' + word + '" onclick="svTrialStatusMenu(event,\'' + p + '\',\'' + l + '\',this)">' + _calEsc(s) + '</button>';
     }
     function svTrialStatusMenu(event, pid, letter, btn) {

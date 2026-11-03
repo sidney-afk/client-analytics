@@ -36800,3 +36800,22 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed each of the card's 3 versions' blocks with their pictures, at 1440 and 390, with nothing scrolling sideways.
   - SMM and Kasper opened no trial card, because none of the test client's non-archived trial cards waits for them (OPEN_REPAIRS 662).
 - **Way back:** delete the workflow. It only runs when dispatched by hand.
+
+## 686. [2026-11-03 UTC, BUILT, NOT MERGED] A trial version's status pill showed the browser's own tooltip over its menu, and brought a tooltip back after the menu closed (session Vbuild)
+
+- **Seen:** Sidney, 3 Nov, on the test client's Calendar Sheet.
+  - Hovering a version's status pill showed a browser-native tooltip ("SMM: approved · Kasper: approved · Client: approved").
+  - Clicking the pill opened the status menu, and that tooltip sat over it.
+  - Clicking out closed the menu, and a tooltip came back with no pointer over the pill.
+  - "We need to fix the whole hover system."
+- **Why** (the shared tooltip, `345-core-tooltip-date-picker.js.part`, which replaces native titles across the app):
+  1. A press hid the shared tip and put the element's `title` back at once. The pointer was still resting on it, so the browser painted its own native tooltip a moment later, over the menu the press had opened.
+  2. The status menu closes through `svLayerRelease(..., { focus: true })`, which hands focus back to the pill. The shared tip opened on any focus, so it came back after a mouse action.
+  3. Nothing told the tip that the pill's own menu was open.
+- **Fix, for the whole app's tooltips, not only the trial card:**
+  - A press hides the tip and keeps the element's title off until the pointer leaves it. Screen readers get it back from then on.
+  - Focus shows a tip only for keyboard focus (`:focus-visible`). Focus handed back after a mouse action shows nothing. Explainable labels (`data-sv-explain`) keep their touch and keyboard help unchanged.
+  - A trigger marked `aria-expanded="true"` shows no tip. The card's and the versions' status menus now set it on their pill while open and clear it on close, which also tells assistive tech the menu is open.
+  - On the trial card, the version status pills and labels carry their who-approved text as the shared tooltip's `data-tip`, never a native `title`.
+- **Proof:** `test/trial-hover-tooltip-browser.js` (10 checks, offline, real browser). It walks hover, click, a move over the pill while the menu is open, a click outside and a moment later, then a press on another titled control. On main 6 of them fail: the tooltip shows over the open menu and the native title comes back. All 10 pass with the fix.
+- **Way back:** revert the PR.

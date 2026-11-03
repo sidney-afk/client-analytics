@@ -36136,7 +36136,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
 - **Way back:** revert the PR and run the ROLLBACK file.
 
-## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+## 656. [2026-11-02 UTC, LIVE (merged #2535 as deba3bc; trial_versions_v2 on for the test client 00:32 UTC; checked live by entry 659's workflow, run 41563650679, 2026-11-03)] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
 
 - **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
 - **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
@@ -36170,6 +36170,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` is unchanged and passes.
 - **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+- **Live (3 Nov):** on a test-client trial card that is not linked to Production, version A was walked by the robot SMM key: For SMM Approval (no-op), Kasper Approval, Client Approval, Tweaks Needed, Approved, then back. Every step passed (5 of 5). Each step read back its status and wrote exactly one `trial_status` row. The card row was never written, and the put-back read back. The card's trial switch was turned on for the run and ended off, with no version seeded or removed. The supervisor's own read afterwards: switch off, 5 `trial_status` rows, card still For SMM Approval.
 ## 657. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V3: each version's own thumbnail and caption, the effective read, and the winner's copied onto the card (plan combined.md row V3; session Vbuild)
 
 - **Asked:** Sidney wants trial versions to differ in thumbnail and caption, not only in video. Plan row V3, on F2's columns (migration `20261102200000`, #2530).
@@ -36200,7 +36201,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.
 
 
-## 659. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+## 659. [2026-11-03 UTC, LIVE (merged #2549 as 9e233cf; dispatched, run 41563650679 green)] Trial versions, V1: a live check of the version status picker, as the robot SMM key
 
 - **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
 - **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
@@ -36222,5 +36223,5 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
 - **Proof:** `test/trial-version-status-live-check.js` (40 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, the put-back after a read that fails mid-walk, and the opt-in switch: on and off, refused when already on, a seeding switch-on, and a switch that will not turn off, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
 - **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
-- **Live result:** filled in by the supervisor's dispatch.
+- **Live result (3 Nov, run 41563650679):** 5 of 5 steps passed, the put-back read back, the switch went on with 0 versions seeded and ended off with 0 removed. See entry 656.
 - **Way back:** delete the workflow. It runs only by hand.

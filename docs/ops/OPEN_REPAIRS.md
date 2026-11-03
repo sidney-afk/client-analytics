@@ -36576,6 +36576,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
     - the same guards as 659: the test client by hash; not Posted; not linked to Production; a trial card (or `switch_for_run`); a first read that heals nothing;
     - V3's and V2's own rules from the checkout (`versionFieldsPatch`, `importPlan`), run over the card's state as read;
     - a fields version that is the one on the card, dropped, on trial, or already answered (a fields change would send it back to the SMM);
+    - a fields version that already has its own caption or thumbnail (the put-back clears both, so it would lose them; Codex on #2568);
     - a share with no new video, or no free letter left.
   - **V3:**
     - The version's caption is set to a fixed fixture text. Its thumbnail is set to the card's own thumbnail, or, when the card has none, `syncview-favicon.png` from the SyncView site (supervisor: never a third-party host).
@@ -36586,17 +36587,19 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
     - The share is listed through frameio-view `part: "list"`. Every listed video no version already holds is imported as a new letter, in one `versions_import`.
     - Read back: the new letters are waiting, there is one `trial_versions_import` row each, and the card is unchanged.
     - Then the same video is offered under another letter: it must be refused (`link_used_by_another_version`) and write nothing.
+  - **Put back, always, from what was sent (Codex on #2568):** a write whose reply is lost still counts. The put-back reads the card afresh and undoes whatever it finds: the fields set, any attempted letter not yet dropped, and the switch.
   - **Put back, always:**
     - In a `finally`: the fields are cleared, and every imported letter is dropped (the table has no delete grant). The summary reports `imported_rows_left_dropped`.
     - In an outer `finally`: a switch turned on for the run is turned off and read back, with no version changed.
   - **Empty `frame_share`:** the run does V3 only and says `import_skipped: no_frame_share`.
-- **Proof:** `test/trial-versions-fields-import-live-check.js` (30 checks, offline, against a fake backend that answers with V2's and V3's real rules). It covers:
+- **Proof:** `test/trial-versions-fields-import-live-check.js` (34 checks, offline, against a fake backend that answers with V2's and V3's real rules). It covers:
   - a full run, and a V3-only run;
   - the placeholder thumbnail, and a run that logs no fields rows ("writes none");
   - the switch opt-in;
   - refusals before any write: an answered version, the version on the card, another client, a share with nothing new;
   - runs that must fail: a card written by the function, and an import that is not refused the second time;
   - a failure mid-run that still drops the imported letters and clears the fields;
+  - a version with its own caption refused before any write; an import, a fields write and a switch-on whose replies are lost, each still put back;
   - and that the summary never prints the card, the client, a link, a caption or a key.
 
   659's own test is unchanged and passes (40). On main the script does not exist.

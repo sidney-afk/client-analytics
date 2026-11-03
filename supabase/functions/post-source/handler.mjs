@@ -70,6 +70,28 @@ export function thumbSource(raw) {
   return url.href;
 }
 
+// A response body read piece by piece and stopped as soon as it passes `cap`, so a server that states no size (or a
+// wrong one) can never make this function hold more than the cap (supervisor and Codex P2 on #2554). Answers the
+// bytes, or TOO_BIG.
+const TOO_BIG = Symbol('too_big');
+async function readCapped(body, cap) {
+  if (!body || typeof body.getReader !== 'function') return null;
+  const reader = body.getReader();
+  const parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) { try { await reader.cancel(); } catch { /* already closed */ } return TOO_BIG; }
+    parts.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.byteLength; }
+  return out;
+}
+
 // The thumbnail into its own Post for Me address. Never fails the post: it answers { url, note }, url null with the
 // reason in note.
 async function copyThumb(deps, raw) {
@@ -84,9 +106,9 @@ async function copyThumb(deps, raw) {
   const stop = () => { try { resp.body && resp.body.cancel && resp.body.cancel(); } catch { /* already closed */ } };
   if (!type) { stop(); return none('The card\'s thumbnail is not a JPEG or PNG, which Instagram needs for a cover. Pick a cover by hand.'); }
   if (said > THUMB_MAX_BYTES) { stop(); return none('The card\'s thumbnail is over 8 MB. Pick a smaller cover by hand.'); }
-  const bytes = await resp.arrayBuffer().catch(() => null);
+  const bytes = await readCapped(resp.body, THUMB_MAX_BYTES).catch(() => null);
+  if (bytes === TOO_BIG) return none('The card\'s thumbnail is over 8 MB. Pick a smaller cover by hand.');
   if (!bytes || !bytes.byteLength) return none('The card\'s thumbnail could not be read. Pick a cover by hand.');
-  if (bytes.byteLength > THUMB_MAX_BYTES) return none('The card\'s thumbnail is over 8 MB. Pick a smaller cover by hand.');
   const target = await deps.mint().catch(() => null);
   if (!target || !target.ok || !clean(target.upload_url) || !clean(target.media_url)) return none('Post for Me did not give an address for the thumbnail. Pick a cover by hand.');
   const put = await deps.fetchFn(target.upload_url, { method: 'PUT', headers: { 'Content-Type': type, 'Content-Length': String(bytes.byteLength) }, body: bytes }).catch(() => null);

@@ -28,8 +28,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import {
-  applyCreateResponse, applyResults, buildCreate, cancelInPostForMe, clientAllowed, expectedAccountId, expectedFacebookAccountId,
-  facebookPart, findClientProfile, markCancelled, needsRefresh, platformMismatch, publicRow, refreshCandidates,
+  applyCreateResponse, applyProfileSettings, applyResults, buildCreate, cancelInPostForMe, checkNetworkAccounts, clientAllowed,
+  expectedAccountId, expectedFacebookAccountId, facebookPart, findClientProfile, markCancelled, needsRefresh, networkParts,
+  platformMismatch, publicRow, refreshCandidates,
 } from "./logic.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
@@ -95,6 +96,7 @@ Deno.serve(async (req) => {
       updated_at: next === row ? row.updated_at : next.updated_at, last_checked_at: nowIso,
     };
     if (facebookPart(row)) patch.options = next.options;
+    if (networkParts(row).length) patch.options = next.options;
     const { error } = await db.from("instagram_uploads").update(patch).eq("id", row.id);
     return error || next === row ? row : next;
   };
@@ -108,10 +110,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create") {
-      const built = buildCreate(body, Date.now(), actor);
+      const built: any = buildCreate(body, Date.now(), actor);
       if (!built.ok) return json({ ok: false, error: built.error }, 400);
-      const row = built.row!;
-      const postBody = built.postBody!;
+      let row: any = built.row!;
+      let postBody: any = built.postBody!;
       if (!clientAllowed(row.client, Deno.env.get("INSTAGRAM_UPLOAD_ALLOWED_CLIENTS"))) {
         return json({ ok: false, error: "Instagram posting is not switched on for this client yet." }, 403);
       }
@@ -123,6 +125,9 @@ Deno.serve(async (req) => {
       // The account must be the one on file for this client: a caller cannot swap in another client's account.
       const { data: profiles, error: pErr } = await db.from("client_profiles").select("slug,display_name,extra").is("archived_at", null);
       if (pErr) throw pErr;
+      // Instagram ticked (options.network absent): its account, checked as it always was. Not ticked (P3): the
+      // row's first network is checked with YouTube and LinkedIn below.
+      if (!row.options.network) {
       const expected = expectedAccountId(findClientProfile(profiles || [], row.client));
       if (!expected) return json({ ok: false, error: "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile." }, 409);
       if (expected !== row.account_id) return json({ ok: false, error: "That account is not the one on file for this client." }, 403);
@@ -134,6 +139,7 @@ Deno.serve(async (req) => {
       }
       const mismatch = platformMismatch(acct.data);
       if (mismatch) return json({ ok: false, error: mismatch }, 400);
+      }
 
       // Also to Facebook: the Page must be the one on this client's profile, and Post For Me must say it is a
       // Facebook account. Checked before anything is written, so a bad Page never leaves a half-made post.
@@ -149,6 +155,14 @@ Deno.serve(async (req) => {
         const fbMismatch = platformMismatch(fbAcct.data, "facebook");
         if (fbMismatch) return json({ ok: false, error: fbMismatch }, 400);
       }
+
+      // YouTube and LinkedIn (and the first network when Instagram is not ticked): each account must be the one on
+      // this client's profile and on that network according to Post For Me, before anything is written (P3,
+      // OPEN_REPAIRS 652). Made for kids is then read from the profile, never from the page.
+      const profile = findClientProfile(profiles || [], row.client);
+      const others = await checkNetworkAccounts(row, profile, (id: string) => pfm(pfmKey, "GET", "/social-accounts/" + encodeURIComponent(id)));
+      if (!others.ok) return json({ ok: false, error: others.error }, others.status);
+      ({ row, postBody } = applyProfileSettings(row, postBody, profile));
 
       if (existing) {
         // An earlier attempt with this key never got a post id back. If Post For Me did accept it, adopt it: never a second post.

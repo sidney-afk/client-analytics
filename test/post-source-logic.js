@@ -59,8 +59,19 @@ function world(over = {}) {
       if (over.images && Object.prototype.hasOwnProperty.call(over.images, url)) {
         const img = over.images[url];
         if (img instanceof Error) throw img;
-        const bytes = new Uint8Array(img.bytes || 2048);
-        return { ok: img.status ? img.status < 300 : true, status: img.status || 200, headers: new Map([['content-type', img.type || 'image/jpeg'], ['content-length', String(bytes.length)]]), arrayBuffer: async () => bytes.buffer, body: { cancel() {} } };
+        // The body arrives in 1 MB pieces, as a real stream would; `read` counts what the handler took.
+        const total = img.bytes || 2048;
+        img.read = 0; img.cancelled = false;
+        const body = new ReadableStream({
+          pull(ctrl) {
+            if (img.read >= total) { ctrl.close(); return; }
+            const n = Math.min(MB, total - img.read);
+            img.read += n; ctrl.enqueue(new Uint8Array(n));
+          },
+          cancel() { img.cancelled = true; },
+        }, { highWaterMark: 0 });
+        const headers = new Map([['content-type', img.type || 'image/jpeg']].concat(img.noLength ? [] : [['content-length', String(total)]]));
+        return { ok: img.status ? img.status < 300 : true, status: img.status || 200, headers, body };
       }
       const name = Object.keys(FRAME).find((k) => FRAME[k] === url);
       if (over.forbidOriginal && name === 'original') return { ok: false, status: 403, headers: new Map(), body: { cancel() {} } };
@@ -280,6 +291,19 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
       assert.equal(typeof r.body.thumb_note, 'string'); assert.ok(r.body.thumb_note.length > 0, thumb);
       assert.doesNotMatch(JSON.stringify(r.body), /cdn\.example\.test|127\.0\.0\.1|localhost/, thumb);
     }
+  });
+  await ok('a thumbnail with no stated size is read only up to 8 MB, then stopped (supervisor and Codex P2 on #2554)', async () => {
+    const huge = 'https://cdn.example.test/huge.jpg';
+    const images = { [huge]: { type: 'image/jpeg', bytes: 12 * MB, noLength: true } };
+    const w = world({ thumb: huge, images });
+    const r = await run(w, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r.body.ok, true); assert.equal(r.body.thumb_url, null); assert.match(r.body.thumb_note, /over 8 MB/);
+    assert.ok(images[huge].read <= 9 * MB, 'read ' + images[huge].read + ' bytes'); assert.equal(images[huge].cancelled, true);
+    assert.equal(w.calls.mints, 1);
+    const ok8 = 'https://cdn.example.test/ok.jpg';
+    const w2 = world({ thumb: ok8, images: { [ok8]: { type: 'image/jpeg', bytes: 3 * MB + 5, noLength: true } } });
+    const r2 = await run(w2, { client: 'test-client', post_id: 'p_1' });
+    assert.equal(r2.body.thumb_url, 'https://data.postforme.dev/m/2'); assert.equal(w2.calls.puts[1].headers['Content-Length'], String(3 * MB + 5));
   });
   await ok('a refused thumbnail upload leaves the video copied and the thumbnail empty', async () => {
     const w = world({ thumb: DRIVE, images: { [LH3]: { type: 'image/jpeg' } }, thumbPutFails: true });

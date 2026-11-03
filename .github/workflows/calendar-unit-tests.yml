@@ -313,9 +313,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      # A shallow checkout. fetch-depth 0 fetched every branch's full history,
+      # which outgrew this job's 5-minute limit on 3 Nov 2026 (the checkout
+      # alone ran 5 min and the job was cancelled). Only the annotate-only step
+      # needs the base, and it fetches that one commit itself, below.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # --against reads the base commit's index.html
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -342,7 +346,9 @@ jobs:
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'annotate-only')
         env:
           NODE_PATH: ${{ runner.temp }}/c3/node_modules
-        run: node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+          node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
 
   entry-links-boot:
     # Every signed-out special entry link (?intake=1, ?onboarding=1,

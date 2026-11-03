@@ -122,6 +122,22 @@ async function runEngine(type, origin) {
       expect(!t.errors.length, 'second layout: no page errors (' + t.errors.join(' | ') + ')');
     } finally { await t.browser.close(); }
   }
+  // 1b. From the keyboard (Codex on #2588): Enter arms it, focus stays on it, a second Enter sends once.
+  {
+    const t = await openKasper(type, origin, {});
+    try {
+      const before = writes(t);
+      await inS(t.page, '[data-redo="caption"]').first().focus();
+      await t.page.keyboard.press('Enter'); await sleep(500);
+      const st = await R(t.page, r => { const a = r.activeElement; return { armed: !!(r.querySelector('[data-redo="caption"]') || {}).classList?.contains('armed'), focused: !!(a && a.dataset && a.dataset.redo === 'caption') }; });
+      expect(st.armed && st.focused && writes(t) === before, 'keyboard: Enter arms Redo, focus stays on it, nothing is sent (' + JSON.stringify(st) + ')');
+      await t.page.keyboard.press('Enter');
+      for (let i = 0; i < 80 && !notesOn(t, 'card', 'caption').length; i++) await sleep(100);
+      await sleep(1200);
+      expect(notesOn(t, 'card', 'caption').length === 1, 'keyboard: a second Enter sends the note exactly once (' + notesOn(t, 'card', 'caption').length + ')');
+      expect(!t.errors.length, 'keyboard: no page errors (' + t.errors.join(' | ') + ')');
+    } finally { await t.browser.close(); }
+  }
   // 2. A sample: the same press goes through the Samples twin of the save path.
   {
     const t = await openKasper(type, origin, { withSample: true });

@@ -2914,9 +2914,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!c || b.disabled) return;
             if (_rsRedoArmed(c, k)) { R.S.redoArm = null; _rsSendChange(c, k, RS_REDO_NOTE, { where: 'stage' }); return; }
             const key = c.id + '|' + k, S0 = R.S;
+            // The redraw replaces the button: focus goes to its replacement, so a second Enter or Space confirms (Codex on #2588).
+            const refocus = () => { if (!R.root || R.root.activeElement || (document.activeElement && document.activeElement !== document.body && document.activeElement !== R.host)) return; const nb = R.root.querySelector('[data-redo="' + k + '"]'); if (nb) nb.focus({ preventScroll: true }); };
             R.S.redoArm = { key, until: Date.now() + RS_REDO_ARM_MS };
             _rsRender({ force: true });
-            setTimeout(() => { if (R.S === S0 && S0.redoArm && S0.redoArm.key === key) { S0.redoArm = null; _rsRender({ force: true }); } }, RS_REDO_ARM_MS);
+            refocus();
+            setTimeout(() => { if (R.S === S0 && S0.redoArm && S0.redoArm.key === key) { S0.redoArm = null; _rsRender({ force: true }); refocus(); } }, RS_REDO_ARM_MS);
         }));
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
         el.querySelectorAll('[data-pass]').forEach(b => b.addEventListener('click', () => svTrialReviewPass(cur(), R.mode, () => { const c = cur(); _rsApprove(c, 'video', '', true); }, () => _rsTrialToTweaks(cur()))));

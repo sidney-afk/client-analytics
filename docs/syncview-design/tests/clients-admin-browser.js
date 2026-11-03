@@ -93,6 +93,13 @@ async function open(browser, origin, role, viewport) {
         return json({ ok: true, manager_slug: b.manager_slug, old_manager_slug: b.expected_manager_slug });
       }
       if (b.action === 'history') return json({ ok: true, edits: [{ field: 'email', old_value: 'team1@example.invalid', new_value: 'changed@example.invalid', edited_by: 'QA admin', edited_at: '2026-10-07T10:00:00Z' }], manager_moves: [{ old_manager_slug: 'qamanagerone', new_manager_slug: 'qamanagertwo', edited_by: 'QA admin', edited_at: '2026-10-07T09:00:00Z' }] });
+      if (b.action === 'pfm_accounts_sync') {
+        if (ctl.pfm === 'down') return json({ ok: false, error: 'postforme_unreachable' }, 502);
+        return json({ ok: true, dry_run: false, accounts: 4, already_linked: 1,
+          linked: [{ slug: 'fixture1', field: 'postforme_youtube_account_id', account_id: 'spc_fixtureYouTube77', network: 'youtube', username: 'averytube', match: 'youtube_channel_id' }],
+          needs_person: [{ account_id: 'spc_fixtureFacebook77', network: 'facebook', username: 'Avery Page', reason: 'no_saved_handle_for_network' },
+            { account_id: 'spc_fixtureInstagram77', network: 'instagram', username: 'shared.one', reason: 'several_clients_match', candidates: ['fixture1', 'fixture2'] }] });
+      }
       if (b.action === 'status') return json({ ok: true, sheet_configured: true, service_account: 'robot@fixture.iam.example.invalid', sheet_id_secret: 'X' });
       if (ctl.edit === 'unshared') return json({ ok: false, error: 'sheet_not_shared' }, 502);
       if (b.action === 'refresh_from_sheet') return json({ ok: true, row: Object.assign({}, ROWS[0], { instagram_handle: '@from-sheet', updated_at: '2026-09-25T09:00:00Z' }) });
@@ -426,6 +433,26 @@ const measure = page => page.evaluate(() => {
       const offSent = s.edits[offBefore] && s.edits[offBefore].body;
       if (!offSent || JSON.stringify(offSent.changes) !== JSON.stringify({ youtube_made_for_kids: '' })) failures.push(`${label}: turning made-for-kids off sent ${JSON.stringify(offSent)}`);
       if (!/YouTube: made for kids[\s\S]*Off/.test(await p.evaluate(() => (document.querySelector('[data-ca-group="publish"]') || {}).innerText || ''))) failures.push(`${label}: made-for-kids does not read Off after turning it off`);
+
+      // Check Post for Me accounts (L1, OPEN_REPAIRS 666): one admin call, the answer drawn inline, the list reloaded.
+      const pfmBtn = await p.$('[data-ca-group="publish"] #caPfmBtn');
+      if (!pfmBtn || !/Check Post for Me accounts/.test(await pfmBtn.innerText())) failures.push(`${label}: no "Check Post for Me accounts" button in the Publishing card`);
+      if (phone && pfmBtn && (await pfmBtn.boundingBox()).height < 44) failures.push(`${label}: the check button is under 44px on a phone`);
+      s.ctl.pfm = 'down';
+      const pfmBefore = s.edits.length;
+      await p.click('#caPfmBtn').catch(() => {});
+      await p.waitForFunction(() => /could not be reached/.test((document.querySelector('[data-ca-pfm]') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: an unreachable Post for Me was not explained`));
+      const pfmSent = s.edits[pfmBefore];
+      if (!pfmSent || pfmSent.body.action !== 'pfm_accounts_sync' || pfmSent.key !== 'qa-admin-key' || pfmSent.body.member_id !== 'qa_admin') failures.push(`${label}: the check sent ${JSON.stringify(pfmSent && pfmSent.body)}`);
+      s.ctl.pfm = 'ok';
+      const readsBefore = s.calls.length;
+      await p.click('#caPfmBtn').catch(() => {});
+      await p.waitForFunction(() => /Linked 1 account\./.test((document.querySelector('[data-ca-pfm]') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the check's result was not drawn`));
+      const pfmText = await p.evaluate(() => (document.querySelector('[data-ca-pfm]') || {}).innerText || '');
+      if (!/YouTube @averytube to Avery Fixture/.test(pfmText) || !/2 need a person/.test(pfmText) || !/no saved handle to match/.test(pfmText) || !/More than one client has this handle saved/.test(pfmText) || !/1 already on a client/.test(pfmText))
+        failures.push(`${label}: the check's result reads ${JSON.stringify(pfmText)}`);
+      await p.waitForTimeout(400);
+      if (!(s.calls.length > readsBefore)) failures.push(`${label}: the client list was not reloaded after a link`);
 
       // History: read on demand.
       await p.click('#caHistBtn');

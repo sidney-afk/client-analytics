@@ -59,6 +59,8 @@ import {
   undoWinnerPatches,
   winnerPatches,
   autoTrialPatches,
+  fieldsAvailable,
+  versionFieldsPatch,
   statusLedgerRows,
   versionStatusPatches,
 } from "./logic.mjs";
@@ -128,6 +130,15 @@ async function readFlag(supabase: SupabaseClient): Promise<unknown> {
   return data && (data as JsonMap).value;
 }
 
+/* V3's switch (trial_versions_v2): the new field writes go only to a listed client, so a page from before cannot write
+   fields a newer page would then show differently. Read only by the actions that need it. */
+const FIELDS_FLAG_KEY = "trial_versions_v2";
+async function assertFieldsOn(supabase: SupabaseClient, client: string): Promise<void> {
+  const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", FIELDS_FLAG_KEY).maybeSingle();
+  if (error) throw new Refusal(503, "switch_unreadable");
+  if (!flagAllows(data && (data as JsonMap).value, client)) throw new Refusal(403, "fields_off");
+}
+
 async function assertSwitchOn(supabase: SupabaseClient, client: string): Promise<void> {
   if (!flagAllows(await readFlag(supabase), client)) throw new Refusal(403, "not_enabled");
 }
@@ -144,7 +155,7 @@ async function listCards(supabase: SupabaseClient, client: string, rows: JsonMap
     if (who.kind === "staff") await healMain(supabase, client, id, read, link, who);
     const { versions, winner } = await startIfPosted(supabase, client, id, read, card, who, sw.winner_letter, link);
     return [id, { enabled: true, winner_letter: winner || null,
-      ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status }) }] as const;
+      ...readShape(versions, { client: who.kind === "client", mainLink: link, cardStatus: card.video_status, card }) }] as const;
   }));
   const cards: JsonMap = {};
   for (const entry of listed) if (entry) cards[entry[0]] = entry[1];
@@ -197,7 +208,7 @@ async function principalFor(supabase: SupabaseClient, req: Request, client: stri
 
 async function readCard(supabase: SupabaseClient, client: string, postId: string): Promise<JsonMap> {
   const { data, error } = await supabase.from("calendar_posts")
-    .select("id,client,video_status,video_status_at,asset_url,video_deliverable_id")
+    .select("id,client,video_status,video_status_at,asset_url,video_deliverable_id,thumbnail_url,caption")
     .eq("client", client).eq("id", postId).maybeSingle();
   if (error) throw new Refusal(503, "card_unreadable");
   if (!data) throw new Refusal(404, "card_not_found");
@@ -527,7 +538,7 @@ Deno.serve(async (req: Request) => {
     const auto = await startIfPosted(supabase, client, postId, read, card, principal, sw.winner_letter, link);
     const versions = auto.versions;
     if (auto.winner !== sw.winner_letter) sw.winner_letter = auto.winner;
-    const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
+    const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status, card });
 
     if (action === "version_add") {
       const r = addVersion(versions, body.link, link);
@@ -537,7 +548,7 @@ Deno.serve(async (req: Request) => {
       outcome = "ok";
       announce(client, postId);
       return json({ ok: true, changed: [r.letter], winner_letter: sw.winner_letter || null,
-        ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) });
+        ...readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status, card }) });
     }
 
     if (action === "read") {
@@ -589,6 +600,15 @@ Deno.serve(async (req: Request) => {
       const r = versionStatusPatches(versions, { letter, status: body.status, cardStatus: card.video_status }, now);
       if (r.error) throw new Refusal(r.error === "status_follows_card" ? 409 : 400, r.error);
       changes = r.patches as Change[];
+    } else if (action === "version_fields_set") {
+      // V3: a version's own thumbnail and caption. Needs F2's columns (migration 20261102200000) and the V3 switch.
+      await assertFieldsOn(supabase, client);
+      if (!fieldsAvailable(versions)) throw new Refusal(503, "fields_unavailable");
+      const r = versionFieldsPatch(versions, { letter, thumbnail_url: body.thumbnail_url, caption: body.caption, mainLink: link });
+      if (r.error) throw new Refusal(r.error === "version_is_card" ? 409 : 400, r.error);
+      const v = versions.find((x) => x.letter === letter)!;
+      if (r.patch) changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
+      extra = { restarted: !!r.restarted };
     } else if (action === "version_link_set") {
       const r = linkPatch(versions, letter, body.link, link);
       if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
@@ -637,7 +657,7 @@ Deno.serve(async (req: Request) => {
       if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
     };
     const [after] = await Promise.all([afterP, ledger()]);
-    const fresh = readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status });
+    const fresh = readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status, card });
     outcome = "ok";
     if (changes.length || action === "winner_set" || action === "winner_undo") announce(client, postId);
     return json({ ok: true, changed: changes.map((c) => c.letter), ...extra, ...fresh });

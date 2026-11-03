@@ -1911,6 +1911,20 @@
         .trl-v .trl-st[data-l="Client Approval"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
         .trl-v .trl-st[data-l="Tweaks Needed"] { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
         .trl-v .trl-st[data-l="Approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+        /* V3: a version's own thumbnail and caption, under its row (189 _trlFieldsHtml). */
+        .trl-fields { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin: 2px 0 4px 22px; min-width: 0; font-size: 11px; }
+        .trl-fields .trl-f { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; border: 0; background: none; padding: 1px 0;
+            font: inherit; color: var(--text-secondary); text-align: left; }
+        .trl-fields button.trl-f { cursor: pointer; }
+        .trl-fields button.trl-f:hover .trl-f-v { color: var(--text-primary); text-decoration: underline; }
+        .trl-fields .trl-f-k { font-weight: 700; flex: none; }
+        .trl-fields .trl-f-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trl-fields .trl-f-same, .trl-fields .trl-f-note { font-style: italic; opacity: .8; }
+        .trl-fields .trl-f-img { width: 14px; height: 24px; object-fit: cover; border-radius: 2px; flex: none; }
+        .trl-fields .trl-f-img[hidden] { display: none; }
+        .trl-fields .trl-f-input { width: 100%; font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--sv-slot-video-border); border-radius: 6px;
+            background: var(--field-bg-focus); color: var(--text-primary); }
+        .trl-fields .trl-f-caption { resize: vertical; min-height: 56px; }
         .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }
@@ -5389,6 +5403,13 @@
         .ca-switch[aria-checked="true"] .ca-switch-knob { transform: translateX(14px); }
         .ca-switch.is-conflict .ca-switch-track { box-shadow: 0 0 0 2px var(--sv-fg-b91c1c); }
         @media (prefers-reduced-motion: reduce) { .ca-switch-track, .ca-switch-knob { transition: none; } }
+        .ca-pfm { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+        .ca-pfm-msg { margin: 10px 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--text-secondary); }
+        .ca-pfm-msg p { margin: 0 0 4px; }
+        .ca-pfm-msg.is-error { color: var(--sv-fg-b91c1c); }
+        .ca-pfm-list { margin: 0 0 8px; padding-left: 18px; }
+        .ca-pfm-list li { margin: 2px 0; color: var(--text-primary); }
+        .ca-pfm-to, .ca-pfm-why { color: var(--text-secondary); }
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
@@ -5476,7 +5497,7 @@
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
             html.pocket-admin-phone #kasperContent .ca-drop .ca-row { min-height: 52px; padding: 6px 10px; }
             .ca-row.is-active { box-shadow: none; }
-            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn, .ca-switch { min-height: 44px; }
+            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn, .ca-switch, .ca-pfm-btn { min-height: 44px; }
             .ca-iconbtn { min-width: 44px; }
             .ca-hero { padding: 18px 16px; border-radius: 16px; }
             .ca-hero-top { flex-wrap: wrap; gap: 14px; }

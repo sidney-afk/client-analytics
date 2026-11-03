@@ -36075,7 +36075,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
-## 673. [2026-11-02 UTC, BUILT, NOT APPLIED, NOT MERGED] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
+## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
 
@@ -36086,6 +36086,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Proof:** `test/slack-channel-stall-guard.js` + `scripts/slack-channel-stall-proof.sql` (disposable PostgreSQL, on top of the Create client proof): both orders (profile then form, form then profile), a typed email never overwritten, a test client and a channelled client left alone, a refusing roster and a broken web call never fail the write, one nudge per new email, the view's rows and its privileges. Fails without the file; mutation-checked. The view's query was run read-only on live: one row today (a client created 29 Oct, waiting for its form and email).
 - **Not done here, n8n (proposed on the PR, for the supervisor and owner):** make an empty profile email WAIT instead of park, so a job also recovers on its own when the email is typed by hand; and stop the manual-reconcile DM from carrying the form answers (it holds the account-access lines). Never applied by this session.
 - **Owner steps:** Lighthouse applies the migration; the supervisor adds the watcher query from the PR. Rollback is in the file's header.
+- **LIVE (2026-11-02, about 23:13 UTC, applied by the supervisor; re-read by Chanfix):** merged in #2540 (`bd1fea9`); the migration is applied (all 4 triggers present, the view returns 1 row, and neither anon nor service_role can read it); the hourly onboarding watcher now reads `client_slack_channel_stalls_v1`. n8n change 1 is live on the owner's go: in the finalizer's "Check Readiness and Slack Decision", an empty profile email now WAITS (`waiting_for_readiness`) instead of parking, active version `49a29c76` (before `aedcda8b`, see `docs/ops/N8N_EDIT_LOG.md`). n8n change 2 (dropping the form answers from the manual-reconcile DM) was **declined by the owner**: he wants the logins in his DM. Leave it as it is.
 
 ## 670. [2026-11-02 UTC, BUILT, NOT MERGED] frameio-view lists the videos in a Frame.io folder, and has a strict lookup (session Framefix, plan item F1)
 
@@ -36108,3 +36109,52 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   On F0's `logic.mjs` the list cases throw and the strict refusals fail. Every earlier check is unchanged (160 pass in all).
 - **Live check after merge:** list one folder share of the main test client.
 - **Way back:** revert the PR. Nothing calls `part: "list"` or `strict` yet.
+
+## 666. [2026-11-02 UTC, BUILT, NOT MERGED] YouTube and LinkedIn Post for Me accounts, a per-client "made for kids" setting, and one Post for Me account per client (F3 of the trial and posting plan; session Lbuild)
+
+- **Asked:** Sidney, 2 Nov (combined plan `docs/plans/2026-11-trial-and-posting/combined.md`, row F3, decision D5): YouTube and LinkedIn as destinations need a slot per client; YouTube's "made for kids" is off by default, set per client and remembered. P3 (posting to YouTube and LinkedIn) waits for this migration to be applied.
+- **Measured first (read-only, 2 Nov):** 41 client profiles, none archived. Post for Me ids: TikTok column 13, Instagram 4, Facebook Page 2, YouTube 0, LinkedIn 0. **0 duplicate ids on every slot**, 0 ids with stray spaces, 0 not shaped `spc_...`. The live function is the 2026-10-31 body.
+- **Built:**
+  - **Migration `migrations/2026-11-02-client-postforme-accounts.sql` (needs Lighthouse; carries `functions-cope-without-this`):** `client_profile_admin_edit` takes `postforme_youtube_account_id`, `postforme_linkedin_account_id` (spc_ or blank) and `youtube_made_for_kids` (true / false / blank; stored as JSON `true`, removed when off), each in `extra` with one history row. Five unique partial indexes `client_profiles_<field>_uniq` on the trimmed value of every slot (TikTok column, Instagram, Facebook, YouTube, LinkedIn), archived rows included. Its header has the precheck, the read-back and the four-role revoke. Rollback: `...ROLLBACK.sql` (drops the indexes, restores the 2026-10-31 body; saved values stay).
+  - **`client-profile-write`:** every non-blank account id in a save, the TikTok column included, is checked against Post for Me's `platform` before the database is called (TikTok accepts `tiktok` and `tiktok_business`, as `tiktok-upload` does); only `platform` is read, the body is never passed on. A unique-index refusal (23505) answers `postforme_account_taken` with the slot, not `write_failed`. Logic in `_shared/client-profile-edit.mjs` (`ACCOUNT_FIELD_PLATFORMS`, `accountChecks`; `EXTRA_ACCOUNT_PLATFORM` is gone).
+  - **Kasper > Clients, Publishing card:** **YouTube (Post for Me)** and **LinkedIn (Post for Me)** paste boxes and a **YouTube: made for kids** switch (Off/On; 44px on phones). Plain messages for a taken account and for a wrong network on every slot.
+- **Proof:** `test/client-postforme-accounts-postgres.js` (new, disposable PostgreSQL: refused before, saved after, made-for-kids on/off and history, a second client refused on all five slots even padded, archived ids count, the rollback restores the 2026-10-31 body exactly); `test/client-profile-edit.js` (+14 checks); `clients-admin-browser.js` (the two fields, the switch on and off, a taken account, a wrong TikTok network, at 1440, 390 and 375). Each fails on main.
+- **Codex P2 on #2533, fixed:** the Sheet-first lane (only while `client_profiles_authority` is `sheet`; live it is `syncview`) writes the Sheet before the database, so the index alone would have left a duplicate account in the Sheet. It now reads whether another client holds the account and refuses (`postforme_account_taken`) before any Sheet write.
+- **Why the functions cope:** before the migration the three new fields answer `field_not_editable` (the page says the database update is not applied yet) and nothing is written; the TikTok check needs no database change.
+- **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
+- **Way back:** revert the PR and run the ROLLBACK file.
+
+## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+
+- **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
+- **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
+  - `trial-reels` has a new action, `version_status_set` (`logic.mjs` `versionStatusPatches`). Each word is stored in the columns the review already uses, so no migration is needed:
+    - In Progress and For SMM Approval: one state, no OKs. The page shows For SMM Approval when the version has a link and In Progress when it has none.
+    - Kasper Approval: the SMM's OK.
+    - Client Approval: the SMM's and Kasper's OKs.
+    - Approved: all three OKs.
+    - Tweaks Needed: a change asked by the SMM. No note is needed, as on a card.
+  - Refused: an unknown word, a dropped version, a version on trial or decided, a review word on a version with no link (the card's empty-part rule), and a pick the card's own state would read back as another word (`status_follows_card`, for example a card sent on whole to the client).
+  - The staff read gains `card_status` for each version.
+  - One `calendar_post_events` row per pick, in the card's `status_change` shape but under action `trial_status`, with from and to in the card's words. A pick that changes nothing writes nothing.
+  - The page (189), behind `trial_versions_v2`: the label slot becomes the card's status pill and menu (the card's menu, colours and phone sheet). The capability is `trial-version-status` (admin, SMM).
+- **One pick never moves another version** (Codex P2 on #2535, fixed):
+  - On a card sent on whole, stamping one version's SMM OK ended the "sent on whole" reading for every version, so an untouched version went back to the team.
+  - A pick that would change how any other version reads is now refused with `status_follows_card`.
+  - Kasper's OK is stamped only where Kasper is on the card's route, so a card the SMM sent straight to the client does not put Kasper back on it.
+- **Narrower than the card, on purpose:** on a card, an editor may set the status of their own assigned video. On a version, a creative key may not: a version has no assignee to check, and Sidney asked for "the SMM, at least".
+- **Readers of `calendar_post_events` checked for the new action:**
+  - The Kasper history (330) reads `status_change` and `mirror_in_status_change` only.
+  - The archive restore (186) reads `archive`.
+  - `calendar-auto-posted` reads `status_change` with its own source. Its due list skips any card with an event in the last hour; today's `trial_*` rows already have that effect.
+  - The caption history reads caption rows only.
+  - The link-gap and leak checks read `link_set` and `create` only.
+  - The status bridges and repair scripts write, never count this action.
+  - The drift robot (`card-calendar-status-drift-check.js`) reads cards and work items, not events.
+  - The n8n status sync is not touched.
+- **Never writes the card:** the card reaches Approved only through today's approve, when `card_approvable` says every live version is approved.
+  - `test/trial-version-status-logic.js` (52 checks). The list is read from the page's `CAL_STATUSES`. On main it fails at once (`versionStatusPatches is not a function`).
+  - `test/trial-version-status-browser.js` (38 checks, 1440 and 390, mocked). On main's page it fails at the first picker check.
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` is unchanged and passes.
+- **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.

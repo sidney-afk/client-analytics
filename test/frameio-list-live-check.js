@@ -14,13 +14,14 @@ const list = { ok: true, name: 'Secret folder name', truncated: false, open_url:
     { file_id: 'secret-file-1', name: 'secret one.mp4', duration_seconds: 12.5, thumbnail_url: 'https://e.example/secret-thumb', processing: false, link: 'https://next.frame.io/share/s/view/secret-file-1' },
     { file_id: 'secret-file-2', name: 'secret two.mp4', duration_seconds: null, thumbnail_url: null, processing: true, link: 'https://next.frame.io/share/s/view/secret-file-2' },
   ] };
-const out = summarize({ status: 200, json: list }, { status: 200, json: { ok: true, video: { file_id: 'secret-file-1', url: 'https://cdn.example/secret' } } });
-ok(JSON.stringify(out) === JSON.stringify({ list_http_status: 200, list_ok: true, rows: 2, rows_with_duration: 1, rows_with_thumbnail: 1, rows_processing: 1, truncated: false, video_http_status: 200, video_same_file: true }),
+const out = summarize({ status: 200, json: list }, { status: 200, json: { ok: true, video: { file_id: 'secret-file-1', url: 'https://cdn.example/secret', duration_seconds: 12.5 } } });
+ok(JSON.stringify(out) === JSON.stringify({ list_http_status: 200, list_ok: true, rows: 2, rows_with_duration: 1, rows_with_thumbnail: 1, rows_processing: 1, truncated: false, video_http_status: 200, video_same_file: true, video_has_duration: true }),
   'the summary is counts and true/false only: ' + JSON.stringify(out));
 ok(!/secret|https?:|\.mp4/i.test(JSON.stringify(out)), 'no address, id or name reaches the summary');
 ok(Object.values(out).every((v) => typeof v === 'number' || typeof v === 'boolean' || v === null), 'every value is a number, a boolean or null');
 const wrong = summarize({ status: 200, json: list }, { status: 200, json: { ok: true, video: { file_id: 'secret-other' } } });
 ok(wrong.video_same_file === false, 'a lookup that resolves to another file reads false');
+ok(wrong.video_has_duration === false, 'a video answer with no length reads video_has_duration false');
 const refused = summarize({ status: 404, json: { ok: false, error: 'share_off', message: 'secret words' } }, null);
 ok(refused.list_ok === false && refused.list_error === 'share_off' && !('rows' in refused) && !/secret/.test(JSON.stringify(refused)), 'a refusal prints its code only, never its message');
 ok(summarize({ status: 200, json: { ok: true, videos: [] } }, null).video_same_file === null, 'with nothing to look up, the video check reads null');

@@ -243,9 +243,9 @@ async function resolveView(ctx, accounts, link) {
 
 // ---------------------------------------------------------------- part "list": the videos a link points at
 
-// Assumed from the V4 reference, not yet measured on a real listing (the live check after merge does): a listed file
-// carries `duration` in seconds, and `include=media_links.thumbnail` gives `media_links.thumbnail.download_url`.
-// Either missing leaves that field null; the row is still listed.
+// Measured live on 2026-11-03 (two live-check runs): `include=media_links.thumbnail` gives
+// `media_links.thumbnail.download_url`, but a listed file carries no `duration`. A length found on the listing is
+// still used; a row without one gets it from the file's metadata after the cut (fillDurations).
 const durationOf = (f) => (Number(f && f.duration) > 0 ? Number(f.duration) : null);
 const thumbOf = (f) => {
   const u = clean(f && f.media_links && f.media_links.thumbnail && f.media_links.thumbnail.download_url);
@@ -297,6 +297,24 @@ async function openShare(ctx, accounts, shareId) {
   throw fail('link_not_found');
 }
 
+// A listed row with no length gets the file's metadata "Duration" (the same read the video part makes), a few rows at
+// a time and only for the rows kept. A metadata call that fails, is refused or runs out of time leaves that row's
+// length null; it never fails the list.
+const DURATION_WORKERS = 5;
+async function fillDurations(ctx, acct, rows) {
+  const todo = rows.filter((r) => r.duration_seconds == null && r.file_id);
+  let at = 0;
+  const worker = async () => {
+    while (at < todo.length) {
+      const r = todo[at++];
+      try { r.duration_seconds = (await videoFacts(ctx, acct, r.file_id)).duration; } catch { /* the length stays null */ }
+    }
+  };
+  const workers = [];
+  for (let i = 0; i < Math.min(DURATION_WORKERS, todo.length); i++) workers.push(worker());
+  await Promise.all(workers);
+}
+
 // The videos a link points at: every video in a shared folder (up to MAX_LIST_VIDEOS, newest first), or the one video
 // a file link names. Names, lengths, Frame's thumbnails and per-file links only: no playable address, no comments.
 async function listLink(ctx, link) {
@@ -306,7 +324,7 @@ async function listLink(ctx, link) {
     const found = await resolveView(ctx, accounts, resolved);
     const got = await api(ctx, '/accounts/' + found.acct + '/files/' + found.file.id + '?' + THUMB);
     const f = (got && got.data) || found.file;
-    return { name: clean(f.name), rows: isVideo(f) ? [row(f, found.openUrl)] : [], cut: false, openUrl: found.openUrl };
+    return { acct: found.acct, name: clean(f.name), rows: isVideo(f) ? [row(f, found.openUrl)] : [], cut: false, openUrl: found.openUrl };
   }
   const { acct, s } = await openShare(ctx, accounts, resolved.shareId);
   const shareUrl = 'https://next.frame.io/share/' + resolved.shareId;
@@ -327,7 +345,7 @@ async function listLink(ctx, link) {
   } else {
     walk = await collectVideos(ctx, acct, '/accounts/' + acct + '/shares/' + resolved.shareId + '/assets?page_size=' + LIST_PAGE + '&' + THUMB, resolved.shareId);
   }
-  return { name, rows: walk.rows, cut: walk.cut, openUrl: shareUrl + (resolved.assetId ? '/view/' + resolved.assetId : '') };
+  return { acct, name, rows: walk.rows, cut: walk.cut, openUrl: shareUrl + (resolved.assetId ? '/view/' + resolved.assetId : '') };
 }
 
 // ---------------------------------------------------------------- the video address
@@ -507,8 +525,10 @@ export async function lookup(rawLink, deps, opts = {}) {
     if (part === 'list') {
       const got = await listLink(ctx, link);
       got.rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const videos = got.rows.slice(0, MAX_LIST_VIDEOS);
+      await fillDurations(ctx, got.acct, videos);
       return {
-        ok: true, name: got.name, videos: got.rows.slice(0, MAX_LIST_VIDEOS), truncated: got.cut || got.rows.length > MAX_LIST_VIDEOS,
+        ok: true, name: got.name, videos, truncated: got.cut || got.rows.length > MAX_LIST_VIDEOS,
         open_url: got.openUrl, fetched_at: new Date(deps.now()).toISOString(), took_ms: deps.now() - started,
       };
     }

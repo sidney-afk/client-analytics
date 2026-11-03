@@ -26,9 +26,12 @@ const fs = require('fs');
 const path = require('path');
 
 // The only clients a live check may touch, as SHA-256 of the client slug (never the slug or name in the repository):
-// the test client, and the owner's two own clients (D6), added as the supervisor supplies their hashes.
+// the test client and the owner's two own clients (D6).
 const ALLOWED_CLIENT_SHA256 = Object.freeze([
   'c1424f0e39a727bd6c9f3e8fd68c241afa728472692d547509efde88d1edf964', // the test client
+  // Sidney's two own clients (hashes only; never their slugs or names).
+  '23b0c800acade97abfa8a16174d00b37a65b563d2beba350d84827e15332f09a',
+  '983f19807b169ad55183a3819417d646b021d5753f0c3724db168433e35d9a0f',
 ]);
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 

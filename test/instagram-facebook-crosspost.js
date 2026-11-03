@@ -162,7 +162,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/\['postforme_instagram_account_id', 'Instagram \(Post for Me\)'\], \['postforme_facebook_account_id', 'Facebook Page \(Post for Me\)'\]/.test(CLIENTS_TAB),
     'Clients tab: the Page sits next to the Instagram account in Publishing');
   ok(/^-- ef-auto-deploy: functions-cope-without-this$/m.test(MIGRATION.split('\n')[0]), 'the migration does not hold the deploy');
-  ok(/Trial reels are an Instagram feature/.test(COMPOSER) && /Facebook takes a carousel of photos only/.test(COMPOSER) && /No Facebook Page connected for this client/.test(COMPOSER),
+  ok(/Trial reels are an Instagram feature/.test(COMPOSER) && /Facebook takes a carousel of photos only/.test(COMPOSER) && /No Facebook Page linked to this client yet/.test(COMPOSER),
     'the composer says why when it cannot go to Facebook');
 
   console.log(`instagram-facebook-crosspost: ${checks} checks passed ✅`);

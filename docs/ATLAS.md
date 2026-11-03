@@ -298,6 +298,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
     - A version that has already been answered starts again with the SMM when its thumbnail or caption changes, as with a new link.
     - A version on trial cannot change.
     - Picking the winner puts its thumbnail and caption on the card along with its video. Undo on that toast puts the card's own back.
+  - **Import from Frame (behind `trial_versions_v2`):** beside "+ Add version". Paste the Frame share link of the folder that holds the versions, then "Show videos".
+    - The next step names the folder and the card, so a wrong folder shows before anything is added.
+    - Give each video a letter, or Skip it. A letter is pre-set only when the file name clearly says one ("_B", "v3").
+    - The version on the card and a video still processing in Frame cannot be picked.
+    - "Add" puts every picked video in at once, all or nothing.
+    - Replacing a version that was already answered asks first; it then goes back to the SMM.
+    - Back returns to the link. Cancel changes nothing.
   - A change on one version does not hold the others: the versions a reviewer approved go on to the next reviewer at once, and the changed one follows when its new cut is approved.
   - **Dropping a version** (Kasper's tile) that was the last one waiting for him moves the card on, as his last approve would.
   - **On the client link,** the video's answer waits a moment ("Loading…", 2 s at most) until the card's versions are read, so an Approve never answers a trial card's whole video.
@@ -639,7 +646,7 @@ Switch values below are the live values read on 2026-10-28.
 **Who can use it:** any signed-in staff member (admin, SMM, or editor/designer). The server turns away anyone without a staff sign-in. Clients never see this tab.
 
 - **Platform switch (TikTok / Instagram)** at the top. Your browser remembers which side you used last.
-- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is connected, you see "⚠ No account" and cannot post. Nothing ever falls back to another account. Beside that message (and beside the Facebook box's "No Facebook Page connected"), **Open Post for Me** opens postforme.dev in a new tab, where the account is connected.
+- **Client:** pick the client. The tab shows which Post For Me account the post will go to. If no account is linked, you see "⚠ No account" and cannot post; the message says to connect the account in Post for Me, where it links itself to the client within the hour (since 3 Nov), and to ask Sidney if it still does not appear. A Facebook Page does not link itself (it has no handle to match): its message says to connect it in Post for Me and ask Sidney to link it. Nothing ever falls back to another account. Beside that message (and beside the Facebook box's "No Facebook Page linked"), **Open Post for Me** opens postforme.dev in a new tab, where the account is connected.
   - The TikTok account id is added by an admin under **Kasper > More > Clients > Publishing > "Post for Me"**.
   - The Instagram account id is a separate field, stored on the client's SyncView profile (`postforme_instagram_account_id`). An admin adds it under **Kasper > More > Clients > Publishing > "Instagram (Post for Me)"** (or through roster-write). The Clients Info sheet only holds a copy of it.
   - The client's Facebook Page (for "Also post to Facebook") is added the same way, under **"Facebook Page (Post for Me)"**. It is not in the sheet.
@@ -961,7 +968,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |

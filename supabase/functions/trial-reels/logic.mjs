@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_status_set", "version_fields_set"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "version_add", "answer", "trial_start", "winner_set", "winner_undo", "version_status_set", "version_fields_set", "versions_import"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -48,9 +48,10 @@ export function staffAllows(role, action) {
   if (action === "list" || action === "list_many" || action === "read") return true;
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
-  // An editor pastes a version's link, says its new cut is ready, and sets its own thumbnail and caption (V3);
-  // everything else is the SMM's or an admin's.
-  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add" || action === "version_fields_set");
+  // An editor pastes a version's link, says its new cut is ready, imports versions from a Frame folder (V2), and sets
+  // a version's own thumbnail and caption (V3); everything else is the SMM's or an admin's.
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut" || action === "version_add" || action === "versions_import"
+    || action === "version_fields_set");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
@@ -356,6 +357,47 @@ export function answerPatches(versions, { stage, kind, letter, note, cardStatus 
   });
   if (kind === "change" && !clean(note, 4000)) return { error: "note_required" };
   return { patches };
+}
+
+/*
+ * V2 (plan combined.md row V2; variants.md 4.3): several versions' links from a Frame folder, in one write, all or
+ * nothing. Everything is decided here before anything is written: a new letter becomes a new row (addVersion's rules),
+ * an existing letter takes its link by today's rules (linkChange: a replaced link on an answered version starts it
+ * again), and anything wrong refuses the whole import. The version on the card changes from its own row (today's
+ * attach first), never here. replacesAnswered lists the letters that would start again, so the page asks first.
+ */
+export const IMPORT_MAX = LETTERS.length;
+export function importPlan(versions, items, mainLink) {
+  if (!Array.isArray(items) || !items.length) return { error: "nothing_to_import" };
+  if (items.length > IMPORT_MAX) return { error: "too_many_versions" };
+  if (versions.some((v) => [STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status))) return { error: "version_on_trial" };
+  if (!versions.some(live)) return { error: "attach_first" };
+  const main = mainLetter(versions, mainLink);
+  const seenLetters = new Set(), seenLinks = new Set();
+  const updates = [], inserts = [], replacesAnswered = [];
+  for (const item of items) {
+    const letter = String((item && item.letter) || "");
+    if (!LETTERS.includes(letter)) return { error: "letter_invalid" };
+    if (seenLetters.has(letter)) return { error: "letter_twice" };
+    seenLetters.add(letter);
+    const c = cleanLink(item && item.link);
+    if (c.error) return { error: c.error };
+    if (!c.link) return { error: "version_has_no_link" };
+    if (seenLinks.has(c.link)) return { error: "link_twice" };
+    seenLinks.add(c.link);
+    if (letter === main) return { error: "version_is_card" };
+    if (versions.some((x) => x.letter !== letter && clean(x.frame_url, 2048) === c.link)) return { error: "link_used_by_another_version" };
+    const v = versions.find((x) => x.letter === letter);
+    if (!v) { inserts.push({ letter, link: c.link }); continue; }
+    if (!live(v)) return { error: "version_dropped" };
+    if (c.link === clean(v.frame_url, 2048)) continue;
+    const patch = linkChange(v, c.link);
+    const restarted = patch.status === STATUS.waiting && Object.prototype.hasOwnProperty.call(patch, "revision");
+    // A version waiting for its new cut takes it without a question; an answered one is asked about first.
+    if (restarted && v.status !== STATUS.change) replacesAnswered.push(letter);
+    updates.push({ id: v.id, letter, from: v.status, patch, restarted });
+  }
+  return { updates, inserts, replacesAnswered };
 }
 
 /**

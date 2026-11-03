@@ -68,6 +68,21 @@ const ok = async (what, fn) => { await fn(); checks++; console.log('  ok  ' + wh
     assert.equal(create.socialAccountId, 'spc_fixtureInsta01'); assert.equal(create.mediaUrl, 'https://data.postforme.dev/v/1'); assert.equal(create.coverUrl, 'https://data.postforme.dev/t/1');
     assert.equal(w.calls[2].body.id, 'ig_row_1');
   });
+  await ok('P4: a version letter copies that version and schedules it as a trial reel, then cancels and reads back', async () => {
+    const w = world();
+    assert.equal(await runCheck({ card: 'p_1', side: 'instagram', letter: 'b' }, w.deps), 0);
+    assert.deepEqual(w.calls[0].body, { client: w.calls[0].body.client, post_id: 'p_1', side: 'instagram', letter: 'B' });
+    const create = w.calls[1].body;
+    assert.equal(create.options.trial_reel_type, 'manual'); assert.ok(/_B$/.test(create.idempotencyKey));
+    assert.ok(Date.parse(create.scheduledAtUTC) - NOW >= MIN_AHEAD_MS, 'at least 7 days ahead');
+    assert.deepEqual(w.calls.slice(2).map((c) => c.body.action), ['cancel', 'status']);
+  });
+  await ok('P4: a bad letter, or a letter on the TikTok side, is refused before anything is called', async () => {
+    for (const input of [{ card: 'p_1', side: 'instagram', letter: 'H' }, { card: 'p_1', side: 'tiktok', letter: 'B' }]) {
+      const w = world();
+      assert.equal(await runCheck(input, w.deps), 2); assert.equal(w.calls.length, 0);
+    }
+  });
   await ok('TikTok: scheduled 8 days ahead, private and to drafts, cancelled through tiktok-upload-cancel, read back', async () => {
     const w = world();
     assert.equal(await runCheck({ card: 'p_1', side: 'tiktok' }, w.deps), 0);

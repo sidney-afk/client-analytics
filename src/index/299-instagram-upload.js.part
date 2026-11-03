@@ -7,6 +7,7 @@ import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-mod
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js';
+import { svTrialListShared } from './189-trial-reels-card.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
        Posts a video to a client's Instagram through Post For Me. Unlike TikTok, which
@@ -85,6 +86,9 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
         nets: { instagramOff: false, youtube: false, linkedin: false },
         yt: { title: '', edited: false, format: 'short' },
         videoDims: null,             // { w, h } of the dropped video, once its metadata is read
+        // P4: a trial card picked "From a card" with Trial reel on posts each approved version as its own trial reel.
+        // { cardId, state: 'loading'|'ready'|'failed', isTrial, versions, off: { letter: true }, res: { letter: { state, message } } }
+        trialVersions: null,
         instagramOn: true,           // false only when the person unticked Instagram (post_networks_v1); read by _igValidate
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
@@ -267,7 +271,152 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
             </div>`;
     }
 
+    /* Posting a trial card's versions (plan row P4, decision D3). The picked card's versions come from trial-reels'
+       list, as the Calendar reads them; each approved version posts as its own Instagram trial reel with its own video,
+       thumbnail and caption (V3's effective fields). Nothing else is ticked or posted afterwards. */
+    function _igTrialVersionsState() {
+        const src = igState.source;
+        if (!(src && src.active && src.mode === 'card' && src.cardId && igState.trial && igState.kind === 'reel')) return null;
+        let tv = igState.trialVersions;
+        if (!tv || tv.cardId !== src.cardId || tv.client !== igState.client) {
+            tv = igState.trialVersions = { cardId: src.cardId, client: igState.client, state: 'loading', isTrial: false, versions: [], off: {}, res: {} };
+            const want = tv;
+            let slug = '';
+            try { slug = calClientSlug(String(igState.client || '')); } catch (e) { slug = ''; }
+            Promise.resolve(slug ? svTrialListShared(slug) : null).then(list => {
+                const c = list && list.cards ? list.cards[want.cardId] : null;
+                const vs = c && c.enabled && Array.isArray(c.versions) ? c.versions : [];
+                want.isTrial = vs.length > 1;
+                want.versions = vs.filter(v => v.status === 'approved');
+                want.state = 'ready';
+            }).catch(() => { want.state = 'failed'; }).finally(() => {
+                if (igState.trialVersions === want && _igMounted && !igState.submitting) _igRenderForm();
+            });
+        }
+        return tv;
+    }
+    // Are the versions what this press posts? (A trial card, read, with Trial reel on.)
+    function _igTrialVersionsOn() {
+        const tv = _igTrialVersionsState();
+        return !!(tv && tv.state === 'ready' && tv.isTrial);
+    }
+    const _igTrialTicked = (tv) => tv.versions.filter(v => !tv.off[v.letter]);
+    const _igTrialCaption = (v) => String((v.effective && v.effective.caption) || igState.title || '').trim();
+    function _igTrialVersionsProblem() {
+        const tv = igState.trialVersions;
+        if (!igState.client || !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return IG_NO_ACCOUNT_MSG;
+        if (!tv.versions.length) return 'No version of this card is approved yet. A trial reel goes out once its version is approved.';
+        const ticked = _igTrialTicked(tv);
+        if (!ticked.length) return 'Tick at least one version to post.';
+        const bare = ticked.find(v => !_igTrialCaption(v));
+        if (bare) return 'Video ' + bare.letter + ' has no caption. Add one to the version on the card, or write one in the caption box.';
+        const long = ticked.find(v => _igTrialCaption(v).length > IG_MAX_CAPTION);
+        if (long) return 'Video ' + long.letter + '\'s caption is over the ' + IG_MAX_CAPTION + '-character limit.';
+        if (!igState.schedule.postNow) {
+            const at = _igAt();
+            if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
+            const t = Date.parse(_igDeps.wallClockToUTC(at, igState.schedule.tz) || '');
+            if (!Number.isFinite(t) || t < Date.now()) return 'The schedule time is in the past.';
+        }
+        return '';
+    }
+    function _igTrialVersionsHtml() {
+        const tv = _igTrialVersionsState();
+        if (!tv) return '';
+        if (tv.state === 'loading') return '<div class="tk-step-note" id="igTrialVersions" role="status">Reading this card\'s versions…</div>';
+        if (tv.state === 'failed') return '<div class="tk-step-note" id="igTrialVersions" role="alert">This card\'s versions could not be read, so it posts as one trial reel of the video on the card.</div>';
+        if (!tv.isTrial) return '';
+        const off = igState.submitting ? 'disabled' : '';
+        const label = { copying: 'Copying from Frame…', posting: 'Posting…', done: 'Sent', failed: 'Failed' };
+        const rows = tv.versions.map(v => {
+            const r = tv.res[v.letter] || {};
+            const thumb = (function () { try { return _calDeriveThumb({ thumbnail_url: v.effective && v.effective.thumbnail_url }); } catch (e) { return ''; } })();
+            const cap = _igTrialCaption(v);
+            return `<label class="ig-trv-row" data-ig-trv-row="${_igEsc(v.letter)}">
+                    <input type="checkbox" data-ig-trv="${_igEsc(v.letter)}" ${tv.off[v.letter] ? '' : 'checked'} ${off || r.state === 'done' ? 'disabled' : ''}>
+                    ${thumb ? `<img class="ig-trv-thumb" src="${_igEsc(thumb)}" alt="" loading="lazy">` : '<span class="ig-trv-thumb" aria-hidden="true"></span>'}
+                    <span class="ig-trv-text"><strong>Video ${_igEsc(v.letter)}</strong><span class="ig-trv-cap">${cap ? _igEsc(cap.split('\n')[0]) : 'No caption'}</span></span>
+                    ${r.state ? `<span class="ig-trv-state${r.state === 'failed' ? ' is-failed' : ''}" title="${_igEsc(r.message || '')}">${label[r.state] || ''}</span>` : ''}
+                </label>${r.state === 'failed' && r.message ? `<div class="tk-queue-error ig-trv-why">${_igEsc(r.message)}</div>` : ''}`;
+        }).join('');
+        return `<div class="ig-trv" id="igTrialVersions">
+                <div class="tk-step-note">This card is on trial. Each approved version posts as its own trial reel, with its own video, thumbnail and caption. Instagram only; nothing is posted anywhere afterwards.</div>
+                ${tv.versions.length ? rows : '<div class="tk-step-note" role="status">No version of this card is approved yet.</div>'}
+            </div>`;
+    }
+    // One version's copy: the version on the card goes as the card; any other by its letter (post-source, P4).
+    async function _igTrialCopy(client, cardId, v) {
+        const body = { client, post_id: cardId, side: 'instagram' };
+        if (!v.on_card) body.letter = v.letter;
+        const res = await _svPostSourceAsk(SV_POST_SOURCE_URL, body, SV_POST_SOURCE_TIMEOUT_MS);
+        if (res.status === 200 && res.json && res.json.ok && res.json.media_url) return { ok: true, data: res.json };
+        _igRecordFailure('post_source_copy', res.status || 0, !res.status);
+        return { ok: false, message: _svPostSourceFail(res) };
+    }
+    /* One press, one post per ticked version, each with its own key (the press key plus the letter): a press again after
+       a partial failure sends only the versions with no post yet, and the server adopts a post whose answer was lost. */
+    async function _igSubmitTrialVersions() {
+        const tv = igState.trialVersions;
+        const err = _igTrialVersionsProblem();
+        if (err) { igState.error = err; _igRenderForm(); return; }
+        const client = igState.client, account = _igResolveAccount(client), cardId = tv.cardId;
+        const wall = igState.schedule.postNow ? '' : _igAt();
+        const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
+        if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
+        const ticked = _igTrialTicked(tv);
+        const fp = ['trial-versions', client, cardId, ticked.map(v => v.letter + ':' + _igTrialCaption(v)).join(','), utc].join('|');
+        if (!igState.attempt || igState.attempt.fp !== fp) {
+            igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)), done: {} };
+        }
+        const attempt = igState.attempt;
+        attempt.done = attempt.done || {};
+        igState.submitting = true; igState.error = null; igState.notice = null; igState.phase = 'creating';
+        _igRenderForm();
+        let unknown = false;
+        for (const v of ticked) {
+            if (attempt.done[v.letter]) { tv.res[v.letter] = { state: 'done' }; continue; }
+            tv.res[v.letter] = { state: 'copying' }; _igRenderForm();
+            const copy = await _igTrialCopy(client, cardId, v);
+            if (!copy.ok) { tv.res[v.letter] = { state: 'failed', message: copy.message }; _igRenderForm(); continue; }
+            tv.res[v.letter] = { state: 'posting' }; _igRenderForm();
+            const created = await _igCall({
+                action: 'create', clientName: client, socialAccountId: account, title: _igTrialCaption(v),
+                mediaUrl: copy.data.media_url, coverUrl: copy.data.thumb_url || '', options: { cover_timestamp_ms: 0, trial_reel_type: 'manual' },
+                scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey: attempt.key + '_' + v.letter,
+            }, 'instagram_create');
+            if (created.ok) {
+                const row = created.json && created.json.row;
+                attempt.done[v.letter] = (row && row.id) || true;
+                if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
+                tv.res[v.letter] = { state: 'done' };
+            } else {
+                const final = _igCreateAnswerIsFinal(created);
+                if (!final) unknown = true;
+                const reason = _igCreateRefusalReason(created) || (created.json && created.json.error) || '';
+                tv.res[v.letter] = { state: 'failed', message: final ? ('Instagram did not take it' + (reason ? ': ' + reason : '.')) : 'Not confirmed. Press again: it cannot post twice.' };
+            }
+            _igRenderForm(); _igRenderQueue();
+        }
+        igState.submitting = false; igState.phase = '';
+        const sent = ticked.filter(v => attempt.done[v.letter]).length;
+        if (sent === ticked.length) {
+            igState.attempt = null;
+            svPostSourceClear(igState.source);
+            igState.trialVersions = null;
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
+            igState.notice = (utc ? 'Scheduled ' : 'Sent ') + sent + ' trial reel' + (sent === 1 ? '' : 's') + (utc ? '. They will appear in the queue.' : '. Each shows as Posted here once Instagram confirms.');
+            igState.queueTab = 'upcoming';
+        } else {
+            igState.error = sent + ' of ' + ticked.length + ' went. Press again to send the rest: the ones that went are not sent again.' + (unknown ? ' One answer was lost, so check the queue too.' : '');
+        }
+        _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
+    }
+
     // "Post to Instagram" as before; with the switch on, the one network's name, or "Post to 3 networks".
+    function _igTrialButtonLabel() {
+        const n = _igTrialTicked(igState.trialVersions).length;
+        return svPlatformLogo('instagram') + '<span>' + (igState.schedule.postNow ? 'Post ' : 'Schedule ') + n + ' trial reel' + (n === 1 ? '' : 's') + '</span>';
+    }
     function _igButtonLabel() {
         if (!_igNetworksOn()) return svPostButtonLabel('instagram', igState.schedule.postNow);
         const names = _igTickedNames();
@@ -963,7 +1112,9 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
         const isCarousel = igState.kind === 'carousel';
         const fromCard = _igFromCard();
         const hasMedia = isCarousel ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : fromCard ? svPostSourceReady(_igSrc()) : !!igState.file;
-        const can = !!(igState.client && (accountOk || !_igInstagramOn()) && hasMedia && igState.title.trim() && !over && !igState.submitting && !_igNetworksProblem());
+        const trialVersions = _igTrialVersionsOn();
+        const can = trialVersions ? !igState.submitting && !_igTrialVersionsProblem()
+            : !!(igState.client && (accountOk || !_igInstagramOn()) && hasMedia && igState.title.trim() && !over && !igState.submitting && !_igNetworksProblem());
         let accountLine = '';
         if (igState.client) {
             accountLine = accountOk
@@ -1003,11 +1154,12 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
                 ${isCarousel ? _igCarouselCardHtml() : (svPostSourceOffered(igState.client, true) ? svPostSourceModeHtml('ig', _igSrc(), igState.submitting) : '') + (fromCard ? svPostSourceCardHtml('ig', _igSrc(), igState.client, igState.submitting) : media)}
                 ${fromCard ? '' : svDropPickHtml('ig', igState.drop, igState.submitting) + svDropNoteHtml('ig', igState.dropNote)}
             </div>
-            ${isCarousel ? '' : _igCoverCardHtml()}
+            ${isCarousel || trialVersions ? '' : _igCoverCardHtml()}
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
                 ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name, igState.captionFill.from) : ''}
+                ${trialVersions ? '<div class="tk-step-note" id="igTrialCapNote">Each version posts with its own caption. This box is used only for a version that has none.</div>' : ''}
 
             </div>
             ${isCarousel || !_igInstagramOn() ? '' : `<div class="tk-card">
@@ -1019,6 +1171,7 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
                     </label>
                 </div>
                 ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
+                ${igState.trial ? _igTrialVersionsHtml() : ''}
             </div>`}
             ${_igNetworksOn() ? _igNetworksCardHtml() : _igFacebookCardHtml()}
             <div class="tk-card">
@@ -1041,7 +1194,7 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
                 </div>
             </div>
             <div class="tk-submit-bar">
-                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : _igButtonLabel()}</button>
+                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : trialVersions ? _igTrialButtonLabel() : _igButtonLabel()}</button>
                 ${igState.submitting
                     ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
                     : ''}
@@ -1068,6 +1221,12 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
         });
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
         $('igTrial')?.addEventListener('change', (e) => { igState.trial = e.target.checked; _igRenderForm(); });
+        document.querySelectorAll('[data-ig-trv]').forEach(b => b.addEventListener('change', (e) => {
+            const tv = igState.trialVersions, letter = b.getAttribute('data-ig-trv');
+            if (!tv) return;
+            if (e.target.checked) delete tv.off[letter]; else tv.off[letter] = true;
+            _igRenderForm();
+        }));
         $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
         $('igNetInstagram')?.addEventListener('change', (e) => { igState.nets.instagramOff = !e.target.checked; _igRenderForm(); });
         $('igNetYoutube')?.addEventListener('change', (e) => { igState.nets.youtube = e.target.checked; _igRenderForm(); });
@@ -1249,6 +1408,7 @@ import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js'
     // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
     async function _igSubmit() {
         _igFromCard();
+        if (_igTrialVersionsOn()) return _igSubmitTrialVersions();
         igState.instagramOn = _igInstagramOn();
         const err = _igValidate() || _igNetworksProblem();
         if (err) { igState.error = err; _igRenderForm(); return; }

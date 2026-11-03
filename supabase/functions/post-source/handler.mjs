@@ -5,7 +5,7 @@
 // deps:
 //   allowedClients        the INSTAGRAM_UPLOAD_ALLOWED_CLIENTS setting ("*" = every client, empty = nobody)
 //   readCard(client, id)  -> { id, client, asset_url, thumbnail_url } | null   the card, matched on client AND id
-//   readVersions(client, postId) -> [{ id, letter, frame_url, created_at }]   the card's stored version rows (B..G; A
+//   readVersions(client, postId) -> [{ id, letter, frame_url, thumbnail_url, created_at }]   the card's stored version rows (B..G; A
 //                            is the card itself). A letter can have more than one row; the one used is the one
 //                            trial-reels shows (oneRowPerLetter: earliest, then smallest id), never whichever came back.
 //   lookupVideo(link)     -> { name, file_id, duration_seconds, renditions:{ original?, high_quality?, efficient? } }
@@ -131,20 +131,25 @@ export async function handlePostSource({ body, deps }) {
   }
 
   // The link is read here, from the card or the version, never taken from the request.
+  // A letter names a version row, A included: once the SMM has put another version on the card, the card's link is
+  // that version's, so A must be read from its own row (plan row P4). A card with no row for A is a card that never had
+  // versions: A is the card, as before. A version's thumbnail is its own, else the card's (V3's rule, trial-reels
+  // effectiveFields); the version on the card is posted without a letter, as the card.
   let link = '';
   let thumbRaw = '';
-  const isCard = !letter || letter === 'A';
+  const version = letter ? oneRowPerLetter(await deps.readVersions(client, postId)).find((v) => clean(v.letter).toUpperCase() === letter) : null;
+  const isCard = !version && (!letter || letter === 'A');
+  if (!version && !isCard) return refuse(404, 'version_not_found', 'Version ' + letter + ' was not found on this card.');
+  const card = await deps.readCard(client, postId);
+  if (!card || clean(card.client) !== client) return refuse(404, 'card_not_found', 'That card was not found for this client.');
   if (isCard) {
-    const card = await deps.readCard(client, postId);
-    if (!card || clean(card.client) !== client) return refuse(404, 'card_not_found', 'That card was not found for this client.');
     link = clean(card.asset_url);
     thumbRaw = clean(card.thumbnail_url);
   } else {
-    const version = oneRowPerLetter(await deps.readVersions(client, postId)).find((v) => clean(v.letter).toUpperCase() === letter);
-    if (!version) return refuse(404, 'version_not_found', 'Version ' + letter + ' was not found on this card.');
     link = clean(version.frame_url);
+    thumbRaw = clean(version.thumbnail_url) || clean(card.thumbnail_url);
   }
-  if (!link) return refuse(409, 'no_link', 'This ' + (letter && letter !== 'A' ? 'version' : 'card') + ' has no Frame link yet.');
+  if (!link) return refuse(409, 'no_link', 'This ' + (isCard ? 'card' : 'version') + ' has no Frame link yet.');
 
   let video;
   try {
@@ -190,9 +195,8 @@ export async function handlePostSource({ body, deps }) {
   }).catch(() => null);
   if (!put || !put.ok) return refuse(502, 'copy_failed', 'The copy to Post for Me did not finish. ' + DOWNLOAD_INSTEAD);
 
-  // The card's thumbnail goes too, after the video (a version has none of its own until plan row V3).
-  const thumb = isCard ? await copyThumb(deps, thumbRaw).catch(() => ({ url: null, note: 'The thumbnail copy did not finish. Pick a cover by hand.' }))
-    : { url: null, note: 'A trial version has no thumbnail of its own yet.' };
+  // The thumbnail goes too, after the video: the card's, or the version's own (else the card's).
+  const thumb = await copyThumb(deps, thumbRaw).catch(() => ({ url: null, note: 'The thumbnail copy did not finish. Pick a cover by hand.' }));
   const f = facts || {};
   return reply(200, {
     ok: true,

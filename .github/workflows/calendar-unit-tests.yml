@@ -650,6 +650,7 @@ jobs:
           Open Post for Me beside every no-account message on the Post tab (desktop and phone; none with an account)|node test/postforme-link-browser.js
           Post tab From a card on both sides behind post_sources_v1 (copied server side, no browser upload, same key after a re-copy; switch off is today's page)|node test/post-from-card-browser.js
           Post tab folder drop on both sides behind post_sources_v1 (video, cover and caption; pick lists; images as a carousel; one folder at a time; switch off is today's page)|node test/post-folder-drop-browser.js
+          Post tab trial card: each approved version its own Instagram trial reel (own video, thumbnail, caption, key per letter; a press again sends only what did not go)|node test/post-trial-versions-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok keeps its press key across a reload while the post's outcome is unknown (dropped on success or a 4xx; re-uploads after 20 hours under the same key)|node test/tiktok-press-key-reload-browser.js

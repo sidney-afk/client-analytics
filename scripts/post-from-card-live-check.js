@@ -79,9 +79,14 @@ function parseCsv(text) {
            now() -> ms, log(line), allowed? (hashes; ALLOWED_CLIENT_SHA256 by default) }. */
 async function runCheck(input, deps) {
   const side = input.side === 'tiktok' ? 'tiktok' : 'instagram';
+  // P4: a trial version, by its letter, posted as a trial reel (Instagram only; one version per run).
+  const letter = String(input.letter || '').trim().toUpperCase();
   const report = { side, step: 'start' };
+  if (letter) report.letter = letter;
   const done = (code, extra) => { Object.assign(report, extra || {}); deps.log('post-from-card live check: ' + JSON.stringify(report)); return code; };
   if (!input.card) return done(2, { step: 'input', error: 'a card id is required' });
+  if (letter && !/^[A-G]$/.test(letter)) return done(2, { step: 'input', error: 'a version letter is A to G' });
+  if (letter && side !== 'instagram') return done(2, { step: 'input', error: 'a trial version posts on the Instagram side only' });
 
   report.step = 'card';
   const rows = await deps.readCard(input.card).catch(() => null);
@@ -94,7 +99,7 @@ async function runCheck(input, deps) {
   if (!account) return done(2, { error: 'no ' + side + ' account on file for this client' });
 
   report.step = 'copy';
-  const copy = await deps.call('post-source', { client, post_id: input.card, side });
+  const copy = await deps.call('post-source', Object.assign({ client, post_id: input.card, side }, letter ? { letter } : {}));
   const c = copy.json || {};
   if (copy.status !== 200 || !c.ok || !c.media_url) return done(1, { http_status: copy.status, error: String(c.error || 'copy_failed') });
   Object.assign(report, { rendition: c.rendition, bytes: c.bytes, thumb_copied: !!c.thumb_url });
@@ -106,7 +111,7 @@ async function runCheck(input, deps) {
   report.step = 'create';
   const create = side === 'instagram'
     ? await deps.call('instagram-upload', { action: 'create', clientName: client, socialAccountId: account, title: CAPTION,
-        mediaUrl: c.media_url, coverUrl: c.thumb_url || '', options: { cover_timestamp_ms: 0 }, scheduledAtUTC: at, timezone: 'UTC', idempotencyKey: key })
+        mediaUrl: c.media_url, coverUrl: c.thumb_url || '', options: Object.assign({ cover_timestamp_ms: 0 }, letter ? { trial_reel_type: 'manual' } : {}), scheduledAtUTC: at, timezone: 'UTC', idempotencyKey: key + (letter ? '_' + letter : '') })
     : await deps.call('tiktok-upload', { action: 'create', clientName: client, socialAccountId: account, title: CAPTION,
         options: { privacy_level: 'SELF_ONLY', post_mode: 'MEDIA_UPLOAD', disable_comment: true, disable_duet: true, disable_stitch: true },
         scheduledAt: '', scheduledAtUTC: at, timezone: 'UTC', idempotencyKey: key, mediaUrl: c.media_url });
@@ -145,6 +150,7 @@ async function main() {
   const input = {
     card: String(process.env.POST_LIVE_CHECK_CARD || '').trim(),
     side: String(process.env.POST_LIVE_CHECK_SIDE || 'instagram').trim(),
+    letter: String(process.env.POST_LIVE_CHECK_LETTER || '').trim(),
   };
   if (!key) { console.error('Set SYNCVIEW_STAFF_KEY.'); process.exit(2); }
   const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'src', 'index', f), 'utf8');

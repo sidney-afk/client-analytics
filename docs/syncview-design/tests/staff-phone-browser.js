@@ -443,9 +443,20 @@ if (require.main === module) (async () => {
 // The final-pass proof reuses these native journeys and the same refused-write transport.
 // Legacy editable-card journeys now enter the retained List via its visible
 // control. The Thumb suite separately verifies the default thumbnail grid.
+// On a phone the Sheet opens as a grid of tiles; the list has the editable
+// cards. Wait until the page has drawn one or the other before deciding: a
+// bar drawn after this ran used to leave the grid in place, and its tiles
+// (also .cal-card[data-pid]) then satisfied every later wait for a card
+// (OPEN_REPAIRS 681). Desktop has no grid, so a full card ends the wait there;
+// a page with neither (an empty desktop collection) carries on as before.
 async function openEditableSheet(page) {
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-thumb-display="list"]')].some(b => b.offsetParent)
+    || !!document.querySelector('.cal-card[data-pid]:not(.thumb-grid-card)'), null, { timeout: 15000 }).catch(() => {});
   const button=page.getByRole('button',{name:'List view',exact:true}).filter({visible:true}).first();
-  if(await button.count() && await button.getAttribute('aria-pressed')!=='true') await button.click();
+  if(await button.count() && await button.getAttribute('aria-pressed')!=='true') {
+    await button.click();
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-thumb-display="list"]')].some(b => b.offsetParent && b.getAttribute('aria-pressed') === 'true'), null, { timeout: 10000 });
+  }
 }
 async function chooseCalendarView(page,view) {
   const chooser=page.locator('.thumb-calendar-view').filter({visible:true});

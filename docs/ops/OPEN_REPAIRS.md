@@ -36090,6 +36090,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
+
 ## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
@@ -36402,6 +36403,61 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **What this gives up:** a commit whose main run was replaced while it waited has no main run of its own. The next one tests it together with the commits after it. When that run goes red, the culprit is any commit since the last green main run, not one commit.
 - **Proof:** `test/ci-runner-seats.js` pins the new group and that main never cancels a started run. Against main's workflow it fails; with the change it passes (139 checks). `ci-shards-wired` 230 and `workflow-plain-scalars` (56 files) pass.
 - **Way back:** revert the PR.
+
+## 677. [2026-11-03 UTC, BUILT, NOT MERGED] TikTok carousel browser journey: a red that comes and goes on PRs that never touch TikTok, and a Cancel that sometimes said "Could not prepare image 2" (session Chanfix)
+
+The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` on PRs with no TikTok change (#2538 at `faaf869f`, green on re-run; #2545 at `152a5e77`). Both stopped at `page.waitForFunction: Timeout 30000ms` in `attachThreeImagesAndCaption` (line 259, Submit never enabled), right after the client pick. Main stayed green.
+
+- **Measured on origin/main `deba3bc`:** runs in loops, 6 to 8 at once, with the page's CPU slowed 4x and 8x (`Emulation.setCPUThrottlingRate`). 8 at once at full speed: 5 of 48 red. Slowed 4x: 19 of 30 red. Slowed 8x: 22 of 32 red. **Not one was the line-259 stall** (0 of 110). Every red was in case 2, the cancel journey, in one of two ways:
+  1. `image 3 was never minted`: the test cancelled behind a fixed 250 ms mint delay; on a slow machine the click came after the delay ran out, so image 2 finished and image 3 started. A race in the test, not the page.
+  2. `the form reports the cancellation (got "Could not prepare image 2 — no upload url returned.")`: **a real page bug a staff member can hit.** A Cancel that lands after an image's answer arrives but before its body is read makes that read fail with the cancellation, and `try { mint = await mintResp.json(); } catch {}` swallowed it. The empty answer then threw "no upload url", so the person saw a failure instead of "Upload cancelled.", and the page logged it as a failed save in the write-refusal log.
+- **Fixed (failing first):**
+  - **Page** (`src/index/300-tiktok-upload.js.part`, `_tkSubmitPhotoCarousel`): the cancel is decided by the abort signal, not only by the error's name, so a cancel that surfaces as any later error still reads "Upload cancelled." and is not logged as a failure.
+  - **New case 2b** in the journey: image 2's answer arrives but its body never finishes until the page cancels. It failed on main with exactly the wrong message and passes now.
+  - **Case 2 is deterministic:** the mock holds image 2's mint open until the test has clicked Cancel (`holdMintAt`), instead of a 250 ms delay.
+- **The line-259 stall itself is not reproduced**, so it has on-miss diagnostics instead, like Reviewguard's 676. When either wait in `attachThreeImagesAndCaption` runs out, the test prints `DIAG <wait>: {...}` with the form's state before failing as before: client set, client in the client map, account id set and its source, photos in state, on screen and in the file input, caption length in state and in the box, submitting, Submit disabled, and the form's error. Counts and yes/no only, fictional data. The next CI red names the missing piece (most likely the account id, which comes from the asynchronously loaded client map).
+- **Proof:** the journey passes; under the same 8x slowdown, 6 at once, the fixed version passed 30 of 30 runs (before: 22 of 32 red). Way back: revert the PR.
+
+## 675. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper's admin phone suite waited 5 s for every state, and one wait ran out in a busy CI lane (session Reviewguard)
+
+- **Seen:** #2527's `staff-phone-rules (430, 2)` at dd88b902 failed 1 of 4832 checks: "quiz-refresh-actions light 430: locator.waitFor: Timeout 5000ms exceeded", waiting for "Could not load quiz leads". The same suite passed locally four times at that head and at main (0 failures), and the code path it tests is not one #2527 changes. One 5 s wait for an error state ran out in a parallel lane on a shared runner.
+- **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
+- **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
+- **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+
+## 680. [2026-11-03 UTC, BUILT, NOT MERGED] The calm-refresh suite read Production's scroll while the loading skeleton was still up (session Reviewguard, test only)
+
+- **Seen:** `browser-guards (1)` on #2547 (job 125638320835) failed in `test/calm-refresh-pages-browser.js` with "CALM_PAGES Production: the list stays where it was scrolled (-1)". #2547 changes only another suite's wait, and the same suite passes on main and locally.
+- **Cause (reproduced):** with the CPU slowed 4 to 8 times and four to six runs in parallel, 3 of 6 runs fail the same way. In every miss `#prodRoot` still holds the loading skeleton: 173 elements, no `.prod-listwrap`. The real list arrives 8 to 14 s later, so the app is fine. The suite waited a fixed 2.5 s, then drew until two draws in a row matched. Two skeleton draws match, so it took the skeleton for a settled list, and the scroll read found no list (-1). Its "has a real list" check counted nodes (more than 100), which the skeleton passes too.
+- **Fix (test only):**
+  - wait up to 60 s for a real row in `.prod-listwrap` before measuring;
+  - the settle loop also needs a real row;
+  - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
+- **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.
+
+## 681. [2026-11-03 UTC, BUILT, NOT MERGED] popup-behaviour (phone): four card clicks timed out when the Calendar drew after the test asked for the list view (session Chanfix)
+
+Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/syncview-design/tests/popup-behaviour-browser.js`, phone pass only, four `page.click: Timeout 5000ms exceeded` on `.cal-card[data-pid="pb1"]`'s caption toggle, notes button, Set all and status pill. The desktop pass was clean and main passed locally.
+
+- **Not the hard-coded-month trap.** On a phone the Sheet opens as a grid of tiles, and the grid lists every post whatever its date. The October fixture dates play no part.
+- **Cause (a test race, not a page bug).** Each grid tile is also a `.cal-card[data-pid]`, but has none of the card's controls. The shared helper `openEditableSheet` (`docs/syncview-design/tests/staff-phone-browser.js`) switched to the list only if the "List view" button already existed (`if (await button.count() …)`). When the Calendar drew its bar a moment later, the switch was skipped silently. The test's wait for `.cal-card[data-pid="pb1"]` was then satisfied by the tile, and the four clicks inside the card timed out. A person sees the bar and taps List view, so the page is fine.
+- **Reproduced deterministically, failing first.** The new `lateListCheck` in popup-behaviour holds the posts answer for 2.5 s on a phone. On main it fails with `{"tile":true,"toggle":false,"listPressed":"false"}`; with the fix it passes. A 4x CPU slowdown alone did not trigger it (0 of 4 on main), because the race needs the posts to land after the Calendar has drawn, not a slow page.
+- **Fix.** `openEditableSheet` now waits until the page has drawn either the list/grid switch (phone) or a full card (desktop), switches to the list, and waits until the list is on. If neither ever appears, for example an empty desktop collection, it carries on as before after 15 s rather than failing. No longer timeout anywhere.
+- **Proof.** popup-behaviour passes in full (377 checks, one new); phone-only, 4x CPU slowdown, 4 at once: 12 of 12 green. staff-calendar-expanded and calendar-refresh-scroll, which also use the helper, pass. Way back: revert the PR.
+
+## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
+
+- **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.
+- **Now (299):** `svSortDroppedFiles(entries)` takes `{ path }` entries ("Folder/name.ext", or "name.ext" for a loose file) and returns, without reading any file:
+  - the video, cover and caption;
+  - every video, image and text file in natural name order;
+  - a carousel when there are images and no video;
+  - `ask` / `askText` when a person must pick a video ("This folder has 3 videos. Pick one.") or a cover;
+  - `captionNote` when several text files leave the caption empty;
+  - `ignoredLine` ("Ignored 2 files: .prproj, .wav").
+  It refuses two folders ("Drop one folder at a time."). Hidden and system files (dot files, `._*`, `Thumbs.db`, `desktop.ini`) are skipped without a word. Nothing calls it yet, so it is not exported (`check-modules` refuses an export no fragment uses); P2 exports it when the drop zones use it.
+- **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
+- **Way back:** revert the PR. Nothing calls the function.
 
 ## 682. [2026-11-03 UTC, BUILT, NOT MERGED] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
 

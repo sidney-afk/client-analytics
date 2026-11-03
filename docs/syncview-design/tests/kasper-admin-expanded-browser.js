@@ -502,7 +502,10 @@ async function open(browser,origin,width,theme) {
   }
   const page = await ctx.newPage();
   require('../../../qa/client-phone/native-captures').prepareCaptures(page);
-  page.setDefaultTimeout(5000);
+  // OPEN_REPAIRS 675: 15 s, not 5. Every bare wait in this suite inherits this default, and in a busy CI lane one
+  // 5 s wait for an error state ran out once (#2527, quiz-refresh-actions at 430) though the page was right. A longer
+  // wait only costs time when something is missing, so a real failure still fails, just later.
+  page.setDefaultTimeout(15000);
   const errors = []; page.on('pageerror',e => errors.push(e.message));
   await page.goto(origin+'/#kasper',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => typeof _kasperGotoTab === 'function');

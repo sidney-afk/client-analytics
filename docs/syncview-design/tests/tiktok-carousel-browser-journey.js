@@ -125,14 +125,18 @@ function ok(label, cond) {
 /*
  * Registers every network mock this app's boot sequence and the carousel
  * transport touch, against one page, and returns the call logs the
- * scenarios assert on. `mintDelayMs` slows down every mint response (used
- * to land a cancel click mid-loop deterministically); `putFailAtIndex`
+ * scenarios assert on. `holdMintAt` holds that image's mint (1-based) until
+ * the test calls `calls.releaseMint()`, so a cancel lands mid-loop on every
+ * machine (a fixed delay did not: on a slow runner the click came after it
+ * ran out, OPEN_REPAIRS 677); `putFailAtIndex`
  * makes one image's storage PUT fail (1-based); `directResponse` overrides
  * the final tiktok-upload-direct response body (a logical-failure test needs
  * HTTP 200 with `ok:false` in the body, not a transport-level failure).
  */
-async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null, directResponse = null } = {}) {
-  const calls = { mint: [], put: [], direct: [], legacy: [], list: 0 };
+async function mockNetwork(page, { holdMintAt = null, putFailAtIndex = null, directResponse = null } = {}) {
+  let releaseHeld = () => {};
+  const held = new Promise(r => { releaseHeld = r; });
+  const calls = { mint: [], put: [], direct: [], legacy: [], list: 0, releaseMint: () => releaseHeld() };
 
   // Lowest priority: nothing this app talks to should reach the real
   // internet. Registered first -- Playwright matches the most-recently
@@ -168,11 +172,12 @@ async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null, direc
   await page.route('**/webhook/tiktok-upload-url**', async route => {
     const n = calls.mint.length + 1;
     calls.mint.push(n);
-    if (mintDelayMs) await new Promise(r => setTimeout(r, mintDelayMs));
+    if (holdMintAt === n) await held;
+    // A held mint may have been cancelled by the page meanwhile; answering it then is a no-op.
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ ok: true, upload_url: `https://storage.postforme.test/upload-${n}`, media_url: `https://media.postforme.test/img-${n}.jpg` }),
-    });
+    }).catch(() => {});
   });
 
   await page.route('**/storage.postforme.test/**', async route => {
@@ -252,11 +257,46 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
   return { page, calls, pageErrors, clientName: picked };
 }
 
+// Node-side poll for a condition on the mock's call log.
+async function waitUntil(cond, what, timeoutMs = 30000) {
+  const end = Date.now() + timeoutMs;
+  while (!cond()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for: ${what}`);
+    await new Promise(r => setTimeout(r, 20));
+  }
+}
+
+// What the form holds, for a wait that ran out (OPEN_REPAIRS 677: on CI the
+// Submit button twice stayed disabled after the photos and caption were in,
+// and the log said only "Timeout"). Counts and yes/no only; the client and
+// caption here are the test's own fictional ones. Pass/fail is unchanged:
+// the wait still throws.
+async function formState(page) {
+  return page.evaluate(() => {
+    const s = (typeof tkState !== 'undefined') ? tkState : {};
+    const map = (typeof clientMap !== 'undefined') ? clientMap : {};
+    const input = document.getElementById('tkPhotoFile');
+    const submit = document.getElementById('tkSubmit');
+    return {
+      client_set: !!s.client, client_in_client_map: !!(s.client && map[s.client]), client_map_size: Object.keys(map).length,
+      account_id_set: !!s.profile, account_source: s.profileSource || null,
+      media_type: s.mediaType || null, photos_in_state: (s.photos || []).length,
+      photo_items_on_screen: document.querySelectorAll('.tk-photo-item').length, photo_input_files: input && input.files ? input.files.length : null,
+      caption_length_state: (s.title || '').length, caption_length_box: (document.getElementById('tkTitle') || {}).value?.length ?? null,
+      submitting: !!s.submitting, submit_disabled: submit ? submit.disabled : null, form_error: s.error || null,
+    };
+  }).catch(e => ({ unreadable: String(e && e.message || e) }));
+}
+async function waitOrExplain(page, what, fn) {
+  try { await page.waitForFunction(fn); }
+  catch (e) { console.log(`DIAG ${what}: ${JSON.stringify(await formState(page))}`); throw e; }
+}
+
 async function attachThreeImagesAndCaption(page, caption) {
   await page.setInputFiles('#tkPhotoFile', TEST_IMAGES);
-  await page.waitForFunction(() => document.querySelectorAll('.tk-photo-item').length === 3);
+  await waitOrExplain(page, 'three photos on screen', () => document.querySelectorAll('.tk-photo-item').length === 3);
   await page.fill('#tkTitle', caption);
-  await page.waitForFunction(() => !document.getElementById('tkSubmit').disabled);
+  await waitOrExplain(page, 'Submit enabled', () => !document.getElementById('tkSubmit').disabled);
 }
 
 (async () => {
@@ -304,26 +344,68 @@ async function attachThreeImagesAndCaption(page, caption) {
      * 2. Cancel mid-upload leaves no partial submission                *
      * ---------------------------------------------------------------- */
     {
-      const { page, calls, pageErrors } = await bootToTiktokUpload(browser, port, { mintDelayMs: 250 });
+      const { page, calls, pageErrors } = await bootToTiktokUpload(browser, port, { holdMintAt: 2 });
       await attachThreeImagesAndCaption(page, 'Cancel journey test caption');
 
-      await Promise.all([
-        page.waitForResponse(r => /storage\.postforme\.test\/upload-1$/.test(r.url())),
-        page.click('#tkSubmit'),
-      ]);
-      // Image 1 has landed; image 2's mint is in flight behind its 250ms
-      // delay. Cancelling now proves the abort works mid-loop, not just
-      // before the first image or only after the whole loop finishes.
+      await page.click('#tkSubmit');
+      // Image 1 has landed and image 2's mint is held open by the mock, so
+      // cancelling now proves the abort works mid-loop, not just before the
+      // first image or only after the whole loop finishes, however slow the machine.
+      await waitUntil(() => calls.put.length === 1 && calls.mint.length === 2, 'image 1 stored and image 2 being prepared');
       await Promise.all([
         page.waitForSelector('.tk-error'),
         page.click('.tk-submit-bar button.tk-mini-btn'),
       ]);
+      calls.releaseMint();
       const errorText = await page.$eval('.tk-error', el => el.textContent);
       check('the form reports the cancellation', errorText, 'Upload cancelled.');
       ok('image 3 was never minted', !calls.mint.includes(3));
       ok('the aborted loop never reached the final POST', calls.direct.length === 0);
       ok('Submit is enabled again after cancelling so the user can retry', await page.$eval('#tkSubmit', el => !el.disabled));
       ok('no page errors during cancellation', pageErrors.length === 0);
+      await page.close();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * 2b. Cancel while an image's answer is still being read            *
+     * ---------------------------------------------------------------- */
+    // OPEN_REPAIRS 677: a Cancel that landed after image 2's answer arrived
+    // but before its body was read made the read fail with the cancellation,
+    // which the page ignored, so it showed "Could not prepare image 2 - no
+    // upload url returned." (and logged a failed save) instead of "Upload
+    // cancelled.". Here image 2's body never finishes until the page cancels.
+    {
+      const { page, calls, pageErrors } = await bootToTiktokUpload(browser, port, {});
+      await attachThreeImagesAndCaption(page, 'Cancel while reading journey test caption');
+      await page.evaluate(() => {
+        const realFetch = window.fetch;
+        let mints = 0;
+        window.__tkSecondMintReading = false;
+        window.fetch = function (url, opts) {
+          if (String(url).includes('/webhook/tiktok-upload-url') && ++mints === 2) {
+            const signal = opts && opts.signal;
+            window.__tkSecondMintReading = true;
+            return Promise.resolve({ ok: true, status: 200, json: () => new Promise((resolve, reject) => {
+              const cancelled = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+              if (!signal) return;
+              if (signal.aborted) cancelled(); else signal.addEventListener('abort', cancelled);
+            }) });
+          }
+          return realFetch.apply(this, arguments);
+        };
+      });
+      await page.click('#tkSubmit');
+      await page.waitForFunction(() => window.__tkSecondMintReading === true);
+      await Promise.all([
+        page.waitForSelector('.tk-error'),
+        page.click('.tk-submit-bar button.tk-mini-btn'),
+      ]);
+      const errorText = await page.$eval('.tk-error', el => el.textContent);
+      check('a cancel while an answer is being read reports the cancellation', errorText, 'Upload cancelled.');
+      ok('image 3 was never prepared after that cancel', calls.mint.length === 1);
+      ok('that cancel never reached the final POST', calls.direct.length === 0);
+      ok('Submit is enabled again after that cancel', await page.$eval('#tkSubmit', el => !el.disabled));
+      ok('no page errors during that cancel', pageErrors.length === 0);
       await page.close();
     }
 

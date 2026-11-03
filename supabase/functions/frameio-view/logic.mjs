@@ -402,20 +402,29 @@ async function playable(ctx, acct, fileId) {
   return { name: clean(f.name), url, renditions, mediaType: clean(f.media_type) };
 }
 
-// Also the upload's video codec and size, for post-source's choice of file (plan row F4, D2). Their field names are
-// not measured yet: a codec is any field named "... Codec" other than the audio one, a size "Width" / "Height" (with
-// or without "Video "). Absent stays empty, and post-source reads empty as "not known to be H.264".
+// Also the upload's video codec and size, for post-source's choice of file (plan row F4, D2). A codec is any field
+// named "... Codec" other than the audio one (live: it named H.264, F4's check on 3 Nov). The size: that check found no
+// "Width" / "Height", so it is also read from one "W x H" field (Resolution, Dimensions, Frame Size) and from values
+// with a unit ("1080 px"); `fields` lists the field names (never values) so the live check can show Frame's real one
+// (P1a, OPEN_REPAIRS 650). Absent stays empty, and post-source reads an empty codec as "not known to be H.264".
+const SIZE_PAIR_RE = /^(resolution|dimensions|frame size|video size|image size)$/i;
 async function videoFacts(ctx, acct, fileId) {
   const got = await api(ctx, '/accounts/' + acct + '/files/' + fileId + '/metadata', { optional: true });
-  const out = { fps: null, duration: null, codec: '', width: null, height: null };
+  const out = { fps: null, duration: null, codec: '', width: null, height: null, fields: [] };
+  const num = (v) => { const n = parseFloat(String(v == null ? '' : v)); return Number.isFinite(n) && n > 0 ? n : null; };
   for (const m of ((got && got.metadata) || (got && got.data && got.data.metadata) || [])) {
     const name = clean(m && m.field_definition_name);
+    if (name && out.fields.length < 60) out.fields.push(name.slice(0, 60));
     const n = Number(m && m.value);
     if (name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
     if (name === 'Duration' && n > 0) out.duration = n;
     if (/codec$/i.test(name) && !/audio/i.test(name) && !out.codec) out.codec = clean(m.value);
-    if (/^(video )?width$/i.test(name) && n > 0) out.width = n;
-    if (/^(video )?height$/i.test(name) && n > 0) out.height = n;
+    if (/width$/i.test(name) && !out.width) out.width = num(m.value);
+    if (/height$/i.test(name) && !out.height) out.height = num(m.value);
+    if (SIZE_PAIR_RE.test(name)) {
+      const pair = String(m.value == null ? '' : m.value).match(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/);
+      if (pair) { out.width = out.width || Number(pair[1]); out.height = out.height || Number(pair[2]); }
+    }
   }
   return out;
 }
@@ -555,7 +564,7 @@ export async function lookup(rawLink, deps, opts = {}) {
     const [video, facts] = await Promise.all([playable(ctx, found.acct, found.file.id), videoFacts(ctx, found.acct, found.file.id)]);
     const addr = { url: video.url, renditions: video.renditions, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps };
     if (client) return { ok: true, video: addr, fetched_at: fetchedAt };
-    const shaped = { ...addr, name: video.name, file_id: found.file.id, media_type: video.mediaType, codec: facts.codec, width: facts.width, height: facts.height };
+    const shaped = { ...addr, name: video.name, file_id: found.file.id, media_type: video.mediaType, codec: facts.codec, width: facts.width, height: facts.height, metadata_fields: facts.fields };
     if (part === 'video') return { ok: true, video: shaped, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';

@@ -19,6 +19,10 @@ function safeSummary(answer) {
   const a = answer && typeof answer === 'object' ? answer : {};
   const out = {};
   for (const k of SAFE) if (k in a) out[k] = a[k];
+  // P1a (OPEN_REPAIRS 650): whether the card's thumbnail was copied (never its address), and Frame's metadata field
+  // NAMES, so one run shows which name carries the size. Names are Frame's labels, never a value.
+  if ('thumb_url' in a) out.thumb_copied = !!a.thumb_url;
+  if (Array.isArray(a.metadata_fields)) out.metadata_fields = a.metadata_fields.filter((n) => typeof n === 'string').map((n) => n.slice(0, 60)).slice(0, 60);
   return out;
 }
 

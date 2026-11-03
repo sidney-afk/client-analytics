@@ -1646,6 +1646,14 @@
       "ci": "representative"
     },
     {
+      "file": "post-networks-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's YouTube and LinkedIn ticks behind post_networks_v1: the Post to card, Instagram untickable, YouTube's title from the caption's first line, Short by default and refused for a landscape card, made for kids from the profile, the create body's networks and ids, carousel and trial staying Instagram only, the no-account messages, the queue per network, the switch off, and 390 wide.",
+      "reproduce": "node test/post-networks-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-press-key-reload-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

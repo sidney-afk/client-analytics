@@ -36539,3 +36539,33 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
   `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
+
+## 655. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's Instagram side posts to YouTube and LinkedIn too, behind post_networks_v1 (plan row P3, page half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The server half merged as 652 (#2557); this is the page half, after P1b.
+- **Before:** the Instagram side could add only Facebook. The server already took YouTube and LinkedIn (652), and nothing on the page asked for them.
+- **Now (188 reads the switch; 299 draws the form; the styles are in 300), for a client listed in `post_networks_v1`:**
+  - the Facebook card becomes a **Post to** card: Instagram, Facebook (as before), YouTube and LinkedIn, each a toggle with its note. YouTube and LinkedIn start unticked;
+  - Instagram can be unticked for a Reel. A carousel and a trial reel stay Instagram only: YouTube and LinkedIn say why and cannot be ticked. A client with no Instagram account has Instagram unticked and fixed, and can still post to the others;
+  - **YouTube:**
+    - the title is the caption's first line (no `<` or `>`) until typed into, 100 characters at most;
+    - **Short** (the default) or **Regular video**;
+    - a Short is refused on the page when the video is longer than 3 minutes or not vertical, from the dropped file's metadata or the card copy's facts (the server checks again);
+    - Public, and "Made for kids" is read from the client's profile (`youtube_made_for_kids`, F3). The page never sends it;
+  - **LinkedIn:** the account connected in Post for Me;
+  - **no account:** YouTube's note says it links itself within the hour; LinkedIn's says to ask Sidney to link it (it has no handle to match). Both have **Open Post for Me**;
+  - **the create body:**
+    - `instagram: false` (and no Instagram account) when Instagram is unticked;
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }` and `linkedin: { accountId }` with the profile's ids, which the server checks again against the profile and Post for Me;
+    - no cover when neither Instagram nor YouTube is ticked;
+    - the press key changes with the networks;
+  - the button reads "Post to Instagram", or the one network's name, or "Post to 3 networks"; the notice names them;
+  - **queue:** each network's own result and link, from the server's `network` and `networks`. A row is under Failed when any network failed. A row whose first network is YouTube says so.
+- **Also fixed:** typing a caption after picking a card (P1b) switched Post off until the next redraw, because the quick check counted only a dropped file as the video. It now counts the card's copy, as the full check does.
+- **Proof:** `test/post-networks-browser.js` (new, isolated browser, 56 checks):
+  - **main:** `TimeoutError` waiting for `#igNetworksCard`;
+  - **this branch:** `post-networks-browser: 56 checks passed`.
+  The Instagram and Facebook suites pass unchanged: instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-cover-client-switch (8), instagram-carousel (51), post-from-card (51), post-tab (58).
+- **Live check (D6):** on one of the owner's two clients with YouTube and LinkedIn connected: schedule 7+ days ahead, cancel at once, and read back that it is gone. It waits for those accounts to be connected; then 652 can be marked LIVE.
+- **Way back:** clear `post_networks_v1`, or revert the PR.
+- **Ledger number:** 655 was held for P4. P4 needs a new number from the supervisor.

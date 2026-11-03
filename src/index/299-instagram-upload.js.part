@@ -6,7 +6,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOv
 import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
-import { svPostSourcesOn } from './188-review-stage-switch.js';
+import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
        Posts a video to a client's Instagram through Post For Me. Unlike TikTok, which
@@ -35,6 +35,14 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
     const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
     const IG_FACEBOOK_COLUMN = 'postforme_facebook_account_id';
+    // YouTube and LinkedIn (post_networks_v1, plan row P3): read from the client's profile as Facebook's is; the server
+    // checks each against the profile and against Post for Me before anything is written.
+    const IG_YOUTUBE_COLUMN = 'postforme_youtube_account_id';
+    const IG_LINKEDIN_COLUMN = 'postforme_linkedin_account_id';
+    const IG_KIDS_COLUMN = 'youtube_made_for_kids';
+    const IG_YT_TITLE_MAX = 100;
+    const IG_YT_SHORT_MAX_SECONDS = 180;
+    const IG_YT_DESCRIPTION_MAX_BYTES = 5000;
     const IG_MAX_CAPTION = 2200;
     // Client info lives on the SyncView client profile; the Clients Info sheet is only a copy of it.
     const IG_NO_ACCOUNT_MSG = "No Instagram account on file for this client yet. Ask Sidney to add its Post For Me Connection ID (spc_...) to the client's profile.";
@@ -66,6 +74,12 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         facebookOff: false,          // the person unticked "Also post to Facebook" for this client (ticked again on a client change)
+        // post_networks_v1: Instagram unticked, YouTube and LinkedIn ticked (all back to Instagram only on a client
+        // change), and YouTube's title (the caption's first line until typed into) and format.
+        nets: { instagramOff: false, youtube: false, linkedin: false },
+        yt: { title: '', edited: false, format: 'short' },
+        videoDims: null,             // { w, h } of the dropped video, once its metadata is read
+        instagramOn: true,           // false only when the person unticked Instagram (post_networks_v1); read by _igValidate
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
@@ -132,6 +146,128 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 </div>
                 <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
             </div>`;
+    }
+
+    /* YouTube and LinkedIn (plan row P3, page half; decision D5), behind post_networks_v1. With the switch on, the
+       Facebook card becomes a "Post to" card: Instagram (untickable for a Reel), Facebook (as before), YouTube and
+       LinkedIn, each with its reason in plain words when it cannot be ticked. The page sends network names and the
+       profile's ids; the server reads every id again from the profile and refuses any other. */
+    const _igNetworksOn = () => !!igState.client && svPostNetworksOn(igState.client);
+    function _igInstagramTick() {
+        if (!_igNetworksOn()) return { enabled: false, checked: true, reason: '' };
+        if (igState.kind === 'carousel') return { enabled: false, checked: true, reason: 'A carousel posts to Instagram.' };
+        if (igState.trial) return { enabled: false, checked: true, reason: 'A trial reel posts to Instagram.' };
+        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return { enabled: false, checked: false, noAccount: true, reason: IG_NO_ACCOUNT_MSG };
+        return { enabled: true, checked: !igState.nets.instagramOff, reason: '' };
+    }
+    const _igInstagramOn = () => _igInstagramTick().checked;
+    function _igMoreState(name) {
+        if (!_igNetworksOn()) return { enabled: false, checked: false, reason: '', id: '' };
+        const id = _igProfileValue(igState.client, name === 'youtube' ? IG_YOUTUBE_COLUMN : IG_LINKEDIN_COLUMN);
+        if (!IG_ACCOUNT_RE.test(id)) return { enabled: false, checked: false, noAccount: true, id: '', reason: name === 'youtube'
+            ? 'No YouTube account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney.'
+            : 'No LinkedIn account linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a LinkedIn account does not link itself.' };
+        if (igState.kind === 'carousel') return { enabled: false, checked: false, id, reason: 'A carousel goes to Instagram and Facebook only.' };
+        if (igState.trial) return { enabled: false, checked: false, id, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
+        return { enabled: true, checked: !!igState.nets[name], id, reason: '' };
+    }
+    // The YouTube title: the caption's first line (no < or >, which YouTube refuses) until the person types one.
+    function _igYtTitle() {
+        if (igState.yt.edited) return igState.yt.title;
+        const line = String(igState.title || '').split('\n').map(l => l.trim()).find(Boolean) || '';
+        return line.replace(/[<>]/g, '').replace(/\s+/g, ' ').slice(0, IG_YT_TITLE_MAX);
+    }
+    // What the page knows of the video (the dropped file's metadata, or the card's copy): { secs, w, h }, 0 = unknown.
+    function _igVideoFacts() {
+        const src = igState.source;
+        if (src && src.active && src.data) return { secs: Number(src.data.duration_seconds) || 0, w: Number(src.data.width) || 0, h: Number(src.data.height) || 0 };
+        const d = igState.videoDims || {};
+        return { secs: Number(igState.cover.duration) || 0, w: Number(d.w) || 0, h: Number(d.h) || 0 };
+    }
+    // Why the chosen video cannot go as a Short ('' when it can, or when its length and shape are not known).
+    function _igShortProblem() {
+        const f = _igVideoFacts();
+        if (f.secs > IG_YT_SHORT_MAX_SECONDS) return 'A Short is at most 3 minutes; this video is ' + Math.floor(f.secs / 60) + ':' + String(Math.round(f.secs % 60)).padStart(2, '0') + '. Post it as a regular video.';
+        if (f.w > 0 && f.h > 0 && f.w >= f.h) return 'A Short is a vertical video; this one is ' + f.w + '×' + f.h + '. Post it as a regular video.';
+        return '';
+    }
+    // The networks this post goes to, by name, in the order the queue shows them.
+    function _igTickedNames() {
+        const names = [];
+        if (_igInstagramOn()) names.push('Instagram');
+        const fb = _igFacebookState(); if (fb.enabled && fb.checked) names.push('Facebook');
+        if (_igMoreState('youtube').checked) names.push('YouTube');
+        if (_igMoreState('linkedin').checked) names.push('LinkedIn');
+        return names;
+    }
+    const _igAnd = (names) => names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : (names[0] || '');
+    // Problems with the YouTube and LinkedIn part of the form ('' when none, or when the switch is off).
+    function _igNetworksProblem() {
+        if (!_igNetworksOn()) return '';
+        if (!_igTickedNames().length) return 'Tick at least one network to post to.';
+        if (_igMoreState('youtube').checked) {
+            const t = _igYtTitle().trim();
+            if (!t) return 'Add a YouTube title.';
+            if (t.length > IG_YT_TITLE_MAX) return 'The YouTube title is over ' + IG_YT_TITLE_MAX + ' characters.';
+            if (/[<>]/.test(t)) return 'YouTube does not take < or > in a title.';
+            if (new TextEncoder().encode(igState.title.trim()).length > IG_YT_DESCRIPTION_MAX_BYTES) return 'The caption is too long for a YouTube description (5,000 bytes).';
+            if (igState.yt.format === 'short') { const p = _igShortProblem(); if (p) return p; }
+        }
+        return '';
+    }
+    function _igToggleRowHtml(id, label, st, note) {
+        const dis = !st.enabled || igState.submitting;
+        return `<div class="ig-net-row">
+                    <label class="tk-toggle${st.enabled ? '' : ' is-off'}">
+                        <input type="checkbox" id="${id}" ${st.checked ? 'checked' : ''} ${dis ? 'disabled' : ''} aria-describedby="${id}Note">
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        ${label}
+                    </label>
+                    <div class="tk-step-note" id="${id}Note">${_igEsc(note)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
+                </div>`;
+    }
+    function _igYoutubeFieldsHtml() {
+        const t = _igYtTitle();
+        const short = igState.yt.format === 'short';
+        const off = igState.submitting ? 'disabled' : '';
+        const kids = /^(true|yes|1)$/i.test(_igProfileValue(igState.client, IG_KIDS_COLUMN));
+        const problem = short ? _igShortProblem() : '';
+        return `<div class="ig-yt" id="igYtFields">
+                    <label class="ig-yt-label" for="igYtTitle">YouTube title <span class="tk-card-hint" id="igYtCount">${t.length} / ${IG_YT_TITLE_MAX}</span></label>
+                    <input type="text" class="tpl-input" id="igYtTitle" maxlength="${IG_YT_TITLE_MAX}" value="${_igEsc(t)}" placeholder="The caption's first line" ${off}>
+                    <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="YouTube format">
+                        <label class="tk-radio${short ? ' active' : ''}"><input type="radio" name="igYtFormat" value="short" ${short ? 'checked' : ''} ${off} style="position:absolute;opacity:0">Short</label>
+                        <label class="tk-radio${short ? '' : ' active'}"><input type="radio" name="igYtFormat" value="regular" ${short ? '' : 'checked'} ${off} style="position:absolute;opacity:0">Regular video</label>
+                    </div>
+                    <div class="tk-step-note" id="igYtNote">${short ? 'A Short: vertical and 3 minutes or less. YouTube itself puts it on the Shorts shelf.' : 'A regular video, any shape or length.'} Public. Made for kids: ${kids ? 'Yes' : 'No'} (set on the client's profile).</div>
+                    ${problem ? `<div class="tk-error" id="igYtProblem" role="alert">${_igEsc(problem)}</div>` : ''}
+                </div>`;
+    }
+    function _igNetworksCardHtml() {
+        if (!igState.client) return '';
+        const ig = _igInstagramTick();
+        const fb = _igFacebookState();
+        const yt = _igMoreState('youtube');
+        const li = _igMoreState('linkedin');
+        const fbWhat = igState.kind === 'carousel' ? 'The photos go to the client\'s Facebook Page as one post.' : 'The Reel goes to the client\'s Facebook Page as a Facebook Reel.';
+        return `<div class="tk-card" id="igNetworksCard">
+                <h3>Post to</h3>
+                ${_igToggleRowHtml('igNetInstagram', 'Instagram', ig, ig.reason || (ig.checked ? 'The Reel goes to Instagram.' : 'Not to Instagram.'))}
+                ${_igToggleRowHtml('igFacebook', 'Facebook', fb, fb.enabled ? (fb.checked ? fbWhat : 'Not to Facebook.') : fb.reason)}
+                ${_igToggleRowHtml('igNetYoutube', 'YouTube', yt, yt.reason || (yt.checked ? 'Goes to the client\'s YouTube channel.' : 'Not to YouTube.'))}
+                ${yt.checked ? _igYoutubeFieldsHtml() : ''}
+                ${_igToggleRowHtml('igNetLinkedin', 'LinkedIn', li, li.reason || (li.checked ? 'Goes to the LinkedIn account connected in Post for Me (a page or a person).' : 'Not to LinkedIn.'))}
+                ${_igTickedNames().length > 1 ? '<div class="tk-step-note">One post for every ticked network. Each network\'s result shows on its own in the queue.</div>' : ''}
+            </div>`;
+    }
+
+    // "Post to Instagram" as before; with the switch on, the one network's name, or "Post to 3 networks".
+    function _igButtonLabel() {
+        if (!_igNetworksOn()) return svPostButtonLabel('instagram', igState.schedule.postNow);
+        const names = _igTickedNames();
+        if (names.length === 1 && names[0] === 'Instagram') return svPostButtonLabel('instagram', igState.schedule.postNow);
+        const what = names.length === 1 ? names[0] : names.length + ' networks';
+        return '<span>' + (igState.schedule.postNow ? 'Post to ' : 'Schedule on ') + _igEsc(what) + '</span>';
     }
 
     function _igRecordFailure(operation, status, network) {
@@ -509,6 +645,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     function _igLeaveClient() {
         igState.error = null; igState.notice = null;
         igState.facebookOff = false;
+        igState.nets = { instagramOff: false, youtube: false, linkedin: false };
+        igState.yt = { title: '', edited: false, format: 'short' };
         if (igState.cover.source === 'calendar') _igCoverClear(true);
         igState.cover.cardId = ''; igState.cover.note = '';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
@@ -779,7 +917,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
-        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return IG_NO_ACCOUNT_MSG;
+        // instagramOn is false only when post_networks_v1 lets the person untick Instagram (set on every redraw).
+        if (igState.instagramOn !== false && !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return IG_NO_ACCOUNT_MSG;
         if (igState.kind === 'carousel') {
             if (igState.items.length < IG_CAROUSEL_MIN) return 'A carousel needs at least ' + IG_CAROUSEL_MIN + ' images or videos.';
             if (igState.items.length > IG_CAROUSEL_MAX) return 'A carousel holds at most ' + IG_CAROUSEL_MAX + ' items.';
@@ -807,6 +946,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     function _igRenderForm() {
         const col = document.getElementById('igFormCol');
         if (!col) return;
+        igState.instagramOn = _igInstagramOn();
         const account = igState.client ? _igResolveAccount(igState.client) : '';
         const accountOk = IG_ACCOUNT_RE.test(account);
         const names = _igClientNames();
@@ -814,7 +954,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         const isCarousel = igState.kind === 'carousel';
         const fromCard = _igFromCard();
         const hasMedia = isCarousel ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : fromCard ? svPostSourceReady(_igSrc()) : !!igState.file;
-        const can = !!(igState.client && accountOk && hasMedia && igState.title.trim() && !over && !igState.submitting);
+        const can = !!(igState.client && (accountOk || !_igInstagramOn()) && hasMedia && igState.title.trim() && !over && !igState.submitting && !_igNetworksProblem());
         let accountLine = '';
         if (igState.client) {
             accountLine = accountOk
@@ -860,7 +1000,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name) : ''}
 
             </div>
-            ${isCarousel ? '' : `<div class="tk-card">
+            ${isCarousel || !_igInstagramOn() ? '' : `<div class="tk-card">
                 <div class="tk-sched-head"><h3>Trial reel</h3>
                     <label class="tk-toggle">
                         <input type="checkbox" id="igTrial" ${igState.trial ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
@@ -870,7 +1010,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 </div>
                 ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
             </div>`}
-            ${_igFacebookCardHtml()}
+            ${_igNetworksOn() ? _igNetworksCardHtml() : _igFacebookCardHtml()}
             <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
@@ -891,7 +1031,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 </div>
             </div>
             <div class="tk-submit-bar">
-                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : svPostButtonLabel('instagram', igState.schedule.postNow)}</button>
+                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : _igButtonLabel()}</button>
                 ${igState.submitting
                     ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
                     : ''}
@@ -911,12 +1051,23 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             igState.title = e.target.value;
             if (igState.captionFill && igState.title !== igState.captionFill.text) { igState.captionFill = null; $('igCapFill')?.remove(); }
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
+            const yt = $('igYtTitle');
+            if (yt && !igState.yt.edited) { const t = _igYtTitle(); yt.value = t; const n = $('igYtCount'); if (n) n.textContent = t.length + ' / ' + IG_YT_TITLE_MAX; }
             syncSubmit();
             _igRenderPreview();
         });
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
         $('igTrial')?.addEventListener('change', (e) => { igState.trial = e.target.checked; _igRenderForm(); });
         $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
+        $('igNetInstagram')?.addEventListener('change', (e) => { igState.nets.instagramOff = !e.target.checked; _igRenderForm(); });
+        $('igNetYoutube')?.addEventListener('change', (e) => { igState.nets.youtube = e.target.checked; _igRenderForm(); });
+        $('igNetLinkedin')?.addEventListener('change', (e) => { igState.nets.linkedin = e.target.checked; _igRenderForm(); });
+        document.querySelectorAll('input[name="igYtFormat"]').forEach(r => r.addEventListener('change', (e) => { igState.yt.format = e.target.value === 'regular' ? 'regular' : 'short'; _igRenderForm(); }));
+        $('igYtTitle')?.addEventListener('input', (e) => {
+            igState.yt.title = e.target.value; igState.yt.edited = true;
+            const c = $('igYtCount'); if (c) c.textContent = e.target.value.length + ' / ' + IG_YT_TITLE_MAX;
+            syncSubmit();
+        });
         $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
         $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
         $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
@@ -958,9 +1109,12 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     // The submit button's enabled state, without a message.
     function _igValidateSoft() {
         if (igState.submitting) return 'busy';
-        if (!igState.client || !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'account';
-        const hasMedia = igState.kind === 'carousel' ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : !!igState.file;
+        if (!igState.client || (_igInstagramOn() && !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client)))) return 'account';
+        // A card's copy counts as the video, as it does for the button drawn with the form (before, typing a caption
+        // after picking a card switched the button off until the next redraw).
+        const hasMedia = igState.kind === 'carousel' ? (igState.items.length >= IG_CAROUSEL_MIN && igState.items.length <= IG_CAROUSEL_MAX) : _igFromCard() ? svPostSourceReady(_igSrc()) : !!igState.file;
         if (!hasMedia || !igState.title.trim() || igState.title.length > IG_MAX_CAPTION) return 'fields';
+        if (_igNetworksProblem()) return 'networks';
         return '';
     }
 
@@ -972,14 +1126,18 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         igState.file = file;
         igState.objectUrl = URL.createObjectURL(file);
         igState.error = null;
-        igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
+        igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0; igState.videoDims = null;
         _igRenderForm();
         _igTryCaptionFill(file);
         // The length of the video sets the range of the frame picker.
         const probe = document.createElement('video');
         probe.preload = 'metadata';
         probe.onloadedmetadata = () => {
-            if (igState.file === file && Number.isFinite(probe.duration)) { igState.cover.duration = probe.duration; if (igState.cover.mode === 'frame') _igRenderForm(); }
+            if (igState.file === file && Number.isFinite(probe.duration)) {
+                igState.cover.duration = probe.duration;
+                igState.videoDims = probe.videoWidth && probe.videoHeight ? { w: probe.videoWidth, h: probe.videoHeight } : null;
+                if (igState.cover.mode === 'frame' || _igMoreState('youtube').checked) _igRenderForm();
+            }
             probe.removeAttribute('src');
         };
         probe.src = igState.objectUrl;
@@ -1015,7 +1173,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
     async function _igSubmit() {
         _igFromCard();
-        const err = _igValidate();
+        igState.instagramOn = _igInstagramOn();
+        const err = _igValidate() || _igNetworksProblem();
         if (err) { igState.error = err; _igRenderForm(); return; }
         if (igState.kind === 'carousel') return _igSubmitCarousel();
         const account = _igResolveAccount(igState.client);
@@ -1030,9 +1189,19 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         const trial = igState.trial ? 'manual' : '';
         const fbState = _igFacebookState();
         const facebookAccountId = fbState.enabled && fbState.checked ? _igResolveFacebook(igState.client) : '';
+        // post_networks_v1: Instagram may be unticked; YouTube and LinkedIn ride on the same one post. A cover goes
+        // only where it can (Instagram or YouTube).
+        const instagramOn = _igInstagramOn();
+        const ytState = _igMoreState('youtube'), liState = _igMoreState('linkedin');
+        const facts = _igVideoFacts();
+        const youtube = ytState.checked ? { accountId: ytState.id, title: _igYtTitle().trim(), format: igState.yt.format, ...(facts.secs ? { durationSeconds: Math.round(facts.secs) } : {}), ...(facts.w && facts.h ? { width: facts.w, height: facts.h } : {}) } : null;
+        const linkedin = liState.checked ? { accountId: liState.id } : null;
+        const names = _igTickedNames();
+        const coverOn = instagramOn || !!youtube;
         // A card is named by its id, not by the copy's address: a copy made again (after 20 h) is the same post.
         const media = fromCard ? ['card', src.cardId] : [file.name, file.size, file.lastModified];
-        const fp = [igState.client].concat(media, [igState.title.trim(), utc, coverKey, trial, facebookAccountId ? 'fb' : '']).join('|');
+        const more = (instagramOn ? '' : 'no-ig') + (youtube ? '|yt:' + youtube.format + ':' + youtube.title : '') + (linkedin ? '|li' : '');
+        const fp = [igState.client].concat(media, [igState.title.trim(), utc, coverOn ? coverKey : '', trial, facebookAccountId ? 'fb' : ''], more ? [more] : []).join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -1048,7 +1217,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 // The video is already in Post for Me storage (post-source); it is copied again first if it is old.
                 const copied = await svPostSourceFresh(src, 'instagram');
                 mediaUrl = copied.media_url;
-                if (cv.mode === 'image' && !cv.blob && cv.remoteUrl) coverUrl = copied.thumb_url || '';
+                if (coverOn && cv.mode === 'image' && !cv.blob && cv.remoteUrl) coverUrl = copied.thumb_url || '';
                 if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
             } else {
                 const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
@@ -1078,7 +1247,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                 if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
             }
             // A cover image goes to Post For Me storage the same way the video did; its address rides on the post.
-            if (cv.mode === 'image' && cv.blob) {
+            if (coverOn && cv.mode === 'image' && cv.blob) {
                 const cmint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
                 if (!cmint.ok || !cmint.json || !cmint.json.upload_url || !cmint.json.media_url) {
                     _igRecordFailure('instagram_mint', cmint.status);
@@ -1091,10 +1260,13 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             igState.phase = 'creating';
             _igRenderForm();
             const created = await _igCall({
-                action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
+                action: 'create', clientName: igState.client, socialAccountId: instagramOn ? account : '', title: igState.title.trim(),
+                mediaUrl, coverUrl, options: { cover_timestamp_ms: (coverOn && cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0, ...(trial ? { trial_reel_type: trial } : {}) },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
                 ...(facebookAccountId ? { alsoFacebook: true, facebookAccountId } : {}),
+                ...(instagramOn ? {} : { instagram: false }),
+                ...(youtube ? { youtube } : {}),
+                ...(linkedin ? { linkedin } : {}),
             }, 'instagram_create');
             if (!created.ok) {
                 // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
@@ -1117,10 +1289,11 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             if (fromCard) svPostSourceClear(src);
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
-            _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
-            igState.notice = facebookAccountId
-                ? (utc ? 'Scheduled for Instagram and Facebook. It will appear in the queue.' : 'Sent to Instagram and Facebook. Each shows as Posted here once it confirms.')
-                : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.');
+            igState.yt = { title: '', edited: false, format: igState.yt.format };
+            _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0; igState.videoDims = null;
+            igState.notice = names.length > 1
+                ? (utc ? 'Scheduled for ' + _igAnd(names) + '. It will appear in the queue.' : 'Sent to ' + _igAnd(names) + '. Each shows as Posted here once it confirms.')
+                : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to ' + names[0] + '. It will show as Posted here once ' + names[0] + ' confirms.');
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
         } catch (e) {
@@ -1225,8 +1398,18 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
 
     // The queue group for a row: failed if either network failed, upcoming while either is still going,
     // otherwise done. Instagram's own result is r.status; Facebook's is r.facebook (null = Instagram only).
+    // Every network a row went to, the row's own first: [{ name, status, url, error }]. A row from before P3 has no
+    // `network` (Instagram) and no `networks`.
+    const IG_NET_NAMES = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn' };
+    function _igRowNets(r) {
+        const out = [{ name: IG_NET_NAMES[r.network] || 'Instagram', status: r.status, url: r.instagram_url, error: r.error }];
+        if (r.facebook) out.push({ name: 'Facebook', status: r.facebook.status, url: r.facebook.url, error: r.facebook.error });
+        const n = r.networks && typeof r.networks === 'object' ? r.networks : {};
+        ['youtube', 'linkedin'].forEach(k => { if (n[k]) out.push({ name: IG_NET_NAMES[k], status: n[k].status, url: n[k].url, error: n[k].error }); });
+        return out;
+    }
     function _igEffective(r) {
-        const all = [r.status].concat(r.facebook ? [r.facebook.status] : []);
+        const all = _igRowNets(r).map(n => n.status);
         if (all.includes('failed')) return 'failed';
         return all.find(s => IG_UPCOMING.includes(s)) || r.status;
     }
@@ -1267,9 +1450,9 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             const id = _igEsc(r.id);
             const actions = [];
             if (r.status === 'scheduled') actions.push(`<button type="button" class="tk-q-btn tk-q-danger" data-ig-cancel="${id}">Cancel</button>`);
-            const fb = r.facebook || null;
-            if (r.instagram_url) actions.push(`<a class="tk-q-btn" href="${_igEsc(r.instagram_url)}" target="_blank" rel="noopener"${fb ? ' aria-label="Open on Instagram"' : ''}>${fb ? 'Instagram' : 'Open'}</a>`);
-            if (fb && fb.url) actions.push(`<a class="tk-q-btn" href="${_igEsc(fb.url)}" target="_blank" rel="noopener" aria-label="Open on Facebook">Facebook</a>`);
+            const nets = _igRowNets(r);
+            const many = nets.length > 1;
+            nets.forEach(n => { if (n.url) actions.push(`<a class="tk-q-btn" href="${_igEsc(n.url)}" target="_blank" rel="noopener"${many ? ` aria-label="Open on ${n.name}"` : ''}>${many ? n.name : 'Open'}</a>`); });
             const kindLabel = r.kind === 'carousel' ? 'Carousel (' + _igEsc(r.items || '') + ')' : r.trial ? 'Trial reel' : 'Reel';
             return `
                 <div class="tk-queue-item">
@@ -1277,10 +1460,10 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        ${fb
-                            ? `<div class="tk-q-meta"><span>${kindLabel} · Instagram and Facebook</span></div>
-                               <div class="tk-q-nets">${_igNetworkHtml('Instagram', r.status, r.error)}${_igNetworkHtml('Facebook', fb.status, fb.error)}</div>`
-                            : `<div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${kindLabel}</span></div>
+                        ${many
+                            ? `<div class="tk-q-meta"><span>${kindLabel} · ${_igAnd(nets.map(n => n.name))}</span></div>
+                               <div class="tk-q-nets">${nets.map(n => _igNetworkHtml(n.name, n.status, n.error)).join('')}</div>`
+                            : `<div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${kindLabel}${nets[0].name === 'Instagram' ? '' : ' · ' + nets[0].name}</span></div>
                         ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}`}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
@@ -1330,7 +1513,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     function _igPollDelay() {
         if (igState.queueReadState === 'error') return 60000;
         // Both networks' results count: a Reel already on Instagram may still be going out on Facebook.
-        const statuses = (r) => [r.status].concat(r.facebook ? [r.facebook.status] : []);
+        const statuses = (r) => _igRowNets(r).map(n => n.status);
         if (igState.uploads.some(r => statuses(r).some(s => s === 'uploading' || s === 'processing'))) return 15000;
         if (igState.uploads.some(r => statuses(r).includes('scheduled'))) return 300000;
         return 0;

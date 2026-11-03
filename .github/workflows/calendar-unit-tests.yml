@@ -602,6 +602,7 @@ jobs:
           Refused-write beacon from the built page|node --require ./test/helpers/single-file-index.js test/linear-exit-write-diagnostics-browser.js
           Production rows keep long ids inside the row|node test/prod-row-cell-overflow.js
           TikTok queue, a failed first read is not an empty queue|node test/tiktok-queue-first-read-browser.js
+          Post tab YouTube and LinkedIn ticks behind post_networks_v1 (Instagram untickable, YouTube title and Short check, the body, the queue per network; switch off is today's page)|node test/post-networks-browser.js
           LANES
       - name: Browser regression guards, three side by side (part 2 of 2)
         if: ${{ matrix.part == 2 }}

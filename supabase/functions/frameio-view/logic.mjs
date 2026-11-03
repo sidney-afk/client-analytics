@@ -399,16 +399,23 @@ async function playable(ctx, acct, fileId) {
   const renditions = pickRenditions(f.media_links);
   const url = renditions.high_quality || renditions.efficient || renditions.original || '';
   if (!url) throw fail(f.status === 'uploaded' ? 'still_processing' : 'no_playable_address');
-  return { name: clean(f.name), url, renditions };
+  return { name: clean(f.name), url, renditions, mediaType: clean(f.media_type) };
 }
 
+// Also the upload's video codec and size, for post-source's choice of file (plan row F4, D2). Their field names are
+// not measured yet: a codec is any field named "... Codec" other than the audio one, a size "Width" / "Height" (with
+// or without "Video "). Absent stays empty, and post-source reads empty as "not known to be H.264".
 async function videoFacts(ctx, acct, fileId) {
   const got = await api(ctx, '/accounts/' + acct + '/files/' + fileId + '/metadata', { optional: true });
-  const out = { fps: null, duration: null };
+  const out = { fps: null, duration: null, codec: '', width: null, height: null };
   for (const m of ((got && got.metadata) || (got && got.data && got.data.metadata) || [])) {
+    const name = clean(m && m.field_definition_name);
     const n = Number(m && m.value);
-    if (m && m.field_definition_name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
-    if (m && m.field_definition_name === 'Duration' && n > 0) out.duration = n;
+    if (name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
+    if (name === 'Duration' && n > 0) out.duration = n;
+    if (/codec$/i.test(name) && !/audio/i.test(name) && !out.codec) out.codec = clean(m.value);
+    if (/^(video )?width$/i.test(name) && n > 0) out.width = n;
+    if (/^(video )?height$/i.test(name) && n > 0) out.height = n;
   }
   return out;
 }
@@ -548,7 +555,7 @@ export async function lookup(rawLink, deps, opts = {}) {
     const [video, facts] = await Promise.all([playable(ctx, found.acct, found.file.id), videoFacts(ctx, found.acct, found.file.id)]);
     const addr = { url: video.url, renditions: video.renditions, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps };
     if (client) return { ok: true, video: addr, fetched_at: fetchedAt };
-    const shaped = { ...addr, name: video.name, file_id: found.file.id };
+    const shaped = { ...addr, name: video.name, file_id: found.file.id, media_type: video.mediaType, codec: facts.codec, width: facts.width, height: facts.height };
     if (part === 'video') return { ok: true, video: shaped, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';

@@ -264,6 +264,10 @@ verify_jwt = false
 [functions.frameio-view]
 verify_jwt = false
 
+# Copy from Frame to Post for Me (plan row F4): staff role key checked in code; reads only, writes no table.
+[functions.post-source]
+verify_jwt = false
+
 # Trial reels (docs/features/TRIAL_REELS_PLAN.md): staff role key, or a client review link for read and answer,
 # checked in code, behind the trial_reels_pages switch.
 [functions.trial-reels]

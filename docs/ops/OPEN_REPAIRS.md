@@ -36422,6 +36422,17 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   Pass/fail and every wait are unchanged.
 - **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
 - **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+- **Second suite, same surface (3 Nov):** on #2563 (job 125867861223, only Post tab wording), `test/trial-reels-journey-browser.js` timed out after 30 s waiting for the client link's review page. That is the step right after "8 client link: no other version's link anywhere on the page", where the card is reopened for the client's review.
+  - It is the same client-link surface, and it fits the lead above (the switch read late, or off, when the stage drew), but here the review page never came up at all.
+  - That wait (`openReview` in the journey suite) now prints the same kind of `TRV_TRACE`, on a miss only, and then fails as before. The trace has:
+    - the mode and the status the card was set to;
+    - the fixture's switch-read count and any page errors;
+    - whether the page is a client link;
+    - the calendar's loading state, view and the card's status;
+    - the three switches (loaded, client review, trial reels);
+    - the review page's own state (there, hidden, steps, visible text).
+  - The share-link token is cut from the address.
+  - Proof: with the wait forced to miss at that step, the trace prints and the step fails exactly as before. A normal run passes and prints nothing.
 
 ## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
 

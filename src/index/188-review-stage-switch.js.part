@@ -337,6 +337,13 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.pn.has(slug);
     }
+    // Does post_networks_v1 list anyone? The Post tab's YouTube and LinkedIn buttons sit above the client picker, so they
+    // show when the switch lists any client (OPEN_REPAIRS 687); each side then checks the picked client itself.
+    function svPostNetworksAny() {
+        if (_isClientLink) return false;
+        _rsPrime();
+        return !!_rsFlags.loaded && (_rsFlags.pnAll || _rsFlags.pn.size > 0);
+    }
     /* The Calendar Sheet fits the window (sheet_fit_v1): a listed client's link, or a listed signed-in staff member on
        the staff Sheet; { "all": true } is both, for everyone. Off until the read is in, and off for an unreadable or
        wrongly shaped answer. */
@@ -856,4 +863,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn };
+export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn, svPostNetworksAny };

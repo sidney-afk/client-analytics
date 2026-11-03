@@ -154,6 +154,7 @@ and SMM weekly reports.
 | `290-samples-writes-review.js` | `_writeUiReadRepairReceipt` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Reads a repair receipt. |
 | `299-instagram-upload.js` | `ctrl` | `cmint.json.upload_url` PUT | reports | `_igSubmit` | Instagram cover image upload to Post For Me storage. Recorded as instagram_cover_put. |
 | `299-instagram-upload.js` | `ctrl` | `mint.json.upload_url` PUT | reports | `_igSubmit` | Instagram video upload to Post For Me storage. Recorded as instagram_storage_put. |
+| `299-instagram-upload.js` | `ctrl` | `url` POST | reports-in-callers | `via svPostSourceCopy` | From a card (P1, OPEN_REPAIRS 651): the post-source copy, recorded as post_source_copy; the same helper also reads Frame's small copy from frameio-view (a read). Writes no table. |
 | `299-instagram-upload.js` | `send` | `IG_FUNCTION_URL` POST | reports | `_igCall` | Instagram upload function (mint, create, list, cancel). Create and cancel are recorded as instagram_create and instagram_cancel; list and mint are reads of state. |
 | `300-tiktok-upload.js` | `_tkCancelRow` | `TIKTOK_UPLOAD_CANCEL_URL` POST | reports | `_tkCancelRow` | TikTok cancel. Recorded as tiktok_cancel. |
 | `300-tiktok-upload.js` | `_tkFinishDirectSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishDirectSubmit` | TikTok post creation after a direct upload. Recorded as tiktok_upload. |

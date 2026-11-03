@@ -1,0 +1,56 @@
+name: post-from-card live check (manual)
+
+# The D6 live check for the Post tab's "From a card" (plan row P1, OPEN_REPAIRS 651): one card's video copied
+# through post-source, posted SCHEDULED 8 days ahead (TikTok: also private and to drafts), cancelled at once, and
+# read back as cancelled. It never publishes. Exit 3 means a cancel or read-back failed: the summary names the
+# queue row to cancel by hand in the Post tab, now. Prints no client name, account, caption, address or key
+# (scripts/post-from-card-live-check.js). Run by hand, one side per run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      card:
+        description: 'A card id of the client (Approved or Scheduled, with a Frame link)'
+        required: true
+        type: string
+      side:
+        description: 'instagram or tiktok'
+        required: true
+        type: string
+        default: 'instagram'
+      client:
+        description: 'Only if the POST_LIVE_CHECK_CLIENT secret is not set: the client display name (masked in the log)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-from-card-live-check
+  cancel-in-progress: false
+
+jobs:
+  schedule-cancel-read-back:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Schedule 8 days ahead, cancel at once, read back cancelled
+        env:
+          # The SMM role key and, when set, the client's name: repository secrets, never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          CLIENT_SECRET: ${{ secrets.POST_LIVE_CHECK_CLIENT }}
+          POST_LIVE_CHECK_CARD: ${{ inputs.card }}
+          POST_LIVE_CHECK_SIDE: ${{ inputs.side }}
+        run: |
+          # The client's name never goes through an expression, so it is never written into this log: the secret,
+          # or the input read from the event file and masked before anything else runs.
+          CLIENT="$CLIENT_SECRET"
+          if [ -z "$CLIENT" ]; then CLIENT=$(jq -r '.inputs.client // ""' "$GITHUB_EVENT_PATH"); fi
+          if [ -n "$CLIENT" ]; then echo "::add-mask::$CLIENT"; fi
+          POST_LIVE_CHECK_CLIENT="$CLIENT" node scripts/post-from-card-live-check.js

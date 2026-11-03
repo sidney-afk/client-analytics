@@ -36273,6 +36273,12 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - the switch off showing no "From a card" and asking neither function;
   - 390 wide with no sideways scroll.
   On main it fails (`waiting for locator('input[name="tkSrcMode"]')`). Every other Post tab browser suite passes, except two that fail identically on main in this sandbox (`postforme-link-browser`, `tiktok-upload-redesign-browser`).
-- **Live check (D6), after merge and the switch set for the test client:** on one of the owner's two clients, per side, pick a card, schedule 7+ days ahead, cancel, and read back that it is gone.
+- **Live check (D6), after merge:** `.github/workflows/post-from-card-live-check.yml` runs `scripts/post-from-card-live-check.js`, one side per run, on one of the owner's two clients:
+  - it makes the page's own calls (post-source, then the side's create);
+  - the post is SCHEDULED 8 days ahead (TikTok also private and to drafts), cancelled at once through the queue's own cancel, and read back as `cancelled`;
+  - exit 3 means a cancel or read-back failed. The summary then names the queue row to cancel by hand;
+  - the client's name comes from the `POST_LIVE_CHECK_CLIENT` secret, or a masked input, and is never printed;
+  - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
+  `test/post-from-card-live-check.js` (unit, 8 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 

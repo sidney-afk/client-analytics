@@ -36250,7 +36250,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Way back:** revert the PR. Nothing calls the function yet.
 - **Live (2026-11-03, merged as #2543, merge lane run 41572842991; live check run 41573085174, one test-client card, no letter, Instagram side):** `ok`, rendition `original` (no fallback), 28,291,416 bytes, 57.28 s long, copied in 4,875 ms (5,628 ms wall). The storage address answered 206 `video/mp4` with the same byte count. So route (a), the streamed copy, works; routes (b) and (c) are not needed for a file this size. Width and height came back empty: Frame gives the size under another field name, which P1a (650) reads and measures. No post was created.
 
-## 650. [2026-11-03 UTC, BUILT, NOT MERGED] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
+## 650. [2026-11-03 UTC, LIVE 2026-11-03] post-source also copies the card's thumbnail, and reads the video's size from Frame's real field (plan row P1, server part P1a; session Pbuild)
 
 - **Asked:** plan row P1 ("thumbnail copied server side"), split with the supervisor into P1a (server) and P1b (the page, behind `post_sources_v1`). Also the supervisor, 3 Nov: F4's live check (649) answered `width` and `height` empty.
 - **Now (`supabase/functions/post-source/handler.mjs`):**
@@ -36278,6 +36278,12 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     On main the first new case fails (no thumbnail is fetched).
   - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
 - **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).
+- **Live (2026-11-03, merged as #2554; merge lane green):** two runs of `post-source-live-check.yml`, both storage only, no post:
+  - **Run 41575393444, a test-client card with no thumbnail:** 200, the Original, 28.3 MB, 1080×1920, 57.3 s, `thumb_copied` false. That is right: the card's `thumbnail_url` reads back empty.
+  - **A test-client card with a Drive thumbnail:** 200, the Original, 18.2 MB, 1080×1920, 45.1 s, `thumb_copied` true. The stored file is `video/mp4` with the same size.
+  - **Frame's real metadata field names:** "Resolution - Width" and "Resolution - Height" for the size (read by the any-field-ending-in-Width/Height rule), "Duration", and "Video Codec".
+- **Follow-up (2026-11-03, after #2554 merged; supervisor and Codex P2 on #2554):** the thumbnail is now read piece by piece and stopped as soon as it passes 8 MB, so a server that states no size, or a wrong one, cannot make the function hold more. Redirects were already refused (`redirect: "error"`), so a redirect to a private or link-local address cannot be followed. Proof: a new case in `test/post-source-logic.js` (30 checks). A headerless 12 MB thumbnail is stopped after at most 9 MB read, with the video still copied and "over 8 MB" said; a headerless 3 MB one is still copied. It fails on main (main only reads the whole body at once).
+
 
 ## 652. [2026-11-03 UTC, BUILT, NOT MERGED] instagram-upload posts to YouTube and LinkedIn too, in the same one post (plan row P3, server half, decision D5; session Pbuild)
 

@@ -103,8 +103,12 @@ ok(seats.size > 0 && seats.size <= MAX_SEATS,
 
 // A newer push to a pull request cancels the run it replaces (and its queued
 // seat jobs); main is never cancelled.
-ok(/\nconcurrency:\n {2}group: calendar-unit-tests-\$\{\{ github\.event_name == 'pull_request' && format\('pr-\{0\}', github\.event\.pull_request\.number\) \|\| github\.sha \}\}\n {2}cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/.test(WF),
-  'a newer push to a pull request still cancels the run it replaces, so its seats free up; main runs are never cancelled');
+ok(/\nconcurrency:\n {2}group: calendar-unit-tests-\$\{\{ github\.event_name == 'pull_request' && format\('pr-\{0\}', github\.event\.pull_request\.number\) \|\| github\.event_name == 'push' && 'main' \|\| github\.sha \}\}\n {2}cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/.test(WF),
+  'a newer push to a pull request still cancels the run it replaces, so its seats free up; a started main run is never cancelled');
+// Pushes to main share one group, so a newer merge replaces a main run that is still waiting instead of stacking
+// one full run per merge (OPEN_REPAIRS 679); cancel-in-progress stays false for them, so a started run finishes.
+ok(/github\.event_name == 'push' && 'main'/.test(WF) && !/cancel-in-progress: true/.test(WF.split('\njobs:')[0]),
+  'pushes to main share one run group and never cancel a started run');
 
 // The Gauntlet Three (session Pitstop, 2026-10-19): one reduced job on a pull request,
 // the nine legs only off pull requests. Its nine legs once ran one after another on one

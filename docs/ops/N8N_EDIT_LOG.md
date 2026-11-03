@@ -547,3 +547,22 @@ Why: an empty profile email counted as `client_email_mismatch`, which parks the 
 - Client — Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`), Code node "Check Readiness and Slack Decision": before `aedcda8b-4ccc-4ddd-ab86-f455117c0a91`, after `49a29c76-1c2a-4292-b37b-1e1aec21dd38` (published, applied by the supervisor at about 23:13 UTC). One line added before the email comparison: `if (!clean(clients[0].email)) return wait("Client email is not on the SyncView profile yet.");`. A different, non-empty email still parks as `client_email_mismatch`.
 - Not changed: the owner declined the proposal to drop the form answers from "DM Owner Manual Reconcile"; it still carries them.
 - Undo: publish `aedcda8b` again.
+
+## 2026-11-03 OPEN_REPAIRS 696: Slack Creative Channel Finalizer builds the kickoff at finalize time (PROPOSED, not applied)
+Workflow: Client - Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`)
+Version before: `49a29c76-1c2a-4292-b37b-1e1aec21dd38`      Version after: not applied yet (fill in when published)
+Changed (one change, three steps):
+- New step **Read Sales Intake** (Supabase, credential "Supabase - SyncView Calendar", the one Read Filming Plan uses): get all
+  `sales_intakes` rows whose `client_email` matches the queue row's email (case-insensitive); always outputs, continues on error.
+- New Code step **Build Kickoff**: the code in `scripts/n8n-finalizer-build-kickoff.js` (`BUILD_KICKOFF_JS`), byte for byte. It
+  writes `kickoff_text` and passes the Clients Info readback fields through.
+- Wiring: Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack. Post Kickoff to Slack's text
+  changes from the queue row's `kickoff` to `{{ $json.kickoff_text }}`; its channel stays `{{ $json.creative_channel_id }}`.
+- Not changed: every readiness, channel, roster, readback and form-answers step; the owner's fallback DM (still the snapshot);
+  provisioning (still writes the snapshot the logins come from).
+Why: owner, 3 Nov 2026 ("fix the onboarding documents so that ... the onboarding message in the creative channel ... is done
+correctly"; "Yes, change the n8n workflow"; "Keep posting logins in Slack").
+Tested: `node test/n8n-finalizer-build-kickoff.js` runs the step's code on fictional step outputs (30 checks: the full layout,
+every placeholder when a piece is missing, logins word for word, the newest live sales intake, no double asterisks). The
+finalizer never sends test clients, so no live run.
+Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.

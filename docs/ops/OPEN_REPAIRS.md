@@ -36856,3 +36856,18 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 696. [2026-11-03 UTC, BUILT, n8n NOT APPLIED] The new client's kickoff in the creative channel was the form-time template: placeholders, no tags, no filming plan, nothing about the brand (session Chanfix)
+
+Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure that when you put the onboarding message in the [creative] channel, it's done correctly"; asked whether to change the n8n workflow so it posts the full kickoff itself: "Yes, change the n8n workflow"; logins: "Keep posting logins in Slack".
+
+- **What happened.** Tonight's new client got the finalizer's kickoff with `[ assign ]` / `[ Kasper — fill in ]`, no SMM or Kasper tag, no filming plan and no brand, goals, style or scope. The owner deleted both bot messages and posted a hand-written kickoff instead.
+- **Root cause.** The finalizer does not write the kickoff. Provisioning (`t2RP7QNHrbQx52f4`, Build Onboarding Brief) writes it at form time into the queue row, before an SMM, a filming plan or any research exists, and the finalizer posts that snapshot as it is.
+- **Fix (proposed n8n change, `docs/ops/N8N_EDIT_LOG.md`).**
+  - A **Build Kickoff** step in the finalizer writes the kickoff from what exists at finalize time: the profile, the SMM's and Kasper's Slack ids, the filming plan, the Drive folder, the form answers and the sales intake. A **Read Sales Intake** step reads the deliverables.
+  - Logins come word for word from the snapshot.
+  - Anything missing is a bracketed placeholder, never a guess.
+  - The code is `scripts/n8n-finalizer-build-kickoff.js`, and `docs/ops/NEW_CLIENT_ONBOARDING.md` documents the layout and sources.
+- **Proof.** `test/n8n-finalizer-build-kickoff.js` runs the step's own code on fictional step outputs (30 checks). The finalizer never sends test clients, so no live run.
+- **Not yet applied.** Before version `49a29c76`. The publish waits for the owner's direct go to edit this workflow (house rule: the go-ahead in the same request).
+- **Way back:** restore version `49a29c76` in n8n; revert the PR.

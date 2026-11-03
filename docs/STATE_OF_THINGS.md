@@ -18,6 +18,19 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-11-03 overnight): trial versions and posting, first pieces live; deploy lane and CI queue fixes
+
+- **Live and checked on the test client:**
+  - V1: a trial version's status is set with the card's own status picker (#2535, 656). Switch `trial_versions_v2` is on for the test client only. The live walk (#2549, 659) passed 5 of 5 steps, put the version back, and never wrote the card.
+  - The "Open Post for Me" link beside every no-account message on the Post tab (#2531, 646), confirmed in the published bundle.
+  - frameio-view lists a Frame folder (#2537, 670) and now fills each row's length from the file's metadata (#2552, 671). Checked with #2546's workflow. Every Frame share on the test client holds one video, so a multi-video folder is still unproven (it needs a real folder link from the owner).
+  - post-source (F4 #2543, 649; P1a #2554, 650): a card's original Frame video and its Drive thumbnail are copied into Post for Me storage, never posted, size read from Frame's "Resolution - Width/Height".
+  - YouTube and LinkedIn in instagram-upload's create (P3 server #2557, 652). It deploys, but nothing on the page offers it yet (the page half follows P1b #2555).
+  - YouTube/LinkedIn Post for Me slots and the per-client made-for-kids key (F3 #2533, 666, migration applied).
+- **Deploy lane:** F3's function was held for about 1 h 40 min because its unmarked `.ROLLBACK.sql` counted as a migration. Released by hand with `migrations_applied=true`; the planner fix is #2551 (678): a rollback file never holds a function. After every merge that changes a function, read that merge's "Deploy Edge Functions on merge" run.
+- **CI queue:** main's Calendar unit runs stacked one full run per merge and starved every PR (14 waited at once on 2 to 3 Nov). The superseded runs still waiting were cancelled by hand; #2553 (679) makes pushes to main share one run group, so a newer merge replaces a waiting run and a started run always finishes. Build sessions no longer merge main in for a conflict that is only in OPEN_REPAIRS (each push re-queues their seat jobs); the supervisor resolves those at merge.
+- **Found by test work:** a real Cancel bug on the TikTok upload (pressing Cancel mid-image showed "Could not prepare image 2" and logged a failed save), fixed in #2550 (677). Main's intermittent trial-reels "client after the pick" check gets on-miss diagnostics in #2548 (676; cause not yet found).
+
 ## Latest (SyncView supervisor, 2026-11-02 evening): review boards, Workload and Calendar report errors; trial versions and posting project started
 
 - **Error reports from every review surface are live:** Kasper's board and the client link (#2485, OPEN_REPAIRS 626), Workload (#2514, 638) and the content Calendar (#2519, 639) send refused saves, dropped presses, reloads mid-save, uncaught errors and saves that landed after a failure to the server-side log. Watcher read (SQL as owner): `select * from public.production_write_refusal_review_signatures_v1(now() - interval '3 hours', now());`. Open: #2527 (645, uncaught errors say what kind and where), #2528 (643, Workload stored as its own surface; adds a migration that holds write-diagnostics until applied).

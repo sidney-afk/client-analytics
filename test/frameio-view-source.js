@@ -79,7 +79,10 @@ function fakeFrameio(opts = {}) {
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE) return reply(200, { data: file });
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE + '/metadata') {
       if (opts.noMeta) return reply(404, {});
-      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 }] } });
+      if (opts.meta) return reply(200, { data: { metadata: opts.meta } });
+      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 },
+        { field_definition_name: 'Video Codec', value: 'H.264' }, { field_definition_name: 'Audio Codec', value: 'AAC' },
+        { field_definition_name: 'Width', value: 1080 }, { field_definition_name: 'Height', value: 1920 }] } });
     }
     if (m.startsWith('/accounts/' + ACCT_B + '/files/' + FILE + '/comments?')) {
       if (opts.commentsDown) return reply(500, {});
@@ -230,6 +233,23 @@ function deps(f, over = {}) {
     const only = await lookup('https://f.io/abc123', deps(pf), { part: 'video' });
     ok(only.ok && only.video.url && only.video.name && only.open_url && !('comments' in only), 'part "video" answers with the addresses and no comments');
     ok(pf.log.every((e) => !/\/comments/.test(e.url)), 'part "video": Frame.io is not asked for comments at all');
+    // post-source (plan row F4, D2) decides which file to copy from what Frame says about the upload itself.
+    eq([only.video.media_type, only.video.codec, only.video.width, only.video.height], ['video/mp4', 'H.264', 1080, 1920], 'part "video" carries the upload\'s type, video codec and size');
+    const asClient = await lookup('https://f.io/abc123', deps(fakeFrameio()), { client: true });
+    ok(!['media_type', 'codec', 'width', 'height', 'metadata_fields'].some((k) => k in asClient.video), 'a client lookup gets none of those facts');
+    // P1a (OPEN_REPAIRS 650): Frame's live answer gave no "Width"/"Height" (F4's live check, 3 Nov). The size is also
+    // read from one "W x H" field and from values with a unit, and the staff answer lists the field NAMES (never their
+    // values), so the live check can show which name Frame really uses.
+    eq(only.video.metadata_fields, ['Frame Rate', 'Duration', 'Video Codec', 'Audio Codec', 'Width', 'Height'], 'the staff answer lists the metadata field names');
+    const sized = async (meta) => (await lookup('https://f.io/abc123', deps(fakeFrameio({ meta })), { part: 'video' })).video;
+    const one = await sized([{ field_definition_name: 'Resolution', value: '1080 x 1920' }, { field_definition_name: 'Codec', value: 'H.264' }]);
+    eq([one.width, one.height, one.codec], [1080, 1920, 'H.264'], 'one "Resolution" field of "1080 x 1920" gives the width and height');
+    eq([(await sized([{ field_definition_name: 'Dimensions', value: '1920×1080' }])).width], [1920], 'a "Dimensions" field with a times sign is read too');
+    const unit = await sized([{ field_definition_name: 'Resolution Width', value: '1080 px' }, { field_definition_name: 'Resolution Height', value: '1920 px' }]);
+    eq([unit.width, unit.height], [1080, 1920], 'separate width and height fields with a unit are read');
+    const none = await sized([{ field_definition_name: 'Bit Rate', value: '12000' }, { field_definition_name: 'Resolution', value: 'unknown' }]);
+    eq([none.width, none.height], [null, null], 'no size field, or an unreadable one, leaves the size empty');
+    ok(!JSON.stringify(one.metadata_fields).includes('1080'), 'the field list carries names only, never a value');
     const cf = fakeFrameio();
     const com = await lookup('https://f.io/abc123', deps(cf), { part: 'comments' });
     ok(com.ok && com.comments.length === 3 && !('video' in com) && com.open_url, 'part "comments" answers with the comments only');
@@ -306,6 +326,110 @@ function deps(f, over = {}) {
       ok(out.video.file_id === F1 && !sf.log.some((e) => /after=p2/.test(e.url)), 'a named file found on page 1 plays without asking for page 2 (a later page that fails cannot stop it)'); }
     const refusal = logic.fail('file_not_in_share');
     ok(refusal.status === 404 && refusal.message.length > 10 && !/token|api|exception/i.test(refusal.message), 'the refusal is a 404 in plain words, like link_not_found');
+  }
+
+  // ---- part "list" (staff only) and the strict lookup (F1). All ids and names are made up.
+  {
+    const SH = 'bbbbbbbb-0000-4000-8000-000000000003';
+    const SH_ONE = 'bbbbbbbb-0000-4000-8000-000000000004';
+    const DIR = 'ffffffff-1000-4000-8000-000000000001';
+    const BIG = 'ffffffff-1000-4000-8000-000000000002';
+    const ONE = 'ffffffff-1000-4000-8000-000000000003';
+    const vid = (n, extra = {}) => Object.assign({
+      id: 'ffffffff-2000-4000-8000-' + String(n).padStart(12, '0'), name: 'Clip ' + n + '.mp4', type: 'file', status: 'transcoded',
+      media_type: 'video/mp4', created_at: new Date(Date.UTC(2026, 9, 1) + n * 60000).toISOString(), duration: 10 + n,
+      media_links: { thumbnail: { download_url: 'https://assets.frame.io/thumb/' + n + '.jpg' } },
+    }, extra);
+    const img = (n) => vid(n, { name: 'Still ' + n + '.png', media_type: 'image/png' });
+    const six = [1, 2, 3, 4, 5, 6].map((n) => vid(n));
+    const listFake = (o = {}) => {
+      const log = [];
+      const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => data });
+      const B = '/accounts/' + ACCT_B;
+      // o.liveShape: as measured live on 2026-11-03 (two runs, 0 of 1 listed rows had a length), a listed file
+      // carries no `duration`; the length is only in the file's metadata ("Duration"), as the video part reads it.
+      const strip = (arr) => (o.liveShape ? arr.map((x) => Object.assign({}, x, { duration: undefined })) : arr);
+      const fn = async (url) => {
+        log.push({ url });
+        const m = url.replace('https://api.frame.io/v4', '');
+        if (m === '/accounts') return reply(200, { data: [{ id: ACCT_B }] });
+        if (m === B + '/shares/' + SH) return reply(200, { data: { id: SH, name: 'Test folder', enabled: true, expiration: null } });
+        if (m === B + '/shares/' + SH_ONE) return reply(200, { data: { id: SH_ONE, name: 'One video', enabled: true, expiration: null } });
+        if (m.startsWith(B + '/shares/' + SH + '/assets')) {
+          const folder = o.big ? { id: BIG, type: 'folder', name: 'Big folder' } : { id: DIR, type: 'folder', name: 'Test folder' };
+          return reply(200, { data: [folder], links: { next: null } });
+        }
+        if (m.startsWith(B + '/shares/' + SH_ONE + '/assets')) return reply(200, { data: [{ id: ONE, type: 'version_stack', head_version: vid(40) }], links: { next: null } });
+        if (m.startsWith(B + '/folders/' + DIR + '/children') && o.endless) {
+          // an image-heavy folder that never runs out of pages: one image and one video per page
+          const p = Number((m.match(/after=(\d+)/) || [0, 0])[1]);
+          return reply(200, { data: [img(500 + p), ...(p < 3 ? [vid(300 + p)] : [])], links: { next: 'https://api.frame.io/v4' + B + '/folders/' + DIR + '/children?page_size=50&after=' + (p + 1) } });
+        }
+        if (m.startsWith(B + '/folders/' + DIR + '/children')) return reply(200, { data: strip([six[0], img(7), six[1], six[2], img(8), six[3], six[4], six[5]]), links: { next: null } });
+        if (m.startsWith(B + '/folders/' + BIG + '/children')) {
+          if (/after=2/.test(m)) return reply(200, { data: strip(Array.from({ length: 30 }, (_, i) => vid(130 + i))), links: { next: null } });
+          return reply(200, { data: strip(Array.from({ length: 30 }, (_, i) => vid(100 + i))), links: { next: 'https://api.frame.io/v4' + B + '/folders/' + BIG + '/children?page_size=50&after=2' } });
+        }
+        const fm = m.match(/^\/accounts\/[^/]+\/files\/([0-9a-f-]{36})/);
+        if (fm && fm[1].startsWith('ffffffff-2000-')) {
+          const n = Number(fm[1].slice(-12));
+          if (/\/metadata$/.test(m)) {
+            if (o.liveShape && n === 3) return reply(500, {});
+            if (o.liveShape && n === 4) return reply(429, {});
+            return reply(200, { data: { metadata: o.liveShape ? [{ field_definition_name: 'Duration', value: 20 + n }] : [] } });
+          }
+          return reply(200, { data: vid(n, { media_links: { high_quality: { download_url: 'https://cdn.frame.io/' + n + '.mp4' }, thumbnail: { download_url: 'https://assets.frame.io/thumb/' + n + '.jpg' } } }) });
+        }
+        return reply(404, {});
+      };
+      return { fn, log };
+    };
+    // a listed file with no `duration` gets its length from the file's metadata, as the video part does (F1 follow-up)
+    {
+      const lv = listFake({ liveShape: true });
+      const got = await lookup('https://next.frame.io/share/' + SH, deps(lv), { part: 'list' });
+      eq(got.videos.length, 6, 'with the live shape the list still lists all 6 videos');
+      eq(got.videos.filter((v) => v.duration_seconds > 0).map((v) => v.name).sort(), ['Clip 1.mp4', 'Clip 2.mp4', 'Clip 5.mp4', 'Clip 6.mp4'], "a listed video's length comes from its metadata when the listing has none");
+      eq(got.videos.find((v) => v.name === 'Clip 5.mp4').duration_seconds, 25, 'the metadata Duration is the length');
+      eq(got.videos.filter((v) => v.duration_seconds === null).map((v) => v.name).sort(), ['Clip 3.mp4', 'Clip 4.mp4'], 'a metadata call that fails (500) or is refused (429) leaves that length empty and never fails the list');
+      const big = listFake({ liveShape: true, big: true });
+      const b = await lookup('https://next.frame.io/share/' + SH, deps(big), { part: 'list' });
+      eq([b.videos.length, big.log.filter((e) => /\/metadata$/.test(e.url)).length], [50, 50], 'at most one metadata call per row kept (50), none for the rows cut');
+      ok(b.videos.every((v) => v.duration_seconds > 0), 'and every kept row gets its length');
+    }
+    { const plain = listFake(); await lookup('https://next.frame.io/share/' + SH, deps(plain), { part: 'list' });
+      eq(plain.log.filter((e) => /\/metadata$/.test(e.url)).length, 0, 'a listing that already carries the length makes no metadata call'); }
+
+    const lf = listFake();
+    const out = await lookup('https://next.frame.io/share/' + SH, deps(lf), { part: 'list' });
+    eq(out.videos.length, 6, 'a folder of 6 videos and 2 images lists the 6 videos');
+    ok(out.videos.every((v) => /^Clip \d\.mp4$/.test(v.name) && v.duration_seconds > 10 && /^https:\/\/assets\.frame\.io\/thumb\//.test(v.thumbnail_url)), 'each row has its name, length and Frame thumbnail');
+    ok(out.videos.every((v) => v.link === 'https://next.frame.io/share/' + SH + '/view/' + v.file_id), 'each row has its own share link, naming its file');
+    ok(out.videos.every((v, i, a) => i === 0 || a[i - 1].created_at >= v.created_at), 'newest first');
+    eq([out.name, out.truncated], ['Test folder', false], 'the folder name comes back, and nothing was cut');
+    ok(!('comments' in out) && lf.log.every((e) => !/comments|media_links\.(original|high_quality|efficient)/.test(e.url)), 'a list asks for no comments and no playable address');
+    // each listed link plays the file it names (F0)
+    eq((await lookup(out.videos[4].link, deps(listFake()), { part: 'video' })).video.file_id, out.videos[4].file_id, 'a listed link plays its own video');
+
+    const big = await lookup('https://next.frame.io/share/' + SH, deps(listFake({ big: true })), { part: 'list' });
+    eq([big.videos.length, big.truncated], [50, true], 'a folder past one page is followed to its second page and cut at 50, saying so');
+    eq(big.videos[0].name, 'Clip 159.mp4', 'the 50 kept are the newest');
+
+    const endless = await lookup('https://next.frame.io/share/' + SH, deps(listFake({ endless: true })), { part: 'list' });
+    eq([endless.videos.length, endless.truncated], [3, true], 'a folder whose pages run past the cap says it was cut, even with few videos found');
+
+    const one = await lookup('https://next.frame.io/share/' + SH_ONE + '/view/' + ONE, deps(listFake()), { part: 'list' });
+    eq(one.videos.map((v) => [v.name, v.link]), [['Clip 40.mp4', 'https://next.frame.io/share/' + SH_ONE + '/view/' + ONE]], 'a link to one file lists that one video');
+
+    // strict: the exact file, or a refusal
+    eq(await code(lookup('https://next.frame.io/share/' + SH, deps(listFake()), { part: 'video', strict: true })), 'folder_link', 'strict refuses a bare folder link');
+    eq(await code(lookup('https://next.frame.io/share/' + SH + '/view/' + DIR, deps(listFake()), { part: 'video', strict: true })), 'folder_link', 'strict refuses a link that names a folder');
+    eq((await lookup('https://next.frame.io/share/' + SH + '/view/' + six[2].id, deps(listFake()), { part: 'video', strict: true })).video.file_id, six[2].id, 'strict plays a link that names a file');
+    eq((await lookup('https://next.frame.io/share/' + SH, deps(listFake()), { part: 'video' })).video.file_id, six[0].id, 'without strict a bare folder link still plays its first video');
+    const fl = logic.fail('folder_link');
+    ok(fl.status === 422 && fl.message.length > 10 && !/token|api|exception/i.test(fl.message), 'the strict refusal is in plain words');
+    // a client never gets a list: the client lookup is always the video part
+    ok(!('videos' in (await lookup('https://next.frame.io/share/' + SH, deps(listFake()), { client: true, part: 'list' }))), 'a client lookup that asks for a list gets the video only');
   }
 
   // ---- the client side: one client's token plays that client's own card, nothing else

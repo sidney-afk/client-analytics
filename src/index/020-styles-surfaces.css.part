@@ -1901,6 +1901,30 @@
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with SMM"] { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with Kasper"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with client"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        /* V1: a version's status picker (189 _trlStatusPickHtml), in the card's status words and colours. */
+        .trl-v button.trl-st { border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+        .trl-v button.trl-st:hover { filter: brightness(.96); }
+        .trl-v button.trl-st:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 1px; }
+        .trl-v .trl-st[data-l="In Progress"] { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+        .trl-v .trl-st[data-l="For SMM Approval"] { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
+        .trl-v .trl-st[data-l="Kasper Approval"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
+        .trl-v .trl-st[data-l="Client Approval"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        .trl-v .trl-st[data-l="Tweaks Needed"] { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
+        .trl-v .trl-st[data-l="Approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+        /* V3: a version's own thumbnail and caption, under its row (189 _trlFieldsHtml). */
+        .trl-fields { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin: 2px 0 4px 22px; min-width: 0; font-size: 11px; }
+        .trl-fields .trl-f { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; border: 0; background: none; padding: 1px 0;
+            font: inherit; color: var(--text-secondary); text-align: left; }
+        .trl-fields button.trl-f { cursor: pointer; }
+        .trl-fields button.trl-f:hover .trl-f-v { color: var(--text-primary); text-decoration: underline; }
+        .trl-fields .trl-f-k { font-weight: 700; flex: none; }
+        .trl-fields .trl-f-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trl-fields .trl-f-same, .trl-fields .trl-f-note { font-style: italic; opacity: .8; }
+        .trl-fields .trl-f-img { width: 14px; height: 24px; object-fit: cover; border-radius: 2px; flex: none; }
+        .trl-fields .trl-f-img[hidden] { display: none; }
+        .trl-fields .trl-f-input { width: 100%; font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--sv-slot-video-border); border-radius: 6px;
+            background: var(--field-bg-focus); color: var(--text-primary); }
+        .trl-fields .trl-f-caption { resize: vertical; min-height: 56px; }
         .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }
@@ -5369,6 +5393,16 @@
         .ca-input:focus { outline: 0; border-color: var(--field-border-focus); background: var(--field-bg-focus); }
         textarea.ca-input { resize: vertical; min-height: 72px; }
         .ca-input.is-conflict { border-color: var(--sv-fg-b91c1c); background: var(--sv-bg-fff7f7); }
+        .ca-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 8px 4px 2px; border: 0; border-radius: 8px; background: transparent; color: var(--text-primary); font: inherit; font-size: 0.86rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .ca-switch:hover { background: var(--surface-hover); }
+        .ca-switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+        .ca-switch:disabled { cursor: wait; opacity: .7; }
+        .ca-switch-track { position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 99px; background: var(--border); transition: background .15s; }
+        .ca-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: transform .15s; }
+        .ca-switch[aria-checked="true"] .ca-switch-track { background: var(--brief-music-ink); }
+        .ca-switch[aria-checked="true"] .ca-switch-knob { transform: translateX(14px); }
+        .ca-switch.is-conflict .ca-switch-track { box-shadow: 0 0 0 2px var(--sv-fg-b91c1c); }
+        @media (prefers-reduced-motion: reduce) { .ca-switch-track, .ca-switch-knob { transition: none; } }
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
@@ -5456,7 +5490,7 @@
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
             html.pocket-admin-phone #kasperContent .ca-drop .ca-row { min-height: 52px; padding: 6px 10px; }
             .ca-row.is-active { box-shadow: none; }
-            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn { min-height: 44px; }
+            .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn, .ca-switch { min-height: 44px; }
             .ca-iconbtn { min-width: 44px; }
             .ca-hero { padding: 18px 16px; border-radius: 16px; }
             .ca-hero-top { flex-wrap: wrap; gap: 14px; }

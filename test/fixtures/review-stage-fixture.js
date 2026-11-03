@@ -103,6 +103,23 @@ async function open(browser, origin, opt) {
   // opt.unscheduled: one card with no date, so Month and Week show their undated list where it is offered ('approved' makes it a finished post, which a client sees with Collaborative mode off too).
   if (opt.unscheduled) { const done = opt.unscheduled === 'approved' ? 'Approved' : 'Client Approval'; state.cards.push({ id: 'ru1', client: SLUG, name: 'An undated idea', status: done, order_index: 30, updated_at: '2026-10-10T12:00:00.000Z', scheduled_date: '', video_status: done, graphic_status: done, caption_status: done, asset_url: FRAME, thumbnail_url: POSTER.p, caption: 'No date yet.', cta: 'Link in bio', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] }); }
   const ctx = await browser.newContext(Object.assign({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' }, opt.context || {}));
+  /* OPEN_REPAIRS 674: a diagnostics report is sent with keepalive so it survives a closing page. In a test that let
+     it OUTLIVE the test: a report sent just before ctx.close() went to the real write-diagnostics past this fixture's
+     route (10 "person" reports from Firefox, 2 Nov). Under the fixture the report is a plain request, which this route
+     answers below and which dies with the page. Counted in window.__svDiagKeepaliveDropped. */
+  await ctx.addInitScript(() => {
+    const orig = window.fetch;
+    window.__svDiagKeepaliveDropped = 0;
+    window.fetch = function (input, init) {
+      try {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (init && init.keepalive && /\/functions\/v1\/write-diagnostics(?:[?#]|$)/.test(String(url))) {
+          init = Object.assign({}, init); delete init.keepalive; window.__svDiagKeepaliveDropped++;
+        }
+      } catch (e) {}
+      return orig.call(this, input, init);
+    };
+  });
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
   if (opt.clock) await page.clock.install();

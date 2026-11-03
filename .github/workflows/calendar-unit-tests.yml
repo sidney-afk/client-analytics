@@ -15,7 +15,12 @@ name: Calendar unit tests
 # Speed (2026-10-17, session Turbo): the slow browser jobs are split into
 # parallel parts, a pull request runs only the suites its files can reach
 # (the `changes` job), and a new push to a pull request cancels the run it
-# replaces. Pushes to main are never cancelled and always run everything.
+# replaces. A run on main is never cancelled once it has started, and always
+# runs everything. Pushes to main share one group (2026-11-03, OPEN_REPAIRS 679):
+# a newer push replaces a main run that is still WAITING (GitHub keeps one
+# running and one waiting per group), so a busy merge evening tests main's tip
+# instead of stacking one full run per merge (14 waited at once on 2 Nov night
+# and starved every pull request for hours). Manual runs keep a group per commit.
 #
 # Runner seats (2026-10-17, session Throttle). The account runs at most 20 jobs
 # at once, shared with the production lanes on main that run every 5 minutes
@@ -73,7 +78,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: calendar-unit-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  group: calendar-unit-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && 'main' || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -494,6 +499,8 @@ jobs:
           Trial reels: one card's whole journey across the card, Production, the SMM, Kasper and the client link (Probe's check)|node test/trial-reels-journey-browser.js
           Trial reels: a refused link or drop on the version on the card puts the card's link back|node test/trial-reels-link-guard-browser.js
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
+          Trial versions (V1): each version row's status picker is the card's own, behind trial_versions_v2, admin and SMM only|node test/trial-version-status-browser.js
+          Trial versions (V3): each version's own thumbnail and caption behind trial_versions_v2, and the winner's copied onto the card with Undo|node test/trial-version-fields-browser.js
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
           Trial reels round 3 on the card: a client's change shows at once (the broadcast), every row says its state, Client dropped, small tags, + Add version, one list after the pencil and Escape|node test/trial-reels-round3-card-browser.js
@@ -579,6 +586,7 @@ jobs:
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js
           Calendar and Samples, an edit stays with its client|node test/calendar-edit-stays-with-its-client-browser.js
           Review page skeleton has the shape of what loads (client link, 1440 and 390)|node test/review-stage-skeleton-browser.js
+          Review page player never re-asks for a video it is leaving|node test/review-stage-player-leaving-browser.js
           Notes on a switched-on client link opens straight into the player view (no old dialog first, final shape from the first frame)|node test/review-stage-notes-browser.js
           Kasper board, urgent cards arrive with a draft open|node test/kasper-board-browser.js
           One scrollbar for the whole app (6px, rounded, the theme's thumb, light and dark; hidden ones stay hidden)|node test/scrollbars-browser.js
@@ -637,6 +645,7 @@ jobs:
           Instagram cover image|node test/instagram-cover-browser.js
           Instagram carousel picker (2 to 10 items, reorder, remove, one create in order)|node test/instagram-carousel-browser.js
           Instagram also to Facebook (box on by default, off for a trial, a video carousel or no Page; results apart)|node test/instagram-facebook-browser.js
+          Open Post for Me beside every no-account message on the Post tab (desktop and phone; none with an account)|node test/postforme-link-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok keeps its press key across a reload while the post's outcome is unknown (dropped on success or a 4xx; re-uploads after 20 hours under the same key)|node test/tiktok-press-key-reload-browser.js
@@ -727,6 +736,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-reports-browser.js
+      - name: A test run's diagnostics reports say they are automation and never outlive the test (OPEN_REPAIRS 674)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/diagnostics-test-traffic-browser.js
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

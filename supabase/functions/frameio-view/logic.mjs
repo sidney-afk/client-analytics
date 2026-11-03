@@ -12,6 +12,7 @@ const MAX_COMMENT_PAGES = 3;
 const LIST_PAGE = 50;
 const MAX_LIST_PAGES = 20; // a share or folder listing is followed through links.next up to this many pages
 const MAX_SEARCH_CALLS = 40; // the most Frame.io calls one search for a named file may spend; past it, the link is refused
+export const MAX_LIST_VIDEOS = 50; // part "list" answers with at most this many videos, newest first, and says when it cut
 export const MAX_REPLY_LOOKUPS = 30; // V4 leaves the author off a reply, so each name is one extra call
 const TOKEN_MARGIN_MS = 120000;
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -29,6 +30,7 @@ const MESSAGES = {
   share_off: ['This Frame.io share link is switched off.', 404],
   share_expired: ['This Frame.io share link has expired.', 404],
   empty_share: ['This Frame.io share has no video in it.', 404],
+  folder_link: ["This is a Frame.io folder link, so it does not say which video. Paste the video's own link.", 422],
   file_not_in_share: ["This link's video is not in the Frame.io share any more. Paste the video's own link.", 404],
   not_video: ['This Frame.io file is not a video, so it cannot be played here.', 415],
   still_processing: ['Frame.io is still processing this video. Try again in a minute.', 409],
@@ -145,11 +147,12 @@ async function fileFromAsset(ctx, acct, asset) {
 
 // The items of a Frame.io list, following links.next, stopping at the first page that holds an item `found` accepts
 // (so a named file on page 1 never waits on, or fails because of, a later page). Each page spends one call from
-// `budget`; when the budget or the page cap runs out the list is cut short, which can only make a named file be
-// refused, never swapped.
+// `budget`; when the budget or the page cap runs out the list is cut short (and `budget.cut` says so), which can
+// only make a named file be refused, never swapped.
 async function listAll(ctx, path, budget, found) {
   const out = [];
-  for (let page = 0; path && page < MAX_LIST_PAGES && budget.left > 0; page++) {
+  for (let page = 0; path; page++) {
+    if (page >= MAX_LIST_PAGES || budget.left <= 0) { budget.cut = true; break; }
     budget.left--;
     const got = await api(ctx, path);
     if (got.missing) break;
@@ -202,20 +205,25 @@ async function resolveShare(ctx, accounts, link) {
     if (s.expiration && Date.parse(s.expiration) < ctx.now()) throw fail('share_expired');
     let pick = null;
     let file = null;
+    let fromFolder = false;
     if (link.assetId) {
       // A link that names a file plays that file or is refused: it never falls back to another video.
       const found = await findInShare(ctx, acct, link.shareId, link.assetId);
       if (!found) throw fail('file_not_in_share');
       pick = found.file || found.pick;
       file = found.file || (await fileFromAsset(ctx, acct, found.pick));
+      fromFolder = pick.type === 'folder';
     } else {
-      // A bare share (a folder sent as a whole) plays its first video, as before.
+      // A bare share (a folder sent as a whole) plays its first video, as before. It counts as one file only when
+      // the share holds exactly one item and that item is not a folder.
       const assets = await api(ctx, '/accounts/' + acct + '/shares/' + link.shareId + '/assets');
-      pick = ((assets && assets.data) || [])[0] || null;
+      const list = (assets && assets.data) || [];
+      pick = list[0] || null;
+      fromFolder = list.length !== 1 || !!(assets.links && assets.links.next) || (pick && pick.type === 'folder');
       file = await fileFromAsset(ctx, acct, pick);
     }
     if (!file) throw fail('empty_share');
-    return { acct, file, openUrl: 'https://next.frame.io/share/' + link.shareId + (pick && pick.id ? '/view/' + pick.id : '') };
+    return { acct, file, fromFolder, openUrl: 'https://next.frame.io/share/' + link.shareId + (pick && pick.id ? '/view/' + pick.id : '') };
   }
   throw fail('link_not_found');
 }
@@ -231,6 +239,113 @@ async function resolveView(ctx, accounts, link) {
     return { acct, file, openUrl: 'https://next.frame.io/project/' + link.projectId + '/view/' + link.fileId + (link.versionId ? '?version=' + link.versionId : '') };
   }
   throw fail('link_not_found');
+}
+
+// ---------------------------------------------------------------- part "list": the videos a link points at
+
+// Measured live on 2026-11-03 (two live-check runs): `include=media_links.thumbnail` gives
+// `media_links.thumbnail.download_url`, but a listed file carries no `duration`. A length found on the listing is
+// still used; a row without one gets it from the file's metadata after the cut (fillDurations).
+const durationOf = (f) => (Number(f && f.duration) > 0 ? Number(f.duration) : null);
+const thumbOf = (f) => {
+  const u = clean(f && f.media_links && f.media_links.thumbnail && f.media_links.thumbnail.download_url);
+  return FRAME_HOST.test(u) ? u : '';
+};
+const THUMB = 'include=media_links.thumbnail';
+
+// One row: the file's facts and the link that plays exactly it (F0 resolves a share link by the asset id it names).
+function row(f, link) {
+  return {
+    file_id: clean(f.id), name: clean(f.name), duration_seconds: durationOf(f), thumbnail_url: thumbOf(f) || null,
+    created_at: clean(f.created_at), processing: f.status === 'created' || f.status === 'uploaded', link,
+  };
+}
+
+// Every video under a share or folder listing, through folders and version stacks (newest version), paged.
+// Returns the rows found and whether the walk was cut (pages or folders were left unread).
+async function collectVideos(ctx, acct, firstPath, shareId) {
+  const budget = { left: MAX_SEARCH_CALLS };
+  const rows = new Map();
+  const queue = [firstPath];
+  const seen = new Set();
+  let cut = false;
+  while (queue.length) {
+    if (budget.left <= 0) { cut = true; break; }
+    const items = await listAll(ctx, queue.shift(), budget, () => false);
+    for (const a of items) {
+      if (a.type === 'folder') {
+        if (!seen.has(a.id)) { seen.add(a.id); queue.push('/accounts/' + acct + '/folders/' + a.id + '/children?page_size=' + LIST_PAGE + '&' + THUMB); }
+        continue;
+      }
+      const f = a.type === 'version_stack' ? a.head_version : (a.type === 'file' ? a : null);
+      if (!f || !isVideo(f) || rows.has(f.id)) continue;
+      rows.set(f.id, row(f, 'https://next.frame.io/share/' + shareId + '/view/' + a.id));
+    }
+  }
+  return { rows: [...rows.values()], cut: cut || !!budget.cut };
+}
+
+async function openShare(ctx, accounts, shareId) {
+  for (const acct of accounts) {
+    const share = await api(ctx, '/accounts/' + acct + '/shares/' + shareId);
+    if (share.missing || !share.data) continue;
+    const s = share.data;
+    if (s.enabled === false) throw fail('share_off');
+    if (s.expiration && Date.parse(s.expiration) < ctx.now()) throw fail('share_expired');
+    return { acct, s };
+  }
+  throw fail('link_not_found');
+}
+
+// A listed row with no length gets the file's metadata "Duration" (the same read the video part makes), a few rows at
+// a time and only for the rows kept. A metadata call that fails, is refused or runs out of time leaves that row's
+// length null; it never fails the list.
+const DURATION_WORKERS = 5;
+async function fillDurations(ctx, acct, rows) {
+  const todo = rows.filter((r) => r.duration_seconds == null && r.file_id);
+  let at = 0;
+  const worker = async () => {
+    while (at < todo.length) {
+      const r = todo[at++];
+      try { r.duration_seconds = (await videoFacts(ctx, acct, r.file_id)).duration; } catch { /* the length stays null */ }
+    }
+  };
+  const workers = [];
+  for (let i = 0; i < Math.min(DURATION_WORKERS, todo.length); i++) workers.push(worker());
+  await Promise.all(workers);
+}
+
+// The videos a link points at: every video in a shared folder (up to MAX_LIST_VIDEOS, newest first), or the one video
+// a file link names. Names, lengths, Frame's thumbnails and per-file links only: no playable address, no comments.
+async function listLink(ctx, link) {
+  const resolved = link.kind === 'short' ? await followShortLink(ctx, link.code) : link;
+  const accounts = await accountIds(ctx);
+  if (resolved.kind === 'view') {
+    const found = await resolveView(ctx, accounts, resolved);
+    const got = await api(ctx, '/accounts/' + found.acct + '/files/' + found.file.id + '?' + THUMB);
+    const f = (got && got.data) || found.file;
+    return { acct: found.acct, name: clean(f.name), rows: isVideo(f) ? [row(f, found.openUrl)] : [], cut: false, openUrl: found.openUrl };
+  }
+  const { acct, s } = await openShare(ctx, accounts, resolved.shareId);
+  const shareUrl = 'https://next.frame.io/share/' + resolved.shareId;
+  let name = clean(s.name);
+  let walk;
+  if (resolved.assetId) {
+    const found = await findInShare(ctx, acct, resolved.shareId, resolved.assetId);
+    if (!found) throw fail('file_not_in_share');
+    if (found.pick.type === 'folder') {
+      name = clean(found.pick.name) || name;
+      walk = await collectVideos(ctx, acct, '/accounts/' + acct + '/folders/' + found.pick.id + '/children?page_size=' + LIST_PAGE + '&' + THUMB, resolved.shareId);
+    } else {
+      const file = found.file || (await fileFromAsset(ctx, acct, found.pick));
+      const got = file ? await api(ctx, '/accounts/' + acct + '/files/' + file.id + '?' + THUMB) : null;
+      const f = (got && got.data) || file;
+      walk = { rows: f && isVideo(f) ? [row(f, shareUrl + '/view/' + (found.file ? found.file.id : found.pick.id))] : [], cut: false };
+    }
+  } else {
+    walk = await collectVideos(ctx, acct, '/accounts/' + acct + '/shares/' + resolved.shareId + '/assets?page_size=' + LIST_PAGE + '&' + THUMB, resolved.shareId);
+  }
+  return { acct, name, rows: walk.rows, cut: walk.cut, openUrl: shareUrl + (resolved.assetId ? '/view/' + resolved.assetId : '') };
 }
 
 // ---------------------------------------------------------------- the video address
@@ -284,16 +399,32 @@ async function playable(ctx, acct, fileId) {
   const renditions = pickRenditions(f.media_links);
   const url = renditions.high_quality || renditions.efficient || renditions.original || '';
   if (!url) throw fail(f.status === 'uploaded' ? 'still_processing' : 'no_playable_address');
-  return { name: clean(f.name), url, renditions };
+  return { name: clean(f.name), url, renditions, mediaType: clean(f.media_type) };
 }
 
+// Also the upload's video codec and size, for post-source's choice of file (plan row F4, D2). A codec is any field
+// named "... Codec" other than the audio one (live: it named H.264, F4's check on 3 Nov). The size: that check found no
+// "Width" / "Height", so it is also read from one "W x H" field (Resolution, Dimensions, Frame Size) and from values
+// with a unit ("1080 px"); `fields` lists the field names (never values) so the live check can show Frame's real one
+// (P1a, OPEN_REPAIRS 650). Absent stays empty, and post-source reads an empty codec as "not known to be H.264".
+const SIZE_PAIR_RE = /^(resolution|dimensions|frame size|video size|image size)$/i;
 async function videoFacts(ctx, acct, fileId) {
   const got = await api(ctx, '/accounts/' + acct + '/files/' + fileId + '/metadata', { optional: true });
-  const out = { fps: null, duration: null };
+  const out = { fps: null, duration: null, codec: '', width: null, height: null, fields: [] };
+  const num = (v) => { const n = parseFloat(String(v == null ? '' : v)); return Number.isFinite(n) && n > 0 ? n : null; };
   for (const m of ((got && got.metadata) || (got && got.data && got.data.metadata) || [])) {
+    const name = clean(m && m.field_definition_name);
+    if (name && out.fields.length < 60) out.fields.push(name.slice(0, 60));
     const n = Number(m && m.value);
-    if (m && m.field_definition_name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
-    if (m && m.field_definition_name === 'Duration' && n > 0) out.duration = n;
+    if (name === 'Frame Rate' && n > 0 && n < 240) out.fps = n;
+    if (name === 'Duration' && n > 0) out.duration = n;
+    if (/codec$/i.test(name) && !/audio/i.test(name) && !out.codec) out.codec = clean(m.value);
+    if (/width$/i.test(name) && !out.width) out.width = num(m.value);
+    if (/height$/i.test(name) && !out.height) out.height = num(m.value);
+    if (SIZE_PAIR_RE.test(name)) {
+      const pair = String(m.value == null ? '' : m.value).match(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/);
+      if (pair) { out.width = out.width || Number(pair[1]); out.height = out.height || Number(pair[2]); }
+    }
   }
   return out;
 }
@@ -405,9 +536,21 @@ export async function lookup(rawLink, deps, opts = {}) {
     signal: (ms) => (typeof AbortSignal.any === 'function' ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(ms)]) : ctrl.signal),
   };
   const client = opts.client === true || opts.comments === false;
-  const part = client ? 'video' : (opts.part === 'video' || opts.part === 'comments' ? opts.part : 'all');
+  const part = client ? 'video' : (['video', 'comments', 'list'].includes(opts.part) ? opts.part : 'all');
   try {
+    if (part === 'list') {
+      const got = await listLink(ctx, link);
+      got.rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const videos = got.rows.slice(0, MAX_LIST_VIDEOS);
+      await fillDurations(ctx, got.acct, videos);
+      return {
+        ok: true, name: got.name, videos, truncated: got.cut || got.rows.length > MAX_LIST_VIDEOS,
+        open_url: got.openUrl, fetched_at: new Date(deps.now()).toISOString(), took_ms: deps.now() - started,
+      };
+    }
     const found = await resolveLink(ctx, link, deps.cache);
+    // opts.strict: the exact file or a refusal. A folder link (bare, or naming a folder) does not say which video.
+    if (opts.strict === true && found.fromFolder) throw fail('folder_link');
     const fetchedAt = new Date(deps.now()).toISOString();
     if (part === 'comments') {
       const facts = await videoFacts(ctx, found.acct, found.file.id);
@@ -421,7 +564,7 @@ export async function lookup(rawLink, deps, opts = {}) {
     const [video, facts] = await Promise.all([playable(ctx, found.acct, found.file.id), videoFacts(ctx, found.acct, found.file.id)]);
     const addr = { url: video.url, renditions: video.renditions, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps };
     if (client) return { ok: true, video: addr, fetched_at: fetchedAt };
-    const shaped = { ...addr, name: video.name, file_id: found.file.id };
+    const shaped = { ...addr, name: video.name, file_id: found.file.id, media_type: video.mediaType, codec: facts.codec, width: facts.width, height: facts.height, metadata_fields: facts.fields };
     if (part === 'video') return { ok: true, video: shaped, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';

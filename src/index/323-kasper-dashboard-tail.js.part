@@ -290,16 +290,21 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     const CA_GROUPS = [
         { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['slack_mention_user_id', 'Slack person to tag']] },
         { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
-        { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['postforme_instagram_account_id', 'Instagram (Post for Me)'], ['postforme_facebook_account_id', 'Facebook Page (Post for Me)'], ['upload_post_profile', 'Upload-Post']] },
+        { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['postforme_instagram_account_id', 'Instagram (Post for Me)'], ['postforme_facebook_account_id', 'Facebook Page (Post for Me)'], ['postforme_youtube_account_id', 'YouTube (Post for Me)'], ['postforme_linkedin_account_id', 'LinkedIn (Post for Me)'], ['youtube_made_for_kids', 'YouTube: made for kids'], ['upload_post_profile', 'Upload-Post']] },
     ];
     // The client's Post For Me accounts, kept in the profile's `extra`, not in a column (OPEN_REPAIRS 620).
     // client-profile-write asks Post For Me that each is on the right network before it saves.
-    const CA_EXTRA_FIELDS = ['postforme_instagram_account_id', 'postforme_facebook_account_id'];
-    const CA_ACCOUNT_NETWORK = { postforme_instagram_account_id: 'Instagram', postforme_facebook_account_id: 'Facebook Page' };
+    // YouTube, LinkedIn and "made for kids" added 2026-11-02 (OPEN_REPAIRS 666); the TikTok column is checked too.
+    const CA_EXTRA_FIELDS = ['postforme_instagram_account_id', 'postforme_facebook_account_id', 'postforme_youtube_account_id', 'postforme_linkedin_account_id', 'youtube_made_for_kids'];
+    const CA_ACCOUNT_NETWORK = { postforme_account_id: 'TikTok', postforme_instagram_account_id: 'Instagram', postforme_facebook_account_id: 'Facebook Page', postforme_youtube_account_id: 'YouTube', postforme_linkedin_account_id: 'LinkedIn' };
+    const CA_ACCOUNT_KIND = { TikTok: 'a TikTok account', Instagram: 'an Instagram account', 'Facebook Page': 'a Facebook Page', YouTube: 'a YouTube channel', LinkedIn: 'a LinkedIn account' };
+    // A switch, not a text box: 'true' when on, '' when off (the server removes the key; off when absent).
+    const CA_SWITCH_FIELDS = ['youtube_made_for_kids'];
     function _caFieldValue(r, k) {
         if (!r) return '';
         if (CA_EXTRA_FIELDS.includes(k)) {
             const ex = r.extra && typeof r.extra === 'object' ? r.extra : {};
+            if (CA_SWITCH_FIELDS.includes(k)) return ex[k] === true || String(ex[k]).toLowerCase() === 'true' ? 'true' : '';
             return ex[k] == null ? '' : String(ex[k]);
         }
         return r[k] == null ? '' : String(r[k]);
@@ -375,6 +380,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     }
     function _caValueHtml(k, raw) {
         const v = String(raw == null ? '' : raw).trim();
+        if (CA_SWITCH_FIELDS.includes(k)) return `<span class="ca-val-text" data-ca-switch-value="${k}">${v === 'true' ? 'On' : 'Off'}</span>`;
         if (!v) return '<span class="ca-empty">Not set</span>';
         const l = _caLinkFor(k, v);
         if (l) return `<a class="ca-val-link" href="${_calEscAttr(l.href)}" target="_blank" rel="noopener" data-ca-link="${_calEscAttr(k)}">${_calEsc(l.text)}</a>`;
@@ -806,6 +812,15 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         if (!ed || !el) return;
         ed.draft[el.getAttribute('data-ca-field')] = el.value;
     }
+    function _caEditSwitch(el) {
+        const ed = _caState.edit;
+        if (!ed || !el || ed.saving) return;
+        const on = el.getAttribute('aria-checked') !== 'true';
+        el.setAttribute('aria-checked', String(on));
+        const lbl = el.querySelector('.ca-switch-label');
+        if (lbl) lbl.textContent = on ? 'On' : 'Off';
+        ed.draft[el.getAttribute('data-ca-field')] = on ? 'true' : '';
+    }
     function _caEditCancel() {
         if (_caEditDirty() && !confirm('Discard your unsaved changes?')) return;
         _caState.edit = null;
@@ -892,10 +907,11 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             const net = CA_ACCOUNT_NETWORK[json.field];
             const why = {
                 postforme_account_unknown: 'Post for Me does not know that connection ID. Check it was copied whole.',
-                postforme_wrong_platform: `That Post for Me connection is not ${net === 'Instagram' ? 'an Instagram account' : 'a Facebook Page'}. Copy the ID from the ${net} row.`,
+                postforme_wrong_platform: `That Post for Me connection is not ${CA_ACCOUNT_KIND[net]}. Copy the ID from the ${net} row.`,
+                postforme_account_taken: 'That Post for Me account is already on another client. Each account can be on one client only.',
                 postforme_platform_unknown: 'Post for Me did not say which network that connection is on.',
                 postforme_unreachable: 'Post for Me could not be reached to check it. Try again in a minute.',
-                postforme_not_configured: 'The Post for Me key is not set on the server, so the Page cannot be checked.',
+                postforme_not_configured: 'The Post for Me key is not set on the server, so the account cannot be checked.',
             }[err] || 'Post for Me could not confirm which network that connection is on.';
             _caEditSay(_calEsc(why) + ' Nothing was saved.', 'error');
         } else if (err === 'authority_not_syncview') {
@@ -941,6 +957,10 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const input = (k, label) => {
             const v = k in ed.draft ? ed.draft[k] : _caFieldValue(r, k);
             const flag = ed.conflictFields && ed.conflictFields.includes(k) ? ' is-conflict' : '';
+            if (CA_SWITCH_FIELDS.includes(k)) {
+                const on = String(v) === 'true';
+                return `<button type="button" class="ca-switch${flag}" role="switch" id="caIn_${k}" data-ca-field="${k}" aria-checked="${on}" aria-label="${_calEscAttr(label)}" onclick="_caEditSwitch(this)" ${ed.saving ? 'disabled' : ''}><span class="ca-switch-track" aria-hidden="true"><span class="ca-switch-knob"></span></span><span class="ca-switch-label">${on ? 'On' : 'Off'}</span></button>`;
+            }
             const attrs = `id="caIn_${k}" data-ca-field="${k}" oninput="_caEditInput(this)" ${ed.saving ? 'disabled' : ''} aria-label="${_calEscAttr(label)}"`;
             return CA_LONG_FIELDS.includes(k)
                 ? `<textarea class="ca-input${flag}" rows="3" ${attrs}>${_calEsc(v)}</textarea>`
@@ -1024,9 +1044,10 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _caCloseList, _caCopy, _caEditCancel, _caEditInput, _caEditRefresh, _caEditSave, _caEditStart,
-        _caFold, _caLoad, _caLoadManagers, _caMgrClose, _caMgrPick, _caMgrToggle, _caSearchFocus,
-        _caSearchKey, _caSelect, _caSetSearch, _caToggleArchived, _caToggleHistory, _caToggleList,
-        _kasperMarkRepliesRead, _kasperRepliesDraftInput, _kasperRepliesReply, _kasperRepliesToggleAll
+        _caEditSwitch, _caFold, _caLoad, _caLoadManagers, _caMgrClose, _caMgrPick, _caMgrToggle,
+        _caSearchFocus, _caSearchKey, _caSelect, _caSetSearch, _caToggleArchived, _caToggleHistory,
+        _caToggleList, _kasperMarkRepliesRead, _kasperRepliesDraftInput, _kasperRepliesReply,
+        _kasperRepliesToggleAll
     });
 export {
   _caPurgeSensitiveState, _caRender, _kasperEnsureAllTabCounts, _kasperMarkRepliesRead,

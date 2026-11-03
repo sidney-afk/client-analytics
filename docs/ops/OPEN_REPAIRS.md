@@ -36779,3 +36779,19 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.
 - **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
 - **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.
+
+## 663. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V4: a hand-run, read-only live walk of the review page, for WebKit (session Vbuild)
+
+- **Asked:** the supervisor, 3 Nov, after V4 (#2571) went live. The plan's row V4 asks for a walk of the SMM, Kasper and the client link at 1440 and 390, in WebKit too. WebKit is not installed in the session sandbox, and installing browsers there is not allowed, so the walk runs in CI.
+- **Built:**
+  - `.github/workflows/trial-v4-review-live-walk.yml` (manual). Inputs: `engine` (webkit or chromium) and an optional test-client trial `card` id to open first. No input is a link.
+  - It runs `scripts/trial-v4-review-live-walk.js` with `ROBOT_ROLE_KEY_SMM`. That script serves this build against the live backend, on the test client only (`qa/test-client-entry.js` refuses any other client).
+  - It opens every open trial card of the test client on the client link, the SMM's Review tab and Kasper's Review Session, at 1440 and 390. On each it counts the thumbnail-and-caption block, own captions, loaded pictures and Kasper's tiles. It opens the part picker and cancels it.
+  - **Read only:** every write is aborted in the browser before it leaves: the Calendar, Production and comment writers, any trial-reels action but a read, and any REST write. A run that blocked one fails.
+  - Kasper's session is switched on for three named staff. Only this page's read of `review_stage_kasper_staff` and `review_stage_kasper_layout2` is widened, as the dawn check does for `analytics_hidden`.
+  - It prints counts and true/false only. It takes no screenshots, because Kasper's queue holds other clients' cards and the repository is public.
+- **Proof:**
+  - `test/trial-v4-review-live-walk.js` (20 checks, offline). It covers which requests are writes, that a summary line drops anything but counts, the verdict, and the workflow's two inputs with no link and no upload.
+  - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed the block at 1440 and 390, with nothing scrolling sideways.
+  - SMM and Kasper opened no trial card, because none of the test client's non-archived trial cards waits for them (OPEN_REPAIRS 662).
+- **Way back:** delete the workflow. It only runs when dispatched by hand.

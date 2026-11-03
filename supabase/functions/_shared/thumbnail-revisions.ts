@@ -306,7 +306,7 @@ function missingSourceMark(fileId: string): string {
  * Drive file that is readable but is NOT an image (a video or a PDF pasted into
  * the thumbnail field). Like a 404 it is a property of the record, not of the
  * run, so it fails identically on every lap until a person fixes the link; on
- * 3 Nov one such card made the lane red about twice an hour (OPEN_REPAIRS 688).
+ * 3 Nov one such card made the lane red about twice an hour (OPEN_REPAIRS 695).
  * It gets its own marker, bound to the file the same way, so a 404 mark never
  * makes a not-an-image failure read as known, nor the other way round. */
 const NOT_IMAGE_SOURCE_MARKER = "drive_not_image";

@@ -1,6 +1,6 @@
 // Drives the continuous thumbnail revision scan (supabase/functions/_shared/thumbnail-revisions.ts,
 // scanPendingThumbnailRevisions) against an in-memory stand-in for the database and a stubbed Drive.
-// Session Thumbscan, 2026-11-03, OPEN_REPAIRS 688.
+// Session Thumbscan, 2026-11-03, OPEN_REPAIRS 695.
 //
 // Run: deno run --allow-env --allow-read --node-modules-dir=auto test/thumbnail-revision-scan-deno.ts
 //

@@ -36857,7 +36857,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
 
-## 688. [2026-11-03 UTC, ROOT-CAUSED, FIX IN PR] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
+## 695. [2026-11-03 UTC, ROOT-CAUSED, FIX IN PR] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
 
 - **Symptom:** clean from 1 Nov 23:00 to 3 Nov 17:00 UTC, then 1 to 2 red runs an hour (17h 1, 19h 1, 20h 2, 21h 2, 22h 2). Each red run printed `failed: 3, missing_source: 2, missing_source_new: 0`, so exactly **one** real failure per red run.
 - **Measured live (read-only SQL on `thumbnail_media_revisions`, 22:35 UTC):**

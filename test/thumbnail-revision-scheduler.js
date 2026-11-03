@@ -272,7 +272,7 @@ async function rejectsMessage(work, pattern) {
    * green for a genuinely new unreadable source. */
   assert.match(SCANNER, /const mark = notImage \? notImageSourceMark\(sourceFileId\) : missingSourceMark\(sourceFileId\);/,
     'the marker compared against must be built from the file this scan actually read');
-  /* OPEN_REPAIRS 688: a readable Drive file that is not an image is the only other
+  /* OPEN_REPAIRS 695: a readable Drive file that is not an image is the only other
    * kind allowed into the subset, and only through its TYPED error, never by
    * matching message text. test/thumbnail-revision-scan-deno.ts drives it. */
   assert.match(SCANNER, /const notImage = !driveGone && isNotImageError\(e\);/,

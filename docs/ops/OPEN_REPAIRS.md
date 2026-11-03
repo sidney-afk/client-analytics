@@ -36010,7 +36010,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+## 642. [2026-11-02 UTC, LIVE (merged #2526 as 225595b on 2026-11-02; WebKit phone lane green on main three times)] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
 
 - **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
   - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
@@ -36037,6 +36037,9 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - D: while the page is leaving, no re-ask. On main it asks once.
   - E: control, the page stays after all, and it re-asks once again.
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
+- **Live:** merged in #2526 as 225595b. The #2513 trace merged as 14c325b. The last main run without the fix (94f2d49) still went red at 00:29 UTC on 3 Nov, with the same report.
+  - After the fix, `review-stage-phones` passed on three main runs in a row: 288ad4c (job 125682156074), 6dc6349 (job 125697967913) and 817100f (job 125709994956).
+  - The front end is a page change, so it went live with the Pages publish of 225595b. No function is involved.
 - **Way back:** revert the PR.
 
 ## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)
@@ -36136,7 +36139,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
 - **Way back:** revert the PR and run the ROLLBACK file.
 
-## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+## 656. [2026-11-02 UTC, LIVE (merged #2535 as deba3bc; trial_versions_v2 on for the test client 00:32 UTC; checked live by entry 659's workflow, run 41563650679, 2026-11-03)] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
 
 - **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
 - **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
@@ -36170,8 +36173,38 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - A Deno case in `test/trial-reels-function-deno.ts`.
   - `trial-reels-logic.js` is unchanged and passes.
 - **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.
+- **Live (3 Nov):** on a test-client trial card that is not linked to Production, version A was walked by the robot SMM key: For SMM Approval (no-op), Kasper Approval, Client Approval, Tweaks Needed, Approved, then back. Every step passed (5 of 5). Each step read back its status and wrote exactly one `trial_status` row. The card row was never written, and the put-back read back. The card's trial switch was turned on for the run and ended off, with no version seeded or removed. The supervisor's own read afterwards: switch off, 5 `trial_status` rows, card still For SMM Approval.
+## 657. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V3: each version's own thumbnail and caption, the effective read, and the winner's copied onto the card (plan combined.md row V3; session Vbuild)
 
-## 659. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V1: a live check of the version status picker, as the robot SMM key
+- **Asked:** Sidney wants trial versions to differ in thumbnail and caption, not only in video. Plan row V3, on F2's columns (migration `20261102200000`, #2530).
+- **Before:** a version carried only its video. The card's single thumbnail and caption covered every version.
+- **Now:**
+  - **`trial-reels`:**
+    - New action `version_fields_set` (admin, SMM, editor). It sets a version's thumbnail (https, at most 2048) and/or caption (at most 4000). A field left out stays as it is; an empty one goes back to the card's.
+    - Refused for the version on the card (`version_is_card`: it is the card), a dropped version, and one on trial or decided.
+    - Gated server-side on `trial_versions_v2` (`fields_off`). Refused with `fields_unavailable` until F2's columns exist.
+    - A change on an answered version starts it again through the SMM (revision + 1, OKs cleared), as a replaced link does.
+    - Every read carries `effective` per version: its own field, else the card's (`coalesce(version, card)`). A staff read also carries the version's own two fields. The card's thumbnail and caption are read with the card.
+  - **Page (189, behind `trial_versions_v2`):**
+    - A "Thumbnail · Caption" line under each version, reading "Same as the card" when empty, with inline editing.
+    - Picking the winner also copies its effective thumbnail and caption onto the card through today's card save, and puts them back if the winner is refused.
+    - The pick's Undo puts back the card's own fields, which this page kept from before the pick. Undo exists only on that toast.
+  - **The supervisor's guards:**
+    - **Undo after the card was edited since the pick** overwrites nothing. It says "The card was edited after the winner was picked; check its thumbnail and caption by hand."
+    - **Once a winner is picked,** a version that lost reads only its own fields, never the winner's (now on the card) as its own. Its field line is hidden.
+    - **The effective fields of every letter** are tested before the pick, after it and after Undo.
+  - **Where versions and cards differ (on purpose, the supervisor's ruling):** editing an approved card's caption or thumbnail leaves its status as it is. On a card only a tweak note moves a status (190 `_calApplyAutoStatus`). On a version, the same edit restarts it through the SMM.
+  - **A winner copy that did not save stops the pick** (Codex P2 on #2539, fixed): today's card save reports a failure on the card instead of throwing, so the page reads `_saveError` back. On a failure nothing is picked, the card's fields and video link go back, and the page says so.
+  - **Never writes the card:** `trial-reels` still writes no row of `calendar_posts`. Copying onto the card is the page's job, through `calendar-card-write` and its `updated_at` check.
+- **Proof:**
+  - `test/trial-version-fields-logic.js` (36 checks; on main `effectiveFields is not a function`).
+  - `test/trial-version-fields-browser.js` (40 checks, 1440 and 390, mocked; on main's page it fails at the first field line).
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` unchanged and passing.
+- **Way back:** turn `trial_versions_v2` off. The rows go back to today's, and the function refuses the new writes. Or revert the PR. The columns stay; they are only read.
+
+
+## 659. [2026-11-03 UTC, LIVE (merged #2549 as 9e233cf; dispatched, run 41563650679 green)] Trial versions, V1: a live check of the version status picker, as the robot SMM key
 
 - **Asked:** the supervisor, 3 Nov, after #2535 (V1) merged: live-test V1 on a test-client trial card that is not linked to Production work. Set one version to each status up to Approved, check the `trial_status` history row, check the card row was not written, and put the version back. Building sessions hold no staff key, so this is a workflow run by hand.
 - **Built:** `.github/workflows/trial-version-status-live-check.yml` (manual: client, card, letter) runs `scripts/trial-version-status-live-check.js` with `ROBOT_ROLE_KEY_SMM`. The key is never printed.
@@ -36193,7 +36226,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
 - **Proof:** `test/trial-version-status-live-check.js` (40 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, the put-back after a read that fails mid-walk, and the opt-in switch: on and off, refused when already on, a seeding switch-on, and a switch that will not turn off, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
 - **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run uses the opt-in switch. Target: `p_allactions_1793209592511`, letter A (For SMM Approval, no OKs, so the put-back is exact).
-- **Live result:** filled in by the supervisor's dispatch.
+- **Live result (3 Nov, run 41563650679):** 5 of 5 steps passed, the put-back read back, the switch went on with 0 versions seeded and ended off with 0 removed. See entry 656.
 - **Way back:** delete the workflow. It runs only by hand.
 
 ## 678. [2026-11-03 UTC, BUILT, NOT MERGED] The Edge Functions merge lane held a function because of a rollback file, after its migration was already applied (SyncView supervisor)
@@ -36339,6 +36372,67 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - `test/linear-exit-write-diagnostics-handlers.js`: a Firefox user agent with the flag is automation, without it a person, and only `true` counts. On main it fails ("a robot-driven page is automation").
   - The client-requests golden's two diagnostics reports gained `automation: true` (added by hand; the requests and every source hash are unchanged).
   - Unchanged and passing on the fixture: `test/review-board-gauntlet-browser.js`, `test/review-stage-save-browser.js`, `test/review-stage-browser.js`, `test/client-calendar-read-only-browser.js`, `test/first-paint-theme-browser.js`.
+
+## 676. [2026-11-03 UTC, OPEN, cause NOT found yet] The trial-reels "client after the pick" check missed twice in CI: no trial drawn on the client's review page (session Reviewguard)
+
+- **Seen:** `test/trial-reels-review-browser.js`, the winner case, failed 2 of 75 checks in CI twice on 2 Nov: on #2542's head 45af5056 (23:22 UTC) and on #2527's head dd88b902 (00:22 UTC, `entry-links-boot (3)`). Both times the bar read "" and the "Trial" count read x0: about 6.5 s after the review was ready (the case's own 1.5 s plus its 5 s wait), the page drew no trial at all. It also failed once in 6 locally on main 566de010 (3 runs at once beside 3 more). Neither PR touches trial reels.
+- **Ruled out (on main, locally):**
+  - **A slow trial read:** the list read held back 3 s gives the plain card, then the bar once the 2 s hold ends, and it stays right. A slow line never leaves the page wrong.
+  - **A slow page:** at a 4x and 8x CPU throttle, the read fires before the stage draws and the bar is right from the first look.
+  - **194's load-order trap** (its boot read reads `_isClientLink` from a timer, like the Calendar's in 639): under throttling it still started on time.
+  - **Shared state between cases:** the fixture builds fresh cards for every open, and every case has its own context.
+  - **Load alone:** 20 more runs, 4 and then 6 at once, all passed.
+- **Lead, not a cause:** switching trial reels off for this client reproduces the exact symptom ("" and x0, no list read at all). So the CI misses fit a page that took the switch as off, or not yet answered, when the stage drew. This is unproven.
+- **Now (test only, diagnostics):** the check's own wait no longer swallows its error silently. On a miss, and only then, the test prints one `TRV_TRACE` line from the fixture's fictional page:
+  - when the stage was ready, and when each list read reached the fake server;
+  - the fake server's switch reads;
+  - the page's trial-read state (started, arrived, failed, in flight, the cards it holds);
+  - whether the switch says trial reels is on for this client;
+  - the stage's visible text, and the wait's own error.
+
+  Pass/fail and every wait are unchanged.
+- **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
+- **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+
+## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
+
+- **What happened:** "Calendar unit tests" gave every push to main its own run group (one per commit), and a main run is never cancelled. On the night of 2 to 3 Nov about a dozen merges landed in four hours. Each main run starts roughly 25 browser jobs, and the account runs at most 20 jobs at once. So 14 main runs waited at the same time, the oldest since 22:05. The pull-request runs, which wait for runner seats, sat for up to 3.5 hours: F4's browser-guards and repair-checkpoint waited from 23:26.
+- **Done by hand meanwhile:** the supervisor cancelled the superseded main runs that were still waiting (11 at 02:03 UTC, 4 at 02:57 UTC). It never cancelled a started one. Each later main run tests everything the cancelled ones would have.
+- **Fix:** pushes to main now share one run group, `calendar-unit-tests-main`, with cancel-in-progress still false. GitHub keeps one run going and one waiting per group, and a newer push replaces the waiting one. So a started main run always finishes, and a busy evening tests main's tip instead of a backlog of older commits. Pull requests are unchanged (a newer push cancels the run it replaces). Manual runs keep a group per commit.
+- **What this gives up:** a commit whose main run was replaced while it waited has no main run of its own. The next one tests it together with the commits after it. When that run goes red, the culprit is any commit since the last green main run, not one commit.
+- **Proof:** `test/ci-runner-seats.js` pins the new group and that main never cancels a started run. Against main's workflow it fails; with the change it passes (139 checks). `ci-shards-wired` 230 and `workflow-plain-scalars` (56 files) pass.
+- **Way back:** revert the PR.
+
+## 677. [2026-11-03 UTC, BUILT, NOT MERGED] TikTok carousel browser journey: a red that comes and goes on PRs that never touch TikTok, and a Cancel that sometimes said "Could not prepare image 2" (session Chanfix)
+
+The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` on PRs with no TikTok change (#2538 at `faaf869f`, green on re-run; #2545 at `152a5e77`). Both stopped at `page.waitForFunction: Timeout 30000ms` in `attachThreeImagesAndCaption` (line 259, Submit never enabled), right after the client pick. Main stayed green.
+
+- **Measured on origin/main `deba3bc`:** runs in loops, 6 to 8 at once, with the page's CPU slowed 4x and 8x (`Emulation.setCPUThrottlingRate`). 8 at once at full speed: 5 of 48 red. Slowed 4x: 19 of 30 red. Slowed 8x: 22 of 32 red. **Not one was the line-259 stall** (0 of 110). Every red was in case 2, the cancel journey, in one of two ways:
+  1. `image 3 was never minted`: the test cancelled behind a fixed 250 ms mint delay; on a slow machine the click came after the delay ran out, so image 2 finished and image 3 started. A race in the test, not the page.
+  2. `the form reports the cancellation (got "Could not prepare image 2 — no upload url returned.")`: **a real page bug a staff member can hit.** A Cancel that lands after an image's answer arrives but before its body is read makes that read fail with the cancellation, and `try { mint = await mintResp.json(); } catch {}` swallowed it. The empty answer then threw "no upload url", so the person saw a failure instead of "Upload cancelled.", and the page logged it as a failed save in the write-refusal log.
+- **Fixed (failing first):**
+  - **Page** (`src/index/300-tiktok-upload.js.part`, `_tkSubmitPhotoCarousel`): the cancel is decided by the abort signal, not only by the error's name, so a cancel that surfaces as any later error still reads "Upload cancelled." and is not logged as a failure.
+  - **New case 2b** in the journey: image 2's answer arrives but its body never finishes until the page cancels. It failed on main with exactly the wrong message and passes now.
+  - **Case 2 is deterministic:** the mock holds image 2's mint open until the test has clicked Cancel (`holdMintAt`), instead of a 250 ms delay.
+- **The line-259 stall itself is not reproduced**, so it has on-miss diagnostics instead, like Reviewguard's 676. When either wait in `attachThreeImagesAndCaption` runs out, the test prints `DIAG <wait>: {...}` with the form's state before failing as before: client set, client in the client map, account id set and its source, photos in state, on screen and in the file input, caption length in state and in the box, submitting, Submit disabled, and the form's error. Counts and yes/no only, fictional data. The next CI red names the missing piece (most likely the account id, which comes from the asynchronously loaded client map).
+- **Proof:** the journey passes; under the same 8x slowdown, 6 at once, the fixed version passed 30 of 30 runs (before: 22 of 32 red). Way back: revert the PR.
+
+## 675. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper's admin phone suite waited 5 s for every state, and one wait ran out in a busy CI lane (session Reviewguard)
+
+- **Seen:** #2527's `staff-phone-rules (430, 2)` at dd88b902 failed 1 of 4832 checks: "quiz-refresh-actions light 430: locator.waitFor: Timeout 5000ms exceeded", waiting for "Could not load quiz leads". The same suite passed locally four times at that head and at main (0 failures), and the code path it tests is not one #2527 changes. One 5 s wait for an error state ran out in a parallel lane on a shared runner.
+- **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
+- **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
+- **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+
+## 680. [2026-11-03 UTC, BUILT, NOT MERGED] The calm-refresh suite read Production's scroll while the loading skeleton was still up (session Reviewguard, test only)
+
+- **Seen:** `browser-guards (1)` on #2547 (job 125638320835) failed in `test/calm-refresh-pages-browser.js` with "CALM_PAGES Production: the list stays where it was scrolled (-1)". #2547 changes only another suite's wait, and the same suite passes on main and locally.
+- **Cause (reproduced):** with the CPU slowed 4 to 8 times and four to six runs in parallel, 3 of 6 runs fail the same way. In every miss `#prodRoot` still holds the loading skeleton: 173 elements, no `.prod-listwrap`. The real list arrives 8 to 14 s later, so the app is fine. The suite waited a fixed 2.5 s, then drew until two draws in a row matched. Two skeleton draws match, so it took the skeleton for a settled list, and the scroll read found no list (-1). Its "has a real list" check counted nodes (more than 100), which the skeleton passes too.
+- **Fix (test only):**
+  - wait up to 60 s for a real row in `.prod-listwrap` before measuring;
+  - the settle loop also needs a real row;
+  - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
+- **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.
 
 ## 681. [2026-11-03 UTC, BUILT, NOT MERGED] popup-behaviour (phone): four card clicks timed out when the Calendar drew after the test asked for the list view (session Chanfix)
 

@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trial version tabs</title>
+<!-- Plan row 688, design step only: one trial card with A/B/C version tabs, three ways to draw the tabs, on every
+     surface the layout touches. Placeholder data only (no client, no links, no real thumbnails). Nothing here ships.
+     ?w=390 (default) puts the three options side by side at phone width; ?w=1440 stacks them at desktop width;
+     ?opt=A|B|C shows one option. make-shots.js renders the PNGs. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f4f2; --surface: #ffffff; --subtle: #f3f3f1; --hover: #f8f8f6;
+  --border: #e4e4e0; --border-light: #ededea;
+  --ink: #111110; --ink-2: #6b6b67; --ink-3: #b4b4ae;
+  --focus: #6c5ce7;
+  --video-fg: #c9006a; --video-bg: #fde7f1; --thumb-fg: #3737f2; --thumb-bg: #e2e4ff;
+  --st-approved: #4ade80; --st-client: #ff6b6b; --st-client-link: #a78bfa; --st-tweaks: #fb923c; --st-dropped: #d4d4d0;
+  --st-approved-soft: #dcfce7; --st-client-soft: #ffe4e4; --st-client-link-soft: #ede9fe; --st-tweaks-soft: #ffedd5;
+  --ok: #16a34a; --ok-soft: #dcfce7; --ok-ink: #166534;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.page { padding: 24px 16px 48px; }
+.opt-cols { display: grid; grid-template-columns: repeat(3, 390px); gap: 32px; justify-content: center; }
+.opt-stack { display: grid; gap: 56px; }
+.opt-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 4px; }
+.opt-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.opt-head .name { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.clicks { margin: 0 0 18px; font-size: 13px; color: var(--ink-2); line-height: 1.45; max-width: 70ch; }
+.surface { margin: 0 0 28px; }
+.surface > h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.frame { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; overflow: hidden; }
+.w390 .frame { width: 390px; padding: 12px 16px; }
+.w1440 .frame { width: 1440px; padding: 20px 48px; }
+
+/* ── placeholder pictures: abstract, one per version ── */
+.pic { position: relative; overflow: hidden; background: #ddd; }
+.pic::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 30% 70%, rgba(255,255,255,.35) 0 18%, transparent 19%); }
+.pic-A { background: linear-gradient(160deg, #f6d365 0%, #fda085 100%); }
+.pic-B { background: linear-gradient(160deg, #84fab0 0%, #8fd3f4 100%); }
+.pic-C { background: linear-gradient(160deg, #a18cd1 0%, #fbc2eb 100%); }
+.pic-D { background: linear-gradient(160deg, #cfd9df 0%, #e2ebf0 100%); }
+.pic-x { background: linear-gradient(160deg, #e0e0dc 0%, #f2f2ef 100%); }
+.media > .pic, .player > .pic, .wchip .rel > .pic { position: absolute; inset: 0; }
+.rtile .media, .wchip .rel { height: 150px; }
+.wchip .rel { position: relative; height: 74px; }
+
+/* ── status bits ── */
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+.s-approved { --s: var(--st-approved); --s-soft: var(--st-approved-soft); }
+.s-client { --s: var(--st-client); --s-soft: var(--st-client-soft); }
+.s-tweaks { --s: var(--st-tweaks); --s-soft: var(--st-tweaks-soft); }
+.s-dropped { --s: var(--st-dropped); --s-soft: var(--subtle); }
+.client .s-client { --s: var(--st-client-link); --s-soft: var(--st-client-link-soft); }
+.dot { background: var(--s); }
+.spill { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: var(--s); color: #101114; font-size: 11px; font-weight: 700; white-space: nowrap; }
+
+/* ── option A: letter pills with a status dot ── */
+.ta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ta button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.ta button.on { border-color: var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.ta button.drop { color: var(--ink-3); border-style: dashed; }
+.ta button.add { color: var(--ink-3); padding: 0 9px; }
+.ta.big button { height: 34px; padding: 0 14px; font-size: 14px; }
+
+/* ── option B: segmented control, the segment's colour is its status ── */
+.tb { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(17,17,16,.06); }
+.tb button { flex: 1; height: 28px; border-radius: 7px; background: var(--s-soft); font-size: 13px; font-weight: 700; color: var(--ink-2); position: relative; }
+.tb button::after { content: ''; position: absolute; left: 30%; right: 30%; bottom: 4px; height: 3px; border-radius: 2px; background: var(--s); }
+.tb button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12), inset 0 0 0 1.5px var(--s); }
+.tb button.more { flex: 0 0 30px; background: transparent; color: var(--ink-3); }
+.tb button.more::after { display: none; }
+.on-pic .tb { background: rgba(255,255,255,.72); backdrop-filter: blur(6px); }
+.tb.big button { height: 36px; font-size: 14px; }
+
+/* ── option C: filmstrip of small thumbnails ── */
+.tc { display: flex; gap: 6px; align-items: flex-start; }
+.tc .fr { width: 38px; display: grid; gap: 4px; justify-items: center; }
+.tc .fr .pic { width: 38px; height: 52px; border-radius: 6px; box-shadow: 0 0 0 1px var(--border); }
+.tc .fr.on .pic { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.tc .fr .lab { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.tc .fr.on .lab { color: var(--ink); }
+.tc .fr.drop .pic { opacity: .35; }
+.tc .fr.drop .lab { color: var(--ink-3); }
+.tc .fr.add .pic { background: var(--surface); border: 1px dashed var(--border); box-shadow: none; display: grid; place-items: center; color: var(--ink-3); font-size: 16px; }
+.tc .fr.add .pic::after { display: none; }
+.tc.big .fr { width: 60px; }
+.tc.big .fr .pic { width: 60px; height: 82px; border-radius: 8px; }
+.tc.big .fr .lab { font-size: 12px; }
+.tc.col { flex-direction: column; }
+
+/* ── Calendar Sheet card (opened) ── */
+.sheet { display: flex; gap: 20px; align-items: flex-start; }
+.card { width: 318px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; flex: none; }
+.card .media { height: 256px; position: relative; }
+.card .media .tools { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 6px; align-items: center; }
+.chip { height: 24px; min-width: 24px; padding: 0 7px; border-radius: 7px; background: rgba(255,255,255,.92); display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.chip.ghost { color: var(--ink-2); }
+.grow { flex: 1; }
+.tswitch { width: 26px; height: 15px; border-radius: 999px; background: var(--ink); position: relative; flex: none; }
+.tswitch::after { content: ''; position: absolute; right: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; }
+.card .media .bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; }
+.card .body { padding: 14px 14px 16px; display: grid; gap: 8px; }
+.card .title { font-size: 15px; font-weight: 700; margin: 2px 2px 2px; letter-spacing: -0.01em; }
+.field { height: 30px; border-radius: 8px; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 13px; font-weight: 600; }
+.field.date { background: var(--subtle); color: var(--ink); font-weight: 500; }
+.field.thumb { background: var(--thumb-bg); color: var(--thumb-fg); }
+.field.video { background: var(--video-bg); color: var(--video-fg); }
+.field .ic { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px; flex: none; }
+.cap { background: var(--subtle); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; min-height: 84px; }
+.mini { width: 210px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; flex: none; }
+.mini .media { height: 150px; position: relative; }
+.mini .body { padding: 10px 12px 12px; display: grid; gap: 6px; }
+.mini .title { font-size: 13px; font-weight: 700; }
+.mini .meta { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; }
+.stack { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: flex-end; }
+.stack .pic { width: 22px; height: 30px; border-radius: 4px; box-shadow: 0 0 0 1.5px #fff; margin-left: -10px; }
+.stack .n { margin-left: 5px; height: 18px; padding: 0 6px; border-radius: 5px; background: rgba(255,255,255,.92); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+.segbar { display: flex; gap: 2px; height: 4px; }
+.segbar span { flex: 1; border-radius: 2px; background: var(--s); }
+.dots { display: inline-flex; gap: 3px; align-items: center; font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.dots b { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; }
+
+/* ── Month and Week ── */
+.cal-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.month { width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); display: grid; grid-template-columns: repeat(3, 1fr); }
+.month .day { min-height: 110px; border-right: 1px solid var(--border-light); padding: 6px; display: grid; align-content: start; gap: 4px; }
+.month .day:last-child { border-right: 0; }
+.month .num { font-size: 11px; color: var(--ink-2); font-weight: 600; }
+.mchip { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 5px; padding: 4px 6px; border-radius: 5px; background: var(--subtle); font-size: 11px; font-weight: 600; line-height: 1.3; }
+.mchip .t { flex: 1 1 100%; }
+.mchip.tall { height: auto; padding: 4px 6px; display: grid; gap: 4px; white-space: normal; }
+.week { width: 160px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; display: grid; gap: 6px; }
+.week .num { font-size: 11px; color: var(--ink-2); font-weight: 600; }
+.wchip { border-radius: 8px; background: var(--subtle); overflow: hidden; }
+.wchip .t { font-size: 12px; font-weight: 600; padding: 6px 8px 2px; line-height: 1.35; }
+.wchip .s { padding: 2px 8px 8px; }
+
+/* ── review stage (client link, SMM, Kasper) ── */
+.stage-wrap { display: grid; gap: 16px; }
+.w1440 .stage-wrap.with-queue { grid-template-columns: 256px 1fr; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
+.st-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.st-head .t { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.st-head .d { font-size: 12px; color: var(--ink-2); }
+.st-body { display: grid; gap: 16px; }
+.w1440 .st-body { grid-template-columns: auto 300px minmax(0, 460px); align-items: start; }
+.w1440 .st-body.no-rail { grid-template-columns: 300px minmax(0, 460px); }
+.player { width: 300px; height: 440px; border-radius: 12px; position: relative; }
+.w390 .player { width: 100%; height: 420px; }
+.player .play { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: rgba(255,255,255,.92); }
+.player .play::after { content: ''; position: absolute; left: 19px; top: 15px; border-left: 14px solid var(--ink); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+.capp { background: var(--subtle); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+.capp .lab { font-size: 12px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.capp .txt { font-size: 15px; line-height: 1.55; }
+.capp .thumbrow { display: flex; gap: 12px; align-items: center; }
+.capp .thumbrow .pic { width: 64px; height: 88px; border-radius: 8px; }
+.acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn { height: 38px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.btn.ok { background: var(--ok-soft); color: var(--ok-ink); box-shadow: inset 0 0 0 1px #86efac; }
+.btn.plain { color: var(--ink); box-shadow: inset 0 0 0 1px var(--border); background: var(--surface); }
+.btn.quiet { color: var(--ink-2); }
+.btn { white-space: nowrap; }
+.w390 .acts .btn.ok, .w390 .acts .btn.plain { flex: 1 1 0; justify-content: center; padding: 0 10px; }
+.w390 .acts .btn.quiet { flex: 1 1 100%; justify-content: center; }
+.vline { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.queue { display: grid; gap: 8px; }
+.qhead { font-size: 13px; color: var(--ink-2); font-weight: 600; margin: 2px 4px 4px; }
+.qtile { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 12px; border: 1px solid transparent; }
+.qtile.on { background: #f1efff; border-color: #c9c2fb; }
+.qtile .pic { width: 40px; height: 56px; border-radius: 6px; flex: none; }
+.qtile .t { font-size: 13px; font-weight: 600; }
+.qtile .m { font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.qtile .stack { position: static; }
+.qtile .stack .pic { width: 14px; height: 20px; margin-left: -6px; border-radius: 3px; }
+.qtile .stack .pic:first-child { margin-left: 0; }
+.grid-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.w390 .grid-tiles { grid-template-columns: 1fr 1fr; }
+.rtile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.rtile .b { padding: 8px 10px 10px; display: grid; gap: 5px; }
+.rtile .t { font-size: 13px; font-weight: 600; }
+.rtile.on { box-shadow: 0 0 0 2px var(--focus); }
+.rtile .media { position: relative; }
+</style>
+</head>
+<body>
+<div class="page" id="root"></div>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const W = q.get('w') === '1440' ? 1440 : 390;
+  const ONLY = (q.get('opt') || '').toUpperCase();
+  const OPTS = [
+    { k: 'A', name: 'Letter pills', clicks: 'SMM path: open the card (1), B and C (2; A shows first), set B\'s status from its pill (2). 5 clicks. The pills wrap, so a 4th or 5th version needs no scroll.' },
+    { k: 'B', name: 'Segmented control on the picture', clicks: 'SMM path: open the card (1), B and C (2; or ← → on the keyboard), set the status (2). 5 clicks. Each segment\'s colour is its status, so the three statuses read before any click.' },
+    { k: 'C', name: 'Filmstrip', clicks: 'SMM path: open the card (1), B and C (2), set the status (2). 5 clicks, but all three thumbnails can be compared with no click at all.' },
+  ].filter((o) => !ONLY || o.k === ONLY);
+
+  const V = [
+    { L: 'A', s: 'approved', cap: 'Most people decide in the first second. Start with the change, not the context.' },
+    { L: 'B', s: 'client', cap: 'The first second is a promise. Open on the result, then show how you got there.' },
+    { L: 'C', s: 'tweaks', cap: 'Skip the hello. Open on the moment that changes everything, and the rest follows.' },
+    { L: 'D', s: 'dropped', cap: '' },
+  ];
+  const LIVE = V.filter((v) => v.s !== 'dropped');
+  const STAFF = { approved: 'Approved', client: 'Client Approval', tweaks: 'Tweaks Needed', dropped: 'Dropped' };
+  const CLIENT = { approved: 'Approved', client: 'Ready for your review', tweaks: 'Changes asked', dropped: 'Dropped' };
+  const TITLE = 'Why the first second matters';
+  const pic = (L, cls) => '<div class="pic pic-' + L + (cls ? ' ' + cls : '') + '"></div>';
+  const by = (L) => V.find((v) => v.L === L);
+
+  // The three ways to draw the tabs. ctx: 'card' | 'stage'
+  function tabs(o, sel, ctx, opts) {
+    opts = opts || {};
+    const big = ctx === 'stage';
+    if (o === 'A') {
+      return '<div class="ta' + (big ? ' big' : '') + '">' + LIVE.map((v) => '<button class="s-' + v.s + (v.L === sel ? ' on' : '') + '"><span class="dot"></span>' + (big ? 'Video ' : '') + v.L + '</button>').join('')
+        + (opts.staff ? '<button class="drop">D</button><button class="add">+</button>' : '') + '</div>';
+    }
+    if (o === 'B') {
+      return '<div class="tb' + (big ? ' big' : '') + '">' + LIVE.map((v) => '<button class="s-' + v.s + (v.L === sel ? ' on' : '') + '">' + (big ? 'Video ' : '') + v.L + '</button>').join('')
+        + (opts.staff ? '<button class="more">···</button>' : '') + '</div>';
+    }
+    return '<div class="tc' + (big ? ' big' : '') + (opts.col ? ' col' : '') + '">' + LIVE.map((v) => '<div class="fr s-' + v.s + (v.L === sel ? ' on' : '') + '">' + pic(v.L)
+      + '<span class="lab"><span class="dot"></span>' + v.L + '</span></div>').join('')
+      + (opts.staff ? '<div class="fr drop">' + pic('D') + '<span class="lab">D</span></div><div class="fr add"><div class="pic">+</div><span class="lab">&nbsp;</span></div>' : '') + '</div>';
+  }
+
+  // 1. the Calendar Sheet card, opened, Video B selected
+  function openCard(o) {
+    const sel = 'B', v = by(sel);
+    return '<div class="card">'
+      + '<div class="media">' + pic(sel, '') + '<div class="tools"><span class="chip ghost">⋮⋮</span><span class="chip ghost">∞</span><span class="grow"></span>'
+      + '<span class="chip">Trial <span class="tswitch"></span></span><span class="chip ghost">×</span></div>'
+      + (o === 'B' ? '<div class="bottom on-pic">' + tabs('B', sel, 'card', { staff: true }) + '</div>' : '') + '</div>'
+      + '<div class="body">'
+      + (o === 'C' ? tabs('C', sel, 'card', { staff: true }) : '')
+      + '<div class="title">' + TITLE + '</div>'
+      + (o === 'A' ? tabs('A', sel, 'card', { staff: true }) : '')
+      + '<div class="field date"><span class="ic"></span>Fri 20 Nov</div>'
+      + '<div class="field thumb"><span class="ic"></span>Thumbnail</div>'
+      + '<div class="field video s-' + v.s + '"><span class="ic"></span>Video ' + sel + '<span class="grow"></span><span class="spill">' + STAFF[v.s] + '</span></div>'
+      + '<div class="cap">' + v.cap + '</div>'
+      + '</div></div>';
+  }
+
+  // 2. how a trial card reads at a glance
+  function glanceMini(o) {
+    const sel = 'A';
+    let media = pic(sel), meta = '';
+    if (o === 'A') meta = '<div class="dots">' + LIVE.map((v) => '<b class="s-' + v.s + '"><span class="dot"></span>' + v.L + '</b>').join('') + '</div>';
+    if (o === 'B') meta = '<div class="segbar">' + LIVE.map((v) => '<span class="s-' + v.s + '"></span>').join('') + '</div>';
+    if (o === 'C') media += '<div class="stack">' + LIVE.map((v) => pic(v.L)).join('') + '<span class="n">3</span></div>';
+    return '<div class="mini"><div class="media">' + media + '</div><div class="body"><div class="title">' + TITLE + '</div>'
+      + '<div class="meta">Fri 20 Nov</div>' + meta + '</div></div>';
+  }
+  function plainMini() {
+    return '<div class="mini"><div class="media">' + pic('x') + '</div><div class="body"><div class="title">Three habits for a calm week</div><div class="meta">Thu 19 Nov</div></div></div>';
+  }
+  function trialTag(o) {
+    if (o === 'A') return '<span class="dots">' + LIVE.map((v) => '<span class="dot s-' + v.s + '"></span>').join('') + '</span>';
+    if (o === 'B') return '<span class="segbar" style="width:26px">' + LIVE.map((v) => '<span class="s-' + v.s + '"></span>').join('') + '</span>';
+    return '<span class="stack" style="position:static">' + LIVE.map((v) => '<div class="pic pic-' + v.L + '" style="width:9px;height:13px;margin-left:-4px;border-radius:2px"></div>').join('') + '</span>';
+  }
+  function month(o) {
+    return '<div class="month">'
+      + '<div class="day"><span class="num">19</span><div class="mchip"><span class="t">Three habits</span></div></div>'
+      + '<div class="day"><span class="num">20</span><div class="mchip"><span class="t">' + TITLE + '</span>' + trialTag(o) + '</div></div>'
+      + '<div class="day"><span class="num">21</span></div></div>';
+  }
+  function week(o) {
+    let s = '';
+    if (o === 'A') s = '<div class="dots">' + LIVE.map((v) => '<b class="s-' + v.s + '"><span class="dot"></span>' + v.L + '</b>').join('') + '</div>';
+    if (o === 'B') s = '<div class="segbar">' + LIVE.map((v) => '<span class="s-' + v.s + '"></span>').join('') + '</div>';
+    const media = o === 'C' ? '<div class="rel">' + pic('A') + '<div class="stack">' + LIVE.map((v) => pic(v.L)).join('') + '<span class="n">3</span></div></div>' : '<div class="rel">' + pic('A') + '</div>';
+    return '<div class="week"><span class="num">Fri 20</span><div class="wchip">' + media + '<div class="t">' + TITLE + '</div><div class="s">' + s + '</div></div></div>';
+  }
+
+  // 3-5. the review stage
+  function stage(o, role) {
+    const sel = role === 'client' ? 'B' : 'B';
+    const v = by(sel);
+    const L = role === 'client' ? CLIENT : STAFF;
+    const rail = o === 'C' && W === 1440;
+    const sw = o === 'C' ? tabs('C', sel, 'stage', { col: rail }) : tabs(o, sel, 'stage');
+    const approve = role === 'client' ? 'Approve Video ' + sel : role === 'smm' ? 'Approve to Kasper' : 'Approve';
+    const ask = role === 'client' ? 'Ask for a change' : 'Request change';
+    const capPanel = '<div class="capp"><div class="lab"><span class="dot s-' + v.s + '"></span>Video ' + sel + ' · ' + L[v.s] + '</div>'
+      + '<div class="thumbrow">' + pic(sel) + '<div class="lab">Thumbnail</div></div>'
+      + '<div class="lab">Caption</div><div class="txt">' + v.cap + '</div></div>';
+    const acts = '<div class="acts"><button class="btn ok">✓ ' + approve + '</button><button class="btn plain">↺ ' + ask + '</button>'
+      + (role !== 'client' ? '<span class="grow"></span><button class="btn quiet">Approve all</button>' : '') + '</div>';
+    const player = '<div class="player">' + pic(sel) + '<span class="play"></span></div>';
+    let body;
+    if (W === 1440) {
+      body = '<div class="st-body' + (rail ? '' : ' no-rail') + '">' + (rail ? sw : '') + player + '<div style="display:grid;gap:14px">' + (rail ? '' : sw) + capPanel + acts + '</div></div>';
+    } else {
+      body = '<div class="st-body">' + player + sw + capPanel + acts + '</div>';
+    }
+    return '<div class="panel ' + (role === 'client' ? 'client' : '') + '"><div class="st-head"><span class="t">' + TITLE + '</span><span class="d">Fri 20 Nov</span></div>' + body + '</div>';
+  }
+  function queueTag(o) {
+    if (o === 'C') return '<span class="stack">' + LIVE.map((v) => pic(v.L)).join('') + '</span>';
+    return trialTag(o);
+  }
+  function kasper(o) {
+    const tiles = '<div class="queue"><div class="qhead">7 cards to review</div>'
+      + '<div class="qtile on">' + pic('B') + '<div><div class="t">' + TITLE + '</div><div class="m">' + queueTag(o) + '3 versions</div></div></div>'
+      + '<div class="qtile">' + pic('x') + '<div><div class="t">Three habits for a calm week</div><div class="m">Thu 19 Nov</div></div></div>'
+      + '<div class="qtile">' + pic('x') + '<div><div class="t">The Friday reset</div><div class="m">Sat 21 Nov</div></div></div></div>';
+    return '<div class="stage-wrap with-queue">' + tiles + stage(o, 'kasper') + '</div>';
+  }
+  function smm(o) {
+    const tile = (L, t, trial) => '<div class="rtile' + (trial ? ' on' : '') + '"><div class="media">' + pic(L)
+      + (trial && o === 'C' ? '<div class="stack">' + LIVE.map((v) => pic(v.L)).join('') + '<span class="n">3</span></div>' : '') + '</div><div class="b"><div class="t">' + t + '</div>'
+      + (trial && o !== 'C' ? (o === 'A' ? '<div class="dots">' + LIVE.map((v) => '<b class="s-' + v.s + '"><span class="dot"></span>' + v.L + '</b>').join('') + '</div>'
+        : '<div class="segbar">' + LIVE.map((v) => '<span class="s-' + v.s + '"></span>').join('') + '</div>') : '') + '</div></div>';
+    const grid = '<div class="grid-tiles">' + tile('A', TITLE, true) + tile('x', 'Three habits for a calm week') + (W === 1440 ? tile('x', 'The Friday reset') + tile('x', 'One list, not three') : '') + '</div>';
+    return '<div class="stage-wrap">' + grid + stage(o, 'smm') + '</div>';
+  }
+
+  function option(o) {
+    const sheet = W === 1440 ? '<div class="sheet">' + openCard(o.k) + glanceMini(o.k) + plainMini() + '</div>' : openCard(o.k);
+    const glance = '<div class="cal-row">' + (W === 1440 ? glanceMini(o.k) : '') + month(o.k) + week(o.k) + (W === 390 ? glanceMini(o.k) : '') + '</div>';
+    return '<section class="opt" data-opt="' + o.k + '"><div class="opt-head"><h2>Option ' + o.k + '</h2><span class="name">' + o.name + '</span></div>'
+      + '<p class="clicks">' + o.clicks + '</p>'
+      + '<div class="surface"><h3>1. Calendar Sheet card, opened (Video B selected)</h3><div class="frame">' + sheet + '</div></div>'
+      + '<div class="surface"><h3>2. At a glance: Sheet, Month, Week</h3><div class="frame">' + glance + '</div></div>'
+      + '<div class="surface"><h3>3. Client review page</h3><div class="frame">' + stage(o.k, 'client') + '</div></div>'
+      + '<div class="surface"><h3>4. SMM Review tab</h3><div class="frame">' + smm(o.k) + '</div></div>'
+      + '<div class="surface"><h3>5. Kasper Review Session</h3><div class="frame">' + kasper(o.k) + '</div></div>'
+      + '</section>';
+  }
+  document.body.classList.add('w' + W);
+  document.getElementById('root').innerHTML = '<div class="' + (W === 390 && OPTS.length > 1 ? 'opt-cols' : 'opt-stack') + '">' + OPTS.map(option).join('') + '</div>';
+})();
+</script>
+</body>
+</html>

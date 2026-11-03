@@ -57,6 +57,17 @@ function io({ fetchImpl, key, anon }) {
   return { rest, call: (body) => fn('trial-reels', body), frame: (body) => fn('frameio-view', body) };
 }
 
+/* What kind of Frame link the source version holds, in words that name no link (supervisor, run 41640666721: a
+   placeholder f.io link answered 404 link_not_found, and the summary could not say it was one). */
+function linkShape(link) {
+  const u = String(link || '');
+  if (/^https:\/\/f\.io\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]*-/.test(u)) return 'f.io placeholder';
+  if (/^https:\/\/f\.io\//.test(u)) return 'f.io short link';
+  if (/\/share\/[^/]+\/view\//.test(u)) return 'share, one file';
+  if (/\/share\//.test(u)) return 'share';
+  if (/\/project\//.test(u)) return 'project file';
+  return 'other';
+}
 const ok = (r) => !!(r && r.json && r.json.ok === true);
 const err = (r) => (ok(r) ? null : code(r && r.json && r.json.error) || 'request_failed');
 const find = (r, letter) => ((r && r.json && r.json.versions) || []).find((v) => v.letter === letter) || null;
@@ -155,8 +166,10 @@ async function run({ env, fetchImpl, anon, log, testHash, logic }) {
       const src = versions.find((x) => x.letter === source);
       const share = src && src.status !== 'dropped' ? String(src.frame_url || '').trim() : '';
       if (!share) { out.refused = 'source_letter_has_no_link'; return fail(out); }
+      out.source_link_shape = linkShape(share);
       const list = await frame({ link: share, part: 'list' });
       out.list_http_status = list.status;
+      out.source_listable = ok(list);
       if (!ok(list)) { out.refused = 'share_list_failed'; out.list_error = err(list); return fail(out); }
       listed = Array.isArray(list.json.videos) ? list.json.videos : [];
       out.listed_videos = listed.length;
@@ -300,4 +313,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((x) => { console.error('trial versions fields and import live check failed:', x && (x.name + ' ' + code(String(x.message)))); process.exit(1); });
-module.exports = { PLACEHOLDER_THUMB, FIELDS_CAPTION, planRun, run };
+module.exports = { PLACEHOLDER_THUMB, FIELDS_CAPTION, linkShape, planRun, run };

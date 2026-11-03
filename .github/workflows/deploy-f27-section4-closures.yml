@@ -438,7 +438,12 @@ jobs:
       # scripts/ef-fingerprint.js --slugs=production-write --expected-only; entrypoint and
       # file count (10) unchanged.
       # (Previous pin: 279aff1a03... -- production-write, 2026-10-18.)
-      PRODUCTION_WRITE_SOURCE_SHA256: c27122909c5120e988632db97a08469ec81c81534349b0539a4b55e5cda0b8f3
+      # Re-pinned 2026-11-03 (session Chanfix, OPEN_REPAIRS 690): a client's own front-door note
+      # delete may take its version check from the row just read (clientFrontDoorDeleteWithoutVersion);
+      # every other path keeps it. Regenerated with scripts/ef-fingerprint.js 950eb62
+      # --slugs=production-write --expected-only; entrypoint and file count (10) unchanged.
+      # (Previous pin: c27122909c... -- production-write, 2026-10-23.)
+      PRODUCTION_WRITE_SOURCE_SHA256: b8fb3349b88ca50905e24494bc64d04c36fbccf58a04b7018cb2587b883f7442
       # The two bundle values are exported to GITHUB_ENV as ROLLBACK_BUNDLE_SHA256
       # and ROLLBACK_BUNDLE_BYTE_LENGTH by the validation step (given) or the
       # capture step (sealed in this run); a job-level value would shadow those.

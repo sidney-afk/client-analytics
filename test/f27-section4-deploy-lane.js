@@ -522,7 +522,9 @@ const CANDIDATES = new Map([
     // after the answer (waitUntil); re-pinned with ef-fingerprint.
     // Not assigned (2026-10-23, OPEN_REPAIRS 478): intake_create accepts
     // unassigned: true on video items; re-pinned with ef-fingerprint.
-    source: 'c27122909c5120e988632db97a08469ec81c81534349b0539a4b55e5cda0b8f3',
+    // Client front-door delete (2026-11-03, OPEN_REPAIRS 690): a client's own
+    // note delete may take its version from the row; re-pinned with ef-fingerprint.
+    source: 'b8fb3349b88ca50905e24494bc64d04c36fbccf58a04b7018cb2587b883f7442',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],

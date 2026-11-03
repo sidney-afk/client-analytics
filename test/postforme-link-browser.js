@@ -148,14 +148,14 @@ function assertOneLink(found, where) {
       await page.fill('#tkClientInput', TEST_CLIENT);
       await page.press('#tkClientInput', 'Enter');
       await page.waitForSelector('#tkFormCol .tk-profile-line .tk-warn-chip');
-      await page.waitForFunction(() => document.documentElement.classList.contains('fph-on') && /connect this client in Clients/.test(document.querySelector('#tkFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
+      await page.waitForFunction(() => document.documentElement.classList.contains('fph-on') && /Connect it in Post for Me: it links itself here within the hour\./.test(document.querySelector('#tkFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
       assertOneLink(await linksIn(page, '#tkFormCol .tk-profile-line'), 'phone, TikTok account line'); checks++;
       await page.click('#tkPlatInstagram');
       await page.waitForSelector('#igFormCol:not([hidden])');
       if (!(await page.locator('#igFormCol .tk-profile-line').count())) await pickSv(page, 'igClient', TEST_CLIENT);
-      await page.waitForFunction(() => /connect this client in Clients/.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
+      await page.waitForFunction(() => /Connect it in Post for Me: it links itself here within the hour\./.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''), null, { timeout: 5000 });
       assertOneLink(await linksIn(page, '#igFormCol .tk-profile-line'), 'phone, Instagram account line'); checks++;
-      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /before uploading\. Open Post for Me$/, 'phone: the link reads after the sentence'); checks++;
+      assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /links itself here within the hour\. Open Post for Me$/, 'phone: the link reads after the sentence'); checks++;
       assert.deepEqual(writes, [], 'nothing was ever posted'); checks++;
       assert.deepEqual(errors, [], 'no page errors'); checks++;
       await context.close();

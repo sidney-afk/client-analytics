@@ -57,7 +57,10 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         items: [],                   // carousel only: [{ file, objectUrl, isVideo }], carousel order = array order
         title: '',
         titleFromCard: '',           // the caption a Calendar card filled in, while unedited
-        captionFill: null,           // { name, text }: the caption the chosen video's file name filled in, while it can be undone
+        captionFill: null,           // { name, text, from? }: the caption a file name or a folder's text filled in, while it can be undone
+        // A dropped folder (post_sources_v1): its pick list while it needs a person ({ sorted, seq }), and its line.
+        drop: null,
+        dropNote: '',
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '', remoteUrl: '' },
         // "From a card" (post_sources_v1): the card whose video post-source copied (svPostSourceNew). remoteUrl above
@@ -435,8 +438,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         return { id: String(p.id), name: String(p.name || '').replace(/\s+/g, ' ').trim() || 'Untitled card', caption };
     }
     // The line under a caption the Calendar filled, with its Undo.
-    function svCaptionFillHtml(id, name) {
-        return `<div class="tk-cap-fill" id="${id}" role="status">Caption filled from Calendar: <strong>${_igEsc(name)}</strong> <button type="button" class="tk-cap-undo" id="${id}Undo">Undo</button></div>`;
+    function svCaptionFillHtml(id, name, from) {
+        return `<div class="tk-cap-fill" id="${id}" role="status">Caption filled from ${_igEsc(from || 'Calendar')}: <strong>${_igEsc(name)}</strong> <button type="button" class="tk-cap-undo" id="${id}Undo">Undo</button></div>`;
     }
     // The platform's name and logo, for the header badge, the switch and the post button.
     function svPlatformLogo(platform) {
@@ -514,6 +517,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
         igState.titleFromCard = '';
         igState.captionFill = null;
+        _igDropForget();
         if (igState.source) svPostSourceClear(igState.source);
     }
     async function _igUseCalendarCard(cardId) {
@@ -852,12 +856,13 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
                     <label class="tk-radio${isCarousel ? ' active' : ''}"><input type="radio" name="igKind" value="carousel" ${isCarousel ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Carousel</label>
                 </div>
                 ${isCarousel ? _igCarouselCardHtml() : (svPostSourceOffered(igState.client, true) ? svPostSourceModeHtml('ig', _igSrc(), igState.submitting) : '') + (fromCard ? svPostSourceCardHtml('ig', _igSrc(), igState.client, igState.submitting) : media)}
+                ${fromCard ? '' : svDropPickHtml('ig', igState.drop, igState.submitting) + svDropNoteHtml('ig', igState.dropNote)}
             </div>
             ${isCarousel ? '' : _igCoverCardHtml()}
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
-                ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name) : ''}
+                ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name, igState.captionFill.from) : ''}
 
             </div>
             ${isCarousel ? '' : `<div class="tk-card">
@@ -922,7 +927,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
         $('igAmPm')?.addEventListener('change', (e) => { igState.schedule.ampm = e.target.value; syncSubmit(); });
         $('igTz')?.addEventListener('change', (e) => { igState.schedule.tz = e.target.value; });
-        $('igFile')?.addEventListener('change', (e) => { _igHandleFile(e.target.files && e.target.files[0]); });
+        $('igFile')?.addEventListener('change', (e) => { _igDropForget(); _igHandleFile(e.target.files && e.target.files[0]); });
         document.querySelectorAll('input[name="igCoverMode"]').forEach(r => r.addEventListener('change', (e) => { igState.cover.mode = e.target.value; igState.cover.note = ''; _igRenderForm(); }));
         $('igCoverFile')?.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) _igSetCoverImage(f, f.name, 'upload'); });
         $('igCoverRemove')?.addEventListener('click', () => { _igCoverClear(true); _igRenderForm(); _igRenderPreview(); });
@@ -941,7 +946,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         if (carDrop) {
             ['dragenter', 'dragover'].forEach(ev => carDrop.addEventListener(ev, (e) => { e.preventDefault(); carDrop.classList.add('tk-drag'); }));
             ['dragleave', 'drop'].forEach(ev => carDrop.addEventListener(ev, (e) => { e.preventDefault(); carDrop.classList.remove('tk-drag'); }));
-            carDrop.addEventListener('drop', (e) => _igHandleCarouselFiles(e.dataTransfer && e.dataTransfer.files));
+            carDrop.addEventListener('drop', (e) => { const folder = svDroppedFolder(e.dataTransfer, igState.client); if (folder) _igDropFolder(folder); else _igHandleCarouselFiles(e.dataTransfer && e.dataTransfer.files); });
         }
         document.querySelectorAll('[data-ig-car-idx]').forEach(b => b.addEventListener('click', () => _igCarouselAction(Number(b.getAttribute('data-ig-car-idx')), b.getAttribute('data-action'))));
         $('igCapFillUndo')?.addEventListener('click', () => { _igDropCaptionFill(); _igRenderForm(); $('igTitle')?.focus(); });
@@ -951,8 +956,14 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         const drop = $('igDrop');
         if (drop) {
             drop.addEventListener('dragover', (e) => { e.preventDefault(); });
-            drop.addEventListener('drop', (e) => { e.preventDefault(); _igHandleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+            drop.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const folder = svDroppedFolder(e.dataTransfer, igState.client);
+                if (folder) { _igDropFolder(folder); return; }
+                _igDropForget(); _igHandleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+            });
         }
+        document.querySelectorAll('[data-ig-drop-pick]').forEach(b => b.addEventListener('click', () => _igDropPick(Number(b.getAttribute('data-ig-drop-pick')))));
     }
 
     // The submit button's enabled state, without a message.
@@ -987,9 +998,65 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     function _igClearFile() {
         if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
         _igDropCaptionFill();
+        _igDropForget();
         igState.file = null; igState.objectUrl = null; igState.error = null;
         igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
         _igRenderForm(); _igRenderPreview();
+    }
+
+    /* A dropped folder (plan row P2): one video and its cover and caption, or images as a carousel. A newer drop, a
+       client change, Remove or a finished post retires one still being read (the sequence number). The caption file
+       fills only an EMPTY caption box, with Undo; it is read before the video is set, so a Calendar match on the
+       video's file name finds the box filled and leaves it. */
+    let _igDropSeq = 0;
+    function _igDropForget() { _igDropSeq++; igState.drop = null; igState.dropNote = ''; }
+    async function _igDropFolder(reading) {
+        if (igState.submitting) return;
+        _igDropForget();
+        const seq = _igDropSeq, client = igState.client;
+        const entries = await reading;
+        if (seq !== _igDropSeq || client !== igState.client || igState.submitting) return;
+        const sorted = svDropSorted(entries, 'instagram');
+        igState.error = sorted.error || null;
+        if (sorted.error) { _igRenderForm(); return; }
+        if (sorted.ask === 'video') { igState.drop = { sorted, seq }; igState.dropNote = ''; _igRenderForm(); return; }
+        await _igDropApply(sorted, seq);
+    }
+    function _igDropPick(i) {
+        const pick = igState.drop;
+        if (!pick || igState.submitting) return;
+        const wasCover = pick.sorted.ask === 'cover';
+        const sorted = svDropPicked(pick.sorted, i, 'instagram');
+        if (wasCover) {
+            igState.drop = null; igState.dropNote = svDropFoundLine(sorted, 'instagram');
+            if (sorted.cover) _igSetCoverImage(sorted.cover.file, sorted.cover.file.name, 'upload'); else _igRenderForm();
+            return;
+        }
+        _igDropApply(sorted, pick.seq);
+    }
+    async function _igDropApply(sorted, seq) {
+        const client = igState.client;
+        const text = sorted.caption ? await svDropText(sorted.caption.file) : '';
+        if (seq !== _igDropSeq || client !== igState.client || igState.submitting) return;
+        if (sorted.video) {
+            if (igState.kind !== 'reel') _igSetKind('reel');
+            _igHandleFile(sorted.video.file);
+        } else if (sorted.images.length >= IG_CAROUSEL_MIN) {
+            if (igState.kind !== 'carousel') _igSetKind('carousel');
+            _igClearCarousel();
+            _igHandleCarouselFiles(sorted.images.map(e => e.file));
+        } else {
+            igState.error = sorted.images.length ? 'This folder has one image and no video. A Reel needs a video, and a carousel needs ' + IG_CAROUSEL_MIN + ' or more images.' : 'This folder has no video or image to post.';
+            _igRenderForm(); return;
+        }
+        if (text && !igState.title.trim()) {
+            igState.title = text.slice(0, IG_MAX_CAPTION);
+            igState.captionFill = { name: sorted.caption.path.split('/').pop(), text: igState.title, from: 'the folder' };
+        }
+        igState.drop = sorted.ask === 'cover' ? { sorted, seq } : null;
+        igState.dropNote = svDropFoundLine(sorted, 'instagram');
+        _igRenderForm(); _igRenderPreview();
+        if (sorted.video && sorted.cover && !sorted.ask) _igSetCoverImage(sorted.cover.file, sorted.cover.file.name, 'upload');
     }
 
     // A card's copy is in: its caption fills an EMPTY caption box (with Undo), and its thumbnail, already in Post for
@@ -1116,7 +1183,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             if (fromCard) svPostSourceClear(src);
-            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false; _igDropForget();
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = facebookAccountId
                 ? (utc ? 'Scheduled for Instagram and Facebook. It will appear in the queue.' : 'Sent to Instagram and Facebook. Each shows as Posted here once it confirms.')
@@ -1205,7 +1272,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             _igClearCarousel();
-            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null;
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; _igDropForget();
             igState.notice = facebookAccountId
                 ? (utc ? 'Scheduled for Instagram and Facebook. It will appear in the queue.' : 'Sent to Instagram and Facebook. Each shows as Posted here once it confirms.')
                 : (utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.');
@@ -1388,7 +1455,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     }
     /* What a dropped folder holds, sorted for the Post tab (plan row P2a, OPEN_REPAIRS 648; posting.md
        section 2, "From files"). Pure: it reads only each entry's `path` ("Folder/name.ext", or "name.ext" for
-       a loose file) and hands the entries back as given. Not wired yet: the drop zones call it in plan row P2.
+       a loose file) and hands the entries back as given. The drop zones call it through svDropSorted (plan row P2).
        Hidden and system files are skipped without a word; any other file that is not a video, image or text
        is named in `ignoredLine`, so nothing is dropped silently. `ask` is '' when nothing needs a person,
        'video' when several videos need a pick, 'cover' when several images and one video need one. */
@@ -1426,11 +1493,79 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         return out;
     }
 
+    /* A drop that holds a folder (plan row P2, OPEN_REPAIRS 654), behind post_sources_v1. Returns null when the
+       switch is off for this client or the drop holds no folder (the zone then does what it did before), else a
+       promise of [{ path, file }], two levels deep. The drop's entries are taken before the first await: a browser
+       empties the drop's item list once the event is over. */
+    function svDroppedFolder(dt, client) {
+        if (!client || !svPostSourcesOn(client)) return null;
+        const items = dt && dt.items ? Array.from(dt.items) : [];
+        const roots = items.map(it => (it && it.kind === 'file' && typeof it.webkitGetAsEntry === 'function') ? it.webkitGetAsEntry() : null).filter(Boolean);
+        if (!roots.some(r => r.isDirectory)) return null;
+        const fileOf = (fe) => new Promise(res => fe.file(res, () => res(null)));
+        const childrenOf = (dir) => new Promise(res => {
+            const reader = dir.createReader(); const all = [];
+            const next = () => reader.readEntries(batch => { if (!batch.length) { res(all); return; } all.push(...batch); next(); }, () => res(all));
+            next();
+        });
+        const out = [];
+        const walk = async (entry, prefix, depth) => {
+            if (entry.isFile) { const f = await fileOf(entry); if (f) out.push({ path: prefix + entry.name, file: f }); return; }
+            if (entry.isDirectory && depth < 2) for (const c of await childrenOf(entry)) await walk(c, prefix + entry.name + '/', depth + 1);
+        };
+        return (async () => { for (const r of roots) await walk(r, '', 0); return out; })();
+    }
+    // The folder sorted for one side. TikTok takes its cover from the video, so it never asks for one.
+    function svDropSorted(entries, side) {
+        const s = svSortDroppedFiles(entries);
+        if (side === 'tiktok' && s.ask === 'cover') { s.ask = ''; s.askText = ''; }
+        return s;
+    }
+    // A pick from the folder's list: a video first, then (Instagram) a cover when the images still need one.
+    function svDropPicked(s, i, side) {
+        if (s.ask === 'video') {
+            s.video = s.videos[i] || null;
+            const needCover = side === 'instagram' && !s.cover && s.images.length > 1;
+            s.ask = needCover ? 'cover' : '';
+            s.askText = needCover ? 'This folder has ' + s.images.length + ' images. Pick the cover.' : '';
+        } else if (s.ask === 'cover') { s.cover = s.images[i] || null; s.ask = ''; s.askText = ''; }
+        return s;
+    }
+    // A caption file's text, or '' when it cannot be read.
+    async function svDropText(file) {
+        try { return String(await file.text()).replace(/\r\n?/g, '\n').trim(); } catch (e) { return ''; }
+    }
+    // One quiet line after a folder: what was used, and what was not.
+    function svDropFoundLine(s, side) {
+        const found = [];
+        if (s.video) found.push('video');
+        else if (s.images.length) found.push(s.images.length === 1 ? '1 image' : s.images.length + ' images');
+        if (s.video && s.cover && side === 'instagram') found.push('cover');
+        if (s.caption) found.push('caption');
+        const parts = [];
+        if (found.length) { const t = found.length > 1 ? found.slice(0, -1).join(', ') + ' and ' + found[found.length - 1] : found[0]; parts.push(t.charAt(0).toUpperCase() + t.slice(1) + ' found.'); }
+        if (s.video && s.cover && side === 'tiktok') parts.push('TikTok takes its cover from the video, so the image is not used.');
+        if (s.captionNote) parts.push(s.captionNote);
+        if (s.ignoredLine) parts.push(s.ignoredLine + '.');
+        return parts.join(' ');
+    }
+    // The folder's pick list (several videos, or several images for a cover), then the line above.
+    function svDropPickHtml(prefix, pick, disabled) {
+        if (!pick || !pick.sorted.ask) return '';
+        const s = pick.sorted;
+        const list = s.ask === 'cover' ? s.images : s.videos;
+        return `<div class="tk-drop-pick" id="${prefix}DropPick" role="group" aria-label="${_igEsc(s.askText)}"><div class="tk-step-note">${_igEsc(s.askText)}</div><div class="tk-drop-pick-list">${list.map((e, i) => `<button type="button" class="tk-mini-btn tk-drop-pick-btn" data-${prefix}-drop-pick="${i}" title="${_igEsc(e.path)}" ${disabled ? 'disabled' : ''}>${_igEsc(e.path.split('/').pop())}</button>`).join('')}</div></div>`;
+    }
+    function svDropNoteHtml(prefix, note) {
+        return note ? `<div class="tk-step-note tk-drop-note" id="${prefix}DropNote" role="status">${_igEsc(note)}</div>` : '';
+    }
+
     function instagramResumePolling() { if (_igMounted) { Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); } }
 
 export {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
   svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel,
   svPostSourceActive, svPostSourceBind, svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh,
-  svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady, svPostSourceYoung
+  svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady, svPostSourceYoung,
+  svDropFoundLine, svDropNoteHtml, svDropPickHtml, svDropPicked, svDropSorted, svDropText, svDroppedFolder
 };

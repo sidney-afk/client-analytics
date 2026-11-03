@@ -36539,3 +36539,23 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
   `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
+
+## 654. [2026-11-03 UTC, BUILT, NOT MERGED] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
+
+- **Asked:** plan row P2 (`docs/plans/2026-11-trial-and-posting/combined.md`; `posting.md` section 2, "From files"). The sorting (P2a, 648) merged first; this wires it to the drop zones.
+- **Before:** a dropped folder did nothing useful. The browser handed the page a folder as an empty file, so the video, the cover and the caption each had to be dropped or typed one by one.
+- **Now (299 and 300), for a client listed in `post_sources_v1`:**
+  - a folder dropped on a side's video box (or on Instagram's carousel box, or TikTok's photo box) is read two levels deep and sorted by `svSortDroppedFiles`;
+  - one video, one image and one text file fill the video, the Instagram cover and the caption. The caption fills only an empty box, says "Caption filled from the folder: caption.txt", and has **Undo**. It is read before the video is set, so a Calendar match on the video's file name finds the box filled and leaves it;
+  - several videos: a pick list in natural name order; nothing is chosen for the person. Instagram then asks for the cover when several images remain and none is named `thumb`, `cover` or `thumbnail`;
+  - images and no video: a carousel (Instagram) or a photo post (TikTok), in name order, replacing what was there;
+  - one quiet line says what was used and names what was not: "Video, cover and caption found. Ignored 1 file: .prproj." TikTok adds that it takes its cover from the video, so the image is not used;
+  - two folders at once: "Drop one folder at a time." A folder with nothing to post says so;
+  - a newer drop, a client change, Remove or a finished post retires a folder still being read;
+  - a single dropped file, and any drop with the switch off, do exactly what they did before. Phones have no folder drop; "From a card" is the phone path.
+- **Proof:** `test/post-folder-drop-browser.js` (new, isolated browser, 47 checks) drops folders built in the page in the shape browsers hand over (entries read in batches):
+  - **main:** `TimeoutError … waiting for locator('#igDropNote')`;
+  - **this branch:** `post-folder-drop-browser: 47 checks passed`.
+  The Post tab suites still pass: post-from-card (51), post-tab (58), instagram-carousel (51), instagram-cover (38), instagram-facebook (38), instagram-platform-switch (59), tiktok-upload (35), tiktok-upload-steps (14), tiktok-press-key-reload (21), tiktok-carousel-browser-journey, tiktok-carousel-transport, post-folder-sort (13).
+- **Live check:** drop a folder on the test client's Post tab once the switch lists it: the form fills. No post is made.
+- **Way back:** clear `post_sources_v1`, or revert the PR.

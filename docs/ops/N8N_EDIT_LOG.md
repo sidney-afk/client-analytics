@@ -541,3 +541,9 @@ Why: the 26 Oct entry left this workflow unwired because `ingest` would create a
 ## 2026-11-02 One-off test workflow: lead profile fetch (owner's go in chat, 14:54 UTC)
 Why: check that the Instagram profile service already connected in n8n returns the signals the owner uses to judge a booked lead (verified badge, followers, posts, highlights, recent posts), before building an automatic lead check.
 - New workflow `cuTa15UawgDGhCOD` "TEST - Lead profile fetch (Apify, one-off)": manual trigger, one HTTP call to the profile service with the existing house credential, 20 booked-lead handles. Run once (execution 684324, success, 20 profiles), then archived. No live workflow was changed; nothing was sent to Meta.
+
+## 2026-11-02 Slack Creative Channel Finalizer: an empty profile email waits instead of parking (owner's go, via the supervisor; OPEN_REPAIRS 673)
+Why: an empty profile email counted as `client_email_mismatch`, which parks the job as `manual`, and nothing ever retries a `manual` job. That is how a new client's channels stalled on 2 Nov.
+- Client — Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`), Code node "Check Readiness and Slack Decision": before `aedcda8b-4ccc-4ddd-ab86-f455117c0a91`, after `49a29c76-1c2a-4292-b37b-1e1aec21dd38` (published, applied by the supervisor at about 23:13 UTC). One line added before the email comparison: `if (!clean(clients[0].email)) return wait("Client email is not on the SyncView profile yet.");`. A different, non-empty email still parks as `client_email_mismatch`.
+- Not changed: the owner declined the proposal to drop the form answers from "DM Owner Manual Reconcile"; it still carries them.
+- Undo: publish `aedcda8b` again.

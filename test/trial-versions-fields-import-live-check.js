@@ -147,6 +147,10 @@ const v = (r, l) => r.st.versions.find((x) => x.letter === l);
   ok(nothingNew.summary.refused === 'import_nothing_new' && nothingNew.st.writes === 0, 'a share with no finished video is refused before any write');
   const noLink = await go({}, { LIVE_CHECK_SOURCE_LETTER: 'F' });
   ok(noLink.summary.refused === 'source_letter_has_no_link' && noLink.st.writes === 0 && noLink.st.listLinks.length === 0, 'a source letter with no link on the card is refused before anything is listed or written');
+  ok(full.summary.source_link_shape === 'share, one file' && full.summary.source_listable === true, 'the summary says what kind of link the source holds, and that the list opened it');
+  ok(C.linkShape('https://f.io/allactions-a-1793209592511') === 'f.io placeholder' && C.linkShape('https://f.io/Ab12Cd34') === 'f.io short link'
+    && C.linkShape('https://next.frame.io/share/x') === 'share' && C.linkShape('https://next.frame.io/project/p/view/f') === 'project file',
+    'a placeholder f.io link reads as one, apart from a real short link, a share and a project file');
   const badLetter = await go({}, { LIVE_CHECK_SOURCE_LETTER: 'https://f.io/x' });
   ok(badLetter.summary.refused === 'source_letter_invalid' && badLetter.st.calls.length === 0, 'a source letter that is not A to G (a pasted link) is refused before anything is called');
 

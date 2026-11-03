@@ -36640,6 +36640,8 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `fields_put_back` was true. The switch went on and ended off, seeding or changing 0 versions.
   - The thumbnail source was the site placeholder, because the card has no thumbnail of its own.
 - **Live result, V2: not yet.** The import was skipped (`no_frame_share`), so `import_passed` was null. It will run on this check's next dispatch, using `source_letter`.
+- **Live result, V2, run 41640666721 (supervisor, 3 Nov): refused safely.** Inputs: card `p_allactions_1793209592511`, `source_letter` A. The run refused with `share_list_failed` (404, `link_not_found`). It wrote nothing, and the switch went on and ended off with 0 versions changed. A read-only check found that every version on that card holds a setup placeholder, not a real share. The same is true of every test-client trial card not linked to Production. Every real share on the test client sits on a card linked to Production, which the check refuses (and must). So V2's import needs a real share placed on a spare version of an unlinked test-client card first, through the page.
+  - The summary now says what the source version holds, in words that name no link: `source_link_shape` (f.io placeholder, f.io short link, share, share with one file, project file, other) and `source_listable`. The test has 45 checks.
 - **Way back:** delete the workflow. It runs only by hand.
 
 ## 683. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper fast-boot's "first video asked sooner" check compared two page loads' clocks, and could not see the warm-up removed (session Reviewguard, test only)

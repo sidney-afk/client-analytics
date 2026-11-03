@@ -36856,3 +36856,14 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 688 (part 3 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions are named "Version A" outside the review boards too, on the clients of trial_versions_v2 (session Vbuild)
+- **Ask:** Sidney's option B names versions "Version A/B/C" everywhere. Part 1 renamed them on the review boards; this part does the rest, on the same switch, so a client off it reads "Video A" exactly as before.
+- **Where:**
+  - the Calendar card's version list, its row names, links, buttons and accessible names, the status menu's title, its toasts and notices (189 `_trlW`, exported as `svTrialWord`);
+  - the Notes view: the version switch, the quiet line under the composer, the post title and the prefix a video note gets ("Version C: ...");
+  - Production's Assets rows ("Deliverable file · Version B", its placeholder and Save);
+  - the Post tab's trial rows and their two caption problems.
+- **Readers take both names:** the two places that read a change request's version from its first words (190 `_calTweakKept`, `svCalResolveVersionTweaks`) and the Notes prefix check accept "Video B:" and "Version B:", so notes written before the switch still count. Part 1 does the same on the review page; merge part 1 (#2590) before this part, so a "Version B:" note is read there too.
+- **Proof:** `trial-version-status-browser` now looks for the status pill by "Version A status" and `trial-versions-import-browser` for "Version C" and "Version B was already answered": **main** fails both; **this branch** 38 and 50 checks pass. `trial-version-fields-browser` (42) finds rows by either name. With the switch off, trial-reels-card, -polish, -round3-card, -journey, -notes, -today, -change-naming, -production and post-trial-versions pass unchanged ("Video A").
+- **Way back:** clear `trial_versions_v2` for the client, or revert.

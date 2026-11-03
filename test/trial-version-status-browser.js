@@ -71,7 +71,7 @@ const LINK = (l) => 'https://f.io/fixture-status-' + l.toLowerCase();
     return route.fallback();
   });
 
-  const pill = (page, l) => page.$(`.trl-v .trl-st[aria-label^="Video ${l} status"]`);
+  const pill = (page, l) => page.$(`.trl-v .trl-st[aria-label^="Version ${l} status"]`);
   const pillText = async (page, l) => { const h = await pill(page, l); return h ? (await h.innerText()).trim() : ''; };
   const open = async (w, h) => {
     const page = await S.newPage();

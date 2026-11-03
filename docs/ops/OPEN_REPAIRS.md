@@ -36090,6 +36090,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
 - **Not done, on purpose:** dropping the kept attempt when the queue shows the post. When the post exists, re-sending its key returns that same post, so keeping the key is the safe side; dropping it would let an unchanged re-press make a second post.
 - **Proof:** `test/tiktok-press-key-reload-browser.js` (new, offline, nothing posted): a lost create, a reload and an unchanged re-press send the same key and storage address with no new mint, and a success then drops it. A changed form and a 400 each get a new key; a 25-hour-old attempt keeps its key and uploads again, after a reload and in a page left open. Fails on main at "after a reload, the re-press sends the same key". `test/tiktok-create-keeps-key.js` now reads the setter. The TikTok steps, layout, carousel journey, overdue, Post tab and comment-strip suites pass unchanged.
 - **Way back:** revert the PR. A kept entry left in a browser is then never read.
+
 ## 673. [2026-11-02 UTC, LIVE] A new client's Slack channels stalled silently for the third time: an empty profile email parked the finalizer's job as "manual", and nothing ever retries a "manual" job (session Chanfix)
 
 Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n8n MCP, live SQL), no workflow, data table or Slack channel touched.
@@ -36423,6 +36424,53 @@ The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-
 - **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
 - **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
 - **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+
+## 680. [2026-11-03 UTC, BUILT, NOT MERGED] The calm-refresh suite read Production's scroll while the loading skeleton was still up (session Reviewguard, test only)
+
+- **Seen:** `browser-guards (1)` on #2547 (job 125638320835) failed in `test/calm-refresh-pages-browser.js` with "CALM_PAGES Production: the list stays where it was scrolled (-1)". #2547 changes only another suite's wait, and the same suite passes on main and locally.
+- **Cause (reproduced):** with the CPU slowed 4 to 8 times and four to six runs in parallel, 3 of 6 runs fail the same way. In every miss `#prodRoot` still holds the loading skeleton: 173 elements, no `.prod-listwrap`. The real list arrives 8 to 14 s later, so the app is fine. The suite waited a fixed 2.5 s, then drew until two draws in a row matched. Two skeleton draws match, so it took the skeleton for a settled list, and the scroll read found no list (-1). Its "has a real list" check counted nodes (more than 100), which the skeleton passes too.
+- **Fix (test only):**
+  - wait up to 60 s for a real row in `.prod-listwrap` before measuring;
+  - the settle loop also needs a real row;
+  - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
+- **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.
+
+## 681. [2026-11-03 UTC, BUILT, NOT MERGED] popup-behaviour (phone): four card clicks timed out when the Calendar drew after the test asked for the list view (session Chanfix)
+
+Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/syncview-design/tests/popup-behaviour-browser.js`, phone pass only, four `page.click: Timeout 5000ms exceeded` on `.cal-card[data-pid="pb1"]`'s caption toggle, notes button, Set all and status pill. The desktop pass was clean and main passed locally.
+
+- **Not the hard-coded-month trap.** On a phone the Sheet opens as a grid of tiles, and the grid lists every post whatever its date. The October fixture dates play no part.
+- **Cause (a test race, not a page bug).** Each grid tile is also a `.cal-card[data-pid]`, but has none of the card's controls. The shared helper `openEditableSheet` (`docs/syncview-design/tests/staff-phone-browser.js`) switched to the list only if the "List view" button already existed (`if (await button.count() …)`). When the Calendar drew its bar a moment later, the switch was skipped silently. The test's wait for `.cal-card[data-pid="pb1"]` was then satisfied by the tile, and the four clicks inside the card timed out. A person sees the bar and taps List view, so the page is fine.
+- **Reproduced deterministically, failing first.** The new `lateListCheck` in popup-behaviour holds the posts answer for 2.5 s on a phone. On main it fails with `{"tile":true,"toggle":false,"listPressed":"false"}`; with the fix it passes. A 4x CPU slowdown alone did not trigger it (0 of 4 on main), because the race needs the posts to land after the Calendar has drawn, not a slow page.
+- **Fix.** `openEditableSheet` now waits until the page has drawn either the list/grid switch (phone) or a full card (desktop), switches to the list, and waits until the list is on. If neither ever appears, for example an empty desktop collection, it carries on as before after 15 s rather than failing. No longer timeout anywhere.
+- **Proof.** popup-behaviour passes in full (377 checks, one new); phone-only, 4x CPU slowdown, 4 at once: 12 of 12 green. staff-calendar-expanded and calendar-refresh-scroll, which also use the helper, pass. Way back: revert the PR.
+
+## 648. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's folder sorting, on its own (plan row P2a; session Pbuild)
+
+- **Asked:** the supervisor, 2 Nov. While F1 and P1 are pending, build P2's pure folder-sorting function by itself: no UI and no wiring, every case from posting.md section 2 ("From files") as a unit test that fails first. P2's drop zones still wait for P1.
+- **Now (299):** `svSortDroppedFiles(entries)` takes `{ path }` entries ("Folder/name.ext", or "name.ext" for a loose file) and returns, without reading any file:
+  - the video, cover and caption;
+  - every video, image and text file in natural name order;
+  - a carousel when there are images and no video;
+  - `ask` / `askText` when a person must pick a video ("This folder has 3 videos. Pick one.") or a cover;
+  - `captionNote` when several text files leave the caption empty;
+  - `ignoredLine` ("Ignored 2 files: .prproj, .wav").
+  It refuses two folders ("Drop one folder at a time."). Hidden and system files (dot files, `._*`, `Thumbs.db`, `desktop.ini`) are skipped without a word. Nothing calls it yet, so it is not exported (`check-modules` refuses an export no fragment uses); P2 exports it when the drop zones use it.
+- **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
+- **Way back:** revert the PR. Nothing calls the function.
+
+## 667. [2026-11-02 UTC, BUILT, NOT MERGED] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
+
+- **Asked:** Sidney, 2 Nov (D4, relayed by the supervisor): he does not want to link accounts or click a pick list. Link automatically when it is certain; list anything unsure so he can be asked in one line.
+- **Built:**
+  - **`_shared/postforme-accounts.mjs` (pure):** `safeAccount` keeps only id, platform, username, user_id, display name and status (a whitelist; Post for Me's list carries each client's `access_token` and `refresh_token`). `planLinks` links an account only if it is connected, on no client in any slot, its username (trimmed, no @, lower case) equals exactly one client's saved handle for that network (archived clients count, making it ambiguous; for YouTube the saved channel id may instead equal the account's `user_id` exactly), that client's slot is empty, and no other account wants the same slot. Facebook and LinkedIn have no saved handle, so they always need a person. `runAccountSync` reads every page of 50 (a list past 40 full pages is refused as incomplete, Codex P2 on #2538), saves once per client, sends one Sheet copy, and never retries a refused save with an overwrite; a second run changes nothing.
+  - **`client-profile-write`, action `pfm_accounts_sync` (`dry_run` optional):** from an admin (the Publishing card's **Check Post for Me accounts**) or from the hourly timer, which signs with `X-Pfm-Link-Key` and may call this action only. Vault is the only copy of that key: the function asks the security-definer `pfm_account_link_key_ok` (sha256 digests of a 32+ character secret) and holds no secret of its own (supervisor's change, 3 Nov). Each link goes through the Post for Me network check and `client_profile_admin_edit` with the row's version, actor "Post for Me auto-link". Every run is recorded (best effort).
+  - **Migration `migrations/2026-11-02-pfm-account-link-runs.sql` (cope marker):** `pfm_account_link_runs` (run time, trigger, counts, and per account only account id, network, username, reason, slug and candidates; any other key at any depth is dropped), kept 30 days; all four roles revoked from the table and its sequence; service_role may only run the security-definer `pfm_account_link_run_record`, `pfm_account_link_runs_read` and `pfm_account_link_key_ok` (the timer's key check against Vault).
+  - **Migration `migrations/2026-11-02-pfm-account-link-schedule.sql` (cope marker; applied last):** one pg_cron job at minute 41 of every hour, signed with the Vault secret `pfm_account_link_key` read at run time. It refuses to schedule until that secret exists (at least 32 characters) and the run log is applied. The supervisor creates the key inside the database (`vault.create_secret(encode(extensions.gen_random_bytes(48), 'hex'), 'pfm_account_link_key')`), so the value never leaves Vault; nobody else does anything.
+- **Proof:** `test/postforme-accounts.js` (new, 43 checks: exact unique match links; a duplicate handle, a filled slot, an archived-only match, two accounts for one slot, Facebook and LinkedIn, disconnected all need a person; no token at any depth of any answer; paging; a failed read writes nothing; a refused save is not retried; the second run is a no-op; the timer key reaches this action only). `test/pfm-account-link-runs-postgres.js` (new, disposable PostgreSQL: whitelist storage, 30 days, the four roles, the schedule refuses without the secret). `clients-admin-browser.js` (the button, its result, an unreachable Post for Me, the reload, 44px on phones).
+- **Live check (after F3 and this are applied):** a `dry_run` on live, reported as counts only.
+- **Follow-up (Pbuild, once this is live):** the Post tab's "Ask Sidney to add its Connection ID" wording.
+- **Way back:** `select cron.unschedule('pfm-account-link-hourly');` then revert the PR; the run log's header gives its drop statements.
 
 ## 645. [2026-11-02 UTC, BUILT, NOT MERGED] An uncaught error's report said "TypeError at workload:0:0" and nothing else: now it says what kind of error, and where, on or off this site (session Reviewguard)
 

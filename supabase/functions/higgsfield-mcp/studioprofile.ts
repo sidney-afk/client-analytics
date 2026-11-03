@@ -51,6 +51,22 @@ async function readPendingProfile(folder: string): Promise<unknown | null> {
   }
 }
 
+// The saved video look only, or "" when there is none or it cannot be read.
+// client_brain adds it to every client answer so a new session starts with it.
+export async function savedProfileText(db: SupabaseClient, client: string): Promise<string> {
+  try {
+    if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "";
+    const found = await findClient(db, client);
+    if (!found.plan) return "";
+    const where = await brainFolder(found.plan.client_slug, found.plan.client_name);
+    if (where.error || !where.folder) return "";
+    const prof = await readProfile(where.folder);
+    return prof.text !== undefined ? profileReply(found.plan.client_name, prof.text) : "";
+  } catch (_e) {
+    return "";
+  }
+}
+
 export async function studioProfile(db: SupabaseClient, client: string): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);

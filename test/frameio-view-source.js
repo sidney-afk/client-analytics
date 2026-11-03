@@ -79,7 +79,10 @@ function fakeFrameio(opts = {}) {
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE) return reply(200, { data: file });
     if (m === '/accounts/' + ACCT_B + '/files/' + FILE + '/metadata') {
       if (opts.noMeta) return reply(404, {});
-      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 }] } });
+      if (opts.meta) return reply(200, { data: { metadata: opts.meta } });
+      return reply(200, { data: { metadata: [{ field_definition_name: 'Frame Rate', value: 24 }, { field_definition_name: 'Duration', value: 45.5 },
+        { field_definition_name: 'Video Codec', value: 'H.264' }, { field_definition_name: 'Audio Codec', value: 'AAC' },
+        { field_definition_name: 'Width', value: 1080 }, { field_definition_name: 'Height', value: 1920 }] } });
     }
     if (m.startsWith('/accounts/' + ACCT_B + '/files/' + FILE + '/comments?')) {
       if (opts.commentsDown) return reply(500, {});
@@ -230,6 +233,23 @@ function deps(f, over = {}) {
     const only = await lookup('https://f.io/abc123', deps(pf), { part: 'video' });
     ok(only.ok && only.video.url && only.video.name && only.open_url && !('comments' in only), 'part "video" answers with the addresses and no comments');
     ok(pf.log.every((e) => !/\/comments/.test(e.url)), 'part "video": Frame.io is not asked for comments at all');
+    // post-source (plan row F4, D2) decides which file to copy from what Frame says about the upload itself.
+    eq([only.video.media_type, only.video.codec, only.video.width, only.video.height], ['video/mp4', 'H.264', 1080, 1920], 'part "video" carries the upload\'s type, video codec and size');
+    const asClient = await lookup('https://f.io/abc123', deps(fakeFrameio()), { client: true });
+    ok(!['media_type', 'codec', 'width', 'height', 'metadata_fields'].some((k) => k in asClient.video), 'a client lookup gets none of those facts');
+    // P1a (OPEN_REPAIRS 650): Frame's live answer gave no "Width"/"Height" (F4's live check, 3 Nov). The size is also
+    // read from one "W x H" field and from values with a unit, and the staff answer lists the field NAMES (never their
+    // values), so the live check can show which name Frame really uses.
+    eq(only.video.metadata_fields, ['Frame Rate', 'Duration', 'Video Codec', 'Audio Codec', 'Width', 'Height'], 'the staff answer lists the metadata field names');
+    const sized = async (meta) => (await lookup('https://f.io/abc123', deps(fakeFrameio({ meta })), { part: 'video' })).video;
+    const one = await sized([{ field_definition_name: 'Resolution', value: '1080 x 1920' }, { field_definition_name: 'Codec', value: 'H.264' }]);
+    eq([one.width, one.height, one.codec], [1080, 1920, 'H.264'], 'one "Resolution" field of "1080 x 1920" gives the width and height');
+    eq([(await sized([{ field_definition_name: 'Dimensions', value: '1920×1080' }])).width], [1920], 'a "Dimensions" field with a times sign is read too');
+    const unit = await sized([{ field_definition_name: 'Resolution Width', value: '1080 px' }, { field_definition_name: 'Resolution Height', value: '1920 px' }]);
+    eq([unit.width, unit.height], [1080, 1920], 'separate width and height fields with a unit are read');
+    const none = await sized([{ field_definition_name: 'Bit Rate', value: '12000' }, { field_definition_name: 'Resolution', value: 'unknown' }]);
+    eq([none.width, none.height], [null, null], 'no size field, or an unreadable one, leaves the size empty');
+    ok(!JSON.stringify(one.metadata_fields).includes('1080'), 'the field list carries names only, never a value');
     const cf = fakeFrameio();
     const com = await lookup('https://f.io/abc123', deps(cf), { part: 'comments' });
     ok(com.ok && com.comments.length === 3 && !('video' in com) && com.open_url, 'part "comments" answers with the comments only');

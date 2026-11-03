@@ -1581,6 +1581,164 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialLinkKey, svTrialLinkSave, svTrialNewCut, svTrialNotesPick, svTrialOpen, svTrialPick,
         svTrialStatusMenu, svTrialStatusPick, svTrialToggle
     });
+
+    /* PROTOTYPE, plan row 688 (?trialtabs=a|b|c). Throwaway branch, never merged: shows Sidney the three ways to draw one
+       card with A/B/C version tabs on the real page. It only redraws what the card already shows: nothing it adds saves. */
+    function _ttOpt() {
+        try { const q = new URLSearchParams(location.search).get('trialtabs') || window.__trialtabs || ''; return /^[abc]$/i.test(q) ? q.toLowerCase() : ''; } catch (e) { return ''; }
+    }
+    const _ttSel = {};
+    const _ttTone = v => v.status === 'dropped' || v.client_pass_at ? 'mute' : ['approved', 'on trial', 'winner'].includes(v.status) ? 'ok' : v.status === 'change asked' ? 'chg' : (v.place || 'smm');
+    const TT_WORD = { ok: 'approved', chg: 'change asked', client: 'with client', kasper: 'with Kasper', smm: 'with SMM', mute: 'dropped' };
+    const TT_CSS = `
+[data-tone] { --tt: var(--text-muted); }
+[data-tone="ok"] { --tt: var(--cal-status-approved-bg); }
+[data-tone="chg"] { --tt: var(--cal-status-tweaks-needed-bg); }
+[data-tone="client"] { --tt: var(--cal-status-client-approval-bg); }
+[data-tone="kasper"] { --tt: var(--cal-status-kasper-approval-bg); }
+[data-tone="smm"] { --tt: var(--cal-status-for-smm-approval-bg); }
+.cal-card[data-tt] .trl-list, .cal-card[data-tt] .trl-chev, .cal-card[data-tt] .trl-state, .cal-card[data-tt] .trl-fill { display: none !important; }
+.cal-card[data-tt] .trl-main { gap: 6px; }
+.tt-x .tt-l { font-weight: 700; }
+.tt-sw { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; flex: none; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.tt-sw .trl-sw-slot { display: inline-flex; align-items: center; border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; }
+.tt-sw .trl-sw { position: relative; display: block; width: 24px; height: 14px; border-radius: 999px; background: var(--sv-slot-video-fg); }
+.tt-sw .trl-sw::after { content: ""; position: absolute; top: 2px; left: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--sv-knob); }
+.cal-link-pill-open .tt-pick { position: absolute; right: 12px; }
+.tt-pick.trl-v { display: inline-flex; align-items: center; margin-left: auto; padding: 0 4px 0 0; min-height: 0; border: 0; background: none; }
+.cal-card[data-tt] .trl-main .cal-link-pill-open { flex: 1 1 auto; min-width: 0; }
+.tt-a { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.tt-a button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-raised); font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.tt-a button i { width: 7px; height: 7px; border-radius: 50%; background: var(--tt); }
+.tt-a button.on { color: var(--text-primary); border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); }
+.tt-a button.tt-drop { color: var(--text-muted); border-style: dashed; }
+.tt-a button.tt-add { color: var(--text-muted); padding: 0 10px; }
+.tt-b { position: absolute; left: 56px; right: 56px; bottom: 10px; z-index: 3; display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.tt-b button { flex: 1; height: 28px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--tt) 30%, transparent); font: inherit; font-size: 13px; font-weight: 700; color: #3a3a37; position: relative; cursor: pointer; }
+.tt-b button::after { content: ''; position: absolute; left: 32%; right: 32%; bottom: 4px; height: 3px; border-radius: 2px; background: var(--tt); }
+.tt-b button.on { background: #fff; color: #111110; box-shadow: 0 1px 2px rgba(0,0,0,.14), inset 0 0 0 1.5px var(--tt); }
+.tt-b button.tt-more { flex: 0 0 30px; background: transparent; color: #6b6b67; }
+.tt-b button.tt-more::after { display: none; }
+.tt-c { display: flex; gap: 8px; padding: 12px 16px 0; align-items: flex-start; }
+.tt-c button { display: grid; justify-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+.tt-c .tt-p { width: 40px; height: 56px; border-radius: 7px; overflow: hidden; background: var(--surface-subtle); box-shadow: 0 0 0 1px var(--border); display: grid; place-items: center; color: var(--text-muted); font-size: 16px; }
+.tt-c .tt-p img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tt-c button.on .tt-p { box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px var(--text-primary); }
+.tt-c .tt-n { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+.tt-c .tt-n i { width: 6px; height: 6px; border-radius: 50%; background: var(--tt); }
+.tt-c button.on .tt-n { color: var(--text-primary); }
+.tt-c button.tt-drop .tt-p { opacity: .4; }
+.tt-c button.tt-add .tt-p { background: transparent; box-shadow: none; border: 1px dashed var(--border); }
+.tt-mk { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.tt-mk-a i { width: 6px; height: 6px; border-radius: 50%; background: var(--tt); }
+.tt-mk-a b { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+.tt-mk-b { gap: 2px; width: 100%; max-width: 72px; }
+.tt-mk-b i { flex: 1; height: 4px; border-radius: 2px; background: var(--tt); }
+.tt-mk-c img, .tt-mk-c span { width: 12px; height: 17px; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1.5px var(--surface-raised); margin-left: -6px; background: var(--surface-subtle); }
+.tt-mk-c img:first-child { margin-left: 0; }
+.tt-mk-c b { margin-left: 3px; font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+`;
+    function _ttPic(v, post) {
+        const th = String((v.effective && v.effective.thumbnail_url) || v.thumbnail_url || post.thumbnail_url || '').trim();
+        if (!th) return '';
+        try { return _calDeriveThumb({ thumbnail_url: th }) || th; } catch (e) { return th; }
+    }
+    function _ttLive(post) {
+        const shape = post && _trlShape(post);
+        if (!shape || !shape.enabled) return null;
+        const vs = shape.versions || [];
+        const live = vs.filter(v => v.status !== 'dropped');
+        return live.length > 1 ? { live, dropped: vs.filter(v => v.status === 'dropped') } : null;
+    }
+    function svTrialTab(pid, letter) {
+        _ttSel[pid] = letter;
+        document.querySelectorAll('.cal-card[data-pid="' + CSS.escape(pid) + '"]').forEach(c => { delete c.dataset.tt; _ttCard(c); });
+    }
+    function _ttCard(card) {
+        const pid = card.dataset.pid, post = _trlPost(pid), got = _ttLive(post);
+        if (!got) return;
+        const o = _ttOpt(), { live, dropped } = got;
+        const sel = live.find(v => v.letter === _ttSel[pid]) || live.find(v => v.status !== 'approved') || live[0];
+        const sig = o + '|' + sel.letter + '|' + live.map(v => v.letter + v.status + (v.place || '')).join(',');
+        if (card.dataset.tt === sig && card.querySelector('.tt-x')) return;
+        card.dataset.tt = sig;
+        card.querySelectorAll('.tt-x').forEach(e => e.remove());
+        const p = _calEscAttr(pid);
+        const tip = v => 'Version ' + v.letter + ': ' + TT_WORD[_ttTone(v)];
+        const go = v => ' onclick="event.stopPropagation();svTrialTab(\'' + p + '\',\'' + _calEscAttr(v.letter) + '\')"';
+        let tabs = '';
+        if (o === 'a') {
+            tabs = '<div class="tt-x tt-a" role="group" aria-label="Versions">' + live.map(v => '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '><i></i>' + _calEsc(v.letter) + '</button>').join('')
+                + (dropped.length ? '<button type="button" class="tt-drop" title="Dropped">' + dropped.map(v => _calEsc(v.letter)).join(' ') + '</button>' : '')
+                + '<button type="button" class="tt-add" title="Add version" aria-label="Add version">+</button></div>';
+        } else if (o === 'b') {
+            tabs = '<div class="tt-x tt-b" role="group" aria-label="Versions">' + live.map(v => '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '>' + _calEsc(v.letter) + '</button>').join('')
+                + '<button type="button" class="tt-more" title="Add, import or bring back a version" aria-label="More">···</button></div>';
+        } else {
+            tabs = '<div class="tt-x tt-c" role="group" aria-label="Versions">' + live.map(v => { const pic = _ttPic(v, post);
+                return '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '><span class="tt-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : '') + '</span><span class="tt-n"><i></i>' + _calEsc(v.letter) + '</span></button>'; }).join('')
+                + dropped.map(v => '<button type="button" class="tt-drop" title="Version ' + _calEscAttr(v.letter) + ': dropped"><span class="tt-p"></span><span class="tt-n">' + _calEsc(v.letter) + '</span></button>').join('')
+                + '<button type="button" class="tt-add" title="Add version" aria-label="Add version"><span class="tt-p">+</span><span class="tt-n">&nbsp;</span></button></div>';
+        }
+        const thumb = card.querySelector('.cal-card-thumb'), body = card.querySelector('.cal-card-body'), title = card.querySelector('.cal-title-row');
+        if (o === 'a' && title) title.insertAdjacentHTML('afterend', tabs);
+        if (o === 'b' && thumb) thumb.insertAdjacentHTML('beforeend', tabs);
+        if (o === 'c' && body) body.insertAdjacentHTML('beforebegin', tabs);
+        // The picture, the Video row and the caption show the version on the tab.
+        const pic = _ttPic(sel, post), img = thumb && thumb.querySelector('img');
+        if (img && pic && img.getAttribute('src') !== pic) img.setAttribute('src', pic);
+        const row = card.querySelector('.trl-main');
+        if (row) {
+            const lab = row.querySelector('.trl-main-label');
+            if (lab) lab.textContent = 'Version ' + sel.letter;
+            const sw = row.querySelector('.trl-sw-slot');
+            if (sw && title && !title.querySelector('.tt-sw')) { const w = document.createElement('span'); w.className = 'tt-sw'; w.innerHTML = 'Trial'; w.appendChild(sw); title.appendChild(w); }
+            const pill = _trlStatusPickOn(post, sel) ? _trlStatusPickHtml(pid, sel) : svTrialLabelHtml(sel.status, sel);
+            const open = row.querySelector('.cal-link-pill-open');
+            if (open) open.insertAdjacentHTML('afterend', '<span class="tt-x tt-pick trl-v">' + pill + '</span>');
+        }
+        if (!row) {
+            // The phone editor draws the Video field without the trial row: name the version and its status there too.
+            const f = [...card.querySelectorAll('.cal-link-field')].find(x => { const l = x.querySelector('.cal-link-label'); return l && /^\s*Video\s*$/.test(l.textContent || ''); });
+            const lab = f && f.querySelector('.cal-link-label');
+            if (lab) {
+                lab.textContent = 'Version ' + sel.letter;
+                const pill = _trlStatusPickOn(post, sel) ? _trlStatusPickHtml(pid, sel) : svTrialLabelHtml(sel.status, sel);
+                (f.querySelector('.cal-link-pill-open') || lab).insertAdjacentHTML('beforeend', '<span class="tt-x tt-pick trl-v">' + pill + '</span>');
+            }
+        }
+        const cap = card.querySelector('textarea.cal-fld-cap');
+        if (cap) { const c = String((sel.effective && sel.effective.caption) || ''); if (cap.value !== c) cap.value = c; cap.readOnly = true; }
+    }
+    function _ttMarks() {
+        document.querySelectorAll('.cal-month-pill[onclick*="openCalPreview"], .cal-week-card[onclick*="openCalPreview"]').forEach(el => {
+            const m = /openCalPreview\('([^']+)'\)/.exec(el.getAttribute('onclick') || ''); if (!m) return;
+            const post = _trlPost(m[1]), got = _ttLive(post); if (!got) return;
+            const o = _ttOpt(), week = el.classList.contains('cal-week-card');
+            if (el.dataset.tt === o && el.querySelector('.tt-mk')) return;
+            el.dataset.tt = o;
+            el.querySelectorAll('.tt-mk').forEach(e => e.remove());
+            const live = got.live;
+            const html = o === 'a' ? '<span class="tt-mk tt-mk-a">' + live.map(v => week ? '<b data-tone="' + _ttTone(v) + '"><i></i>' + _calEsc(v.letter) + '</b>' : '<i data-tone="' + _ttTone(v) + '"></i>').join('') + '</span>'
+                : o === 'b' ? '<span class="tt-mk tt-mk-b">' + live.map(v => '<i data-tone="' + _ttTone(v) + '"></i>').join('') + '</span>'
+                : '<span class="tt-mk tt-mk-c">' + live.map(v => { const pic = _ttPic(v, post); return pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : '<span></span>'; }).join('') + '<b>' + live.length + '</b></span>';
+            const host = el.querySelector(week ? '.cal-week-card-body' : '.cal-month-pill-meta') || el;
+            host.insertAdjacentHTML('beforeend', html);
+        });
+    }
+    function _ttScan() {
+        if (!_ttOpt() || _isClientLink) return;
+        if (!document.getElementById('ttCss')) { const st = document.createElement('style'); st.id = 'ttCss'; st.textContent = TT_CSS; document.head.appendChild(st); }
+        document.querySelectorAll('.cal-card[data-pid]').forEach(c => { try { _ttCard(c); } catch (e) {} });
+        try { _ttMarks(); } catch (e) {}
+    }
+    let _ttFrame = 0;
+    if (typeof window !== 'undefined' && typeof MutationObserver === 'function') {
+        window.svTrialTab = svTrialTab;
+        new MutationObserver(() => { if (_ttFrame || !_ttOpt()) return; _ttFrame = requestAnimationFrame(() => { _ttFrame = 0; _ttScan(); }); })
+            .observe(document.documentElement, { childList: true, subtree: true });
+    }
+
 export {
   svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml

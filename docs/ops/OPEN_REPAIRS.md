@@ -36433,3 +36433,13 @@ The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-
   - the settle loop also needs a real row;
   - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
 - **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.
+
+## 681. [2026-11-03 UTC, BUILT, NOT MERGED] popup-behaviour (phone): four card clicks timed out when the Calendar drew after the test asked for the list view (session Chanfix)
+
+Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/syncview-design/tests/popup-behaviour-browser.js`, phone pass only, four `page.click: Timeout 5000ms exceeded` on `.cal-card[data-pid="pb1"]`'s caption toggle, notes button, Set all and status pill. The desktop pass was clean and main passed locally.
+
+- **Not the hard-coded-month trap.** On a phone the Sheet opens as a grid of tiles, and the grid lists every post whatever its date. The October fixture dates play no part.
+- **Cause (a test race, not a page bug).** Each grid tile is also a `.cal-card[data-pid]`, but has none of the card's controls. The shared helper `openEditableSheet` (`docs/syncview-design/tests/staff-phone-browser.js`) switched to the list only if the "List view" button already existed (`if (await button.count() …)`). When the Calendar drew its bar a moment later, the switch was skipped silently. The test's wait for `.cal-card[data-pid="pb1"]` was then satisfied by the tile, and the four clicks inside the card timed out. A person sees the bar and taps List view, so the page is fine.
+- **Reproduced deterministically, failing first.** The new `lateListCheck` in popup-behaviour holds the posts answer for 2.5 s on a phone. On main it fails with `{"tile":true,"toggle":false,"listPressed":"false"}`; with the fix it passes. A 4x CPU slowdown alone did not trigger it (0 of 4 on main), because the race needs the posts to land after the Calendar has drawn, not a slow page.
+- **Fix.** `openEditableSheet` now waits until the page has drawn either the list/grid switch (phone) or a full card (desktop), switches to the list, and waits until the list is on. If neither ever appears, for example an empty desktop collection, it carries on as before after 15 s rather than failing. No longer timeout anywhere.
+- **Proof.** popup-behaviour passes in full (377 checks, one new); phone-only, 4x CPU slowdown, 4 at once: 12 of 12 green. staff-calendar-expanded and calendar-refresh-scroll, which also use the helper, pass. Way back: revert the PR.

@@ -36847,6 +36847,7 @@ Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial 
   - `test/client-delete-front-door-browser.js` (new) runs on the client link. The change request goes to the card and through the front door; Delete deletes the card copy and sends one Production delete named by the card note id, with no version.
   - Both fail on a clean origin/main worktree: the browser test with "one delete went to Production (0)", the unit test because the rule does not exist.
   - `production-comment-slice` reads a 400-character longer window of the dispatch, because of the new no-op branch.
+  - Codex review: a retry after a lost answer would have failed its own receipt (`idempotency_conflict`), because the fingerprint held the version the server had read, and a committed delete moves it. The fingerprint now leaves the version out for a front-door delete. New case: the committed delete, then the identical retry, replays and writes nothing; it fails without this with `idempotency_conflict`.
 - **Way back:** revert the PR. The card delete is unchanged, so a revert only stops the Production copy from following.
 
 ## 692. [2026-11-03 UTC, OPEN, read-only look after 690] Staff-authored Production notes whose card copy is deleted but which stay open (session Chanfix)

@@ -524,7 +524,7 @@ const CANDIDATES = new Map([
     // unassigned: true on video items; re-pinned with ef-fingerprint.
     // Client front-door delete (2026-11-03, OPEN_REPAIRS 690): a client's own
     // note delete may take its version from the row; re-pinned with ef-fingerprint.
-    source: 'b8fb3349b88ca50905e24494bc64d04c36fbccf58a04b7018cb2587b883f7442',
+    source: '99f5a4b1a721c79f9210686671b3e7ec2092218b43bf21b800a4709ac70cced3',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],

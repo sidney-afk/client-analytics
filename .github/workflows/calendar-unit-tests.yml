@@ -15,7 +15,12 @@ name: Calendar unit tests
 # Speed (2026-10-17, session Turbo): the slow browser jobs are split into
 # parallel parts, a pull request runs only the suites its files can reach
 # (the `changes` job), and a new push to a pull request cancels the run it
-# replaces. Pushes to main are never cancelled and always run everything.
+# replaces. A run on main is never cancelled once it has started, and always
+# runs everything. Pushes to main share one group (2026-11-03, OPEN_REPAIRS 679):
+# a newer push replaces a main run that is still WAITING (GitHub keeps one
+# running and one waiting per group), so a busy merge evening tests main's tip
+# instead of stacking one full run per merge (14 waited at once on 2 Nov night
+# and starved every pull request for hours). Manual runs keep a group per commit.
 #
 # Runner seats (2026-10-17, session Throttle). The account runs at most 20 jobs
 # at once, shared with the production lanes on main that run every 5 minutes
@@ -73,7 +78,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: calendar-unit-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  group: calendar-unit-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && 'main' || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

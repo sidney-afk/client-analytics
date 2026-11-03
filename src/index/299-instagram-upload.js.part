@@ -108,7 +108,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igFacebookState() {
         if (!igState.client) return { enabled: false, checked: false, reason: '' };
         const fb = _igResolveFacebook(igState.client);
-        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney.' };
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
         if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
         if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
         return { enabled: true, checked: !igState.facebookOff, reason: '' };

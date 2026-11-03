@@ -5,8 +5,9 @@
 //      https://www.postforme.dev that opens in a new tab with rel="noopener": TikTok's account line and its
 //      refusal on submit, Instagram's account line and its refusal on submit, and the Facebook box's reason;
 //   2. for a client with every account on file, no such link appears anywhere on the Post tab;
-//   3. since L1 (accounts link themselves hourly) each message says to connect the account in Post for Me, that it links
-//      itself within the hour, and to ask Sidney if it does not (OPEN_REPAIRS 653);
+//   3. since L1 (accounts link themselves hourly on a saved handle) the TikTok and Instagram messages say to connect the
+//      account in Post for Me, that it links itself within the hour, and to ask Sidney if it does not; a Facebook Page has
+//      no handle to match, so its message says to connect it and ask Sidney to link it (OPEN_REPAIRS 653);
 //   4. on a phone, where the account line is reworded shorter, the link stays beside it on both sides.
 // Every backend answer is local and nothing is ever posted: the page is never let past its own refusal.
 const assert = require('assert/strict');
@@ -105,7 +106,7 @@ function assertOneLink(found, where) {
       assertOneLink(await linksIn(page, '#igFormCol .tk-profile-line'), 'Instagram account line'); checks++;
       assert.match(await textOf(page, '#igFormCol .tk-profile-line'), /No Instagram account linked to this client yet\. Connect it in Post for Me: it links itself here within the hour\. If it still isn't here after that, ask Sidney\./, 'Instagram: connect it in Post for Me, it links itself'); checks++;
       assertOneLink(await linksIn(page, '#igFacebookNote'), 'Facebook reason'); checks++;
-      assert.match(await textOf(page, '#igFacebookNote'), /No Facebook Page linked to this client yet\. Connect it in Post for Me: it links itself here within the hour\. If it still isn't here after that, ask Sidney\./, 'Facebook: the same words'); checks++;
+      assert.match(await textOf(page, '#igFacebookNote'), /No Facebook Page linked to this client yet\. Connect it in Post for Me, then ask Sidney to link it to the client's profile: a Page does not link itself\./, 'Facebook: a Page has no handle, so it needs a person (Codex P2 on #2563)'); checks++;
       await page.evaluate(() => _igSubmit());
       await page.waitForSelector('#igFormCol .tk-error');
       assertOneLink(await linksIn(page, '#igFormCol .tk-error'), 'Instagram refusal'); checks++;

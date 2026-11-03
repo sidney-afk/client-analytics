@@ -1776,18 +1776,73 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
                 { board: _writeUiPageBoard(surface) || 'calendar', card: String(card) }, 'landed');
         } catch (e) {}
     }
-    /* An uncaught error's kind and where (this site's file:line:col only), never its message: shared by the review
-       boards and Workload (OPEN_REPAIRS 626, 638). */
-    function _writeUiErrWhere(name, file, line, col) {
-        let f = '';
-        try { const u = new URL(String(file || ''), location.href); if (u.origin === location.origin) f = u.pathname.split('/').pop(); } catch (e) {}
-        return String(name || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) + (f ? ' at ' + f.slice(0, 60) + ':' + (Number(line) || 0) + ':' + (Number(col) || 0) : '');
+    /* An uncaught error's kind and where, never its message: shared by the review boards, Workload and the Calendar
+       (OPEN_REPAIRS 626, 638, 639). OPEN_REPAIRS 645: also what KIND of error it was, as one fixed word, and where it
+       came from even when that is not this site, so a report can be acted on:
+       - this site's file (its build hash dropped: app_version already says which build), :line:col, and the function
+         name when it is a plain identifier;
+       - another site's script: the scheme and host and the file's own name only (no path, no query, no fragment,
+         which can carry a token), written without "://" so the server's link redaction keeps it;
+       - a browser extension: the word "extension", never its id;
+       - nothing at all when the error has no frame (it used to read as the page's own address, "workload:0:0").
+       Only fixed words, this site's own file and function names and numbers are sent; never the message. */
+    const WRITE_UI_ERR_KINDS = [
+        [/^script error\.?$/i, 'script_error'],
+        [/failed to fetch|networkerror when attempting to fetch|network request failed/i, 'failed_to_fetch'],
+        [/^load failed$/i, 'load_failed'],
+        [/cannot read propert|cannot set propert|undefined is not an object|null is not an object|can't access property|has no properties/i, 'cannot_read_properties'],
+        [/is not a function/i, 'not_a_function'],
+        [/is not iterable/i, 'not_iterable'],
+        [/is not defined/i, 'not_defined'],
+        [/abort/i, 'aborted'],
+        [/quota/i, 'quota_exceeded']
+    ];
+    function _writeUiErrKind(name, message, whereKind) {
+        if (whereKind === 'extension') return 'extension';
+        const m = String(message || '');
+        if (String(name || '') === 'AbortError') return 'aborted';
+        if (!m) return '';
+        for (const [re, word] of WRITE_UI_ERR_KINDS) if (re.test(m)) return word;
+        return 'other';
+    }
+    // One frame's place: { kind: 'own' | 'offsite' | 'extension', text } or null.
+    function _writeUiFramePlace(file, line, col, fn) {
+        const raw = String(file || '');
+        if (!raw) return null;
+        if (/^(chrome|moz|safari|safari-web|ms-browser)-extension:/i.test(raw)) return { kind: 'extension', text: 'extension' };
+        let u;
+        try { u = new URL(raw, location.href); } catch (e) { return null; }
+        const base = (u.pathname.split('/').pop() || '').replace(/[^A-Za-z0-9._-]/g, '');
+        if (u.origin === location.origin) {
+            // A split-build part's content hash is dropped (sv-11-core-47c0d0f70e53.js -> sv-11-core.js).
+            // The page's own inline scripts read as the page's name (or "page" at the site's root).
+            const own = base.replace(/-[0-9a-f]{8,}(\.m?js)$/, '$1').slice(0, 23) || 'page';
+            const name = /^[A-Za-z_$][\w$]*$/.test(String(fn || '')) ? ' in ' + String(fn).slice(0, 23) : '';
+            return { kind: 'own', text: own + ':' + (Number(line) || 0) + ':' + (Number(col) || 0) + name };
+        }
+        if (!/^https?:$/.test(u.protocol)) return null;
+        return { kind: 'offsite', text: u.protocol.replace(':', '') + ' ' + u.host.slice(0, 60) + (base ? ' ' + base.slice(0, 23) : '') };
+    }
+    function _writeUiWhereText(name, message, place) {
+        const kind = _writeUiErrKind(name, message, place && place.kind);
+        return String(name || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) + (kind ? ' ' + kind : '') + (place ? ' at ' + place.text : '');
+    }
+    function _writeUiErrWhere(name, file, line, col, message) {
+        return _writeUiWhereText(name, message, _writeUiFramePlace(file, line, col, ''));
     }
     function _writeUiStackWhere(err) {
-        const st = String(err && err.stack || ''), re = /((?:https?:)?\/\/[^\s)]+?):(\d+):(\d+)/g;
-        let mm;
-        while ((mm = re.exec(st))) { try { if (new URL(mm[1], location.href).origin === location.origin) return _writeUiErrWhere(err && err.name, mm[1], mm[2], mm[3]); } catch (e) {} }
-        return _writeUiErrWhere(err && err.name, '', 0, 0);
+        const st = String(err && err.stack || '');
+        // Chrome/Edge: "at fn (url:l:c)" or "at url:l:c"; Safari/Firefox: "fn@url:l:c".
+        const re = /(?:at\s+(?:async\s+)?([^\s(]+)\s+\(|at\s+\(?|^\s*([^@\s]*)@)((?:[a-z][a-z0-9+.-]*:)?\/\/[^\s)]+?):(\d+):(\d+)/gm;
+        let mm, first = null;
+        while ((mm = re.exec(st))) {
+            const fn = String(mm[1] || mm[2] || '').split('.').pop();
+            const place = _writeUiFramePlace(mm[3], mm[4], mm[5], fn);
+            if (!place) continue;
+            if (place.kind === 'own') return _writeUiWhereText(err && err.name, err && err.message, place);
+            if (!first) first = place;
+        }
+        return _writeUiWhereText(err && err.name, err && err.message, first);
     }
     function _writeUiReviewEvent(surface, action, code, ids, where) {
         try {

@@ -5,11 +5,15 @@
 //
 //   POST { link, part? }  header X-Syncview-Key: a staff role key. part is "video" (the playable addresses, fast),
 //     "comments" (the comments only) or left out (both, as before); the page asks for the first two in parallel.
+//     part "list" (staff only) answers { ok:true, name, videos:[{ file_id, name, duration_seconds, thumbnail_url,
+//     created_at, processing, link }], truncated, open_url, fetched_at }: the videos in a shared folder (up to 50,
+//     newest first; truncated says when more were left out), or the one video a file link names. Each link plays
+//     exactly that file. No playable address and no comments are asked for.
 //     -> 200 { ok:true, video:{ url, renditions:{ efficient, high_quality, original }, expires_at, name, file_id, duration_seconds, fps },
 //              comments:[{ id, time_seconds, frame, text, author, guest, created_at, done, replies:[...] }],
 //              comments_error, comments_truncated, reply_names_partial, open_url, fetched_at }
 //     -> { ok:false, error:<code>, message:<plain sentence> }   unsupported_link 422, link_not_found 404, share_off 404,
-//        share_expired 404, empty_share 404, file_not_in_share 404, not_video 415, still_processing 409, frameio_login_needed 503,
+//        share_expired 404, empty_share 404, file_not_in_share 404, folder_link 422 (strict lookups only), not_video 415, still_processing 409, frameio_login_needed 503,
 //        frameio_busy 429, frameio_unavailable 502, timeout 504, unauthorized 401/403, staff_only 403
 //
 // Staff: the key must match a staff role key (admin, smm or creative). The browser's public key is not enough.

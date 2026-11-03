@@ -53,7 +53,7 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
   }
 
   let t = make();
-  let out = await t.run({ video: 'https://videos.example.com/cut.mp4', client: 'Sidney Laruel' });
+  let out = await t.run({ video: 'https://videos.example.com/cut.mp4', client: 'Test' });
   assert.ok(/^Hook at 0:02 is slow\./.test(out), out);
   assert.ok(!/thinking/.test(out), 'thought parts are not shown');
   assert.ok(/Cost \$0\.021/.test(out), out);

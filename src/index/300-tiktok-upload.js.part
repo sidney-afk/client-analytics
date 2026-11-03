@@ -12,7 +12,8 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svPostSourceActive, svPostSourceBind,
+  svCaptionFillHtml, svDropFoundLine, svDropNoteHtml, svDropPickHtml, svDropPicked, svDropSorted, svDropText, svDroppedFolder,
+  svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svPostSourceActive, svPostSourceBind,
   svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh, svPostSourceModeHtml, svPostSourceNew,
   svPostSourceOffered, svPostSourceReady, svPostSourceYoung, teardownInstagramPanel
 } from './299-instagram-upload.js';
@@ -79,7 +80,10 @@ import {
         photos: [],                 // photo mode only: [{file, objectUrl}], carousel order = array order
         photosMeta: null,           // [{name,size,type}] — persisted so we can warn after reload (mirrors fileMeta)
         title: '',
-        captionFill: null,          // { name, text }: the caption the chosen video's file name filled from the Calendar, while it can be undone
+        captionFill: null,          // { name, text, from? }: the caption a file name (the Calendar) or a folder's text filled, while it can be undone
+        // A dropped folder (post_sources_v1): its pick list while several videos need a person ({ sorted, seq }), and its line.
+        drop: null,
+        dropNote: '',
         options: {
             privacy_level: 'PUBLIC_TO_EVERYONE',
             post_mode: 'DIRECT_POST',
@@ -303,6 +307,10 @@ import {
         .tk-drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 50%; background: var(--white); border: 1px solid var(--border); }
         .tk-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
         .tk-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        /* A dropped folder's pick list and its one quiet line (plan row P2). A long file name ends in an ellipsis. */
+        .tk-drop-pick, .tk-drop-note { margin-top: 10px; }
+        .tk-drop-pick-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .tk-drop-pick-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tk-file-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
         .tk-file-card video { width: 100%; max-width: 320px; aspect-ratio: 9 / 16; border-radius: 10px; background: var(--sv-bg-000); object-fit: contain; }
         .tk-file-meta { width: 100%; min-width: 0; display: flex; align-items: center; gap: 12px; }
@@ -313,6 +321,12 @@ import {
         .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        /* The Instagram side's "Post to" card (post_networks_v1, plan row P3): one toggle row per network, YouTube's
+           fields under its row. */
+        .ig-net-row + .ig-net-row, .ig-yt + .ig-net-row { margin-top: 12px; }
+        .ig-net-row .tk-step-note { margin-top: 4px; }
+        .ig-yt { margin: 10px 0 0; display: grid; gap: 8px; }
+        .ig-yt-label { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; gap: 8px; }
         .tk-counter.over { color: var(--sv-fg-dc2626); font-weight: 700; }
         .tk-toggles { display: flex; flex-wrap: wrap; gap: 18px 24px; }
         .tk-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 0.82rem; color: var(--text-primary); font-weight: 600; position: relative; }
@@ -968,6 +982,7 @@ import {
                     </div>
                 </div>
                 ${tkState.mediaType === 'photo' ? photoCard : (svPostSourceOffered(tkState.client, true) ? svPostSourceModeHtml('tk', _tkSrc(), tkState.submitting) : '') + (fromCard ? svPostSourceCardHtml('tk', _tkSrc(), tkState.client, tkState.submitting) : mediaCard)}
+                ${fromCard && tkState.mediaType !== 'photo' ? '' : svDropPickHtml('tk', tkState.drop, tkState.submitting) + svDropNoteHtml('tk', tkState.dropNote)}
             </div>
 
             <div class="tk-card">
@@ -976,7 +991,7 @@ import {
                     <label for="tkTitle">Title / caption</label>
                     <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4" ${tkState.submitting ? 'disabled' : ''}>${_tkEscape(tkState.title)}</textarea>
                     <div class="tk-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
-                    ${tkState.captionFill ? svCaptionFillHtml('tkCapFill', tkState.captionFill.name) : ''}
+                    ${tkState.captionFill ? svCaptionFillHtml('tkCapFill', tkState.captionFill.name, tkState.captionFill.from) : ''}
                 </div>
             </div>
 
@@ -1117,7 +1132,7 @@ import {
         return [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
     }
     function _tkPickClient(name) {
-        if ((name || null) !== tkState.client) { _tkDropCaptionFill(); svPostSourceClear(_tkSrc()); }
+        if ((name || null) !== tkState.client) { _tkDropCaptionFill(); _tkDropForget(); svPostSourceClear(_tkSrc()); }
         tkState.client = name || null;
         if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
@@ -1215,12 +1230,16 @@ import {
         const drop = $('tkDrop');
         const fileInput = $('tkFile');
         if (fileInput) {
-            fileInput.addEventListener('change', (e) => _tkHandleFile(e.target.files?.[0]));
+            fileInput.addEventListener('change', (e) => { _tkDropForget(); _tkHandleFile(e.target.files?.[0]); });
         }
         if (drop) {
             ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('tk-drag'); }));
             ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('tk-drag'); }));
-            drop.addEventListener('drop', (e) => _tkHandleFile(e.dataTransfer?.files?.[0]));
+            drop.addEventListener('drop', (e) => {
+                const folder = svDroppedFolder(e.dataTransfer, tkState.client);
+                if (folder) { _tkDropFolder(folder); return; }
+                _tkDropForget(); _tkHandleFile(e.dataTransfer?.files?.[0]);
+            });
         }
 
         const photoDrop = $('tkPhotoDrop');
@@ -1231,8 +1250,9 @@ import {
         if (photoDrop) {
             ['dragenter', 'dragover'].forEach(ev => photoDrop.addEventListener(ev, (e) => { e.preventDefault(); photoDrop.classList.add('tk-drag'); }));
             ['dragleave', 'drop'].forEach(ev => photoDrop.addEventListener(ev, (e) => { e.preventDefault(); photoDrop.classList.remove('tk-drag'); }));
-            photoDrop.addEventListener('drop', (e) => _tkHandlePhotoFiles(e.dataTransfer?.files));
+            photoDrop.addEventListener('drop', (e) => { const folder = svDroppedFolder(e.dataTransfer, tkState.client); if (folder) _tkDropFolder(folder); else _tkHandlePhotoFiles(e.dataTransfer?.files); });
         }
+        document.querySelectorAll('[data-tk-drop-pick]').forEach(b => b.addEventListener('click', () => _tkDropPick(Number(b.getAttribute('data-tk-drop-pick')))));
 
         $('tkTitle')?.addEventListener('input', (e) => {
             tkState.title = e.target.value;
@@ -1337,6 +1357,56 @@ import {
         tkState.captionFill = null;
     }
 
+    /* A dropped folder (plan row P2), as on the Instagram side: one video and its caption, or images as a photo
+       post. TikTok takes its cover from the video, so an image beside a video is named as not used. */
+    let _tkDropSeq = 0;
+    function _tkDropForget() { _tkDropSeq++; tkState.drop = null; tkState.dropNote = ''; }
+    async function _tkDropFolder(reading) {
+        if (tkState.submitting) return;
+        _tkDropForget();
+        const seq = _tkDropSeq, client = tkState.client;
+        const entries = await reading;
+        if (seq !== _tkDropSeq || client !== tkState.client || tkState.submitting) return;
+        const sorted = svDropSorted(entries, 'tiktok');
+        tkState.error = sorted.error || null;
+        if (sorted.error) { _tkRenderForm(); return; }
+        if (sorted.ask === 'video') { tkState.drop = { sorted, seq }; _tkRenderForm(); return; }
+        await _tkDropApply(sorted, seq);
+    }
+    function _tkDropPick(i) {
+        const pick = tkState.drop;
+        if (!pick || tkState.submitting) return;
+        _tkDropApply(svDropPicked(pick.sorted, i, 'tiktok'), pick.seq);
+    }
+    async function _tkDropApply(sorted, seq) {
+        const client = tkState.client;
+        const text = sorted.caption ? await svDropText(sorted.caption.file) : '';
+        if (seq !== _tkDropSeq || client !== tkState.client || tkState.submitting) return;
+        if (sorted.video) {
+            tkState.mediaType = 'video';
+            // The dropped video is the source now, not a card chosen earlier (Codex on #2566).
+            const src = _tkSrc();
+            if (src.mode === 'card') { src.mode = 'files'; if (src.state === 'copying') svPostSourceClear(src); }
+            _tkHandleFile(sorted.video.file);
+        } else if (sorted.images.length) {
+            tkState.mediaType = 'photo';
+            // A caption an earlier drop filled, still unedited, leaves with the photos it came with (Codex on #2566).
+            _tkDropCaptionFill();
+            _tkClearAllPhotos();
+            _tkHandlePhotoFiles(sorted.images.map(e => e.file));
+        } else {
+            tkState.error = 'This folder has no video or image to post.';
+            _tkRenderForm(); return;
+        }
+        if (text && !tkState.title.trim()) {
+            tkState.title = text.slice(0, 2200);
+            tkState.captionFill = { name: sorted.caption.path.split('/').pop(), text: tkState.title, from: 'the folder' };
+        }
+        tkState.drop = null;
+        tkState.dropNote = svDropFoundLine(sorted, 'tiktok');
+        _tkSaveDraft(); _tkRenderForm(); _tkRenderPreview();
+    }
+
     function _tkHandleFile(file) {
         if (!file) return;
         if (tkState.submitting) return;   // a drop during an upload is not part of what is being sent
@@ -1373,6 +1443,7 @@ import {
     function _tkClearFile() {
         if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
         _tkDropCaptionFill();
+        _tkDropForget();
         tkState.file = null;
         tkState.objectUrl = null;
         tkState.fileMeta = null;
@@ -1675,6 +1746,7 @@ import {
         _tkClearAllPhotos();
         tkState.title = '';
         tkState.captionFill = null;
+        _tkDropForget();
         tkState.progress = 0;
         _tkClearDraft();
         _tkRenderForm();

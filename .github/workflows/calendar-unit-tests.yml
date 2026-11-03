@@ -604,6 +604,7 @@ jobs:
           Refused-write beacon from the built page|node --require ./test/helpers/single-file-index.js test/linear-exit-write-diagnostics-browser.js
           Production rows keep long ids inside the row|node test/prod-row-cell-overflow.js
           TikTok queue, a failed first read is not an empty queue|node test/tiktok-queue-first-read-browser.js
+          Post tab YouTube and LinkedIn ticks behind post_networks_v1 (Instagram untickable, YouTube title and Short check, the body, the queue per network; switch off is today's page)|node test/post-networks-browser.js
           LANES
       - name: Browser regression guards, three side by side (part 2 of 2)
         if: ${{ matrix.part == 2 }}
@@ -649,6 +650,7 @@ jobs:
           Instagram also to Facebook (box on by default, off for a trial, a video carousel or no Page; results apart)|node test/instagram-facebook-browser.js
           Open Post for Me beside every no-account message on the Post tab (desktop and phone; none with an account)|node test/postforme-link-browser.js
           Post tab From a card on both sides behind post_sources_v1 (copied server side, no browser upload, same key after a re-copy; switch off is today's page)|node test/post-from-card-browser.js
+          Post tab folder drop on both sides behind post_sources_v1 (video, cover and caption; pick lists; images as a carousel; one folder at a time; switch off is today's page)|node test/post-folder-drop-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
           TikTok upload steps|node test/tiktok-upload-steps-browser.js
           TikTok keeps its press key across a reload while the post's outcome is unknown (dropped on success or a 4xx; re-uploads after 20 hours under the same key)|node test/tiktok-press-key-reload-browser.js

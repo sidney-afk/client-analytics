@@ -36267,7 +36267,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
 - **Way back:** revert the PR.
 
-## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+## 671. [2026-11-03 UTC, LIVE (merged #2552 as 6dc6349; folder list lengths checked live with the frameio-list live check)] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
 
 - **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
 - **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
@@ -36422,6 +36422,17 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   Pass/fail and every wait are unchanged.
 - **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
 - **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+- **Second suite, same surface (3 Nov):** on #2563 (job 125867861223, only Post tab wording), `test/trial-reels-journey-browser.js` timed out after 30 s waiting for the client link's review page. That is the step right after "8 client link: no other version's link anywhere on the page", where the card is reopened for the client's review.
+  - It is the same client-link surface, and it fits the lead above (the switch read late, or off, when the stage drew), but here the review page never came up at all.
+  - That wait (`openReview` in the journey suite) now prints the same kind of `TRV_TRACE`, on a miss only, and then fails as before. The trace has:
+    - the mode and the status the card was set to;
+    - the fixture's switch-read count and any page errors;
+    - whether the page is a client link;
+    - the calendar's loading state, view and the card's status;
+    - the three switches (loaded, client review, trial reels);
+    - the review page's own state (there, hidden, steps, visible text).
+  - The share-link token is cut from the address.
+  - Proof: with the wait forced to miss at that step, the trace prints and the step fails exactly as before. A normal run passes and prints nothing.
 
 ## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
 
@@ -36487,7 +36498,7 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
 - **Way back:** revert the PR. Nothing calls the function.
 
-## 667. [2026-11-02 UTC, BUILT, NOT MERGED] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
+## 667. [2026-11-02 UTC, LIVE (merged #2538 as 03a45d0 on 2026-11-03; migrations applied, key in Vault only; timer runs 10:41, 11:41 and 12:41 UTC ok)] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
 
 - **Asked:** Sidney, 2 Nov (D4, relayed by the supervisor): he does not want to link accounts or click a pick list. Link automatically when it is certain; list anything unsure so he can be asked in one line.
 - **Built:**
@@ -36532,7 +36543,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
 - **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
 
-## 651. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
+## 651. [2026-11-03 UTC, LIVE 2026-11-03: merged as 7c23fce; the D6 check passed on one of the owner's own clients, Instagram run 41632986793 and TikTok run 41633117059, each scheduled, cancelled at once and read back as cancelled] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
 
 - **Asked:** plan row P1 (`docs/plans/2026-11-trial-and-posting/combined.md`), split with the supervisor into P1a (server, 650) and P1b (this, the page).
 - **Before:** a card on the Post tab gave only its cover and caption, and only on Instagram. The video had to be downloaded from Frame and dropped in, so it passed through the browser (and a phone).
@@ -36618,8 +36629,90 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 
   659's own test is unchanged and passes (40). On main the script does not exist.
 - **Target (supervisor):** `p_allactions_1793209592511`, fields letter C, `switch_for_run` on. The only test-client shares today hold one video each, so an import of 2 or more still needs a real multi-video Frame folder from Sidney. `frame_share` is an input, so the same run covers it.
-- **Live result:** filled in by the supervisor's dispatch.
+- **Change, 3 Nov (supervisor), after #2568 merged: no input is a link.** The repo is public, and a workflow_dispatch input and the step's env are printed on the run page, so a Frame share given as `frame_share` would publish its token. That input is gone; none was ever dispatched with one.
+  - It is replaced by `source_letter` (A to G). The script takes that version's own Frame link from the staff read it already does, lists it, and imports from it. The link never passes through an input, the env or the log.
+  - When every listed video is already on the card (a share of one video, held by the source version), the run shows only the refusal: the video offered under a free letter must be refused with `link_used_by_another_version` and write nothing. An import of new videos shows only with a share holding a video not yet on the card. Such a share, including Sidney's multi-video folder, reaches a spare version through the page first.
+  - New refusals before any write: `source_letter_invalid` (not A to G, a pasted link included) and `source_letter_has_no_link`.
+  - Proof: the test now has 43 checks. It covers the listed share being the source version's own link, the refusal-only run, both new refusals, and the workflow's inputs: none is named for a link, share or URL, none defaults to a link, and neither the workflow nor the script reads a share from the env. On main it fails at the first full run, because the import needs `frame_share`.
+- **Live result, V3: LIVE.** The supervisor dispatched run 41638897988 on 3 Nov. Inputs: card `p_allactions_1793209592511`, fields letter C, `switch_for_run` on, no share. The run succeeded.
+  - `fields_passed` was true.
+  - The set and the clear both answered 200. Each read back as intended: the version's own fields, its effective fields, and another version still reading the card's. `card_unchanged` was true, and each write added one `trial_version_fields_set` row.
+  - `fields_put_back` was true. The switch went on and ended off, seeding or changing 0 versions.
+  - The thumbnail source was the site placeholder, because the card has no thumbnail of its own.
+- **Live result, V2: not yet.** The import was skipped (`no_frame_share`), so `import_passed` was null. It will run on this check's next dispatch, using `source_letter`.
+- **Live result, V2, run 41640666721 (supervisor, 3 Nov): refused safely.** Inputs: card `p_allactions_1793209592511`, `source_letter` A. The run refused with `share_list_failed` (404, `link_not_found`). It wrote nothing, and the switch went on and ended off with 0 versions changed. A read-only check found that every version on that card holds a setup placeholder, not a real share. The same is true of every test-client trial card not linked to Production. Every real share on the test client sits on a card linked to Production, which the check refuses (and must). So V2's import needs a real share placed on a spare version of an unlinked test-client card first, through the page.
+  - The summary now says what the source version holds, in words that name no link: `source_link_shape` (f.io placeholder, f.io short link, share, share with one file, project file, other) and `source_listable`. The test has 45 checks.
 - **Way back:** delete the workflow. It runs only by hand.
+
+## 683. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper fast-boot's "first video asked sooner" check compared two page loads' clocks, and could not see the warm-up removed (session Reviewguard, test only)
+
+- **Seen:** `test/kasper-fast-boot-browser.js` failed on #2545 (job 125784853921), which does not touch Kasper's tab: "the first card's video address is asked for sooner with the flag on (2185 ms vs 2252 ms after the list was asked for)". Session Bootrace had already moved this check on 2 Nov (#2502: 2153 vs 2238 ms).
+- **Why the old check was wrong:**
+  - **It compared two page loads.** It took the time the test server saw the first `frameio-view` request in a flag-on visit and in a separate flag-off visit, and asked for a 300 ms gap. Measured in the page itself, the flag-on request starts about 20 ms after the list lands (+1527 ms), while the server logged it 90 ms later (+1611 to +1621 ms). On a loaded runner that lag grew until the two visits' numbers met.
+  - **It could not see the warm-up removed.** With the warm-up call in 330 (`_kasperWarmFirstVideo` in the list paint) taken out, a flag-on visit still asked at about +1620 ms against about +2260 ms flag off, because the player's switch is read at page start. So the check passed on a broken build.
+- **The feature's claim** (its own comment in 330): the first card's video address is asked for "while the list is still being drawn (not when the stage mounts)".
+- **Fix (test only):** the check now records, inside the page's own `fetch` call for the first `frameio-view` request, whether the review page and its player were already on screen. That is an order of events in one page, with no clocks.
+  - Flag on: neither is on screen.
+  - Flag off (control): both are, because the player asks from inside its own mount.
+  - The cross-visit comparison is removed. The other checks are unchanged.
+  - Flag on: `{"stageOnScreen":false,"player":false}`. Flag off: `{"stageOnScreen":true,"player":true}`. All 53 checks pass in 124 s.
+  - With the warm-up call removed in a scratch copy, the new check fails with `{"stageOnScreen":true,"player":true}`, and every other check passes.
+  - Under load (CPU slowed 4 times, 4 copies at once), 4 of 4 runs pass all 53 checks.
+- **Not touched:** the "next card's video is ready sooner" check at the end of the suite still compares two page loads (on < off - 400 ms). It has not failed in CI yet.
+
+## 654. [2026-11-03 UTC, BUILT, NOT MERGED] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
+
+- **Asked:** plan row P2 (`docs/plans/2026-11-trial-and-posting/combined.md`; `posting.md` section 2, "From files"). The sorting (P2a, 648) merged first; this wires it to the drop zones.
+- **Before:** a dropped folder did nothing useful. The browser handed the page a folder as an empty file, so the video, the cover and the caption each had to be dropped or typed one by one.
+- **Now (299 and 300), for a client listed in `post_sources_v1`:**
+  - a folder dropped on a side's video box (or on Instagram's carousel box, or TikTok's photo box) is read two levels deep and sorted by `svSortDroppedFiles`;
+  - one video, one image and one text file fill the video, the Instagram cover and the caption. The caption fills only an empty box, says "Caption filled from the folder: caption.txt", and has **Undo**. It is read before the video is set, so a Calendar match on the video's file name finds the box filled and leaves it;
+  - several videos: a pick list in natural name order; nothing is chosen for the person. Instagram then asks for the cover when several images remain and none is named `thumb`, `cover` or `thumbnail`;
+  - images and no video: a carousel (Instagram) or a photo post (TikTok), in name order, replacing what was there;
+  - one quiet line says what was used and names what was not: "Video, cover and caption found. Ignored 1 file: .prproj." TikTok adds that it takes its cover from the video, so the image is not used;
+  - two folders at once: "Drop one folder at a time." A folder with nothing to post says so;
+  - a newer drop, a client change, Remove or a finished post retires a folder still being read;
+  - a single dropped file, and any drop with the switch off, do exactly what they did before. Phones have no folder drop; "From a card" is the phone path.
+- **Codex on #2566, both fixed with a case:**
+  - a folder's video dropped after "From a card" was chosen (then Carousel or Photo) left the card as the source, so the post would have used the card's copy. The folder's video now sets the source back to "From files";
+  - a second image folder kept the first folder's unedited caption. That caption now leaves with the images it came with; typed text still stays.
+  `_igLeaveClient` retires a folder without calling a new helper, because the assurance suites lift it on its own.
+- **Proof:** `test/post-folder-drop-browser.js` (new, isolated browser, 55 checks) drops folders built in the page in the shape browsers hand over (entries read in batches):
+  - **main:** `TimeoutError … waiting for locator('#igDropNote')`;
+  - **this branch:** `post-folder-drop-browser: 55 checks passed`.
+  The Post tab suites still pass: post-from-card (51), post-tab (58), instagram-carousel (51), instagram-cover (38), instagram-facebook (38), instagram-platform-switch (59), tiktok-upload (35), tiktok-upload-steps (14), tiktok-press-key-reload (21), tiktok-carousel-browser-journey, tiktok-carousel-transport, post-folder-sort (13).
+- **Live check:** drop a folder on the test client's Post tab once the switch lists it: the form fills. No post is made.
+- **Way back:** clear `post_sources_v1`, or revert the PR.
+
+## 655. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's Instagram side posts to YouTube and LinkedIn too, behind post_networks_v1 (plan row P3, page half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The server half merged as 652 (#2557); this is the page half, after P1b.
+- **Before:** the Instagram side could add only Facebook. The server already took YouTube and LinkedIn (652), and nothing on the page asked for them.
+- **Now (188 reads the switch; 299 draws the form; the styles are in 300), for a client listed in `post_networks_v1`:**
+  - the Facebook card becomes a **Post to** card: Instagram, Facebook (as before), YouTube and LinkedIn, each a toggle with its note. YouTube and LinkedIn start unticked;
+  - Instagram can be unticked for a Reel. A carousel and a trial reel stay Instagram only: YouTube and LinkedIn say why and cannot be ticked. A client with no Instagram account has Instagram unticked and fixed, and can still post to the others;
+  - **YouTube:**
+    - the title is the caption's first line (no `<` or `>`) until typed into, 100 characters at most;
+    - **Short** (the default) or **Regular video**;
+    - a Short is refused on the page when the video is longer than 3 minutes or not vertical, from the dropped file's metadata or the card copy's facts (the server checks again);
+    - Public, and "Made for kids" is read from the client's profile (`youtube_made_for_kids`, F3). The page never sends it;
+  - **LinkedIn:** the account connected in Post for Me;
+  - **no account:** YouTube's note says it links itself within the hour; LinkedIn's says to ask Sidney to link it (it has no handle to match). Both have **Open Post for Me**;
+  - **the create body:**
+    - `instagram: false` (and no Instagram account) when Instagram is unticked;
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }` and `linkedin: { accountId }` with the profile's ids, which the server checks again against the profile and Post for Me;
+    - no cover when neither Instagram nor YouTube is ticked;
+    - the press key changes with the networks;
+  - the button reads "Post to Instagram", or the one network's name, or "Post to 3 networks"; the notice names them;
+  - **queue:** each network's own result and link, from the server's `network` and `networks`. A row is under Failed when any network failed. A row whose first network is YouTube says so.
+- **Also fixed:** typing a caption after picking a card (P1b) switched Post off until the next redraw, because the quick check counted only a dropped file as the video. It now counts the card's copy, as the full check does.
+- **Proof:** `test/post-networks-browser.js` (new, isolated browser, 56 checks):
+  - **main:** `TimeoutError` waiting for `#igNetworksCard`;
+  - **this branch:** `post-networks-browser: 56 checks passed`.
+  The Instagram and Facebook suites pass unchanged: instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-cover-client-switch (8), instagram-carousel (51), post-from-card (51), post-tab (58).
+- **Live check (D6):** on one of the owner's two clients with YouTube and LinkedIn connected: schedule 7+ days ahead, cancel at once, and read back that it is gone. It waits for those accounts to be connected; then 652 can be marked LIVE.
+- **Way back:** clear `post_networks_v1`, or revert the PR.
+- **Ledger number:** 655 was held for P4; the supervisor gave P4 684 instead.
 
 ## 661. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V4: the review page shows each version's own thumbnail and caption, one Approve covers its parts, and a change picks its part (session Vbuild)
 

@@ -1641,11 +1641,27 @@
       "ci": "representative"
     },
     {
+      "file": "post-folder-drop-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Drops folders built in the page on the Post tab behind post_sources_v1, both sides: the export folder fills video, cover and caption (typed text kept, Undo), several videos and several images ask for a pick, images become a carousel or photo post, two folders are refused, a single file and the switch off are as before, and 390 wide.",
+      "reproduce": "node test/post-folder-drop-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "postforme-link-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Open Post for Me link beside every no-account message on the Post tab (TikTok and Instagram account lines and refusals, the Facebook box's reason), new tab and noopener, on desktop and on a phone, and no link when every account is on file.",
       "reproduce": "node test/postforme-link-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "post-networks-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Post tab's YouTube and LinkedIn ticks behind post_networks_v1: the Post to card, Instagram untickable, YouTube's title from the caption's first line, Short by default and refused for a landscape card, made for kids from the profile, the create body's networks and ids, carousel and trial staying Instagram only, the no-account messages, the queue per network, the switch off, and 390 wide.",
+      "reproduce": "node test/post-networks-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

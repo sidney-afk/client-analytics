@@ -667,6 +667,11 @@ Switch values below are the live values read on 2026-10-28.
   - The card's caption fills an empty caption box, with **Undo**. On Instagram the card's thumbnail becomes the cover; **Remove** it to pick another.
   - If the copy fails, the reason shows with **Try again**. "Download it from Frame and drop it here" always works instead.
   - A copy older than 20 hours is made again when you press Post.
+- **Drop a folder (same switch; both sides, on a computer):** drop the whole export folder on the video box.
+  - One video, one image and one text file become the video, the Instagram cover and the caption. The caption fills only an empty caption box, with **Undo**.
+  - Several videos: a list asks which one. Several images and no image named `thumb`, `cover` or `thumbnail`: Instagram asks which is the cover. TikTok takes its cover from the video, so it says the image is not used.
+  - Images and no video become a carousel (Instagram) or a photo post (TikTok), in name order.
+  - Hidden files are skipped; anything else is named in one line ("Ignored 1 file: .prproj"). One folder at a time.
 
 **TikTok side**
 - **Media: Video or Photo carousel.**
@@ -702,6 +707,11 @@ Switch values below are the live values read on 2026-10-28.
   - The switch has no runtime switch of its own and is there for everyone who uses the tab.
   - A carousel can never be a trial.
 - **Also post to Facebook:** shown once a client is picked. Ticked by default when the client's Facebook Page is on file; the same post then also goes to the Page (a Reel as a Facebook Reel; a carousel of photos as one Facebook post). Untick it for Instagram only. It is off, with the reason, for a trial reel, a carousel with a video, or a client with no Page. No runtime switch: the server allow-list above still decides who can post.
+- **Post to (behind the switch `post_networks_v1`; a single Reel):** the Facebook box becomes a **Post to** card with Instagram, Facebook, YouTube and LinkedIn. One press makes one post on every ticked network, and each network's result shows on its own in the queue.
+  - Instagram can be unticked, for a post that goes only to the others. A carousel and a trial reel stay Instagram only.
+  - **YouTube:** the title is the caption's first line until you type one (100 characters at most). **Short** (the default: vertical and 3 minutes or less; YouTube itself puts it on the Shorts shelf) or **Regular video**. Always Public. "Made for kids" comes from the client's profile (Kasper > Clients > Publishing), never from this form.
+  - **LinkedIn:** posts as whichever account (a page or a person) is connected in Post for Me.
+  - A network with no account says so, with **Open Post for Me**. A YouTube account links itself within the hour; a LinkedIn account needs Sidney to link it on the client's profile.
 - **Scheduling:** works the same way as TikTok (date, hour, minutes in 5-minute steps, AM/PM, timezone).
 - **Button:** "Post to Instagram" or "Schedule on Instagram".
   - If SyncView could not confirm the post went through, press the button again. It will not post twice.
@@ -969,9 +979,10 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `review_stage_kasper_layout2` | Kasper's second layout (wide screens) | 3 staff members |
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
+| `post_networks_v1` | Post tab, Instagram side: YouTube and LinkedIn ticks, and Instagram can be unticked (P3) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card; on the review page (V4), each version's thumbnail and caption, one Approve covering its parts, and a change that picks its part | Off until set; the test client first, by its slug in `{"clients": [...]}` |
-| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

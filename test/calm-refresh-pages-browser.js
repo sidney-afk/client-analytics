@@ -116,6 +116,11 @@ async function production() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
     await U.installProductionInit(page);
     await U.openProduction(page, server.address().port, '/?prod=1', { allowSkeleton: true });
+    // OPEN_REPAIRS 680: wait for the real list. On a loaded runner the loading
+    // skeleton (173 nodes, no .prod-listwrap) stayed up 8 to 14 s; two skeleton
+    // draws in a row are the same, so the settle loop below took it for a
+    // settled list and the scroll read came back -1.
+    await page.waitForSelector('#prodRoot .prod-listwrap .prod-row', { timeout: 60000 });
     await page.waitForTimeout(2500);
     const r = await page.evaluate(async () => {
       // Let the page settle first (a slow machine is still loading): draw
@@ -126,7 +131,7 @@ async function production() {
         _prodRender();
         await new Promise(res => setTimeout(res, 400));
         const k = document.getElementById('prodRoot').__prodKey;
-        if (k && k === prevKey) break;
+        if (k && k === prevKey && document.querySelector('#prodRoot .prod-listwrap .prod-row')) break;
         if (i === 39 && k && prevKey) { let d = 0; while (k[d] === prevKey[d]) d++; settleDiff = 'at ' + d + ': ' + prevKey.slice(Math.max(0, d - 60), d + 60) + ' => ' + k.slice(Math.max(0, d - 60), d + 60); }
         prevKey = k;
       }
@@ -151,10 +156,12 @@ async function production() {
       }
       return {
         total, kept, scroll, focusKept,
+        rows: document.querySelectorAll('#prodRoot .prod-listwrap .prod-row').length,
+        skeleton: !!document.querySelector('#prodRoot .prod-loading-skeleton'),
         settleDiff,
       };
     });
-    ok(r.total > 100, 'Production has a real list (' + r.total + ' nodes)');
+    ok(r.total > 100 && r.rows > 0 && !r.skeleton, 'Production has a real list, not the loading skeleton (' + r.total + ' nodes, ' + r.rows + ' rows, skeleton ' + r.skeleton + ')');
     ok(r.kept === r.total, 'Production: an unchanged refresh keeps every node (' + r.kept + ' of ' + r.total + ') ' + r.settleDiff);
     ok(r.scroll === 200, 'Production: the list stays where it was scrolled (' + r.scroll + ')');
     ok(r.focusKept, 'Production: the focused button stays focused');

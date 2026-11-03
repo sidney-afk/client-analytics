@@ -36423,3 +36423,13 @@ The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-
 - **Why it can happen:** none of the suite's 13 bare waits names its own timeout; they all inherit `page.setDefaultTimeout(5000)`. So quiz-refresh-actions was not shorter than its siblings. Every wait in a 4800-check run had the same 5 s, and any one could run out under load.
 - **Now (test only, `docs/syncview-design/tests/kasper-admin-expanded-browser.js`):** the shared default is 15 s. A longer wait only costs time when something is actually missing, so a real failure still fails, just later. No assertion changed, and nothing in the app changed.
 - **Proof (local, clean runs):** at 430, 103 s before and 103 s after, 4980 checks and 0 failures each time. At 390 after the change: 102 s, 4980 checks, 0 failures.
+
+## 680. [2026-11-03 UTC, BUILT, NOT MERGED] The calm-refresh suite read Production's scroll while the loading skeleton was still up (session Reviewguard, test only)
+
+- **Seen:** `browser-guards (1)` on #2547 (job 125638320835) failed in `test/calm-refresh-pages-browser.js` with "CALM_PAGES Production: the list stays where it was scrolled (-1)". #2547 changes only another suite's wait, and the same suite passes on main and locally.
+- **Cause (reproduced):** with the CPU slowed 4 to 8 times and four to six runs in parallel, 3 of 6 runs fail the same way. In every miss `#prodRoot` still holds the loading skeleton: 173 elements, no `.prod-listwrap`. The real list arrives 8 to 14 s later, so the app is fine. The suite waited a fixed 2.5 s, then drew until two draws in a row matched. Two skeleton draws match, so it took the skeleton for a settled list, and the scroll read found no list (-1). Its "has a real list" check counted nodes (more than 100), which the skeleton passes too.
+- **Fix (test only):**
+  - wait up to 60 s for a real row in `.prod-listwrap` before measuring;
+  - the settle loop also needs a real row;
+  - the "real list" check now needs at least one row and no skeleton, and prints the row count and the skeleton flag on a miss.
+- **Proof:** 12 of 12 runs pass with the CPU slowed 8 times, 6 at once (main: 3 of 6 fail). An unslowed run takes 10 s, main 9 s. All 16 checks pass.

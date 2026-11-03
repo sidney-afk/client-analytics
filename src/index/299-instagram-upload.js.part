@@ -61,6 +61,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         // A dropped folder (post_sources_v1): its pick list while it needs a person ({ sorted, seq }), and its line.
         drop: null,
         dropNote: '',
+        dropSeq: 0,
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '', remoteUrl: '' },
         // "From a card" (post_sources_v1): the card whose video post-source copied (svPostSourceNew). remoteUrl above
@@ -517,7 +518,9 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
         igState.titleFromCard = '';
         igState.captionFill = null;
-        _igDropForget();
+        // A folder still being read, or waiting on a pick, is retired (as _igDropForget, written out: this function
+        // is lifted on its own by the assurance suites).
+        igState.dropSeq = (igState.dropSeq || 0) + 1; igState.drop = null; igState.dropNote = '';
         if (igState.source) svPostSourceClear(igState.source);
     }
     async function _igUseCalendarCard(cardId) {
@@ -1008,14 +1011,13 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
        client change, Remove or a finished post retires one still being read (the sequence number). The caption file
        fills only an EMPTY caption box, with Undo; it is read before the video is set, so a Calendar match on the
        video's file name finds the box filled and leaves it. */
-    let _igDropSeq = 0;
-    function _igDropForget() { _igDropSeq++; igState.drop = null; igState.dropNote = ''; }
+    function _igDropForget() { igState.dropSeq = (igState.dropSeq || 0) + 1; igState.drop = null; igState.dropNote = ''; }
     async function _igDropFolder(reading) {
         if (igState.submitting) return;
         _igDropForget();
-        const seq = _igDropSeq, client = igState.client;
+        const seq = igState.dropSeq, client = igState.client;
         const entries = await reading;
-        if (seq !== _igDropSeq || client !== igState.client || igState.submitting) return;
+        if (seq !== igState.dropSeq || client !== igState.client || igState.submitting) return;
         const sorted = svDropSorted(entries, 'instagram');
         igState.error = sorted.error || null;
         if (sorted.error) { _igRenderForm(); return; }
@@ -1037,12 +1039,17 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     async function _igDropApply(sorted, seq) {
         const client = igState.client;
         const text = sorted.caption ? await svDropText(sorted.caption.file) : '';
-        if (seq !== _igDropSeq || client !== igState.client || igState.submitting) return;
+        if (seq !== igState.dropSeq || client !== igState.client || igState.submitting) return;
         if (sorted.video) {
             if (igState.kind !== 'reel') _igSetKind('reel');
+            // The dropped video is the source now, not a card chosen earlier (Codex on #2566).
+            const src = _igSrc();
+            if (src.mode === 'card') { src.mode = 'files'; if (src.state === 'copying') svPostSourceClear(src); }
             _igHandleFile(sorted.video.file);
         } else if (sorted.images.length >= IG_CAROUSEL_MIN) {
             if (igState.kind !== 'carousel') _igSetKind('carousel');
+            // A caption an earlier drop filled, still unedited, leaves with the images it came with (Codex on #2566).
+            _igDropCaptionFill();
             _igClearCarousel();
             _igHandleCarouselFiles(sorted.images.map(e => e.file));
         } else {

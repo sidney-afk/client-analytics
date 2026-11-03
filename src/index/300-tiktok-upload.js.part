@@ -1378,9 +1378,14 @@ import {
         if (seq !== _tkDropSeq || client !== tkState.client || tkState.submitting) return;
         if (sorted.video) {
             tkState.mediaType = 'video';
+            // The dropped video is the source now, not a card chosen earlier (Codex on #2566).
+            const src = _tkSrc();
+            if (src.mode === 'card') { src.mode = 'files'; if (src.state === 'copying') svPostSourceClear(src); }
             _tkHandleFile(sorted.video.file);
         } else if (sorted.images.length) {
             tkState.mediaType = 'photo';
+            // A caption an earlier drop filled, still unedited, leaves with the photos it came with (Codex on #2566).
+            _tkDropCaptionFill();
             _tkClearAllPhotos();
             _tkHandlePhotoFiles(sorted.images.map(e => e.file));
         } else {

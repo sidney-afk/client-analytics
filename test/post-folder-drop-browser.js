@@ -13,7 +13,9 @@
 //   6. TikTok: the video and caption fill; the image is named as not used (TikTok takes its cover from the video);
 //      images and no video become a photo post;
 //   7. a single dropped file still does what it did; with the switch off a folder does nothing new;
-//   8. at 390 wide the pick list fits with no sideways scroll.
+//   8. at 390 wide the pick list fits with no sideways scroll;
+//   9. (Codex on #2566) a folder's video replaces a card chosen before (the source goes back to "From files"), and a
+//      second image folder's caption replaces the first one's while it is unedited.
 // Nothing is posted: no Post button is pressed.
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -197,6 +199,52 @@ const EXPORT = { 'Video 15 export': { files: {
       ok(await page.isChecked('input[name="tkMediaType"][value="photo"]'), 'TikTok: images and no video become a photo post');
       assert.equal(await textOf(page, '#tkDropNote'), '2 images found.'); checks++;
       ok(!errors.length, 'TikTok: no page errors (' + errors.join(' | ') + ')');
+      await context.close();
+    }
+    // ---- 6b. (Codex on #2566) a folder's video replaces a card chosen earlier; a second image folder's caption
+    //      replaces the first one's while it is unedited
+    {
+      const { context, page, errors } = await newPage(browser);
+      await openInstagram(page, base);
+      await page.waitForSelector('input[name="igSrcMode"]');
+      await page.click('label:has(input[name="igSrcMode"][value="card"])');
+      await page.waitForFunction(() => document.querySelector('input[name="igSrcMode"][value="card"]')?.checked);
+      await page.click('label:has(input[name="igKind"][value="carousel"])');
+      await page.waitForSelector('#igCarDrop');
+      await dropTree(page, '#igCarDrop', EXPORT);
+      await page.waitForSelector('#igDropNote');
+      ok(await page.isChecked('input[name="igSrcMode"][value="files"]'), 'Instagram: a dropped folder\'s video switches "From a card" back to "From files"');
+      assert.equal(await textOf(page, '#igFormCol .tk-file-card .tk-file-name'), 'video_15_final.mp4'); checks++;
+      await page.click('#igRemoveFile');
+      await page.fill('#igTitle', '');
+      await dropTree(page, '#igDrop', { 'Set A': { files: { 'a1.png': { type: 'image/png' }, 'a2.png': { type: 'image/png' }, 'caption.txt': { text: 'Caption A' } } } });
+      await page.waitForFunction(() => document.getElementById('igTitle')?.value === 'Caption A');
+      await dropTree(page, '#igCarDrop', { 'Set B': { files: { 'b1.png': { type: 'image/png' }, 'b2.png': { type: 'image/png' }, 'caption.txt': { text: 'Caption B' } } } });
+      await page.waitForFunction(() => document.getElementById('igTitle')?.value === 'Caption B');
+      ok(true, 'Instagram: a second image folder\'s caption replaces the first one\'s unedited caption');
+      ok(!errors.length, 'Instagram re-drop: no page errors (' + errors.join(' | ') + ')');
+      await context.close();
+    }
+    {
+      const { context, page, errors } = await newPage(browser);
+      await openTikTok(page, base);
+      await page.waitForSelector('input[name="tkSrcMode"]');
+      await page.click('label:has(input[name="tkSrcMode"][value="card"])');
+      await page.waitForFunction(() => document.querySelector('input[name="tkSrcMode"][value="card"]')?.checked);
+      await page.click('label:has(input[name="tkMediaType"][value="photo"])');
+      await page.waitForSelector('#tkPhotoDrop');
+      await dropTree(page, '#tkPhotoDrop', EXPORT);
+      await page.waitForSelector('#tkDropNote');
+      assert.equal(await textOf(page, '#tkFormCol .tk-file-card .tk-file-name'), 'video_15_final.mp4'); checks++;
+      ok(await page.isChecked('input[name="tkSrcMode"][value="files"]'), 'TikTok: a dropped folder\'s video switches "From a card" back to "From files"');
+      await page.click('#tkFormCol .tk-file-card button:has-text("Remove")');
+      await page.fill('#tkTitle', '');
+      await dropTree(page, '#tkDrop', { 'Set A': { files: { 'a1.jpg': { type: 'image/jpeg' }, 'caption.txt': { text: 'Caption A' } } } });
+      await page.waitForFunction(() => document.getElementById('tkTitle')?.value === 'Caption A');
+      await dropTree(page, '#tkPhotoDrop', { 'Set B': { files: { 'b1.jpg': { type: 'image/jpeg' }, 'caption.txt': { text: 'Caption B' } } } });
+      await page.waitForFunction(() => document.getElementById('tkTitle')?.value === 'Caption B');
+      ok(true, 'TikTok: a second photo folder\'s caption replaces the first one\'s unedited caption');
+      ok(!errors.length, 'TikTok re-drop: no page errors (' + errors.join(' | ') + ')');
       await context.close();
     }
     // ---- 7. a single file still works; switch off: a folder does nothing new

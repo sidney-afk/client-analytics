@@ -2,7 +2,7 @@ import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHt
 import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { _calApplyAutoStatus, svCalReviewApproveKeeping, svCalResolveVersionTweaks } from './190-calendar-approval-comments.js';
-import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
+import { _calCommentsFor, _calCommentsForView, _calPendingEdits, _calSaveInFlight, _calSaveTimers, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
@@ -11,7 +11,7 @@ import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiReviewEvent, _write
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewFieldsOn, svTrialReviewPartPickHtml, svTrialReviewPartComp, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperReloadReview, _kasperState } from './305-core-kasper-shared.js';
 import { _sxrKasperState } from './290-samples-writes-review.js';
@@ -1212,7 +1212,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
 
     /* ---------- state ---------- */
-    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '', trialLetter: '' }; }
+    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '', trialLetter: '', trialPart: '' }; }
     /* The client link is often the first page in the tab's history, so Back leaves SyncView: words typed in the change
        box and not sent ask first (Trialeyes E20, 2026-10-29). Staff pages keep their own drafts as before. */
     window.addEventListener('beforeunload', e => {
@@ -2960,7 +2960,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : R.mode === 'kasper' ? (active ? 'Message the team' : 'Message the editor') : 'Message your team';
         const why = nt.aat ? 'Approved once the editor fixes it' : reopenNote ? 'Your team will reopen it' : x && x.st === 'ok' ? 'This takes back the approval' : R.mode === 'client' ? 'Your team will edit it' : 'The editor will change it';
         const chip = chg ? '<span class="tochip">' + _rsDot(k) + (nt.where === 'chat' ? 'Change to: ' + RS_PART[k] + '<button class="x" type="button" id="chipX" aria-label="Make it a plain note" title="Make it a plain note">' + RI.x + '</button>' : (nt.aat ? 'Approve the ' + n + ' after tweaks' : 'Change to the ' + n)) + '</span>' : '';
-        const top = chg ? '<div class="cmp-top">' + chip + (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + why + '</span>') + (R.cp ? '</span>' : '') + '</div>' : '';
+        // V4: a trial card's change on a version picks its part (Video, Thumbnail, Caption) under the chip (194).
+        const tparts = chg && k === 'video' && !nt.aat && !reopenNote ? svTrialReviewPartPickHtml(m, R.mode, nt.trialLetter, nt.trialPart) : '';
+        const top = chg ? '<div class="cmp-top">' + chip + (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + why + '</span>') + (R.cp ? '</span>' : '') + '</div>' + tparts : '';
         const seg = R.mode === 'smm' ? (chg
             ? '<div class="seg" role="group" aria-label="Who can see the change request"><button type="button" class="on" aria-pressed="true" disabled>' + RI.lock + 'Team only</button><button type="button" disabled title="Change requests always stay with the team">' + RI.eye + 'Client can see</button></div>'
             : '<div class="seg" role="group" aria-label="Who can see the note"><button type="button" data-vis="team" class="' + (nt.vis === 'team' ? 'on' : '') + '" aria-pressed="' + (nt.vis === 'team') + '">' + RI.lock + 'Team only</button><button type="button" data-vis="client" class="' + (nt.vis === 'client' ? 'on' : '') + '" aria-pressed="' + (nt.vis === 'client') + '">' + RI.eye + 'Client can see</button></div>') : '';
@@ -2991,6 +2993,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const chips = keys.length && !(!k && nt.pick && keys.length > 1) ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
             + (k ? (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>') + (R.cp ? '</span>' : '') : '') + '</div>' : '';
         const chgLabel = reopenNote ? 'Send to your team' : 'Ask for a change';
+        const tparts = k === 'video' && !reopenNote ? svTrialReviewPartPickHtml(m, R.mode, nt.trialLetter, nt.trialPart) : '';
         /* Owner's ask (2026-11-01, session Linkpolish): "Ask for a change" is clickable as soon as there are words; with no
            part picked it asks "What should change?" right here in the panel (one part: it sends at once), and a calm line
            says a comment is only a message. */
@@ -3006,7 +3009,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const re = R.cp && !k && nt.re ? nt.re : null;
         const reLine = re ? '<div class="cl-re" id="reLine">Replying to <b>' + _re(re.who) + '</b><button class="x" type="button" id="reX" aria-label="Not a reply" title="Not a reply">' + RI.x + '</button></div>' : '';
         const ph2 = re ? 'Reply to ' + re.who : ph;
-        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + reLine + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph2) + '" aria-label="' + _re(ph2) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
+        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + tparts + reLine + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph2) + '" aria-label="' + _re(ph2) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
     }
     /* POLISH, ROUND 3: THE CLIENT'S NOTES BADGES (review_client_polish; the staff side's round 8, session Beacon). What the
        client has read is this browser's own mark (syncview_notes_seen_v1, 180: a last-seen time per post, the one the
@@ -3335,6 +3338,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         S.note.part = key; S.note.where = 'chat'; S.note.aat = false; S.note.pick = false;
         S.note.was = px ? px.st : '';
         S.note.trialLetter = key === 'video' ? svTrialReviewLetter(pm, R.mode) : '';
+        S.note.trialPart = '';
     }
     /* "Ask for a change" (session Linkpolish, 2026-11-01). A part picked, or the stage's own change box: it sends as before.
        In the client's box with no part picked: one part to change sends at once; more open "What should change?" in the
@@ -3365,6 +3369,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         root.querySelectorAll('[data-vis]').forEach(b => b.addEventListener('click', () => { S.note.vis = b.dataset.vis; _rsRender({ force: true }); _rsFocusTa(); }));
         const cx = q('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = q('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
+        root.querySelectorAll('[data-trv-part]').forEach(b => b.addEventListener('click', () => { R.S.note.trialPart = b.dataset.trvPart; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); }));
         const nb = q('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
         const rx = q('reX'); if (rx) rx.addEventListener('click', () => { S.note.re = null; _rsRender({ force: true }); _rsFocusTa(); });
         root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { _rsClientSetPart(b.dataset.pc); _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
@@ -3546,6 +3551,27 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsRender({ force: true });
         _rsWatch(m, comp, RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), R.mode === 'client' || R.cp ? 'ok' : '');
         _rsAdvance(m, comp);
+        if (comp === 'video' && svTrialReviewFieldsOn(fresh)) _rsTrialCoverParts(m.id, how);
+    }
+    /* V4 (plan combined.md row V4): one Approve on a version covers its parts. Once the function says this reviewer's stage
+       is done and today's approve on the video has gone, the card's thumbnail and caption parts still waiting for this
+       reviewer are approved the same way, one after the other, each exactly once (a part with a change asked, or already
+       answered, is left as it is). Only with the switch on; a card without versions never comes here. */
+    function _rsTrialCoverParts(id, how) {
+        const S0 = R.S, t0 = Date.now(), todo = ['graphic', 'caption'];
+        // The card takes one save at a time: a part's approve sent while the one before is still on its way is put aside
+        // ("Not saved yet: Thumbnail Approved"). So each waits for the card's save, its timer and its pending edits too.
+        const cardBusy = () => R.mode !== 'kasper' && !!(_calSaveInFlight[id] || _calSaveTimers[id] || (_calPendingEdits[id] && Object.keys(_calPendingEdits[id]).length));
+        const go = () => {
+            if (R.S !== S0 || !todo.length) return;
+            const cur = _rsModelById(id);
+            if (!cur) return;
+            if ((['video'].concat(todo).some(k => _rsSaving(cur, k)) || cardBusy()) && Date.now() - t0 < 20000) { setTimeout(go, 100); return; }
+            const k = todo.shift(), x = cur.parts.find(p => p.key === k);
+            if (x && x.st === 'wait' && !R.S.acted.has(id + '|' + k)) _rsApprove(cur, k, how);
+            setTimeout(go, 0);
+        };
+        setTimeout(go, 0);
     }
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
@@ -3571,17 +3597,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 };
                 go();
             };
-            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter, settle);
-            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true, keepStatus: after !== 'tweaks' }));
+            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE, opts.trialLetter, settle, opts.trialPart);
+            /* V4: a change on a version's thumbnail or caption goes as today's change request on the card's graphic or
+               caption part, so it reaches the designer or the caption's writer, named "Video C, thumbnail: ...". That part
+               keeps its status (the version holds the change); the video part moves as for a video change. A card with no
+               such part open to this reviewer takes it on the video, still naming the part. */
+            const pc = svTrialReviewFieldsOn(m) && text !== RS_FRAME_NOTE ? svTrialReviewPartComp(opts.trialPart) : 'video';
+            const onPart = pc !== 'video' && m.parts.some(p => p.key === pc && (p.st === 'wait' || p.st === 'chg')) ? pc : 'video';
+            _rsSendChange(m, onPart, named, Object.assign({}, opts, { trial: true, keepStatus: onPart !== 'video' || after !== 'tweaks' }));
             // The SMM's and Kasper's other versions go on to the next reviewer now, through today's stage approve, once the
-            // change's own save on the part has landed (the save path takes one write per part at a time).
-            if (after === 'move') {
+            // change's own save on the part has landed (the save path takes one write per part at a time). A change sent on
+            // another part with nothing left waiting moves the video part to Tweaks Needed the same way.
+            if (after === 'move' || (after === 'tweaks' && onPart !== 'video')) {
                 const S0 = R.S, t0 = Date.now();
                 const go = () => {
                     if (R.S !== S0) return;
                     const cur = _rsModelById(m.id) || m;
-                    if (_rsSaving(cur, 'video') && Date.now() - t0 < 20000) { setTimeout(go, 100); return; }
-                    _rsApprove(cur, 'video', R.mode === 'smm' ? 'kasper' : '', true);
+                    if ((_rsSaving(cur, 'video') || _rsSaving(cur, onPart)) && Date.now() - t0 < 20000) { setTimeout(go, 100); return; }
+                    if (after === 'move') _rsApprove(cur, 'video', R.mode === 'smm' ? 'kasper' : '', true);
+                    else _rsTrialToTweaks(cur);
                 };
                 setTimeout(go, 0);
             }
@@ -3638,7 +3672,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!sk) return;
         try {
             const all = _rsCpQRead();
-            const items = (q || []).map(n => ({ body: n.body, at: n.created_at, letter: n.letter || '' }));
+            const items = (q || []).map(n => ({ body: n.body, at: n.created_at, letter: n.letter || '', part: n.part || '' }));
             if (items.length) all[key] = items; else delete all[key];
             if (Object.keys(all).length) localStorage.setItem(sk, JSON.stringify(all)); else localStorage.removeItem(sk);
         } catch (e) {}
@@ -3664,7 +3698,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (st === 'sending' && cur[letter] === 'sent') return;
         if (st) cur[letter] = st; else if (cur[letter] === 'sending') delete cur[letter];
     }
-    function _rsCpQueueChange(m, k, text, where, letter) {
+    function _rsCpQueueChange(m, k, text, where, letter, part) {
         const S = R.S, key = m.id + '|' + k;
         // A trial card's change closes the box once sent, so the next version shows its own Approve and "Not this one";
         // a small "Change sent for Video C" says it went (Trialtest, 2026-10-29: the open box's Cancel read like taking
@@ -3677,7 +3711,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         } else S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
         const q = S.chgQ[key] || (S.chgQ[key] = []);
         // A trial card's change keeps the version it was asked on: it may leave after a look at another one.
-        q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString(), letter: letter || '' });
+        q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString(), letter: letter || '', part: part || '' });
         _rsCpQSave(m.id + '|' + k, q);
         if (!q.busy) _rsCpDrain(m, k);
         _rsPersistCur();
@@ -3756,7 +3790,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             inLetter = nx.letter || '';
             _rsCpQSave(key, q);
             delete S.cpBack[key];
-            _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '' });
+            _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '', trialPart: nx.part || '' });
             // The save path can decline before it starts (the part moved on meanwhile): the words go back, never lost.
             if (!_rsSaving(_rsModelById(m.id) || cur, k)) { q.unshift(nx); giveBack('Not sent. Your words are back in the box.'); _rsRender(); return; }
             sent = true;
@@ -3858,6 +3892,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cm = _rsCur(), cx = cm && cm.parts.find(p => p.key === key);
         // A trial card's change is about the version on screen as the box opens (Probe bugs 10 and 10b).
         S.note.trialLetter = key === 'video' ? svTrialReviewLetter(cm, R.mode) : '';
+        S.note.trialPart = '';
         S.note.was = cx ? cx.st : '';
         if (S.step !== key) S.step = key;
         _rsPersistCur();
@@ -3891,6 +3926,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
         const trialLetter = k === 'video' ? (S.note.trialLetter || svTrialReviewLetter(m, R.mode)) : '';
+        const trialPart = k === 'video' ? String(S.note.trialPart || '') : '';
         const reply = !k && S.note.re && S.note.re.part && m.parts.some(p => p.key === S.note.re.part) ? S.note.re.part : '';
         const replyTo = reply && (R.mode === 'client' || R.cp) ? String(S.note.re.id || '') : '';
         S.saved = null;
@@ -3924,8 +3960,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         // Kasper's "Approve after tweaks" is a decision, not one more change: it goes as it always did.
-        if (k && R.cp && !aat) { _rsCpQueueChange(m, k, t, where, trialLetter); return; }
-        if (k) { _rsSendChange(m, k, t, { where, aat, trialLetter }); return; }
+        if (k && R.cp && !aat) { _rsCpQueueChange(m, k, t, where, trialLetter, trialPart); return; }
+        if (k) { _rsSendChange(m, k, t, { where, aat, trialLetter, trialPart }); return; }
         // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
         const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : reply || (m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key);
         _rsSendNoteTo(m, comp, t, vis, comp === reply ? replyTo : '');

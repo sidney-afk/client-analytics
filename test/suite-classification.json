@@ -90,6 +90,7 @@
     "trial-version-status-live-check.js",
     "trial-versions-fields-import-live-check.js",
     "trial-version-fields-logic.js",
+    "trial-version-review-parts-logic.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -2448,6 +2449,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V3: behind trial_versions_v2 each version shows its own thumbnail and caption (Same as the card when empty, the card's own on the version on the card), a caption or thumbnail saves through version_fields_set for that letter only, an http thumbnail is refused before anything is sent, Escape sends nothing, and a winner's thumbnail and caption go onto the card through today's card save with Undo putting the card's back, at 1440 and 390 pixel width.",
       "reproduce": "node test/trial-version-fields-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-version-review-parts-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V4: behind trial_versions_v2 the review page shows each version's own thumbnail and caption (else the card's) on the client link, the SMM's Review tab and Kasper's second layout; approving every version calls today's approve on the video, thumbnail and caption parts exactly once each; Ask for a change picks the part and a thumbnail change reaches the graphic part as \"Video C, thumbnail: ...\"; a failed versions read is today's page; with the switch off the trial page is today's; nothing scrolls sideways at 390.",
+      "reproduce": "node test/trial-version-review-parts-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

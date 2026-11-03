@@ -55,7 +55,8 @@ try {
     assert(/^-- ef-auto-deploy: functions-cope-without-this$/m.test(t.split('\n').slice(0, 40).join('\n')), name + ': the cope marker is in the first 40 lines');
   }
   assert(/from public, anon, authenticated, service_role;/.test(RUNS), 'the run log revokes from all four roles');
-  assert(/PFM_ACCOUNT_LINK_KEY/.test(SCHEDULE) && /pfm_account_link_key/.test(SCHEDULE), 'the schedule header names both secrets');
+  // Vault is the only copy of the timer key (supervisor, 3 Nov): no function secret, so nobody holds the value.
+  assert(/pfm_account_link_key/.test(SCHEDULE) && /Vault only/.test(SCHEDULE) && !/PFM_ACCOUNT_LINK_KEY/.test(SCHEDULE + RUNS), 'the key lives in Vault only; no function secret is named');
   psql('postgres', `drop database if exists ${DB}; create database ${DB};`);
   psql(DB, `
     do $r$ begin
@@ -96,17 +97,18 @@ try {
   }
   for (const role of ['anon', 'authenticated']) {
     assert.equal(q(`select has_table_privilege('${role}', 'public.pfm_account_link_runs', 'select')`), 'f');
-    for (const f of ['pfm_account_link_run_record(jsonb)', 'pfm_account_link_runs_read(timestamptz)']) {
+    for (const f of ['pfm_account_link_run_record(jsonb)', 'pfm_account_link_runs_read(timestamptz)', 'pfm_account_link_key_ok(text)']) {
       assert.equal(q(`select has_function_privilege('${role}', 'public.${f}', 'EXECUTE')`), 'f', role + ' cannot run ' + f);
     }
   }
   assert.equal(q(`select has_table_privilege('service_role', 'public.pfm_account_link_runs', 'select')`), 'f', 'service_role cannot read the table directly');
   assert.equal(q(`select has_table_privilege('service_role', 'public.pfm_account_link_runs', 'insert')`), 'f', 'service_role cannot write the table directly');
-  for (const f of ['pfm_account_link_run_record(jsonb)', 'pfm_account_link_runs_read(timestamptz)']) {
+  for (const f of ['pfm_account_link_run_record(jsonb)', 'pfm_account_link_runs_read(timestamptz)', 'pfm_account_link_key_ok(text)']) {
     assert.equal(q(`select has_function_privilege('service_role', 'public.${f}', 'EXECUTE')`), 't', 'service_role may run ' + f);
     assert.equal(q(`select prosecdef from pg_proc where oid = 'public.${f}'::regprocedure`), 't', f + ' is security definer');
   }
-  console.log('  four roles measured: nothing on the table or sequence; service_role only runs the two security-definer functions');
+  assert.equal(q(`select count(*) from information_schema.routine_privileges where routine_schema = 'public' and routine_name like 'pfm_account_link%' and grantee = 'PUBLIC'`), '0', 'PUBLIC holds no EXECUTE on any of them');
+  console.log('  four roles measured: nothing on the table or sequence; service_role only runs the three security-definer functions');
 
   // Record: whitelisted keys only, at every depth.
   const run = {
@@ -140,6 +142,20 @@ try {
   const order = JSON.parse(q(`set role service_role; select jsonb_agg(x.id)::text from public.pfm_account_link_runs_read(now() - interval '1 day') x;`));
   assert(order[0] > order[1], 'the read is newest first');
   console.log('  keeps 30 days; failed runs record; an unknown trigger is refused; newest first');
+
+  // The key check: Vault is the only copy; the function says yes only for the exact value of a 32+ character secret.
+  const keyOk = k => q(`set role service_role; select public.pfm_account_link_key_ok(${k === null ? 'null' : lit(k)})`);
+  assert.equal(keyOk('k'.repeat(64)), 'f', 'no Vault secret yet: every key is refused');
+  assert.equal(keyOk(null), 'f', 'a missing key is refused');
+  psql(DB, `insert into vault.decrypted_secrets values ('pfm_account_link_key', 'short');`);
+  assert.equal(keyOk('short'), 'f', 'a Vault secret under 32 characters refuses even its own value');
+  psql(DB, `update vault.decrypted_secrets set decrypted_secret = repeat('k', 64) where name = 'pfm_account_link_key';`);
+  assert.equal(keyOk('k'.repeat(64)), 't', 'the exact Vault value is accepted');
+  for (const bad of ['k'.repeat(63), 'k'.repeat(65), 'K'.repeat(64), '', ' ' + 'k'.repeat(64)]) assert.equal(keyOk(bad), 'f', 'a near miss is refused');
+  const src = RUNS.slice(RUNS.indexOf('function public.pfm_account_link_key_ok'), RUNS.indexOf('$fn$;', RUNS.indexOf('function public.pfm_account_link_key_ok')));
+  assert(/sha256\(/.test(src) && !/p_key\s*=\s*\w*secret/i.test(src), 'the comparison is over sha256 digests, never the raw secret');
+  psql(DB, `delete from vault.decrypted_secrets where name = 'pfm_account_link_key';`);
+  console.log('  key check: Vault only; no secret, a short secret, a near miss and a missing key are refused; the exact value passes');
 
   // Schedule: refuses without the Vault secret; schedules one job with it.
   const sched = SCHEDULE.replace(/create extension[^;]*;/g, '');

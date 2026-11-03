@@ -169,10 +169,13 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   // --- wiring in client-profile-write (source checks; the function itself runs under Deno) ---
   const fn = require('fs').readFileSync(path.join(ROOT, 'supabase/functions/client-profile-write/index.ts'), 'utf8');
   const serve = fn.slice(fn.indexOf('Deno.serve('));
-  const timerBranch = serve.slice(serve.indexOf('if (scheduled && !(auth.ok'), serve.indexOf('const sa = serviceAccount();'));
+  const timerBranch = serve.slice(serve.indexOf('if (!admin) {'), serve.indexOf('const sa = serviceAccount();'));
+  ok(timerBranch.indexOf('scheduledCaller(supabase, linkKey)') >= 0 && timerBranch.indexOf('scheduledCaller(supabase, linkKey)') < timerBranch.indexOf('pfmAccountsSync('),
+    'without the admin key, the Vault check runs before anything else');
   ok(/action !== "pfm_accounts_sync"\) return json\(\{ ok: false, error: "unauthorized" \}, 403\)/.test(timerBranch) && /pfmAccountsSync\(supabase, body, null\)/.test(timerBranch),
     'the timer key reaches pfm_accounts_sync and nothing else');
-  ok(/secret\.length >= 32 && timingSafeEqual\(given, secret\)/.test(fn) && /Deno\.env\.get\("PFM_ACCOUNT_LINK_KEY"\)/.test(fn), 'the timer key is a 32+ character secret compared in constant time');
+  ok(/rpc\("pfm_account_link_key_ok", \{ p_key: given \}\)/.test(fn) && /data === true/.test(fn.slice(fn.indexOf('async function scheduledCaller'), fn.indexOf('async function fetchAccountPage')))
+    && !/PFM_ACCOUNT_LINK_KEY/.test(fn), 'the timer key is checked by the database against Vault (the only copy); the function reads no secret of its own');
   ok(serve.indexOf('adminMember(') < serve.indexOf('action === "pfm_accounts_sync") return await pfmAccountsSync(supabase, body, member)'), 'from the page, the action needs an active admin member');
   const fetcher = fn.slice(fn.indexOf('async function fetchAccountPage'), fn.indexOf('async function pfmAccountsSync'));
   ok(!/console\./.test(fetcher) && !/JSON\.stringify/.test(fetcher), 'the raw account list is never logged or re-serialised');

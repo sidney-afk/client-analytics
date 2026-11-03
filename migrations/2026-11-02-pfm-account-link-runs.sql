@@ -14,12 +14,18 @@
 --       can never be stored. Kept 30 days.
 --   public.pfm_account_link_run_record(jsonb)       security definer; inserts one run, deletes rows older than 30 days.
 --   public.pfm_account_link_runs_read(timestamptz)  security definer; the runs since a time, newest first.
+--   public.pfm_account_link_key_ok(text)  security definer; true only when the text equals the Vault secret
+--       pfm_account_link_key (at least 32 characters), compared as sha256 digests. VAULT IS THE ONLY COPY of the
+--       hourly timer's key: client-profile-write asks this function and holds no secret of its own, so the
+--       value is created inside the database (gen_random_bytes) and never appears in a transcript or a file.
 --   No role may touch the table or its sequence (public, anon, authenticated and service_role all revoked);
---   service_role may only EXECUTE the two functions.
+--   service_role may only EXECUTE the three functions.
 --
 -- WHY THE FUNCTIONS COPE WITHOUT IT (the marker on line 1):
 --   client-profile-write records each run best effort: until this is applied the record call fails, is
 --   logged by name only, and the run still answers (the button shows its result; links are made as without it).
+--   Without pfm_account_link_key_ok the timer's key check fails, so only the timer is refused (401); the admin
+--   button, which signs with the admin key, is unaffected.
 --
 -- WATCHER'S READ (as owner, or as service_role):
 --   select ran_at, trigger, dry_run, ok, error, linked_count, needs_person_count, needs_person
@@ -28,9 +34,11 @@
 -- HOW TO TELL IT IS APPLIED (expect true):
 --   select to_regprocedure('public.pfm_account_link_run_record(jsonb)') is not null
 --     and to_regprocedure('public.pfm_account_link_runs_read(timestamptz)') is not null
+--     and to_regprocedure('public.pfm_account_link_key_ok(text)') is not null
 --     and to_regclass('public.pfm_account_link_runs') is not null as applied;
 --
--- ROLLBACK: drop function if exists public.pfm_account_link_runs_read(timestamptz);
+-- ROLLBACK: drop function if exists public.pfm_account_link_key_ok(text);
+--   drop function if exists public.pfm_account_link_runs_read(timestamptz);
 --   drop function if exists public.pfm_account_link_run_record(jsonb);
 --   drop table if exists public.pfm_account_link_runs;
 --   (unschedule 2026-11-02-pfm-account-link-schedule.sql first if it was applied).
@@ -107,10 +115,28 @@ as $fn$
   select * from public.pfm_account_link_runs where ran_at >= p_since order by ran_at desc, id desc
 $fn$;
 
+-- The hourly timer's key, checked against the only copy in Vault. sha256 digests are compared, so the time taken
+-- does not depend on how much of the secret a guess gets right.
+create or replace function public.pfm_account_link_key_ok(p_key text) returns boolean
+language plpgsql stable security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v text;
+begin
+  if p_key is null or length(p_key) < 32 then return false; end if;
+  select decrypted_secret into v from vault.decrypted_secrets where name = 'pfm_account_link_key' limit 1;
+  if v is null or length(v) < 32 then return false; end if;
+  return sha256(convert_to(p_key, 'UTF8')) = sha256(convert_to(v, 'UTF8'));
+end
+$fn$;
+
 revoke all on function public.pfm_account_link_entries(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.pfm_account_link_key_ok(text) from public, anon, authenticated, service_role;
 revoke all on function public.pfm_account_link_run_record(jsonb) from public, anon, authenticated, service_role;
 revoke all on function public.pfm_account_link_runs_read(timestamptz) from public, anon, authenticated, service_role;
 grant execute on function public.pfm_account_link_run_record(jsonb) to service_role;
 grant execute on function public.pfm_account_link_runs_read(timestamptz) to service_role;
+grant execute on function public.pfm_account_link_key_ok(text) to service_role;
 
 commit;

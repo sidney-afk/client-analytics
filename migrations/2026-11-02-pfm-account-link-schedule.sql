@@ -4,13 +4,14 @@
 --   docs/plans/2026-11-trial-and-posting/combined.md, Sidney's D4). Written by session Lbuild. OPEN_REPAIRS 666.
 --
 -- STATE: BUILT, NOT APPLIED. The supervisor applies it after the PR merges, client-profile-write is deployed,
--- 2026-11-02-pfm-account-link-runs.sql is applied, and the key below exists in BOTH places.
+-- 2026-11-02-pfm-account-link-runs.sql is applied, and the Vault key below exists.
 --
--- THE KEY (one value, at least 32 characters, never written in a file; created by the supervisor):
---   Edge Function secret:  PFM_ACCOUNT_LINK_KEY   (on client-profile-write's project)
---   Vault secret:          pfm_account_link_key   select vault.create_secret('<the same value>', 'pfm_account_link_key');
+-- THE KEY: Vault only. One Vault secret, pfm_account_link_key, at least 32 characters, created inside the
+-- database so the value never leaves it (no function secret, no file, no transcript):
+--   select vault.create_secret(encode(extensions.gen_random_bytes(48), 'hex'), 'pfm_account_link_key');
 -- The timer signs each call with the header X-Pfm-Link-Key, read from Vault when the job runs (the value is
--- never copied into the job). client-profile-write lets that key call pfm_accounts_sync and nothing else.
+-- never copied into the job). client-profile-write asks public.pfm_account_link_key_ok whether the header equals
+-- the Vault secret, and lets that key call pfm_accounts_sync and nothing else.
 -- This file refuses to schedule anything until the Vault secret exists and the run log is applied.
 --
 -- One pg_cron job, minute 41 of every hour. Each run links only exact, unique matches, never overwrites a
@@ -33,11 +34,12 @@ create extension if not exists pg_net;
 
 do $check$
 begin
-  if to_regprocedure('public.pfm_account_link_run_record(jsonb)') is null then
+  if to_regprocedure('public.pfm_account_link_run_record(jsonb)') is null
+     or to_regprocedure('public.pfm_account_link_key_ok(text)') is null then
     raise exception 'apply 2026-11-02-pfm-account-link-runs.sql first';
   end if;
   if not exists (select 1 from vault.decrypted_secrets where name = 'pfm_account_link_key' and length(decrypted_secret) >= 32) then
-    raise exception 'pfm_account_link_key is missing from Vault (at least 32 characters); create it and the PFM_ACCOUNT_LINK_KEY function secret first, see the header of this file';
+    raise exception 'pfm_account_link_key is missing from Vault (at least 32 characters); create it in Vault first (Vault only), see the header of this file';
   end if;
 end
 $check$;

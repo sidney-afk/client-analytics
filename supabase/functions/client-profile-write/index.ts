@@ -61,7 +61,8 @@
 // action "pfm_accounts_sync" (L1, OPEN_REPAIRS 666) links Post for Me accounts to clients on an exact, unique
 // handle match and lists everything else as "needs a person" (_shared/postforme-accounts.mjs has the rules).
 // Callable by an admin (the Publishing card's "Check Post for Me accounts") or by the hourly timer, which signs
-// with X-Pfm-Link-Key = PFM_ACCOUNT_LINK_KEY and may call this action only. dry_run: true plans and writes
+// with X-Pfm-Link-Key, checked by the database against Vault (public.pfm_account_link_key_ok; Vault holds the
+// only copy, the function holds none), and may call this action only. dry_run: true plans and writes
 // nothing. Each link saves through client_profile_admin_edit after the Post for Me network check, with the
 // actor "Post for Me auto-link"; then one Sheet copy is sent. Raw accounts carry the clients' social tokens:
 // only the safe fields are ever kept, and no account body is logged or returned.
@@ -71,7 +72,7 @@ import { clientSlug } from "../_shared/sheets-mirror.mjs";
 import {
   accountChecks, accountPlatformProblem, EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
 } from "../_shared/client-profile-edit.mjs";
-import { makeStore, timingSafeEqual } from "../_shared/roster-handlers.mjs";
+import { makeStore } from "../_shared/roster-handlers.mjs";
 import { runAccountSync } from "../_shared/postforme-accounts.mjs";
 import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
 
@@ -291,11 +292,12 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
 const AUTO_LINK_ACTOR = "Post for Me auto-link";
 const LINK_PROFILE_COLUMNS = "slug,instagram_handle,tiktok_handle,youtube_channel_id,postforme_account_id,extra,archived_at,updated_at";
 
-// The hourly timer's key (at least 32 characters), compared in constant time.
-function scheduledCaller(req: Request): boolean {
-  const given = clean(req.headers.get("x-pfm-link-key"));
-  const secret = clean(Deno.env.get("PFM_ACCOUNT_LINK_KEY"));
-  return !!given && secret.length >= 32 && timingSafeEqual(given, secret);
+// The hourly timer's key. Vault holds the only copy: the database compares it (sha256 digests, a 32+ character
+// secret) in public.pfm_account_link_key_ok, and this function never sees or stores the value. Any error is a no.
+async function scheduledCaller(supabase: SupabaseClient, given: string): Promise<boolean> {
+  if (!given) return false;
+  const { data, error } = await supabase.rpc("pfm_account_link_key_ok", { p_key: given });
+  return !error && data === true;
 }
 
 // One page of Post for Me accounts, or null. The raw body never leaves runAccountSync (it is projected to safe
@@ -451,11 +453,12 @@ async function history(supabase: SupabaseClient, body: JsonMap): Promise<Respons
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  // The hourly timer may call pfm_accounts_sync only (checked after the body is read).
-  const scheduled = scheduledCaller(req);
+  // The hourly timer may call pfm_accounts_sync only; its key is checked against Vault once the client exists.
+  const linkKey = clean(req.headers.get("x-pfm-link-key"));
   const staffKey = clean(req.headers.get("x-syncview-key"));
   const auth = staffKey ? authorizeStaffKey(staffKey, ["admin"]) : { ok: false, role: null };
-  if (!scheduled && (!auth.ok || auth.role !== "admin")) return json({ ok: false, error: "unauthorized" }, auth.role ? 403 : 401);
+  const admin = auth.ok && auth.role === "admin";
+  if (!linkKey && !admin) return json({ ok: false, error: "unauthorized" }, auth.role ? 403 : 401);
   try {
     const url = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -466,7 +469,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try { body = JSON.parse(raw || "{}") as JsonMap; } catch (_e) { return json({ ok: false, error: "bad_json" }, 400); }
     const action = clean(body.action);
     const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-    if (scheduled && !(auth.ok && auth.role === "admin")) {
+    if (!admin) {
+      if (!(await scheduledCaller(supabase, linkKey))) return json({ ok: false, error: "unauthorized" }, 401);
       if (action !== "pfm_accounts_sync") return json({ ok: false, error: "unauthorized" }, 403);
       return await pfmAccountsSync(supabase, body, null);
     }

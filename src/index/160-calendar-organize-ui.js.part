@@ -2660,7 +2660,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
        positioned SIBLINGS of the <img>, not part of it. */
     // PORT-DELTA: preserve the phone artifact's native-controls container when
     // media is replaced. It exists only while the staff phone controller runs.
-    const CAL_THUMB_OVERLAY_SEL = '.cal-thumb-play, .cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools, .cal-linear-pile';
+    const CAL_THUMB_OVERLAY_SEL = '.trl-tabs, .trl-tab-img, .cal-thumb-play, .cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools, .cal-linear-pile';
     /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
        leaving the overlays above untouched. The thumb's src carries a
        cache-bust token derived from updated_at (see _calCacheBustThumb), and

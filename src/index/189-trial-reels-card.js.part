@@ -644,18 +644,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // No live version: "Video", never "Video · 0" (Trialeyes E5); the count leaves out dropped versions, as
         // "1/1 approved" beside it does (Trialeyes E8, 2026-10-29).
         const live = vs.filter(TRL_LIVE).length;
-        const main = winner ? 'Video ' + winner.letter : live ? 'Video · ' + live : 'Video';
+        // 688 part 2: with the version tabs on the card's picture, the row is the picked version's.
+        const sel = _trlTabsSel(post, shape);
+        const main = sel ? 'Version ' + sel.letter : winner ? 'Video ' + winner.letter : live ? 'Video · ' + live : 'Video';
+        if (_trlTabsOn(post, shape) || document.querySelector('.cal-card[data-pid="' + CSS.escape(pid) + '"] .trl-tabs')) setTimeout(() => _trlDress(pid), 0);
         // The open-link icon only when there is a link to open.
-        const ext = String(post.asset_url || '').trim() ? parts.extIco : '';
+        const selLink = sel && !sel.on_card ? String(sel.frame_url || '').trim() : '';
+        const ext = selLink || (!(sel && !sel.on_card) && String(post.asset_url || '').trim()) ? parts.extIco : '';
         const p = _calEscAttr(pid);
+        // The picked version's state, in the row's own small words (its status is set in its row of the list).
+        const selState = sel ? '<span class="trl-state trl-sel-st" data-tone="' + _trlTabTone(sel) + '">' + _calEsc(sel.client_pass_at ? 'client dropped' : TRL_TAB_SAY[_trlTabTone(sel)] === 'nothing to review yet' ? 'no link yet' : TRL_TAB_SAY[_trlTabTone(sel)]) + '</span>' : '';
         // The row's parts are sibling buttons, styled as one row: the link (opens the video on the card), the state's
         // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
         const busy = (_trlPending[pid] || []).length ? ' aria-busy="true"' : '';
         const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url"' + busy + '>'
-            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '"'
-            + (tiny.words ? ' aria-label="' + _calEscAttr(main + '. ' + tiny.words + '. ' + (ext ? 'Open the video' : 'No video link yet')) + '"' : '') + '>' + ext
-            + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
-            + (tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-drop' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>'
+            + (sel && !sel.on_card
+                ? (selLink ? '<a class="cal-link-pill-open" href="' + _calEscAttr(selLink) + '" target="_blank" rel="noopener noreferrer" title="Open Version ' + _calEscAttr(sel.letter) + '">' : '<span class="cal-link-pill-open" title="No link yet for Version ' + _calEscAttr(sel.letter) + '">') + ext
+                    + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>' + selState + '</span>' + (selLink ? '</a>' : '</span>')
+                : '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="' + _calEscAttr((ext ? 'Open the video' : 'No video link yet') + (tiny.words ? '. ' + tiny.words : '')) + '"'
+                    + (tiny.words ? ' aria-label="' + _calEscAttr(main + '. ' + tiny.words + '. ' + (ext ? 'Open the video' : 'No video link yet')) + '"' : '') + '>' + ext
+                    + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
+                    + (sel ? selState : tiny.html ? '<span class="trl-state' + (/dropped by the client/.test(tiny.text || '') ? ' trl-state-drop' : '') + '">' + tiny.html + '</span>' : '') + '</span></button>')
+
             + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
             + '<span class="trl-fill" aria-hidden="true"></span>'
             + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'
@@ -663,6 +673,75 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             + '<button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink(\'' + p + '\',\'asset_url\')" title="Edit the link on the card">' + parts.pencil + '</button>'
             + parts.input + '</div>';
         return open ? row + _trlListHtml(pid, shape) : row;
+    }
+    /* 688 part 2 (Sidney's option B, Quiet look; switch trial_versions_v2): a trial card with two or more live versions
+       carries Version A/B/C tabs on its picture, each with its status dot; the selected one underlined. Picking one
+       shows that version's picture, Video row and caption on the card in place. Nothing is written: the card's own
+       thumbnail and caption stay as they are (the other version's are drawn over them, read only), and a version's
+       own fields are still set in its row of the list. The version on the card is picked first. */
+    const _trlTabPick = {};   // pid -> letter picked on this page
+    function _trlTabsOn(post, shape) {
+        if (!post || _isClientLink || !_trlFieldsOn(post) || !shape || !shape.enabled) return false;
+        const vs = shape.versions || [];
+        return !vs.some(v => v.status === 'winner') && vs.filter(TRL_LIVE).length > 1;
+    }
+    function _trlTabsSel(post, shape) {
+        if (!_trlTabsOn(post, shape)) return null;
+        const live = shape.versions.filter(TRL_LIVE);
+        return live.find(v => v.letter === _trlTabPick[post.id]) || live.find(v => v.on_card) || live[0];
+    }
+    // The answer a tab's dot shows, in the card's status colours.
+    function _trlTabTone(v) {
+        if (v.client_pass_at) return 'mute';
+        if (['approved', 'on trial', 'winner'].includes(v.status)) return 'ok';
+        if (v.status === 'change asked') return 'chg';
+        if (!v.frame_url) return 'mute';
+        return v.place || (v.kasper_ok_at ? 'client' : v.smm_ok_at ? 'kasper' : 'smm');
+    }
+    const TRL_TAB_SAY = { ok: 'approved', chg: 'change asked', client: 'with client', kasper: 'with Kasper', smm: 'with SMM', mute: 'nothing to review yet' };
+    function _trlTabsHtml(pid, post, shape) {
+        const sel = _trlTabsSel(post, shape);
+        if (!sel) return '';
+        const p = _calEscAttr(pid);
+        return '<div class="trl-tabs" role="group" aria-label="Versions" onclick="event.stopPropagation()">' + shape.versions.filter(TRL_LIVE).map(v => {
+            const l = _calEscAttr(v.letter), on = v === sel, tone = v.client_pass_at ? 'client dropped' : TRL_TAB_SAY[_trlTabTone(v)];
+            return '<button type="button" class="trl-tab' + (on ? ' on' : '') + '" data-tone="' + _trlTabTone(v) + '" aria-pressed="' + on + '"'
+                + ' aria-label="Version ' + l + ', ' + _calEscAttr(tone) + '" data-tip="Version ' + l + ': ' + _calEscAttr(tone) + '"'
+                + ' onclick="event.stopPropagation();svTrialTab(\'' + p + '\',\'' + l + '\')"><i class="trl-tab-d"></i>' + _calEsc(v.letter) + '</button>';
+        }).join('') + '</div>';
+    }
+    function _trlTabPic(post, v) {
+        const th = String((v.effective && v.effective.thumbnail_url) || v.thumbnail_url || '').trim();
+        if (!th || th === String(post.thumbnail_url || '').trim()) return '';
+        try { return _calDeriveThumb({ thumbnail_url: th }) || (/^https:\/\//i.test(th) ? th : ''); } catch (e) { return ''; }
+    }
+    // Draws the tabs, and the picked version's picture and caption over the card's own, on every copy of the card.
+    function _trlDress(pid) {
+        const post = _trlPost(pid);
+        if (!post) return;
+        const shape = _trlShape(post), sel = _trlTabsSel(post, shape);
+        document.querySelectorAll('.cal-card[data-pid="' + CSS.escape(pid) + '"]').forEach(card => {
+            card.querySelectorAll('.trl-tabs, .trl-tab-img, .trl-cap-view').forEach(e => e.remove());
+            card.classList.toggle('trl-other', !!(sel && !sel.on_card));
+            if (!sel) return;
+            const thumb = card.querySelector('.cal-card-thumb');
+            // On the staff phone the picture is a tool strip: the tabs are their own row above the Video field there.
+            const field = card.querySelector('.cal-link-field.trl-main');
+            if (document.documentElement.classList.contains('sv-staff-phone') && field) field.insertAdjacentHTML('beforebegin', _trlTabsHtml(pid, post, shape).replace('class="trl-tabs"', 'class="trl-tabs trl-tabs-row"'));
+            else if (thumb) thumb.insertAdjacentHTML('beforeend', _trlTabsHtml(pid, post, shape));
+            if (sel.on_card) return;
+            const pic = _trlTabPic(post, sel);
+            if (thumb && pic) thumb.insertAdjacentHTML('afterbegin', '<img class="trl-tab-img" alt="" src="' + _calEscAttr(pic) + '" onerror="this.remove()">');
+            const cap = card.querySelector('.cal-cap-wrap');
+            const words = String((sel.effective && sel.effective.caption) || sel.caption || post.caption || '');
+            if (cap) cap.insertAdjacentHTML('afterend', '<div class="trl-cap-view" aria-label="Caption of Version ' + _calEscAttr(sel.letter) + '"><span class="trl-cap-k">Version ' + _calEsc(sel.letter) + ' caption</span>'
+                + (words ? '<span class="trl-cap-t">' + _calEsc(words) + '</span>' : '<span class="trl-cap-t trl-cap-none">No caption yet</span>') + '</div>');
+        });
+    }
+    function svTrialTab(pid, letter) {
+        _trlTabPick[pid] = letter;
+        _trlRepaintField(pid);
+        _trlDress(pid);
     }
     function _trlListHtml(pid, shape) {
         const vs = shape.versions || [];
@@ -1579,7 +1658,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialDrop, svTrialEdit, svTrialFieldEdit, svTrialFieldKey, svTrialFieldSave, svTrialImportAdd,
         svTrialImportBack, svTrialImportClose, svTrialImportList, svTrialImportOpen, svTrialImportPick,
         svTrialLinkKey, svTrialLinkSave, svTrialNewCut, svTrialNotesPick, svTrialOpen, svTrialPick,
-        svTrialStatusMenu, svTrialStatusPick, svTrialToggle
+        svTrialStatusMenu, svTrialStatusPick, svTrialTab, svTrialToggle
     });
 export {
   svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,

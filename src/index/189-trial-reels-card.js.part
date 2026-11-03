@@ -5,7 +5,7 @@ import { CAL_STATUSES, _syncviewEfHeaders, _writeUiRecordFailure } from './120-c
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
-import { _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
+import { _calDeriveThumb, _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
 import {
   _calCloseStatusMenu, _calFlushCardSave, _calOpenStatusMenu, _calSetOpenStatusMenu, _calStatusMenuTitleHtml, _calStatusSlug
 } from './170-calendar-links-status.js';
@@ -1070,7 +1070,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     : '<input class="trl-f-input" type="url" placeholder="Same as the card: paste a thumbnail link" value="' + _calEscAttr(own) + '"' + attrs + '>';
             }
             const shown = own ? (k === 'caption' ? own.replace(/\s+/g, ' ').slice(0, 80) : 'own image') : 'Same as the card';
-            const img = k === 'thumbnail_url' && own ? '<img class="trl-f-img" alt="" src="' + _calEscAttr(own) + '" loading="lazy" onerror="this.hidden=true">' : '';
+            // A Google Drive file page is shown as its image, the way the card shows its own thumbnail (V4 live walk, 3 Nov).
+            const pic = k === 'thumbnail_url' && own ? ((() => { try { return _calDeriveThumb({ thumbnail_url: own }); } catch (e) { return ''; } })() || own) : '';
+            const img = pic ? '<img class="trl-f-img" alt="" src="' + _calEscAttr(pic) + '" loading="lazy" onerror="this.hidden=true">' : '';
             const body = '<span class="trl-f-k">' + word + '</span>' + img + '<span class="trl-f-v' + (own ? '' : ' trl-f-same') + '">' + _calEsc(shown) + '</span>';
             return frozen ? '<span class="trl-f">' + body + '</span>'
                 : '<button type="button" class="trl-f" title="' + _calEscAttr(own || ('Video ' + v.letter + ' uses the card\'s ' + word.toLowerCase())) + '"'

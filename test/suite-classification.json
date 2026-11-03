@@ -80,6 +80,7 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "frameio-list-live-check.js",
     "trial-versions-import-logic.js",
     "trial-version-fields-migration.js",
     "trial-version-status-logic.js",
@@ -1619,6 +1620,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the TikTok / Instagram switch and a full Instagram post through the mocked instagram-upload function.",
       "reproduce": "node test/instagram-platform-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "postforme-link-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Open Post for Me link beside every no-account message on the Post tab (TikTok and Instagram account lines and refusals, the Facebook box's reason), new tab and noopener, on desktop and on a phone, and no link when every account is on file.",
+      "reproduce": "node test/postforme-link-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

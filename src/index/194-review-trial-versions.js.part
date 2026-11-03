@@ -1,6 +1,7 @@
 import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { svRsFlagsReady, svTrialReelsOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialAttachBack, svTrialCall, svTrialRead, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
@@ -356,19 +357,25 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // A Frame.io page is not a picture: the version's thumbnail then shows the card's derived poster, or nothing.
     const _trvIsPic = u => /^https:\/\//i.test(u) && !/^https:\/\/([^/]*\.)?(f\.io|frame\.io)(\/|$)/i.test(u);
+    /* A version's own thumbnail is shown the way the card shows its own (_calDeriveThumb): a Google Drive file page, the
+       team's usual thumbnail link, becomes its image address (V4 live walk, 3 Nov: a Drive link drew a broken image). */
     function _trvPicOf(m, v) {
-        const eff = v && v.effective, th = String((eff && eff.thumbnail_url) || '');
+        const eff = v && v.effective, th = String((eff && eff.thumbnail_url) || '').trim();
         if (!th) return '';
-        if (th === String((m.post && m.post.thumbnail_url) || '')) return String(m.thumb || '');
-        return _trvIsPic(th) ? th : '';
+        if (th === String((m.post && m.post.thumbnail_url) || '').trim()) return String(m.thumb || '');
+        let d = '';
+        try { d = _calDeriveThumb({ thumbnail_url: th }) || ''; } catch (e) { d = ''; }
+        return d || (_trvIsPic(th) ? th : '');
     }
+    // A picture that does not load shows the quiet video mark under it, never a broken image or its alt text.
+    const _trvImg = (src, alt) => '<img alt="' + _calEscAttr(alt) + '" src="' + _calEscAttr(src) + '" loading="lazy" onerror="this.hidden=true">';
     function svTrialReviewFieldsHtml(m, mode) {
         if (!svTrialReviewFieldsOn(m)) return '';
         const cur = _trvCurOf(m, mode), eff = cur && cur.effective;
         if (!eff || typeof eff !== 'object') return '';
         const pic = _trvPicOf(m, cur), cap = String(eff.caption || '').trim(), L = _calEsc(cur.letter);
         return '<div class="trv-fx" data-trv-fx="' + _calEscAttr(cur.letter) + '">'
-            + '<span class="trv-fx-pic">' + (pic ? '<img alt="Thumbnail of Video ' + _calEscAttr(cur.letter) + '" src="' + _calEscAttr(pic) + '" loading="lazy">' : TRV_PLAY) + '</span>'
+            + '<span class="trv-fx-pic">' + TRV_PLAY + (pic ? _trvImg(pic, 'Thumbnail of Video ' + cur.letter) : '') + '</span>'
             + '<span class="trv-fx-t"><span class="trv-fx-l">Video ' + L + '\'s thumbnail and caption</span>'
             + '<span class="trv-fx-cap' + (cap ? '' : ' none') + '">' + (cap ? _calEsc(cap) : 'No caption') + '</span></span></div>';
     }
@@ -689,7 +696,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter);
             // V4: each tile shows its version's own thumbnail (else the card's poster, as before).
             const vp = own ? _trvPicOf(m, v) : '';
-            const vposter = vp ? '<img alt="" src="' + _calEscAttr(vp) + '">' : poster;
+            const vposter = vp ? TRV_PLAY + _trvImg(vp, '') : poster;
             const dropBtn = v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>';
             // The client said "Not this one": the team sees it and drops the version (owner, 2026-10-28).
             const acts = v.client_pass_at && v.status === 'waiting'
@@ -830,8 +837,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
 /* V4: the version's own thumbnail and caption, under its player; the parts a change on it can be about. */
 .trv-fx{display:flex;align-items:flex-start;gap:10px;margin:8px auto 0;max-width:420px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface-raised);text-align:left}
-.trv-fx-pic{display:grid;place-items:center;flex:none;width:45px;height:80px;border-radius:6px;overflow:hidden;background:var(--fill);color:var(--pd-video)}
-.trv-fx-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.trv-fx-pic{position:relative;display:grid;place-items:center;flex:none;width:45px;height:80px;border-radius:6px;overflow:hidden;background:var(--fill);color:var(--pd-video)}
+.trv-fx-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.trv-fx-pic img[hidden],.trk-pic img[hidden]{display:none}
+.trk-pic:has(>.trk-mark+img){position:relative;display:grid;place-items:center;background:var(--fill);color:var(--pd-video)}
+.trk-pic:has(>.trk-mark+img) img{position:absolute;inset:0}
 .trv-fx-t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
 .trv-fx-l{font-size:.68rem;font-weight:600;color:var(--text-secondary)}
 .trv-fx-cap{font-size:.8rem;line-height:1.35;color:var(--text-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:8.2em;overflow:auto}

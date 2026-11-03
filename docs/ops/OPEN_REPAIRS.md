@@ -36779,3 +36779,21 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.
 - **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
 - **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.
+
+## 662. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: a version's own thumbnail that is a Google Drive link showed broken on the review page (V4) and hidden on the staff card (V3) (session Vbuild)
+
+- **Seen:** on V4's live walk, 3 Nov, on the test client. With Sidney's go-ahead, a real Frame link, thumbnail and caption were copied from one of his own Posted cards (read only) onto a new version of a test-client trial card. The review page showed that version's own caption, but a broken image, with its alt text spilling out, where its thumbnail belongs.
+- **Why:** the thumbnail was a Google Drive file page, the team's usual thumbnail link. The card turns such a link into an image address (`_calDeriveThumb`: Google's image host). V4's review block and Kasper's tiles (194), and V3's own-thumbnail preview on the staff card (189), used the raw address instead. The staff card hid the broken image, so it showed nothing.
+- **Fix:** both now derive the image the way the card does, and keep the raw address only for a plain https picture that is not a Frame.io page. On the review page a picture that does not load shows the quiet video mark under it, never a broken image or its alt text.
+- **Proof:**
+  - `test/trial-version-review-parts-browser.js` (28 checks): a Drive file page as Video C's own thumbnail shows as its Google image; a thumbnail that does not load shows the video mark, with no alt text. Both fail on main.
+  - `test/trial-version-fields-browser.js` (42 checks): the staff card shows a Drive file page as C's image, at 1440 and 390. Both fail on main.
+- **The walk itself:**
+  - **Client link, 1440 and 390, read only, Chromium:** each version's thumbnail-and-caption block showed on a live test-client trial card, both the card's own fields and a version's own caption. Nothing scrolled sideways and there were no page errors. Writes blocked during the walk: 0.
+  - **Put back:** read back afterwards. The added version was dropped with its fields cleared, and the card row and every original version were unchanged. One dropped row stays (the table has no delete grant).
+  - **SMM tab and Kasper's session:** no non-archived test-client trial card waits for either. The only one not archived has its video Approved.
+  - **Part picker:** it cannot open live for the same reason, since no live trial card has a video part waiting.
+  - **Option (b)**, approving on an unlinked card, cannot run: a video or thumbnail status change on a card with no work item is refused (`native_link_required`, `120-calendar-flags-write-repair.js.part:740-756`), on the test client explicitly.
+  - **WebKit:** not run, because it is not installed in the session sandbox. It goes through a hand-run workflow.
+- **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
+- **Way back:** revert the PR.

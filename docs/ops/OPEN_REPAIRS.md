@@ -36267,7 +36267,7 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
 - **Way back:** revert the PR.
 
-## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+## 671. [2026-11-03 UTC, LIVE (merged #2552 as 6dc6349; folder list lengths checked live with the frameio-list live check)] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
 
 - **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
 - **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
@@ -36498,7 +36498,7 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Proof:** `test/post-folder-sort.js` (new, unit, offline): 13 cases, each from section 2, plus an empty drop and an input left unchanged. Fails on main ("function not found: svSortDroppedFiles").
 - **Way back:** revert the PR. Nothing calls the function.
 
-## 667. [2026-11-02 UTC, BUILT, NOT MERGED] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
+## 667. [2026-11-02 UTC, LIVE (merged #2538 as 03a45d0 on 2026-11-03; migrations applied, key in Vault only; timer runs 10:41, 11:41 and 12:41 UTC ok)] Post for Me accounts link themselves to clients on an exact, unique handle match, with a person as the backstop (L1 of the trial and posting plan; session Lbuild)
 
 - **Asked:** Sidney, 2 Nov (D4, relayed by the supervisor): he does not want to link accounts or click a pick list. Link automatically when it is certain; list anything unsure so he can be asked in one line.
 - **Built:**

@@ -1,6 +1,7 @@
 import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
+import { loadCalendarPosts } from './150-calendar-hydration-import.js';
 import { _calApplyAutoStatus, svCalReviewApproveKeeping, svCalResolveVersionTweaks } from './190-calendar-approval-comments.js';
 import { _calCommentsFor, _calCommentsForView, _calPendingEdits, _calSaveInFlight, _calSaveTimers, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
@@ -1521,6 +1522,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const t0 = Date.now();
             const notes = {};
             left.forEach(x => { try { notes[x.card] = _noteOutboxFor(String(x.card)).length > 0; } catch (e) { notes[x.card] = false; } });
+            // The cards this page read can be older than the save: a request the reload cut off can still finish on
+            // the server after this page read them. So the Calendar's cards are read again, quietly, the way a tab
+            // coming back reads them (Kasper's board already reads his again after a reload, above).
+            const rereadAt = [6000, 20000, 60000];
             const tick = () => {
                 try {
                     for (let i = left.length - 1; i >= 0; i--) {
@@ -1528,6 +1533,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                         if (!_rsReloadLanded(x, notes[x.card])) continue;
                         left.splice(i, 1);
                         _writeUiReviewEvent('calendar', 'review_reload_mid_save', 'landed_after_retry', { card: String(x.card), component: String(x.component), client_slug: String(x.client_slug || ''), board: x.board });
+                    }
+                    if (left.length && R.mode !== 'kasper' && rereadAt.length && Date.now() - t0 >= rereadAt[0]) {
+                        rereadAt.shift();
+                        if (!calState.loading) loadCalendarPosts({ background: true, quiet: true });
                     }
                 } catch (e) {}
                 if (left.length && Date.now() - t0 < RS_RELOAD_WATCH_MS) setTimeout(tick, 500);

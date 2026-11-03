@@ -199,7 +199,7 @@ async function open(browser, origin, opt) {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.writeAttempts++;
       // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
-      if (state.writeHang) return new Promise(() => {});   // a server that never answers
+      if (state.writeHang) return new Promise(res => (state.hung || (state.hung = [])).push(() => route.abort('failed').catch(() => {}).then(res)));   // a server that never answers (state.releaseHangs drops it)
       state.upsertAt = (state.upsertAt || []).concat(Date.now());
       if (state.writeDelay) await sleep(state.writeDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
@@ -223,7 +223,9 @@ async function open(browser, origin, opt) {
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
       state.writeAttempts++;
-      if (state.gatewayHang) return new Promise(() => {});   // a status write the server never answers (or applies)
+      // A status write the server never answers or applies. state.releaseHangs() later drops it (an aborted request), so a
+      // page that has gone does not keep the browser's connection open (WebKit kept it, and the next page's requests queued).
+      if (state.gatewayHang) return new Promise(res => (state.hung || (state.hung = [])).push(() => route.abort('failed').catch(() => {}).then(res)));
       if (state.networkDelay) await sleep(state.networkDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
       if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);

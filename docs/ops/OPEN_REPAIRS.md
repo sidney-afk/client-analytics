@@ -36205,6 +36205,25 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Runbook:** `docs/ops/EF_AUTO_DEPLOY.md`, "Migrations: how a held function is released", now says so.
 - **Way back:** revert the PR.
 
+## 671. [2026-11-03 UTC, BUILT, NOT MERGED] frameio-view's folder list fills each video's length from the file's metadata (session Framefix, F1 follow-up to 670)
+
+- **Found by the live check:** two runs of `frameio-list-live-check.yml` on test-client shares (runs 41562127795 and 41562708252) answered `list 200, rows 1, rows_with_thumbnail 1, rows_with_duration 0`. The thumbnail field 670 assumed is right. The length is not: F1 read a `duration` field off the listed file, and Frame's listing does not carry one. 670's code comment said this was assumed and not measured.
+- **Measured:** the live check goes through `frameio-view`, which reshapes Frame's answer, so it cannot print Frame's raw key set. What it does show is that 0 of the listed rows carried a positive `duration` on the file object, with `include=media_links.thumbnail`. The video part gets its length from `/files/<id>/metadata` ("Duration"), and that has worked in the player since 2026-10-14.
+- **Now (`supabase/functions/frameio-view/logic.mjs`):**
+  - after the list is sorted and cut to 50, each kept row without a length gets the file's metadata "Duration", the same read the video part makes;
+  - it runs 5 at a time, one call per kept row at most, and none for rows that were cut;
+  - a metadata call that fails, is refused (429) or runs out of the function's time leaves that row's length `null`. It never fails the list;
+  - a length already on the listing is used as is, with no metadata call;
+  - the answer shape is unchanged.
+- **Live check (`scripts/frameio-list-live-check.js`):** also prints `video_has_duration`, whether the listed video's own lookup has a length, beside `rows_with_duration`. The next dispatch settles both.
+- **Proof:**
+  - `test/frameio-view-source.js` has a mock that matches the live shape: no `duration` on listed files, the length only in the metadata, and one metadata call answering 500 and another 429. On main, 0 rows get a length. Now 4 of 6 do, the two failed rows stay `null`, and the list still answers.
+  - A 60-video folder makes exactly 50 metadata calls.
+  - A listing that already carries lengths makes none.
+  - 167 checks pass; every earlier check is unchanged.
+  - `test/frameio-list-live-check.js` expects `video_has_duration` (11 pass; failed before the script change).
+- **Way back:** revert the PR. Rows go back to a `null` length.
+
 ## 677. [2026-11-03 UTC, BUILT, NOT MERGED] TikTok carousel browser journey: a red that comes and goes on PRs that never touch TikTok, and a Cancel that sometimes said "Could not prepare image 2" (session Chanfix)
 
 The supervisor reported two reds of `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` on PRs with no TikTok change (#2538 at `faaf869f`, green on re-run; #2545 at `152a5e77`). Both stopped at `page.waitForFunction: Timeout 30000ms` in `attachThreeImagesAndCaption` (line 259, Submit never enabled), right after the client pick. Main stayed green.

@@ -36010,7 +36010,7 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
     - Codex on this PR found a hole in the first head: a redirect's first hop never commits, so it could later pair with a route change inside the page and excuse a read that really hung. A failed navigation could do the same. A commit now retires every earlier waiting entry, and a failed navigation retires its own. Two more cases pin this; the redirect case fails on the first head.
   - `test/prod-polish-names-the-check.js` pins the comment suite's stages: the allowlist, the order, and that neither marker is read against the other suite's names.
   - Live, read-only, from a sandbox on this branch: `behav-wired` 169/169 (168/169 on main 3 of 3), `pixel-wired` passes, `prod-comments-browser` passes, and `prod-interaction-inventory` passes 4 of 4 (2 of 3 red on main).
-## 642. [2026-11-02 UTC, BUILT, NOT MERGED] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
+## 642. [2026-11-02 UTC, LIVE (merged #2526 as 225595b on 2026-11-02; WebKit phone lane green on main three times)] The review player re-asked for a new video address when the page was leaving or nobody was watching (found from the phone review lane's WebKit red; fixed by session Trialchange)
 
 - **Seen:** from 2 Nov the WebKit phone review lane (`review-stage-phones`) went red on main and on several PRs with "no page errors: Fetch API cannot load …/functions/v1/frameio-view due to access control checks". It hit iPhone 15 and 15 Pro Max, landscape, client view, light and dark.
   - The #2507 and #2513 diagnostics show the report arrives online, about 1.3 s after the last approval.
@@ -36037,6 +36037,9 @@ Closed 2026-11-01 (SyncView supervisor): the db-timer run of 2026-11-01 13:17 UT
   - D: while the page is leaving, no re-ask. On main it asks once.
   - E: control, the page stays after all, and it re-asks once again.
   - The aborted-load code cannot be set by hand. The WebKit phone lane going green, and `VIDEO_TRACE` from #2513 on a red, are that part's proof.
+- **Live:** merged in #2526 as 225595b. The #2513 trace merged as 14c325b. The last main run without the fix (94f2d49) still went red at 00:29 UTC on 3 Nov, with the same report.
+  - After the fix, `review-stage-phones` passed on three main runs in a row: 288ad4c (job 125682156074), 6dc6349 (job 125697967913) and 817100f (job 125709994956).
+  - The front end is a page change, so it went live with the Pages publish of 225595b. No function is involved.
 - **Way back:** revert the PR.
 
 ## 646. [2026-11-02 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages now carry an Open Post for Me link (plan row N1, decision D7; session Pbuild)

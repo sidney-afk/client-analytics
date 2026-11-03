@@ -1,0 +1,59 @@
+name: trial versions V4 review live walk (manual)
+
+# The live walk for V4 (plan row V4, OPEN_REPAIRS 663): the review page's trial versions, each with its own thumbnail
+# and caption, on the client link, the SMM's Review tab and Kasper's Review Session, at 1440 and 390, in Chromium or
+# WebKit. READ ONLY: this build is served on the runner against the live backend, on the test client only, and every
+# write is blocked in the browser before it leaves (a run that blocked one fails). The part picker is opened and
+# cancelled, never sent. Prints counts and true/false only; takes no screenshots (Kasper's queue holds other clients'
+# cards and this repository is public). No input is a link. Run by hand (scripts/trial-v4-review-live-walk.js).
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: 'The browser: chromium or webkit'
+        required: true
+        type: choice
+        options:
+          - webkit
+          - chromium
+        default: webkit
+      card:
+        description: 'Optional: a test-client trial card id to open first (every open trial card of the test client is walked anyway)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-client-e2e
+  cancel-in-progress: false
+
+jobs:
+  walk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned browser and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: ${{ inputs.engine }}
+      - name: Walk the review page read only, on the test client, and report what was seen
+        env:
+          # The SMM role key, a repository secret (as the dawn check uses): it issues the test client's review link and
+          # signs the staff reads. Never printed.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          ROLE_KEY_SMM: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          WALK_ENGINE: ${{ inputs.engine }}
+          WALK_CARD: ${{ inputs.card }}
+        run: node scripts/trial-v4-review-live-walk.js

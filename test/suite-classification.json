@@ -89,6 +89,7 @@
     "trial-version-status-logic.js",
     "trial-version-status-live-check.js",
     "trial-versions-fields-import-live-check.js",
+    "trial-v4-review-live-walk.js",
     "trial-version-fields-logic.js",
     "trial-version-review-parts-logic.js",
     "alert-digest.js",

@@ -164,6 +164,14 @@ export function profileFactId(folder) {
 // stopped happening during tweak jobs).
 export const SAVE_REMINDER = "SAVE AS YOU GO: whenever the person approves a look, a fix or a rule for this client (captions, fonts, colours, cuts, hook, music, framing, \"always\" or \"never\"), call studio_profile_save at once with just those fields (it merges), without asking, and say it in one line. Save once more with a one-line recap when each video is finished.";
 
+// client_brain's answer with the client's saved video look added, so every
+// new session sees how this client's videos are edited without being asked
+// (Sidney, 2026-11-03: editors had to explain the look again each session).
+export function withSavedLook(brainText, profileText) {
+  if (!profileText) return brainText;
+  return `${brainText}\n\n---\nSAVED VIDEO LOOK (read before any edit, tweak, caption or thumbnail work for this client; it is the team's approved look and wins over defaults):\n\n${profileText}`;
+}
+
 // What studio_profile answers when the file exists.
 export function profileReply(clientName, text) {
   let parsed;

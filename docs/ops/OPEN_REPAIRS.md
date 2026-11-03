@@ -36780,12 +36780,32 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
 - **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.
 
+## 663. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V4: a hand-run, read-only live walk of the review page, for WebKit (session Vbuild)
+
+- **Asked:** the supervisor, 3 Nov, after V4 (#2571) went live. The plan's row V4 asks for a walk of the SMM, Kasper and the client link at 1440 and 390, in WebKit too. WebKit is not installed in the session sandbox, and installing browsers there is not allowed, so the walk runs in CI.
+- **Built:**
+  - `.github/workflows/trial-v4-review-live-walk.yml` (manual). Inputs: `engine` (webkit or chromium) and an optional test-client trial `card` id to open first. No input is a link.
+  - It runs `scripts/trial-v4-review-live-walk.js` with `ROBOT_ROLE_KEY_SMM`. That script serves this build against the live backend, on the test client only (`qa/test-client-entry.js` refuses any other client).
+  - It opens every open trial card of the test client on the client link, the SMM's Review tab and Kasper's Review Session, at 1440 and 390. On each it counts the thumbnail-and-caption block, own captions, loaded pictures and Kasper's tiles. It opens the part picker and cancels it.
+  - **Read only:** every write is aborted in the browser before it leaves: the Calendar, Production and comment writers, any trial-reels action but a read, and any REST write. A run that blocked one fails.
+  - Kasper's session is switched on for three named staff. Only this page's read of `review_stage_kasper_staff` and `review_stage_kasper_layout2` is widened, as the dawn check does for `analytics_hidden`.
+  - It prints counts and true/false only. It takes no screenshots, because Kasper's queue holds other clients' cards and the repository is public.
+- **Proof:**
+  - `test/trial-v4-review-live-walk.js` (25 checks, offline). It covers which requests are writes, that a summary line drops anything but counts, the verdict, and the workflow's two inputs with no link and no upload.
+  - **Codex on #2577:** the verdict used to pass a surface that never loaded, and it looked only at the version first on screen. Now:
+    - a stage that never mounted fails (it is not read as an empty queue);
+    - every version of every opened trial card is checked by its letter;
+    - a missing block, a broken picture, an uncaught page error or a picker without Video, Thumbnail and Caption (Video first) fails the run;
+    - a run that opened no trial card anywhere fails, because it proved nothing.
+  - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed each of the card's 3 versions' blocks with their pictures, at 1440 and 390, with nothing scrolling sideways.
+  - SMM and Kasper opened no trial card, because none of the test client's non-archived trial cards waits for them (OPEN_REPAIRS 662).
+- **Way back:** delete the workflow. It only runs when dispatched by hand.
+
 ## 662. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: a version's own thumbnail that is a Google Drive link showed broken on the review page (V4) and hidden on the staff card (V3) (session Vbuild)
 
 - **Seen:** on V4's live walk, 3 Nov, on the test client. With Sidney's go-ahead, a real Frame link, thumbnail and caption were copied from one of his own Posted cards (read only) onto a new version of a test-client trial card. The review page showed that version's own caption, but a broken image, with its alt text spilling out, where its thumbnail belongs.
 - **Why:** the thumbnail was a Google Drive file page, the team's usual thumbnail link. The card turns such a link into an image address (`_calDeriveThumb`: Google's image host). V4's review block and Kasper's tiles (194), and V3's own-thumbnail preview on the staff card (189), used the raw address instead. The staff card hid the broken image, so it showed nothing.
 - **Fix:** both now derive the image the way the card does, and keep the raw address only for a plain https picture that is not a Frame.io page. On the review page a picture that does not load shows the quiet video mark under it, never a broken image or its alt text.
-- **Proof:**
   - `test/trial-version-review-parts-browser.js` (28 checks): a Drive file page as Video C's own thumbnail shows as its Google image; a thumbnail that does not load shows the video mark, with no alt text. Both fail on main.
   - `test/trial-version-fields-browser.js` (42 checks): the staff card shows a Drive file page as C's image, at 1440 and 390. Both fail on main.
 - **The walk itself:**

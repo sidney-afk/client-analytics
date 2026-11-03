@@ -12,7 +12,9 @@
  *     so no status sync or drift robot ever sees these writes (CLAUDE.md, OPEN_REPAIRS 373);
  *   - it is a trial card (switch on) with that version, and the first staff read changed no version link (a staff call
  *     heals the on-card version's link when it differs from the card's; a card where it did is refused, nothing more
- *     is written).
+ *     is written);
+ *   - V1's own rules (logic.mjs versionStatusPatches, run here over the card's state from that read) allow every pick
+ *     of the walk and the put-back (planWalk), so an expected refusal stops the run before it writes.
  * After each pick it reads back: the version's card_status, the new trial_status row in calendar_post_events (from,
  * to, source, letter), and that calendar_posts.updated_at and video_status did not change (V1 never writes the card).
  *
@@ -81,6 +83,24 @@ function judgeStep({ want, from, resp, letter, eventsBefore, eventsAfter, cardBe
 
 const stepPassed = (s) => s.ok && s.status_read_back && s.event_ok && s.card_unchanged;
 
+/*
+ * The walk planned before any write, by V1's own rules (trial-reels logic.mjs versionStatusPatches, from this
+ * checkout) over the card's state as the staff read gave it: every pick of the walk and the put-back, in order.
+ * Returns null when every step is allowed, else the first refused step and its code, so a dispatch never goes red on
+ * a refusal the rules already predict; a refusal the live function then gives anyway still fails the run.
+ */
+function planWalk(logic, versions, letter, cardStatus, start) {
+  let vs = (versions || []).map((v) => ({ ...v }));
+  const steps = WALK.concat([start]);
+  for (let i = 0; i < steps.length; i++) {
+    const r = logic.versionStatusPatches(vs, { letter, status: steps[i], cardStatus }, new Date().toISOString());
+    if (r.error) return { step: i < WALK.length ? i + 1 : 'restore', to: steps[i], error: code(r.error) };
+    for (const c of r.patches) vs = vs.map((v) => (v.id === c.id ? { ...v, ...c.patch } : v));
+  }
+  return null;
+}
+const loadLogic = () => import(require('url').pathToFileURL(path.resolve(__dirname, '../supabase/functions/trial-reels/logic.mjs')).href);
+
 function makeIo({ fetchImpl, key, anon }) {
   const f = fetchImpl || fetch;
   const rest = async (q) => {
@@ -97,7 +117,7 @@ function makeIo({ fetchImpl, key, anon }) {
   return { rest, call };
 }
 
-async function run({ env, fetchImpl, anon, log, testHash }) {
+async function run({ env, fetchImpl, anon, log, testHash, logic }) {
   const say = log || ((s) => console.log(s));
   const key = String(env.SYNCVIEW_STAFF_KEY || '').trim();
   const client = String(env.LIVE_CHECK_CLIENT || '').trim().toLowerCase();
@@ -126,6 +146,8 @@ async function run({ env, fetchImpl, anon, log, testHash }) {
   if (linkEventsAfter.length !== linkEventsBefore.length) return { exit: 1, summary: { refused: 'read_healed_a_link' } };
 
   const start = read.json.versions.find((x) => x.letter === letter).card_status;
+  const blocked = planWalk(logic || await loadLogic(), read.json.versions, letter, cardRow.video_status, start);
+  if (blocked) return { exit: 1, summary: { refused: 'walk_not_allowed', start_status: start, blocked } };
   let current = start;
   const pick = async (want) => {
     const cardBefore = await readCard();
@@ -155,4 +177,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((err) => { console.error('trial version status live check failed:', err && (err.name + ' ' + code(String(err.message)))); process.exit(1); });
-module.exports = { TEST_CLIENT_SHA256, WALK, sha256, isTestClient, guardTarget, judgeStep, stepPassed, run, publishableKey };
+module.exports = { TEST_CLIENT_SHA256, WALK, sha256, isTestClient, guardTarget, judgeStep, stepPassed, planWalk, run, publishableKey };

@@ -36169,13 +36169,15 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     - a Posted card (a staff call starts its trial);
     - a card with a Production video or graphic sub-issue, or any row in `production_deliverables_browser_v1` (so the status sync and the drift robot never see these writes; entry 373);
     - a card whose switch is off, or with no such version;
-    - a card whose first staff read healed a version link.
+    - a card whose first staff read healed a version link;
+    - a walk V1's own rules would refuse. The script runs `logic.mjs` `versionStatusPatches` from the checkout over the card's state from that read, for every pick and the put-back (`planWalk`), so an expected refusal such as `status_follows_card` stops the run before it writes. A refusal the live function gives anyway still fails the run.
   - **The walk:** For SMM Approval, Kasper Approval, Client Approval, Tweaks Needed, Approved, then back to the word the version started at.
     - After each pick it reads back the version's `card_status`.
     - It checks there is exactly one new `trial_status` row with that from, to, `source = trial-reels` and the letter. A pick of the word the version already has must add none.
     - It checks that `calendar_posts.updated_at` and `video_status` are unchanged.
   - **Put back:** the version returns to its starting word. Exact OK times and a client pass are not restored, because a pick sets them by its own rules. A Tweaks Needed note is not restored either.
   - **The log** has counts, true/false, HTTP statuses, refusal codes and the card's status words only.
-- **Proof:** `test/trial-version-status-live-check.js` (31 checks, offline, fake backend). It covers every refusal before any write, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Proof:** `test/trial-version-status-live-check.js` (32 checks, offline, against a fake backend that applies V1's own rules). It covers every refusal before any write, including a walk on a card sent on whole to Kasper that the rules refuse, a full walk with the put-back, and that a card write, a wrong history row or a refused pick fails the run. It also checks that the summary never prints the card, the client, a link or a key. On main the script does not exist.
+- **Which card:** run read-only against today's test-client rows, the rules allow the full walk and the put-back on every unlinked card that is not Posted: the `p_trialchange_*` and `p_allactions_*` cards, every letter. **But every one of them has its trial switch off** (`trial_reel_cards.enabled = false`). Every switched-on test-client trial card is linked to Production. So the run needs the switch on for the chosen card first. The script refuses `not_a_trial_card` otherwise.
 - **Live result:** filled in by the supervisor's dispatch.
 - **Way back:** delete the workflow. It runs only by hand.

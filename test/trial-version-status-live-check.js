@@ -18,16 +18,21 @@ const HASH = L.sha256(CLIENT);
 const CARD = 'p_fixture_card_1';
 const SECRET_LINK = 'https://f.io/fixture-secret-link';
 
-/* A fake backend: calendar_posts, calendar_post_events, production_deliverables_browser_v1 and trial-reels. */
-function backend(over = {}) {
+/* A fake backend: calendar_posts, calendar_post_events, production_deliverables_browser_v1 and trial-reels, whose
+   version_status_set and read apply V1's own rules (logic.mjs), as the live function does. */
+function backend(logic, over = {}) {
   const st = {
     card: { id: CARD, client: CLIENT, video_status: 'Client Approval', updated_at: '2026-10-31T19:19:33.948Z', video_deliverable_id: null, graphic_deliverable_id: null, ...(over.card || {}) },
     production: over.production || [],
     enabled: over.enabled !== false,
-    versions: over.versions || [{ letter: 'A', card_status: 'For SMM Approval', frame_url: SECRET_LINK }, { letter: 'B', card_status: 'Tweaks Needed', frame_url: SECRET_LINK + '-b' }],
+    versions: over.versions || [
+      { id: 'vA', letter: 'A', status: 'waiting', frame_url: SECRET_LINK, smm_ok_at: 't0', kasper_ok_at: 't0', client_ok_at: null, client_pass_at: null, change_by: null, revision: 0 },
+      { id: 'vB', letter: 'B', status: 'change asked', frame_url: SECRET_LINK + '-b', smm_ok_at: 't0', kasper_ok_at: 't0', client_ok_at: 't0', client_pass_at: null, change_by: 'client', revision: 0 },
+    ],
     events: [],
     writes: 0,
   };
+  const shaped = () => st.versions.map((v) => ({ ...v, card_status: logic.versionCardStatus(v, st.versions, st.card.video_status) }));
   const reply = (status, body) => ({ ok: status < 400, status, json: async () => body });
   const fetchImpl = async (url, opts = {}) => {
     const u = new URL(url);
@@ -44,19 +49,19 @@ function backend(over = {}) {
     const body = JSON.parse(opts.body || '{}');
     if (body.action === 'read') {
       if (over.healOnRead) st.events.push({ action: 'trial_version_link_set', source: 'trial-reels', payload: { letter: 'A' } });
-      return reply(200, st.enabled ? { ok: true, enabled: true, versions: st.versions.map((v) => ({ ...v })) } : { ok: true, enabled: false });
+      return reply(200, st.enabled ? { ok: true, enabled: true, versions: shaped() } : { ok: true, enabled: false });
     }
     if (body.action === 'version_status_set') {
       st.writes += 1;
       if (over.refuse && over.refuse === body.status) return reply(409, { ok: false, error: 'status_follows_card' });
-      const v = st.versions.find((x) => x.letter === body.letter);
-      const from = v.card_status;
-      if (from !== body.status) {
-        v.card_status = body.status;
-        st.events.push({ action: 'trial_status', from_status: over.wrongFrom ? 'In Progress' : from, to_status: body.status, source: 'trial-reels', payload: { letter: body.letter, label: 'Video ' + body.letter } });
-        if (over.touchCard) st.card.updated_at = 'touched-' + st.writes;
+      const r = logic.versionStatusPatches(st.versions, { letter: body.letter, status: body.status, cardStatus: st.card.video_status }, 't' + st.writes);
+      if (r.error) return reply(r.error === 'status_follows_card' ? 409 : 400, { ok: false, error: r.error });
+      for (const c of r.patches) st.versions = st.versions.map((v) => (v.id === c.id ? { ...v, ...c.patch } : v));
+      for (const row of logic.statusLedgerRows(CLIENT, CARD, r.patches, { actor: 'robot', role: 'smm' }, 't' + st.writes)) {
+        st.events.push(over.wrongFrom ? { ...row, from_status: 'In Progress' } : row);
       }
-      return reply(200, { ok: true, versions: st.versions.map((x) => ({ ...x })) });
+      if (over.touchCard && r.patches.length) st.card.updated_at = 'touched-' + st.writes;
+      return reply(200, { ok: true, versions: shaped() });
     }
     return reply(400, { ok: false, error: 'action_invalid' });
   };
@@ -64,14 +69,16 @@ function backend(over = {}) {
 }
 
 const env = (over = {}) => ({ SYNCVIEW_STAFF_KEY: 'fixture-staff-key-not-real', LIVE_CHECK_CLIENT: CLIENT, LIVE_CHECK_CARD: CARD, LIVE_CHECK_LETTER: 'A', ...over });
+let LOGIC = null;
 async function go(over = {}, envOver = {}) {
-  const b = backend(over);
+  const b = backend(LOGIC, over);
   const logs = [];
-  const out = await L.run({ env: env(envOver), fetchImpl: b.fetchImpl, anon: 'fixture-anon', log: (s) => logs.push(s), testHash: HASH });
+  const out = await L.run({ env: env(envOver), fetchImpl: b.fetchImpl, anon: 'fixture-anon', log: (s) => logs.push(s), testHash: HASH, logic: LOGIC });
   return { ...out, st: b.st, logs };
 }
 
 (async () => {
+  LOGIC = await import(require('url').pathToFileURL(require('path').resolve(__dirname, '../supabase/functions/trial-reels/logic.mjs')).href);
   // The guard, and that nothing is written before it passes.
   ok(L.isTestClient(CLIENT, HASH) && !L.isTestClient('another-client', HASH) && !L.isTestClient('', HASH), 'only the client whose hash is given counts as the test client');
   ok(/^[0-9a-f]{64}$/.test(L.TEST_CLIENT_SHA256) && !L.isTestClient(CLIENT), 'the script compares a SHA-256, never a slug written in the repository');
@@ -100,20 +107,29 @@ async function go(over = {}, envOver = {}) {
   const good = await go();
   const s = good.summary;
   ok(good.exit === 0 && s.steps_passed === 5 && s.steps_total === 5 && s.restored === true, 'a full walk passes and the version is put back (' + JSON.stringify([s.steps_passed, s.restored]) + ')');
-  ok(s.start_status === 'For SMM Approval' && good.st.versions[0].card_status === 'For SMM Approval', 'the version ends at the word it started at');
-  ok(s.steps[0].events_added === 0 && s.steps[0].event_ok === true, 'a pick of the word it already has writes no history row, and that is checked');
-  ok(s.steps.slice(1).every((x) => x.events_added === 1 && x.event_ok && x.status_read_back && x.card_unchanged), 'every other pick: one trial_status row, read back, card untouched');
-  ok(s.restore.events_added === 1 && s.restore.to === 'For SMM Approval', 'the put-back is itself checked like a pick');
-  ok(good.st.versions[1].card_status === 'Tweaks Needed', 'the other version is never picked');
+  ok(s.start_status === 'Client Approval' && LOGIC.versionCardStatus(good.st.versions[0], good.st.versions, 'Client Approval') === 'Client Approval', 'the version ends at the word it started at');
+  ok(s.steps.every((x) => x.events_added === 1 && x.event_ok && x.status_read_back && x.card_unchanged), 'every pick: one trial_status row, read back, card untouched');
+  ok(s.restore.events_added === 1 && s.restore.to === 'Client Approval' && s.restore.event_ok, 'the put-back is itself checked like a pick');
+  ok(good.st.versions[1].status === 'change asked' && good.st.versions[1].client_ok_at === 't0', 'the other version is never written');
+  const noop = await go({ card: { video_status: 'For SMM Approval' }, versions: [{ id: 'vA', letter: 'A', status: 'waiting', frame_url: SECRET_LINK, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null }] });
+  ok(noop.exit === 0 && noop.summary.steps[0].events_added === 0 && noop.summary.steps[0].event_ok === true, 'a pick of the word it already has writes no history row, and that is checked');
+
+  // Planned by V1's own rules before any write: a card sent on whole to Kasper counts every version through the SMM
+  // while none has the SMM's OK, so picking For SMM Approval on one reads back as Kasper Approval.
+  const whole = await go({ card: { video_status: 'Kasper Approval' }, versions: [
+    { id: 'vA', letter: 'A', status: 'waiting', frame_url: SECRET_LINK, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null },
+    { id: 'vB', letter: 'B', status: 'waiting', frame_url: SECRET_LINK + '-b', smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, client_pass_at: null, change_by: null }] });
+  ok(whole.exit === 1 && whole.summary.refused === 'walk_not_allowed' && whole.summary.blocked.error === 'status_follows_card' && whole.st.writes === 0,
+    'a walk the rules refuse stops before any write and names the step (' + JSON.stringify(whole.summary.blocked) + ')');
 
   // What must fail the run.
   const touched = await go({ touchCard: true });
-  ok(touched.exit === 1 && touched.summary.steps.slice(1).every((x) => x.card_unchanged === false), 'a function that writes the card fails the run');
+  ok(touched.exit === 1 && touched.summary.steps.every((x) => x.card_unchanged === false), 'a function that writes the card fails the run');
   const wrong = await go({ wrongFrom: true });
-  ok(wrong.exit === 1 && wrong.summary.steps.slice(1).every((x) => x.event_ok === false), 'a history row with the wrong from status fails the run');
+  ok(wrong.exit === 1 && wrong.summary.steps.filter((x) => x.event_ok === false).length >= 4, 'a history row with the wrong from status fails the run');
   const refused = await go({ refuse: 'Kasper Approval' });
   const k = refused.summary.steps[1];
-  ok(refused.exit === 1 && k.ok === false && k.error === 'status_follows_card' && k.http_status === 409, 'a refused pick fails the run and names the refusal code');
+  ok(refused.exit === 1 && k.ok === false && k.error === 'status_follows_card' && k.http_status === 409, 'a refusal the rules did not predict still fails the run and names its code');
   ok(refused.summary.steps[2].ok === true && refused.summary.steps[2].event_ok === true, 'after a refusal the walk goes on from the word the version really has');
 
   // The log is public.

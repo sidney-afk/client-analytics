@@ -36882,3 +36882,4 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - the switch off, where the page is today's word for word.
 - **Not in this part:** the Calendar card's tabs (part 2), and the remaining "Version" wording on the card, in Production, in the Post tab and in trial-reels' own notes (part 3).
 - **Way back:** revert the PR, or take the client off `trial_versions_v2`.
+- **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.

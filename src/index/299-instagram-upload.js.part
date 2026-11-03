@@ -89,6 +89,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         // P4: a trial card picked "From a card" with Trial reel on posts each approved version as its own trial reel.
         // { cardId, state: 'loading'|'ready'|'failed', isTrial, versions, off: { letter: true }, res: { letter: { state, message } } }
         trialVersions: null,
+        trialAttempt: null,          // { cardId, client, letters: { A: { fp, key, done } } }: each version's key and "sent", for this card
         instagramOn: true,           // false only when the person unticked Instagram (post_networks_v1); read by _igValidate
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         carouselAttempt: null,       // the same for a carousel, kept apart so switching Reel / Carousel never loses either
@@ -329,11 +330,12 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const off = igState.submitting ? 'disabled' : '';
         const label = { copying: 'Copying from Frame…', posting: 'Posting…', done: 'Sent', failed: 'Failed' };
         const rows = tv.versions.map(v => {
-            const r = tv.res[v.letter] || {};
+            const went = !!(igState.trialAttempt && igState.trialAttempt.cardId === tv.cardId && igState.trialAttempt.letters[v.letter] && igState.trialAttempt.letters[v.letter].done);
+            const r = went ? { state: 'done' } : (tv.res[v.letter] || {});
             const thumb = (function () { try { return _calDeriveThumb({ thumbnail_url: v.effective && v.effective.thumbnail_url }); } catch (e) { return ''; } })();
             const cap = _igTrialCaption(v);
             return `<label class="ig-trv-row" data-ig-trv-row="${_igEsc(v.letter)}">
-                    <input type="checkbox" data-ig-trv="${_igEsc(v.letter)}" ${tv.off[v.letter] ? '' : 'checked'} ${off || r.state === 'done' ? 'disabled' : ''}>
+                    <input type="checkbox" data-ig-trv="${_igEsc(v.letter)}" ${tv.off[v.letter] && !went ? '' : 'checked'} ${off || went ? 'disabled' : ''}>
                     ${thumb ? `<img class="ig-trv-thumb" src="${_igEsc(thumb)}" alt="" loading="lazy">` : '<span class="ig-trv-thumb" aria-hidden="true"></span>'}
                     <span class="ig-trv-text"><strong>Video ${_igEsc(v.letter)}</strong><span class="ig-trv-cap">${cap ? _igEsc(cap.split('\n')[0]) : 'No caption'}</span></span>
                     ${r.state ? `<span class="ig-trv-state${r.state === 'failed' ? ' is-failed' : ''}" title="${_igEsc(r.message || '')}">${label[r.state] || ''}</span>` : ''}
@@ -353,8 +355,11 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         _igRecordFailure('post_source_copy', res.status || 0, !res.status);
         return { ok: false, message: _svPostSourceFail(res) };
     }
-    /* One press, one post per ticked version, each with its own key (the press key plus the letter): a press again after
-       a partial failure sends only the versions with no post yet, and the server adopts a post whose answer was lost. */
+    /* One press, one post per ticked version, each with its own key. Each version keeps its key and its "sent" for
+       this card, whatever else changes (Codex P1 on #2573): a version that went is never sent again, even when the
+       ticks, the fallback caption or the time change after a partial failure; a version whose answer was lost keeps
+       its key while what it would post is unchanged, so the server adopts that post instead of making a second. A
+       request that throws (a timeout, a lost connection) counts as a lost answer, and the form is always given back. */
     async function _igSubmitTrialVersions() {
         const tv = igState.trialVersions;
         const err = _igTrialVersionsProblem();
@@ -364,43 +369,52 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
         const ticked = _igTrialTicked(tv);
-        const fp = ['trial-versions', client, cardId, ticked.map(v => v.letter + ':' + _igTrialCaption(v)).join(','), utc].join('|');
-        if (!igState.attempt || igState.attempt.fp !== fp) {
-            igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)), done: {} };
-        }
-        const attempt = igState.attempt;
-        attempt.done = attempt.done || {};
+        let ta = igState.trialAttempt;
+        if (!ta || ta.cardId !== cardId || ta.client !== client) ta = igState.trialAttempt = { cardId, client, letters: {} };
+        const pressKey = (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2));
         igState.submitting = true; igState.error = null; igState.notice = null; igState.phase = 'creating';
         _igRenderForm();
         let unknown = false;
-        for (const v of ticked) {
-            if (attempt.done[v.letter]) { tv.res[v.letter] = { state: 'done' }; continue; }
-            tv.res[v.letter] = { state: 'copying' }; _igRenderForm();
-            const copy = await _igTrialCopy(client, cardId, v);
-            if (!copy.ok) { tv.res[v.letter] = { state: 'failed', message: copy.message }; _igRenderForm(); continue; }
-            tv.res[v.letter] = { state: 'posting' }; _igRenderForm();
-            const created = await _igCall({
-                action: 'create', clientName: client, socialAccountId: account, title: _igTrialCaption(v),
-                mediaUrl: copy.data.media_url, coverUrl: copy.data.thumb_url || '', options: { cover_timestamp_ms: 0, trial_reel_type: 'manual' },
-                scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey: attempt.key + '_' + v.letter,
-            }, 'instagram_create');
-            if (created.ok) {
-                const row = created.json && created.json.row;
-                attempt.done[v.letter] = (row && row.id) || true;
-                if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
-                tv.res[v.letter] = { state: 'done' };
-            } else {
-                const final = _igCreateAnswerIsFinal(created);
-                if (!final) unknown = true;
-                const reason = _igCreateRefusalReason(created) || (created.json && created.json.error) || '';
-                tv.res[v.letter] = { state: 'failed', message: final ? ('Instagram did not take it' + (reason ? ': ' + reason : '.')) : 'Not confirmed. Press again: it cannot post twice.' };
+        try {
+            for (const v of ticked) {
+                const fp = [client, cardId, v.letter, _igTrialCaption(v), utc].join('|');
+                let one = ta.letters[v.letter];
+                if (one && one.done) { tv.res[v.letter] = { state: 'done' }; continue; }
+                if (!one || one.fp !== fp) one = ta.letters[v.letter] = { fp, key: pressKey + '_' + v.letter, done: false };
+                tv.res[v.letter] = { state: 'copying' }; _igRenderForm();
+                const copy = await _igTrialCopy(client, cardId, v);
+                if (!copy.ok) { tv.res[v.letter] = { state: 'failed', message: copy.message }; _igRenderForm(); continue; }
+                tv.res[v.letter] = { state: 'posting' }; _igRenderForm();
+                let created;
+                try {
+                    created = await _igCall({
+                        action: 'create', clientName: client, socialAccountId: account, title: _igTrialCaption(v),
+                        mediaUrl: copy.data.media_url, coverUrl: copy.data.thumb_url || '', options: { cover_timestamp_ms: 0, trial_reel_type: 'manual' },
+                        scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey: one.key,
+                    }, 'instagram_create');
+                } catch (e) {
+                    created = { ok: false, status: 0, json: null };
+                }
+                if (created.ok) {
+                    const row = created.json && created.json.row;
+                    one.done = true;
+                    if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
+                    tv.res[v.letter] = { state: 'done' };
+                } else {
+                    const final = created.status > 0 && _igCreateAnswerIsFinal(created);
+                    // A clear "no" made nothing: the next press may start afresh. An unknown outcome keeps the key.
+                    if (final) delete ta.letters[v.letter]; else unknown = true;
+                    const reason = (created.status > 0 && _igCreateRefusalReason(created)) || (created.json && created.json.error) || '';
+                    tv.res[v.letter] = { state: 'failed', message: final ? ('Instagram did not take it' + (reason ? ': ' + reason : '.')) : 'Not confirmed. Press again: it cannot post twice.' };
+                }
+                _igRenderForm(); _igRenderQueue();
             }
-            _igRenderForm(); _igRenderQueue();
+        } finally {
+            igState.submitting = false; igState.phase = '';
         }
-        igState.submitting = false; igState.phase = '';
-        const sent = ticked.filter(v => attempt.done[v.letter]).length;
+        const sent = ticked.filter(v => ta.letters[v.letter] && ta.letters[v.letter].done).length;
         if (sent === ticked.length) {
-            igState.attempt = null;
+            igState.trialAttempt = null;
             svPostSourceClear(igState.source);
             igState.trialVersions = null;
             igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null; igState.trial = false;
@@ -1208,7 +1222,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igWireForm() {
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
-        const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
+        // A trial card's versions are checked by their own rule (their captions are their own; Codex on #2573).
+        const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = _igTrialVersionsOn() ? !!_igTrialVersionsProblem() : !!_igValidateSoft(); };
         $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } _igLeaveClient(); _igRenderForm(); if (igState.file) _igTryCaptionFill(igState.file); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;

@@ -36728,13 +36728,17 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Facebook, YouTube and LinkedIn stay off (a trial is Instagram only), and nothing is posted afterwards (D3). The cover card hides, because each version carries its own thumbnail;
   - each row shows its own state (Copying from Frame, Posting, Sent, Failed with the reason). When some went and some did not, a press again sends only the versions with no post yet, under the same keys, so the server adopts a post whose answer was lost;
   - a card with no versions, or Trial reel off, posts exactly as before.
+- **Codex on #2573, all three fixed with a case:**
+  - **(P1) duplicate reel:** a change of ticks, of the fallback caption or of the time after a partial failure made a new key for the whole batch, so a version that went would have been sent again. Each version now keeps its own key and its "sent" for the card. A version that went is never sent again, and stays ticked and fixed;
+  - **(P1) locked form:** a create request that throws (a timeout, a lost connection) left the form locked. It now counts as a lost answer: the key is kept, and the form is always given back;
+  - **(P2) button state:** typing in the caption box switched Post off when every version had its own caption. The quick check now uses the versions' own rule.
 - **Now, post-source (server):**
   - a letter is read from that version's own row, A included. Before, A was always the card, which is the wrong video once the SMM has put another version on the card. A card with no row for A is still the card;
   - a version's copy carries its thumbnail too: its own, else the card's (V3's rule). Before, a version's copy had no thumbnail;
   - a version's card must belong to the client asked for.
 - **Live check script:** `post-from-card-live-check.yml` takes an optional version letter. That run copies the version and schedules it as an Instagram trial reel 8 days ahead, then cancels it and reads it back (D6). It handles one version per run and is refused on the TikTok side.
 - **Proof:**
-  - `test/post-trial-versions-browser.js` (new, isolated browser, 38 checks): **main** `TimeoutError` waiting for the version rows; **this branch** `post-trial-versions-browser: 38 checks passed`;
+  - `test/post-trial-versions-browser.js` (new, isolated browser, 43 checks): **main** `TimeoutError` waiting for the version rows; **this branch** `post-trial-versions-browser: 43 checks passed`. Before the Codex fixes, the new case fails at the caption check, and with that check skipped the locked form times out;
   - `test/post-source-logic.js` now has 34 checks. On main the new cases fail (`AssertionError`): letter A with its own row, a version's own or fallback thumbnail, and another client's card. One pin passes on main and on the branch alike, as asked by the supervisor: a card with no version rows at all is read exactly as before, with no letter and with letter A (the card's link and thumbnail; with no letter the version rows are never read);
   - `test/post-from-card-live-check.js` now has 11 checks: the letter run, and a bad letter or the TikTok side refused before anything is called.
   The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.

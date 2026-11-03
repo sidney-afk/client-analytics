@@ -13,7 +13,9 @@
 //      and the ones that went are not sent again;
 //   5. a version with no caption, and an empty caption box, keeps Post off until a caption is written;
 //   6. a card that is not on trial posts as one Reel, as before; Trial reel off posts the card as before;
-//   7. at 390 wide the version rows fit with no sideways scroll.
+//   7. at 390 wide the version rows fit with no sideways scroll;
+//   8. (Codex on #2573) a change of ticks after a partial failure never sends a version that went, a dropped connection
+//      gives the form back and keeps that version's key, and clearing the fallback caption keeps Post on.
 // Nothing is ever posted for real: every function is answered here.
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -41,7 +43,7 @@ const v = (letter, status, extra) => Object.assign({ id: 'v_' + letter, letter, 
 const TRIAL = { enabled: true, versions: [v('A', 'approved'), v('B', 'approved', { on_card: true }), v('C', 'change asked'), v('D', 'approved')] };
 
 async function newPage(browser, opts) {
-  const o = Object.assign({ viewport: { width: 1440, height: 1000 }, cards: { p_trial: TRIAL }, failCreate: {} }, opts || {});
+  const o = Object.assign({ viewport: { width: 1440, height: 1000 }, cards: { p_trial: TRIAL }, failCreate: {}, dropCreate: {} }, opts || {});
   const context = await browser.newContext({ viewport: o.viewport });
   const log = { copies: [], creates: [], lists: 0 };
   await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, async route => {
@@ -78,6 +80,8 @@ async function newPage(browser, opts) {
         log.creates.push(body);
         const letter = String(body.idempotencyKey || '').split('_').pop();
         if (o.failCreate[letter] > 0) { o.failCreate[letter]--; return reply(502, { ok: false, error: 'upstream' }); }
+        // The connection drops before any answer (the page's call throws).
+        if (o.dropCreate[letter] > 0) { o.dropCreate[letter]--; return route.abort('failed'); }
         return reply(200, { ok: true, row: { id: 'row_' + log.creates.length, status: 'scheduled', client: body.clientName, title: body.title, kind: 'reel', trial: true, network: 'instagram', created_at: new Date().toISOString() } });
       }
       return reply(200, { ok: true, rows: [] });
@@ -185,6 +189,32 @@ const notice = (page, re) => page.waitForFunction((src) => new RegExp(src).test(
       await notice(page, /Sent 2 trial reels/);
       assert.deepEqual(log.creates.map(c => c.idempotencyKey.slice(-1)), ['A', 'B']); checks++;
       ok(!errors.length, 'unticked: no page errors');
+      await context.close();
+    }
+    // ---- 4b. (Codex on #2573) a change of ticks after a partial failure never sends a version that went; a dropped
+    //      connection gives the form back and keeps the version's key; clearing the fallback caption keeps Post on
+    {
+      const { context, page, log, errors } = await newPage(browser, { failCreate: { D: 1 }, dropCreate: { B: 1 } });
+      await openCard(page, base, 'p_trial');
+      await trialOn(page);
+      await page.waitForSelector('[data-ig-trv-row="D"]');
+      // Every version has its own caption: clearing the box (the fallback) leaves Post on.
+      await page.fill('#igTitle', '');
+      ok(!(await page.isDisabled('#igSubmit')), 'clearing the fallback caption keeps Post on when every version has its own');
+      await page.click('#igSubmit');
+      await notice(page, /1 of 3 went\. Press again/);
+      ok(!(await page.isDisabled('#igSubmit')), 'a dropped connection gives the form back');
+      const keyB = log.creates.find(c => c.idempotencyKey.endsWith('_B')).idempotencyKey;
+      ok(await page.isDisabled('[data-ig-trv="A"]') && await page.isChecked('[data-ig-trv="A"]'), 'a version that went stays ticked and fixed');
+      // Untick D, then press again: only B, under its first key; A is not sent again.
+      await page.click('[data-ig-trv-row="D"]');
+      await page.waitForFunction(() => !document.querySelector('[data-ig-trv="D"]').checked);
+      const before = log.creates.length;
+      await page.click('#igSubmit');
+      await notice(page, /Sent 2 trial reels/);
+      const after = log.creates.slice(before);
+      assert.deepEqual(after.map(c => c.idempotencyKey), [keyB]); checks++;
+      ok(!errors.length, 'retry with changed ticks: no page errors (' + errors.join(' | ') + ')');
       await context.close();
     }
     // ---- 5. no caption anywhere keeps Post off

@@ -280,6 +280,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             .finally(() => {
                 e.promise = null;
                 _trlListen();
+                // Month and Week draw their version marks from this read (688 part 2): the first one draws them again.
+                if (first && ['month', 'week'].includes(calState.view) && svTrialVersionsV2On(slug)) { try { _calRenderBody({ preserveScroll: true }); } catch (err) {} }
                 if (first || !changed) { _trlRepaintAll(slug); _trlNotesChanged(''); return; }
                 changed.forEach(pid => _trlRepaintField(pid));
                 // The Notes view follows only a card whose versions moved (it is drawn again, keeping what is typed).
@@ -737,6 +739,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (cap) cap.insertAdjacentHTML('afterend', '<div class="trl-cap-view" aria-label="Caption of Version ' + _calEscAttr(sel.letter) + '"><span class="trl-cap-k">Version ' + _calEsc(sel.letter) + ' caption</span>'
                 + (words ? '<span class="trl-cap-t">' + _calEsc(words) + '</span>' : '<span class="trl-cap-t trl-cap-none">No caption yet</span>') + '</div>');
         });
+    }
+    /* The same versions on Month and Week (688 part 2, from the samples): a small dot per live version in its status colour,
+       with its letter on a Week card. Staff only, the card's own tabs' rule; '' for any other card. */
+    function svTrialMonthMarkHtml(post, week) {
+        if (!post || _isClientLink) return '';
+        const shape = _trlShape(post);
+        if (!_trlTabsOn(post, shape)) return '';
+        const live = shape.versions.filter(TRL_LIVE);
+        const say = live.map(v => 'Version ' + v.letter + ' ' + (v.client_pass_at ? 'client dropped' : TRL_TAB_SAY[_trlTabTone(v)])).join(', ');
+        return '<span class="trl-mk' + (week ? ' trl-mk-w' : '') + '" role="img" aria-label="' + _calEscAttr(say) + '" data-tip="' + _calEscAttr(say) + '">'
+            + live.map(v => '<span class="trl-mk-v" data-tone="' + _trlTabTone(v) + '"><i class="trl-tab-d"></i>' + (week ? _calEsc(v.letter) : '') + '</span>').join('') + '</span>';
     }
     function svTrialTab(pid, letter) {
         _trlTabPick[pid] = letter;
@@ -1661,6 +1674,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialStatusMenu, svTrialStatusPick, svTrialTab, svTrialToggle
     });
 export {
-  svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
+  svTrialMonthMarkHtml, svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,
   svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialSwitchHtml, svTrialVideoRowHtml
 };

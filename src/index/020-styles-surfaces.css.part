@@ -1876,6 +1876,15 @@
         .trl-tab[data-tone="smm"] .trl-tab-d { background: var(--cal-status-for-smm-approval-bg); }
         .cal-card-thumb .trl-tab-img { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .cal-link-post .trl-sel-st { color: var(--text-secondary); font-weight: 600; }
+        .trl-mk { display: inline-flex; align-items: center; gap: 3px; flex: none; margin-left: 4px; vertical-align: middle; }
+        .trl-mk-v { display: inline-flex; align-items: center; gap: 2px; }
+        .trl-mk-w { gap: 6px; margin: 2px 0 0; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); }
+        .trl-mk-w .trl-tab-d { width: 6px; height: 6px; }
+        .trl-mk-v[data-tone="ok"] .trl-tab-d { background: var(--cal-status-approved-bg); }
+        .trl-mk-v[data-tone="chg"] .trl-tab-d { background: var(--cal-status-tweaks-needed-bg); }
+        .trl-mk-v[data-tone="client"] .trl-tab-d { background: var(--cal-status-client-approval-bg); }
+        .trl-mk-v[data-tone="kasper"] .trl-tab-d { background: var(--cal-status-kasper-approval-bg); }
+        .trl-mk-v[data-tone="smm"] .trl-tab-d { background: var(--cal-status-for-smm-approval-bg); }
         .trl-tabs.trl-tabs-row { display: flex; gap: 18px; padding: 0 2px; margin: 2px 0 6px; border-bottom: 1px solid var(--border); }
         .trl-tabs.trl-tabs-row .trl-tab { height: 32px; font-size: 13px; }
         .trl-tabs.trl-tabs-row .trl-tab::after { bottom: -1px; }

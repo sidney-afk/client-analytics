@@ -176,6 +176,21 @@ const LINK = (l) => 'https://f.io/fixture-tabs-' + l.toLowerCase();
       await tab(page, 'A');
       V = await view(page);
       ok(V && V.tabs[0].on && V.capShown && !V.capView && !V.img && /^Version A\b/.test(V.row), `${label}: A again puts the card's own back`);
+      // Month and Week: a dot per live version, in its status colour; the Week card also says each letter. Opened on the
+      // card's own month and week, never today's (CLAUDE.md: a fixture date must not depend on the month the run is in).
+      if (w >= 600) {
+        const mk = async (viewName) => {
+          await page.evaluate(([v, d]) => { if (v === 'month') calState.monthCursor = d.slice(0, 8) + '01'; else calState.weekCursor = d; onCalViewChange(v); }, [viewName, card.scheduled_date]);
+          await sleep(1500);
+          if (process.env.TRL_SHOTS) { const h = await page.$('.cal-month-pill:has(.trl-mk), .cal-week-card:has(.trl-mk)'); if (h) await h.screenshot({ path: path.join(process.env.TRL_SHOTS, 'mk-' + viewName + '.png') }); }
+          return page.evaluate(() => { const m = document.querySelector('.trl-mk'); return m ? { n: m.querySelectorAll('.trl-mk-v').length, text: m.innerText.replace(/\s+/g, ''), name: m.getAttribute('aria-label'), dots: [...m.querySelectorAll('.trl-tab-d')].map(d => getComputedStyle(d).backgroundColor) } : null; });
+        };
+        const mm = await mk('month');
+        ok(mm && mm.n === 3 && !mm.text && mm.dots[0] !== mm.dots[1] && /Version A approved/.test(mm.name), `${label}: Month shows a dot per version in its status colour, named in words (${JSON.stringify(mm)})`);
+        const wk = await mk('week');
+        ok(wk && wk.n === 3 && wk.text === 'ABC', `${label}: Week shows the three versions with their letters (${JSON.stringify(wk)})`);
+        await page.evaluate(() => onCalViewChange('organizer')); await sleep(800);
+      }
       const wrote = T.calls.filter((c) => !['list', 'read'].includes(c.action)).length + T.writes.length;
       ok(wrote === 0, `${label}: picking tabs writes nothing (${wrote})`);
       ok(!page.errors.length, `${label}: no page errors (${page.errors.join(' | ')})`);

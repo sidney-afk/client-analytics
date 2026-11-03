@@ -102,6 +102,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the retained older bundles are read from history
+          filter: blob:none # fetched in one request by pages-retained-bundles.js (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

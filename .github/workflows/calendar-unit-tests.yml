@@ -98,7 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the changed-file list needs the merge base
+          filter: blob:none # history without old file contents (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -215,6 +216,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # truth-sync verifies freshness anchors resolve and are ancestors
+          filter: blob:none # old file contents are fetched when read (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -257,6 +259,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the diff scan needs the merge base
+          filter: blob:none # old file contents are fetched when read (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

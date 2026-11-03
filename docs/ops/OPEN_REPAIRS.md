@@ -36817,3 +36817,16 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - **WebKit:** not run, because it is not installed in the session sandbox. It goes through a hand-run workflow.
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
+
+## 693. [2026-11-03 UTC, BUILT, NOT MERGED] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
+
+- **Seen:** from about 17:15 UTC on 3 Nov the full-history checkout took 3 to 12 minutes instead of 40 to 50 s, and jobs hit `timeout-minutes` and came out cancelled: module-check (job 126080092299), the Pages build (126080021235), identity-exposure (126089893903). GitHub's status page was green.
+- **Measured here (a fresh fetch made exactly as actions/checkout does):** a full-history fetch downloads 714 MiB. Of that, 420 MiB is the checked-out tip itself, which a depth-1 checkout downloads too (403 MiB). All commits and trees of every branch are only 9.5 MiB. The other ~295 MiB is old file contents nobody reads.
+- **Fix:** every automatic job that read history keeps `fetch-depth: 0` and adds `filter: blob:none` (a blobless clone): every commit and tree, old file contents fetched only when read. That is 411 MiB, 2% more than depth 1, and every ancestry, merge-base and `git show` answer is the same. Jobs: calendar-unit-tests `changes`, `unit` and `identity-exposure`; the Pages `build`; linear-exit-preparation-ci; the Samples nightly. module-check is left to #2585.
+  - `scripts/pages-retained-bundles.js` reads ~550 old bundles one `git cat-file` at a time, and rebuilds 30 older commits in worktrees. On a blobless clone each of those is its own request: the unchanged script ran 17 minutes without finishing. It now asks for each set in one request first, and only on a partial clone (a full clone makes no request, as before).
+- **Proof (fresh blobless clone against a fresh full clone, same commit):**
+  - Pages: all 653 files the build leaves in `index.html` and `js/` (628 retained bundles) are byte-identical. Download 431 MiB in all versus 714 MiB.
+  - `changes`, identity-exposure and the byte-pinned line-ending check, on four open branches against main: identical output. A local-only commit adding one client slug was caught (exit 1) on both.
+  - Every unit test that shells out to git (24): identical exit codes and identical output.
+- **Left alone, on purpose:** module-check (#2585), and every hand-dispatched or deploy lane (the Section 4 lane, the merge lane, single-function, onboarding, PTO, hiring, review-link, crosswalk, F42, review-note backfill, F27 post-contract capture, Graphics F2 evidence). They read history for fingerprints and ancestry, run rarely, and were not proven here.
+- **Way back:** revert the PR.

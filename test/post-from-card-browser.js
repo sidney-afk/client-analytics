@@ -124,7 +124,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
       const { context, page, log, errors } = await newPage(browser);
       await openTikTok(page, base);
       await page.waitForSelector('input[name="tkSrcMode"]');
-      ok(await page.locator('#tkDrop').count() === 1, 'TikTok: "From files" is the default, with today\'s drop zone');
+      // OPEN_REPAIRS 687 (the owner, 3 Nov): "From Content Calendar" is the default; "From files" is the second choice.
+      ok(await page.isChecked('input[name="tkSrcMode"][value="card"]') && await page.locator('#tkDrop').count() === 0, 'TikTok: "From Content Calendar" is the default, with no drop zone');
       await page.click('label:has(input[name="tkSrcMode"][value="card"])');
       await page.waitForSelector('#tkSrcCardBtn');
       await page.click('#tkSrcCardBtn');

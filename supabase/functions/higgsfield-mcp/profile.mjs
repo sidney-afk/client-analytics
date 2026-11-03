@@ -167,9 +167,16 @@ export const SAVE_REMINDER = "SAVE AS YOU GO: whenever the person approves a loo
 // client_brain's answer with the client's saved video look added, so every
 // new session sees how this client's videos are edited without being asked
 // (Sidney, 2026-11-03: editors had to explain the look again each session).
+// Said in every client_brain answer that carries a look note: an editing job
+// must go through the studio, not the session's own ffmpeg scripts (3 Nov: a VSL
+// was cut with home-made scripts that trusted speech-recognition word times).
+export const STUDIO_POINTER = "EDITING A VIDEO FOR THIS CLIENT? Call guide with topic video-studio first and edit with the Synchro video studio (studio_latest). Never cut with your own scripts or plain ffmpeg: the studio holds the team's cut rules.";
+
+export const NO_LOOK_NOTE = "NO SAVED VIDEO LOOK YET for this client. As soon as the person approves a look or rule, or the first video is finished, save a first draft with studio_profile_save without asking (draft it from what you learned and from the Look notes above), and say so in one line. They can say \"undo that look\".\n\n" + STUDIO_POINTER;
+
 export function withSavedLook(brainText, profileText) {
   if (!profileText) return brainText;
-  return `${brainText}\n\n---\nSAVED VIDEO LOOK (read before any edit, tweak, caption or thumbnail work for this client; it is the team's approved look and wins over defaults):\n\n${profileText}`;
+  return `${brainText}\n\n---\nSAVED VIDEO LOOK (read before any edit, tweak, caption or thumbnail work for this client; it is the team's approved look and wins over defaults):\n\n${profileText}\n\n${STUDIO_POINTER}`;
 }
 
 // What studio_profile answers when the file exists.

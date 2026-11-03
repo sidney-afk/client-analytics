@@ -36483,6 +36483,7 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Proof:**
   - `test/postforme-link-browser.js` and `test/instagram-platform-switch-browser.js` now expect the new words. On main they fail ("TikTok: connect it in Post for Me, it links itself"; "the flag says to connect it in Post for Me"). Here every wording check passes.
   - `instagram-facebook-browser` (38) and `instagram-facebook-crosspost` (79) pass with the Facebook line.
+  - `upload-schedule-zone-and-queue-guards` now checks that TikTok's refusal names Post for Me and "links itself", and still never the sheet.
   - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
 - **Way back:** revert the PR.
 

@@ -321,6 +321,12 @@ import {
         .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        /* The Instagram side's "Post to" card (post_networks_v1, plan row P3): one toggle row per network, YouTube's
+           fields under its row. */
+        .ig-net-row + .ig-net-row, .ig-yt + .ig-net-row { margin-top: 12px; }
+        .ig-net-row .tk-step-note { margin-top: 4px; }
+        .ig-yt { margin: 10px 0 0; display: grid; gap: 8px; }
+        .ig-yt-label { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; gap: 8px; }
         .tk-counter.over { color: var(--sv-fg-dc2626); font-weight: 700; }
         .tk-toggles { display: flex; flex-wrap: wrap; gap: 18px 24px; }
         .tk-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 0.82rem; color: var(--text-primary); font-weight: 600; position: relative; }

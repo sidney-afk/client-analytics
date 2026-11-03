@@ -700,6 +700,11 @@ Switch values below are the live values read on 2026-10-28.
   - The switch has no runtime switch of its own and is there for everyone who uses the tab.
   - A carousel can never be a trial.
 - **Also post to Facebook:** shown once a client is picked. Ticked by default when the client's Facebook Page is on file; the same post then also goes to the Page (a Reel as a Facebook Reel; a carousel of photos as one Facebook post). Untick it for Instagram only. It is off, with the reason, for a trial reel, a carousel with a video, or a client with no Page. No runtime switch: the server allow-list above still decides who can post.
+- **Post to (behind the switch `post_networks_v1`; a single Reel):** the Facebook box becomes a **Post to** card with Instagram, Facebook, YouTube and LinkedIn. One press makes one post on every ticked network, and each network's result shows on its own in the queue.
+  - Instagram can be unticked, for a post that goes only to the others. A carousel and a trial reel stay Instagram only.
+  - **YouTube:** the title is the caption's first line until you type one (100 characters at most). **Short** (the default: vertical and 3 minutes or less; YouTube itself puts it on the Shorts shelf) or **Regular video**. Always Public. "Made for kids" comes from the client's profile (Kasper > Clients > Publishing), never from this form.
+  - **LinkedIn:** posts as whichever account (a page or a person) is connected in Post for Me.
+  - A network with no account says so, with **Open Post for Me**. A YouTube account links itself within the hour; a LinkedIn account needs Sidney to link it on the client's profile.
 - **Scheduling:** works the same way as TikTok (date, hour, minutes in 5-minute steps, AM/PM, timezone).
 - **Button:** "Post to Instagram" or "Schedule on Instagram".
   - If SyncView could not confirm the post went through, press the button again. It will not post twice.
@@ -967,6 +972,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `review_stage_kasper_layout2` | Kasper's second layout (wide screens) | 3 staff members |
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
+| `post_networks_v1` | Post tab, Instagram side: YouTube and LinkedIn ticks, and Instagram can be unticked (P3) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |

@@ -9,7 +9,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { parseBrainFacts, parseBrief } from "../brain/parse.mjs";
 import { recordChange } from "../brain/change.mjs";
 import { brainFolder, findClient, gh } from "./clientinfo.ts";
-import { PROFILE_FILE, PROFILE_MAX_CHARS, draftReply, mergeProfile, pickPendingProfile, profileChangeText, profileChecklist, profileFactId, profileJson, profileProblems, profileReply, stampProfile } from "./profile.mjs";
+import { NO_LOOK_NOTE, PROFILE_FILE, PROFILE_MAX_CHARS, draftReply, mergeProfile, pickPendingProfile, profileChangeText, profileChecklist, profileFactId, profileJson, profileProblems, profileReply, stampProfile } from "./profile.mjs";
 
 async function readProfile(folder: string): Promise<{ text?: string; missing?: boolean; error?: string }> {
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
@@ -61,7 +61,8 @@ export async function savedProfileText(db: SupabaseClient, client: string): Prom
     const where = await brainFolder(found.plan.client_slug, found.plan.client_name);
     if (where.error || !where.folder) return "";
     const prof = await readProfile(where.folder);
-    return prof.text !== undefined ? profileReply(found.plan.client_name, prof.text) : "";
+    if (prof.text !== undefined) return profileReply(found.plan.client_name, prof.text);
+    return prof.missing ? NO_LOOK_NOTE : "";
   } catch (_e) {
     return "";
   }

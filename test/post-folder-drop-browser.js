@@ -62,15 +62,23 @@ async function newPage(browser, opts) {
   return { context, page, log, errors };
 }
 
-async function openTikTok(page, base) {
+// With the switch on, "From Content Calendar" is the default (OPEN_REPAIRS 687): a folder is dropped after choosing
+// "From files", as a person does.
+async function chooseFiles(page, prefix) {
+  await page.waitForSelector(`input[name="${prefix}SrcMode"]`);
+  await page.click(`label:has(input[name="${prefix}SrcMode"][value="files"])`);
+  await page.waitForSelector(prefix === 'tk' ? '#tkDrop' : '#igDrop');
+}
+async function openTikTok(page, base, files = true) {
   await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.tk-page #tkPlatTiktok', { timeout: 20000 });
   await page.fill('#tkClientInput', TEST_CLIENT);
   await page.press('#tkClientInput', 'Enter');
   await page.waitForSelector('[data-tk-picked-client]');
+  if (files) await chooseFiles(page, 'tk');
 }
-async function openInstagram(page, base) {
-  await openTikTok(page, base);
+async function openInstagram(page, base, files = true) {
+  await openTikTok(page, base, false);
   await page.click('#tkPlatInstagram');
   await page.waitForSelector('#igFormCol');
   if (!(await page.locator('#igFormCol .tk-profile-line').count())) {
@@ -78,6 +86,7 @@ async function openInstagram(page, base) {
     await page.click(`#igClientMenu [data-sv-select-option][data-value=${JSON.stringify(TEST_CLIENT)}]`);
   }
   await page.waitForSelector('#igFormCol .tk-profile-line');
+  if (files) await chooseFiles(page, 'ig');
 }
 /* Drops a tree on the element: { 'Folder': { files: { 'a.mp4': { type: 'video/mp4' }, 'caption.txt': { text } } } }.
    A key without `files` is a loose file. The entries answer as a browser's do (readEntries in batches, then []). */
@@ -260,7 +269,7 @@ const EXPORT = { 'Video 15 export': { files: {
     }
     {
       const { context, page, errors } = await newPage(browser, { flag: false });
-      await openInstagram(page, base);
+      await openInstagram(page, base, false);
       await dropTree(page, '#igDrop', EXPORT);
       await page.waitForTimeout(500);
       ok(await page.locator('#igDropNote, #igDropPick').count() === 0, 'switch off, Instagram: a folder fills nothing');

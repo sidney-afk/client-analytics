@@ -22,6 +22,7 @@
     "prod-comment-restored-request-id.js",
     "samples-notes-lifecycle-busy.js",
     "tiktok-create-keeps-key.js",
+    "post-source-logic.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
@@ -80,7 +81,10 @@
     "a4-settings-edge-source.js",
     "calendar-card-write-parity.js",
     "trial-reels-logic.js",
+    "frameio-list-live-check.js",
     "trial-version-fields-migration.js",
+    "trial-version-status-logic.js",
+    "trial-version-status-live-check.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -337,6 +341,7 @@
     "index-split.js",
     "instagram-upload-source.js",
     "instagram-facebook-crosspost.js",
+    "instagram-networks.js",
     "intake-created-status-server-guard.js",
     "intake-not-assigned.js",
     "intake-post-names.js",
@@ -1621,6 +1626,14 @@
       "ci": "representative"
     },
     {
+      "file": "postforme-link-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Open Post for Me link beside every no-account message on the Post tab (TikTok and Instagram account lines and refusals, the Facebook box's reason), new tab and noopener, on desktop and on a phone, and no link when every account is on file.",
+      "reproduce": "node test/postforme-link-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-press-key-reload-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2096,6 +2109,14 @@
       "ci": "representative"
     },
     {
+      "file": "diagnostics-test-traffic-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the shared review-stage fixture (test/fixtures/review-stage-fixture.js, fictional client and cards), every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 674: a diagnostics report from a page a test robot drives says so (navigator.webdriver), so the server counts it as automation whatever its user agent; under the fixture the report is a plain request that dies with the page; a person's report is unchanged. Failed on main.",
+      "reproduce": "node test/diagnostics-test-traffic-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "workload-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2397,6 +2418,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Starts trial reels on a card with no version rows, as found live on 2026-10-27: switching on opens a place to paste the first link, Video A goes on the card first through today's attach and is then added, Video B is added on its own, a link another version has is refused, and a card that already has a link starts with Video A, at desktop and 390 pixel width.",
       "reproduce": "node test/trial-reels-empty-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-version-status-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V1: behind trial_versions_v2 each version row shows the card's status picker (the card's list up to Approved), a pick sends version_status_set for that letter only and never writes the card, a version with no link has the review statuses disabled, a refusal puts the row back with words, and a creative key gets today's label, at 1440 and 390 pixel width.",
+      "reproduce": "node test/trial-version-status-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

@@ -65,6 +65,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     versions, on the staff Calendar and on that client's review link. The trial-reels
                                     function reads the same row and refuses every other client. Missing, unreadable or
                                     the wrong shape: every card exactly as it was.
+         trial_versions_v2          { "clients": [...] } or { "all": true }: trial versions as copies of the card (plan
+                                    docs/plans/2026-11-trial-and-posting/combined.md, rows V1 and on; 189): first, each
+                                    version row's status picker, the card's own (V1). Staff Calendar only, admin and SMM
+                                    keys. Missing, unreadable or the wrong shape: every version row exactly as it was.
          sheet_fit_v1               { "staff": [...], "clients": [...] } and/or { "all": true }: the Calendar Sheet fits
                                     the window (session Sheetzoom, 2026-10-31; 160 and 020 under html.sv-sheet-fit): the
                                     Sheet fills the window under the toolbar with no empty page scroll, tighter spacing,
@@ -78,14 +82,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
     // Nothing read yet, or the read failed: every switch off.
     function _rsFlagsOff() {
         const n = _rsStaffNone;
-        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), tvAll: false, tv: new Set(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
     }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
@@ -106,6 +110,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const trv = by.trial_reels_pages;
         const trMembers = okObj(trv) ? (_calRuntimeFlagRawMembers(trv) || []) : [];
+        const tvv = by.trial_versions_v2;
+        const tvMembers = okObj(tvv) ? (_calRuntimeFlagRawMembers(tvv) || []) : [];
         const fitv = by.sheet_fit_v1;
         const fitMembers = okObj(fitv) && Array.isArray(fitv.clients) ? fitv.clients.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*') : [];
         const h = by.review_help_video_url;
@@ -123,6 +129,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             trAll: okObj(trv) && trv.all === true,
             tr: new Set(trMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            tvAll: okObj(tvv) && tvv.all === true,
+            tv: new Set(tvMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             fitAll: okObj(fitv) && fitv.all === true,
             fitStaff: _rsStaffSwitch(fitv),
             fit: new Set(fitMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
@@ -280,6 +288,15 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         let slug = '';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.tr.has(slug);
+    }
+    /* Trial versions (trial_versions_v2): a listed client's staff Calendar. Off until the read is in, and off for an
+       unreadable or wrongly shaped answer, as trial_reels_pages. */
+    function svTrialVersionsV2On(client) {
+        if (!_rsFlags.loaded) return false;
+        if (_rsFlags.tvAll) return true;
+        let slug = '';
+        try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+        return !!slug && _rsFlags.tv.has(slug);
     }
     /* The Calendar Sheet fits the window (sheet_fit_v1): a listed client's link, or a listed signed-in staff member on
        the staff Sheet; { "all": true } is both, for everyone. Off until the read is in, and off for an unreadable or
@@ -800,4 +817,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };
+export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On };

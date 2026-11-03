@@ -98,6 +98,23 @@ nothing posted from SyncView reached Facebook.
   goes through the same save as the paste box (Post for Me's network check, a history row by "Post for Me auto-link",
   the Clients Info copy for Instagram). Only safe account fields are read; the clients' social tokens never leave
   the function.
+- **Posting to YouTube and LinkedIn, server side (2026-11-03, P3, OPEN_REPAIRS 652):** `create` also takes
+  `youtube: { accountId, title, format: "short" | "regular", durationSeconds?, width?, height? }` and
+  `linkedin: { accountId }`, and `instagram: false` to leave Instagram out.
+  - **One post:** it is still ONE Post for Me post with every ticked account. YouTube is sent its title (100
+    characters at most, no `<` or `>`), privacy public, and made for kids. LinkedIn gets nothing extra.
+  - **Made for kids** is read from the client's profile (`extra.youtube_made_for_kids === true`), never from the page.
+  - **Account checks:** every YouTube, LinkedIn (and, with Instagram unticked, the first network's) account must be
+    the one on the profile, and on that network according to Post for Me, before anything is written.
+  - **Short or regular:** a Short is refused when the page knows the file is over 3 minutes or not vertical, and the
+    same file goes as a regular video. YouTube itself decides the shelf; Post for Me has no Shorts flag.
+  - **Limits:** every caption is 2,200 characters at most, whichever networks are ticked, because the queue table
+    holds 2,200. With YouTube the caption (its description) must also be 5,000 bytes or less. A trial and a carousel
+    stay Instagram's (and Facebook's, for a photo carousel).
+  - **Queue row:** `options.network` names the row's own network when it is not Instagram;
+    `options.networks.{youtube,linkedin}` keep each one's own status, link and error; `options.youtube` keeps the
+    title, format and made for kids. Rows written before keep reading as Instagram. The page half (the ticks on the
+    form, behind `post_networks_v1`) follows once P1b is in.
 - **Composer:** with a Page on file, an **Also post to Facebook** box sits above Scheduling, ticked by default. Untick
   it for an Instagram-only post (it stays unticked for that client until the client changes). It is unticked and
   disabled, with the reason, for a **trial reel** (an Instagram feature), for a **carousel with a video** (Facebook

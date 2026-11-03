@@ -437,15 +437,15 @@ The onboarding provisioning workflow preserves one immutable private brief snaps
 > `waiting_for_readiness`: the 15 minute timer, the daily check and every nudge look again. Anything else
 > parks it as **`manual`**, and **nothing ever looks at a `manual` row again**: the timer and the daily
 > check read `pending` only. The `manual` codes are `invalid_queue_snapshot`, `ambiguous_client_row`,
-> `client_email_mismatch` (an EMPTY profile email counts as a mismatch), `existing_channel_requires_reconciliation`,
+> `client_email_mismatch` (a profile email that differs from the form's), `existing_channel_requires_reconciliation`,
 > `existing_private_channel_requires_reconciliation`, `invalid_channel_name`, `ambiguous_smm_row`,
 > `ambiguous_filming_plan`, `invalid_slack_identity`, plus any failed Slack or roster step (`unexpected_failure`,
 > `slack_kickoff_delivery_failed`, ...). The only signal is one Slack DM to the owner. Since
 > `migrations/2026-11-02-slack-channel-stall-guard.sql` (once applied) the onboarding form fills an empty profile email
 > with its own, a newly added email nudges the finalizer, and the view `client_slack_channel_stalls_v1` lists every
 > new client still without both channels and what it waits for (an empty `waiting_for` = the finalizer gave up;
-> read its queue). Making the finalizer WAIT on an empty email instead of parking is an n8n change proposed on the PR,
-> not applied.
+> read its queue). Since 2026-11-02 (finalizer version `49a29c76`) an EMPTY profile email waits as `pending` instead
+> of parking, so an email typed later releases the job by itself; a DIFFERENT email still parks it.
 
 Only then does it create **one public channel**, named by slugifying the **Clients Info `client_name`**
 the same way the pre-Roam automation did: lowercase, non-alphanumeric runs collapsed to a single

@@ -32,6 +32,7 @@ import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, handboo
 import type { Asker } from "./clientinfo.ts";
 import { savedProfileText, studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
+import { GEMINI_ROW_MODEL } from "./watchvideo.mjs";
 import { STT_MODEL, STT_TOOL, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
 import { transcribeStore } from "./transcribe.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
@@ -1441,7 +1442,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author) }, args.action, args.args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author), watch: () => watchDeps(author) }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
@@ -1524,6 +1525,36 @@ function studioStore() {
 // studio_action "trial_reels" (trialreels.mjs): the log, one row per version, in
 // studio_trial_versions (service role only). A missing table answers { missing: true }
 // so the action says the log is not switched on instead of failing.
+// studio_action "watch_video" (watchvideo.mjs): Gemini watches a video. Costs are
+// hf_generations rows (model google/...), so team_usage and the main cap see them.
+function watchDeps(author: string) {
+  return {
+    env: (k: string) => Deno.env.get(k), fetch, publicHost, directLink, author,
+    uuid: () => crypto.randomUUID(),
+    timeout: (ms: number) => AbortSignal.timeout(ms),
+    sleep: (ms: number) => new Promise((r) => setTimeout(r, ms)),
+    geminiSpent: async () => {
+      const start = new Date(); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0);
+      const { data, error } = await db().from("hf_generations").select("est_cost_usd")
+        .eq("model", GEMINI_ROW_MODEL).gte("created_at", start.toISOString())
+        .not("status", "in", "(failed,nsfw,canceled,submit_failed)");
+      if (error) throw new Error("Could not read the Gemini budget: " + error.message);
+      return (data || []).reduce((t: number, r: JsonMap) => t + Number(r.est_cost_usd || 0), 0);
+    },
+    reserve: async (p: JsonMap) => {
+      if (CAP_USD === null) return null;
+      const { data, error } = await db().rpc("hf_reserve_generation", {
+        p_member: p.member, p_model: p.model, p_prompt: p.prompt, p_params: p.params,
+        p_cost: p.cost, p_cap: CAP_USD, p_idem_key: p.idemKey,
+      });
+      return error || !data ? null : data as JsonMap;
+    },
+    settle: async (id: number, fields: JsonMap) => {
+      await db().from("hf_generations").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", id);
+    },
+  };
+}
+
 function trialDeps(author: string) {
   const gone = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42P01" || e.code === "PGRST205" || /does not exist|schema cache/i.test(String(e.message)));
   const fail = (what: string, e: { message?: string } | null) => new Error(`Could not ${what}: ${e?.message || "no answer"}`);

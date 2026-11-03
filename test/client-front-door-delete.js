@@ -126,6 +126,10 @@ function cutChain(text, start) {
   // --- 2. The writer's own code, run -----------------------------------------
   const guardAndCheck = cutThrough(writer, 'const commentRef = clean(commentInput.id || commentInput.comment_id || commentInput.native_comment_id);', 'throw new GatewayError(400, "comment_cas_required");');
   const dispatch = cutChain(writer, 'if (lifecycleReplay) {');
+  const fpFrom = writer.indexOf('const fingerprint = await (action === "add" ? commentAddFingerprint : intentFingerprint)({');
+  const fingerprintCode = writer.slice(fpFrom, writer.indexOf('\n    });', fpFrom) + '\n    });'.length);
+  ok(fpFrom > 0 && /expected_version: frontDoorDelete \? null : expectedCommentVersion/.test(fingerprintCode),
+    'the fingerprint leaves the version out for a front-door delete');
   ok(/frontDoorDelete && clean\(currentRow\.deleted_at\)/.test(dispatch), 'the dispatch has the no-op branch for a note already deleted');
   class GatewayError extends Error {
     constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -150,21 +154,41 @@ function cutChain(text, start) {
         if (hits.length === 1) return { state: 'found', row: hits[0] };
         return hits.length ? { state: 'ambiguous' } : { state: 'missing' };
       };
-      const readLifecycleReceipt = async () => null;
-      const rpc = async (_db, name, args) => { writes.push({ name, args }); return { ...args.p_comment, deleted_at: 'now' }; };
+      const receipts = env.receipts || {};
+      // As the writer's own readLifecycleReceipt: a receipt under this request's key must carry the same fingerprint.
+      const readLifecycleReceipt = async (_db, key, commentId, act, fp) => {
+        const r = receipts[key];
+        if (!r) return null;
+        if (r.comment_id !== commentId || r.action !== act || r.intent_fingerprint !== fp) throw new GatewayError(409, 'idempotency_conflict');
+        return rows.find(x => x.id === commentId);
+      };
+      const rpc = async (_db, name, args) => {
+        writes.push({ name, args });
+        receipts[args.p_event.dedup] = { comment_id: args.p_comment.id, action: args.p_event.action, intent_fingerprint: args.p_event.fp };
+        return { ...args.p_comment, deleted_at: 'now' };
+      };
+      const intentFingerprint = async (input) => JSON.stringify(input);
+      const commentAddFingerprint = intentFingerprint;
+      const commentRoundOrRefuse = (v) => v == null ? null : v;
+      const operation = 'comment', requestId = env.requestId || 'fixture-request', legacyParity = false;
+      let commentBody = '', audience = 'client', suppliedNativeId = '', nativeCommentId = '', parentId = '';
+      const round = commentRoundOrRefuse(commentInput.round);
       let lifecycleRow = null;
       let expectedCommentVersion = null;
       let expectedCommentUpdatedAt = '';
       let frontDoorDelete = false;
       let result;
       ${guardAndCheck}
+      commentBody = clean(lifecycleRow.body); audience = lower(lifecycleRow.audience);
+      nativeCommentId = clean(lifecycleRow.native_comment_id) || clean(lifecycleRow.id); parentId = clean(lifecycleRow.parent_id);
+      ${fingerprintCode}
       const currentRow = lifecycleRow;
       const comment = { id: currentRow.id };
-      const dedup = 'fixture-dedup', productionCommentId = currentRow.id, fingerprint = 'fixture';
-      const event = {};
+      const dedup = 'dedup:' + requestId, productionCommentId = currentRow.id;
+      const event = { dedup, action, fp: fingerprint };
       const lifecycleReplay = await readLifecycleReceipt(supabase, dedup, productionCommentId, action, fingerprint);
       ${dispatch}
-      return { result, writes, frontDoorDelete, expectedCommentVersion, expectedCommentUpdatedAt };
+      return { result, writes, frontDoorDelete, expectedCommentVersion, expectedCommentUpdatedAt, receipts };
     }
   `, context);
   const run = async (overrides) => {
@@ -174,7 +198,7 @@ function cutChain(text, start) {
       targetClientSlug: SLUG, entity: 'deliverable', id: 'del_fixture', team: 'graphics', rows: [own],
       ...overrides,
     };
-    try { return { out: await context.runLifecycle(env) }; } catch (error) { return { error }; }
+    try { return { out: await context.runLifecycle(env) }; } catch (error) { if (process.env.DBG) console.error(error); return { error }; }
   };
 
   let r = await run({});
@@ -183,6 +207,15 @@ function cutChain(text, start) {
     && r.out.writes[0].args.p_expected_version === 3
     && r.out.writes[0].args.p_expected_updated_at === own.updated_at,
     'works: the client delete with no version is written once, checked against the row the server just read');
+  {
+    // A committed delete whose answer is lost: the page sends the identical request again (same request id). The
+    // row has moved on (deleted, a new version), and the retry must still match its first receipt.
+    const first = await run({ requestId: 'retry-request' });
+    const after = { ...own, version: 4, updated_at: '2026-11-03T16:41:00.000+00:00', deleted_at: '2026-11-03T16:41:00.000+00:00' };
+    const again = await run({ requestId: 'retry-request', rows: [after], receipts: first.out && first.out.receipts });
+    ok(first.out && first.out.writes.length === 1 && again.out && again.out.writes.length === 0 && again.out.result && again.out.result.id === own.id,
+      'works: a retry after a lost answer replays the first receipt, writes nothing and answers with the note (' + (again.error ? again.error.code : 'ok') + ')');
+  }
   r = await run({ rows: [{ ...own, deleted_at: '2026-11-03T16:40:00Z' }] });
   ok(r.out && r.out.writes.length === 0 && r.out.result && r.out.result.id === own.id,
     'works: a second delete of a note already deleted writes nothing and answers with the note');

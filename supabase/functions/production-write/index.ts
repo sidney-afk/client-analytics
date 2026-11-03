@@ -5466,8 +5466,12 @@ async function handleEntityOperation(
         component: clean(commentInput.component) || null,
         is_tweak: commentInput.is_tweak === true,
         round,
-        expected_version: expectedCommentVersion,
-        expected_updated_at: expectedCommentUpdatedAt || null,
+        // A front-door delete is fingerprinted as it was sent, with no version:
+        // the version it is checked against comes from the row, which a
+        // committed delete advances, so a retry after a lost answer must still
+        // match its first receipt (OPEN_REPAIRS 690).
+        expected_version: frontDoorDelete ? null : expectedCommentVersion,
+        expected_updated_at: frontDoorDelete ? null : expectedCommentUpdatedAt || null,
       },
     });
     if (commentMirrorApplicable && action !== "add") {

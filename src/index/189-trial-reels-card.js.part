@@ -1637,6 +1637,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .tt-mk-c img, .tt-mk-c span { width: 12px; height: 17px; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1.5px var(--surface-raised); margin-left: -6px; background: var(--surface-subtle); }
 .tt-mk-c img:first-child { margin-left: 0; }
 .tt-mk-c b { margin-left: 3px; font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+
+.tt-b i { width: 6px; height: 6px; border-radius: 50%; background: var(--tt); flex: none; }
+.tt-b button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.tt-b-q { background: rgba(255,255,255,.9); border-radius: 8px; padding: 0 6px; gap: 10px; }
+.tt-b-q button { background: none; border-radius: 0; color: #6b6b67; font-weight: 600; }
+.tt-b-q button::after { left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; background: transparent; }
+.tt-b-q button.on { background: none; box-shadow: none; color: #111110; }
+.tt-b-q button.on::after { background: #111110; }
+.tt-b-p { border-radius: 999px; gap: 0; background: rgba(255,255,255,.7); }
+.tt-b-p .tt-hl { position: absolute; top: 3px; bottom: 3px; left: 3px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.16); transition: transform .22s cubic-bezier(.22,.61,.36,1); }
+.tt-b-p button { position: relative; z-index: 1; background: none; border-radius: 999px; font-weight: 600; }
+.tt-b-p button::after { display: none; }
+.tt-b-p button.on { background: none; box-shadow: none; }
+.tt-b-t { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; justify-content: center; gap: 8px; padding: 0; }
+.tt-b-t button { flex: 0 0 auto; height: auto; flex-direction: column; gap: 3px; background: none; padding: 0; }
+.tt-b-t button::after { display: none; }
+.tt-b-t .tt-p { width: 34px; height: 48px; border-radius: 6px; overflow: hidden; display: block; box-shadow: 0 0 0 1.5px rgba(255,255,255,.9); background: #ddd; }
+.tt-b-t .tt-p img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tt-b-t .tt-n { display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 5px; background: rgba(255,255,255,.92); font-size: 11px; font-weight: 700; color: #111110; }
+.tt-b-t button.on { background: none; box-shadow: none; }
+.tt-b-t button.on .tt-p { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #111110; }
+.tt-b-t .tt-more { align-self: center; height: 24px; border-radius: 7px; background: rgba(255,255,255,.92); }
 `;
     function _ttPic(v, post) {
         const th = String((v.effective && v.effective.thumbnail_url) || v.thumbnail_url || post.thumbnail_url || '').trim();
@@ -1672,8 +1694,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 + (dropped.length ? '<button type="button" class="tt-drop" title="Dropped">' + dropped.map(v => _calEsc(v.letter)).join(' ') + '</button>' : '')
                 + '<button type="button" class="tt-add" title="Add version" aria-label="Add version">+</button></div>';
         } else if (o === 'b') {
-            tabs = '<div class="tt-x tt-b" role="group" aria-label="Versions">' + live.map(v => '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '>' + _calEsc(v.letter) + '</button>').join('')
-                + '<button type="button" class="tt-more" title="Add, import or bring back a version" aria-label="More">···</button></div>';
+            const look = (() => { try { const l = String(window.__trslook || ''); return /^[qpt]$/.test(l) ? l : ''; } catch (e) { return ''; } })();
+            const at = Math.max(0, live.indexOf(sel));
+            const hl = look === 'p' ? '<span class="tt-hl" aria-hidden="true" style="width:calc((100% - 6px - 30px) / ' + live.length + ');transform:translateX(' + (at * 100) + '%)"></span>' : '';
+            tabs = '<div class="tt-x tt-b' + (look ? ' tt-b-' + look : '') + '" role="group" aria-label="Versions">' + hl + live.map(v => {
+                const pic = look === 't' ? _ttPic(v, post) : '';
+                const inner = look === 't' ? '<span class="tt-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : '') + '</span><span class="tt-n"><i></i>' + _calEsc(v.letter) + '</span>'
+                    : (look ? '<i></i>' : '') + _calEsc(v.letter);
+                return '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '>' + inner + '</button>';
+            }).join('') + '<button type="button" class="tt-more" title="Add, import or bring back a version" aria-label="More">···</button></div>';
         } else {
             tabs = '<div class="tt-x tt-c" role="group" aria-label="Versions">' + live.map(v => { const pic = _ttPic(v, post);
                 return '<button type="button" class="' + (v === sel ? 'on' : '') + '" data-tone="' + _ttTone(v) + '" title="' + _calEscAttr(tip(v)) + '" aria-pressed="' + (v === sel) + '"' + go(v) + '><span class="tt-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : '') + '</span><span class="tt-n"><i></i>' + _calEsc(v.letter) + '</span></button>'; }).join('')

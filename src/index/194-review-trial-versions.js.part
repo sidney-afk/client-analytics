@@ -373,12 +373,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const TRV_NAMED = /^(?:Video|Version) [A-G](?:, (?:thumbnail|caption))?:/;
     const TRV_SAY = { ok: 'approved', chg: 'change asked', wait: 'waiting for you', team: 'with the team', pass: 'not this one', cpass: 'client dropped' };
     // The segmented control: one segment per live version, the selected one raised, each coloured by its answer here.
+    // PROTOTYPE (688 looks, never merged): window.__trslook = q (Quiet) | p (Pill) | t (Thumbnails).
+    function _trvLook() { try { const l = String(window.__trslook || ''); return /^[qpt]$/.test(l) ? l : ''; } catch (e) { return ''; } }
     function _trvTabsHtml(m, mode, attr) {
-        const stage = _trvStage(mode), cur = _trvCurOf(m, mode);
-        return '<div class="trs" role="group" aria-label="Versions of this video">' + m.trial.versions.map(v => {
+        const stage = _trvStage(mode), cur = _trvCurOf(m, mode), look = _trvLook(), vs = m.trial.versions, at = Math.max(0, vs.indexOf(cur));
+        const hl = look === 'p' ? '<span class="trs-hl" aria-hidden="true" style="width:calc((100% - 6px) / ' + vs.length + ');transform:translateX(' + (at * 100) + '%)"></span>' : '';
+        return '<div class="trs' + (look ? ' trs-look-' + look : '') + '" role="group" aria-label="Versions of this video">' + hl + vs.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter), on = v === cur;
+            const pic = look === 't' ? (_trvPicOf(m, v) || m.thumb || '') : '';
+            const inner = look === 't'
+                ? '<span class="trs-p">' + (pic ? '<img alt="" src="' + _calEscAttr(pic) + '">' : TRV_PLAY) + '</span><span class="trs-n"><i class="trs-d"></i>' + _calEsc(v.letter) + '</span>'
+                : (look === 'p' || look === 'q' ? '<i class="trs-d"></i>' : '') + '<span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter);
             return '<button type="button" class="trs-s' + (on ? ' on' : '') + '" data-a="' + a + '" data-stage="' + stage + '" ' + attr + '="' + l + '" aria-pressed="' + on + '"'
-                + ' aria-label="Version ' + l + ', ' + TRV_SAY[a] + '"><span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter) + '</button>';
+                + ' aria-label="Version ' + l + ', ' + TRV_SAY[a] + '">' + inner + '</button>';
         }).join('') + '</div>';
     }
     function svTrialReviewWord(m) { return _trvW(m); }
@@ -393,7 +400,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             answer: _trvAnswer(cur, _trvStage(mode)), status: cur.status, part: cur.status === 'change asked' ? (cur.change_part || 'video') : '', note: String(cur.change_note || '') };
     }
     // The quiet "Trial" chip a trial card carries on the review boards ('' for any other card, or with the switch off).
-    function svTrialReviewChipHtml(m) { return _trvTabs(m) ? '<span class="trv-chip">Trial</span>' : ''; }
+    function svTrialReviewChipHtml(m) { return _trvTabs(m) ? '<span class="trv-chip' + (_trvLook() ? ' trv-chip-' + _trvLook() : '') + '">Trial</span>' : ''; }
     // A Frame.io page is not a picture: the version's thumbnail then shows the card's derived poster, or nothing.
     const _trvIsPic = u => /^https:\/\//i.test(u) && !/^https:\/\/([^/]*\.)?(f\.io|frame\.io)(\/|$)/i.test(u);
     /* A version's own thumbnail is shown the way the card shows its own (_calDeriveThumb): a Google Drive file page, the
@@ -918,6 +925,33 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trs-acts{display:flex;gap:6px;align-items:center}
 .trv-chip{display:inline-flex;align-items:center;flex:none;height:18px;padding:0 6px;border-radius:4px;background:var(--fill-hover);color:var(--text-secondary);font-size:.66rem;font-weight:700;letter-spacing:.02em;white-space:nowrap;vertical-align:middle}
 @media (max-width:600px){.trs-w{display:none}}
+
+/* PROTOTYPE looks (688): q Quiet, p Pill, t Thumbnails */
+.trs-d{width:7px;height:7px;border-radius:50%;background:var(--trs);flex:none}
+.trs-look-q{background:none;padding:0;gap:22px;border-radius:0;border-bottom:1px solid var(--hair);justify-content:center}
+.trs-look-q .trs-s{flex:0 0 auto;background:none;height:38px;border-radius:0;padding:0 2px;gap:7px;font-weight:600;color:var(--text-secondary)}
+.trs-look-q .trs-s::after{left:0;right:0;bottom:-1px;height:2px;border-radius:0;background:transparent}
+.trs-look-q .trs-s.on{background:none;box-shadow:none;color:var(--text-primary)}
+.trs-look-q .trs-s.on::after{background:var(--text-primary)}
+.trs-look-p{position:relative;border-radius:999px;padding:3px;gap:0;background:var(--fill-hover)}
+.trs-look-p .trs-hl{position:absolute;top:3px;bottom:3px;left:3px;border-radius:999px;background:var(--deck);box-shadow:0 1px 3px rgba(0,0,0,.14);transition:transform .22s cubic-bezier(.22,.61,.36,1)}
+.trs-look-p .trs-s{position:relative;z-index:1;background:none;border-radius:999px;gap:7px;font-weight:600}
+.trs-look-p .trs-s::after{display:none}
+.trs-look-p .trs-s.on{background:none;box-shadow:none;color:var(--text-primary)}
+.trs-look-t{background:none;padding:0;gap:12px;justify-content:center;width:auto}
+.trs-look-t .trs-s{flex:0 0 auto;height:auto;background:none;flex-direction:column;gap:5px;padding:0;border-radius:10px}
+.trs-look-t .trs-s::after{display:none}
+.trs-look-t .trs-p{width:52px;height:72px;border-radius:9px;overflow:hidden;display:grid;place-items:center;background:var(--fill-hover);box-shadow:0 0 0 1px var(--hair);color:var(--text-muted)}
+.trs-look-t .trs-p img{width:100%;height:100%;object-fit:cover;display:block}
+.trs-look-t .trs-p .trk-mark{width:16px;height:16px}
+.trs-look-t .trs-n{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:700}
+.trs-look-t .trs-s.on{background:none;box-shadow:none;color:var(--text-primary)}
+.trs-look-t .trs-s.on .trs-p{box-shadow:0 0 0 2px var(--deck),0 0 0 4px var(--text-primary)}
+.trs-k .trs-look-t{flex:0 0 auto}
+.trs-k .trs-look-q{justify-content:flex-start;flex:1 1 260px}
+.trv-chip-q{background:none;padding:0;height:auto;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary)}
+.trv-chip-p{border-radius:999px;padding:0 8px;background:color-mix(in srgb,#6c5ce7 14%,transparent);color:#5b4bd6}
+.trv-chip-t{background:var(--text-primary);color:var(--deck);border-radius:5px}
 `;
 export {
   TRV_CSS, svTrialReviewWord, svTrialReviewNoteRe, svTrialReviewNamed, svTrialReviewPartView, svTrialReviewChipHtml, svTrialReviewFieldsOn, svTrialReviewPartPickHtml, svTrialReviewPartComp, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles

@@ -36856,3 +36856,19 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 688. [2026-11-03 UTC, ROOT-CAUSED, FIX IN PR] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
+
+- **Symptom:** clean from 1 Nov 23:00 to 3 Nov 17:00 UTC, then 1 to 2 red runs an hour (17h 1, 19h 1, 20h 2, 21h 2, 22h 2). Each red run printed `failed: 3, missing_source: 2, missing_source_new: 0`, so exactly **one** real failure per red run.
+- **Measured live (read-only SQL on `thumbnail_media_revisions`, 22:35 UTC):**
+  - pending rows with an error: 4 carry the known `drive_404[...]` mark (the same dead files as 204);
+  - one row has `Drive file is not an image` and no baseline. It is the continuous watch on one calendar card (an active client, not the test client). The card was last edited and the watch enrolled at 19:41 UTC, during the 19:40 run.
+  - About 975 pending rows and 300 checked per run, so its turn comes round about every third run: the "rising" 2 an hour from 20h onward is that one row on every lap.
+- **Cause:** a person pasted a link to a Drive file that is not an image (a video or a document) into the card's thumbnail field. The scanner reads its metadata and then refuses to archive it (`downloadSnapshot`). That is a property of the record, like a 404, and fails identically on every lap until the link is fixed. But only a Drive 404 counted as a known unusable source, so this was a real failure every time. The backfill re-enrols any active source without a pending row, so the row cannot be retired either. Not caused by #2575 (page-only: a trial version's own Drive thumbnail).
+- **The 17:40 red** came before that card existed: its one real failure was a row that has since scanned clean (error cleared), so the table no longer names it. That run also archived a changed revision of another card at 17:45. Transient, and it did not recur. It is noted here rather than explained away.
+- **Fix (`supabase/functions/_shared/thumbnail-revisions.ts`):**
+  - `downloadSnapshot` throws a TYPED not-an-image error;
+  - the scan's catch puts that kind in the same known-unusable subset as a 404 (`missing_source`, still inside `failed`), with its own file-bound mark `drive_not_image[<file>]: `. The subset was introduced in 204a.
+  - So a non-image source goes red the first time it is seen (`missing_source_new`), then stays green on later laps for the same file. Re-linking to another non-image file is new again. A 404 mark never makes a not-an-image failure read as known, nor the other way round. Every other error kind stays a real failure on every lap. The caller's exit rule is unchanged.
+- **Proof:** `test/thumbnail-revision-scan-deno.ts` (new, rides the Edge Function type ratchet lane) drives `scanPendingThumbnailRevisions` against an in-memory database and a stubbed Drive. **main:** `a non-image source is in the known-unusable subset (got 0, want 1)`; **this branch:** `27 checks passed`. `test/thumbnail-revision-scheduler.js` passes with its marker assertion widened to both kinds. The Deno type ratchet reports no new errors.
+- **Still for a person:** the card's thumbnail link should point at the image. Its team fixes it on the page (it is not the test client, so no session edits it). Until then the row stays pending with the mark and the lane stays green for it.

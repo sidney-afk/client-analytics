@@ -31,6 +31,7 @@ on:
       - 'test/thumbnail-title-runs-deno.ts'
       - 'test/trial-reels-function-deno.ts'
       - 'test/pto-admin-log-deno.ts'
+      - 'test/thumbnail-revision-scan-deno.ts'
   push:
     branches:
       - main
@@ -43,6 +44,7 @@ on:
       - 'test/thumbnail-title-runs-deno.ts'
       - 'test/trial-reels-function-deno.ts'
       - 'test/pto-admin-log-deno.ts'
+      - 'test/thumbnail-revision-scan-deno.ts'
 
 # A newer push to the same pull request replaces the run it supersedes (session
 # Express, 2026-10-19). Pushes to main are never cancelled: their group is the commit.
@@ -81,3 +83,7 @@ jobs:
       # admin allowed, non-admin refused, balance, overlap, half days, withdrawal, and before-migration refusal.
       - name: PTO admin log (Deno, in-memory database)
         run: deno run --allow-env --allow-net=127.0.0.1 --allow-read --node-modules-dir=auto test/pto-admin-log-deno.ts
+      # The continuous thumbnail revision scan (OPEN_REPAIRS 688) against an in-memory database and a stubbed
+      # Drive: a non-image source is new once then known, a 404 likewise, any other failure stays red.
+      - name: Thumbnail revision scan (Deno, in-memory database)
+        run: deno run --allow-env --allow-read --node-modules-dir=auto test/thumbnail-revision-scan-deno.ts

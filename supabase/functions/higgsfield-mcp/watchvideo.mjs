@@ -77,6 +77,7 @@ export async function watchVideo(d, args) {
   const fail = async (text) => { await d.settle(rsv.id, { status: "failed", error: text.slice(0, 300), est_cost_usd: 0 }); return text; };
 
   let fileUri, mime, fileName = "";
+  let sent = false; // once Gemini has the request, Google may charge even if the answer is lost
   try {
     if (isYouTube(link)) {
       fileUri = link; mime = "video/mp4";
@@ -120,6 +121,7 @@ export async function watchVideo(d, args) {
       contents: [{ role: "user", parts: [{ file_data: { file_uri: fileUri, mime_type: mime } }, { text: ask }] }],
       generationConfig: { maxOutputTokens: 8192, ...(high ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}) },
     };
+    sent = true;
     const r = await d.fetch(`${API}/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" }, body: JSON.stringify(body),
       signal: d.timeout ? d.timeout(240 * 1000) : undefined,
@@ -132,6 +134,11 @@ export async function watchVideo(d, args) {
     if (!text) return `Gemini watched it but gave no answer (cost ${money(price.usd)}). Try asking again more simply.`;
     return `${text}\n\n(Watched by Gemini Flash-Lite. Cost ${money(price.usd)}. Gemini budget this month: ${money(spent + price.usd)} of ${money(cap)}.)`;
   } catch (e) {
+    if (sent) {
+      // Outcome unknown: keep the hold booked so both caps still count it.
+      await d.settle(rsv.id, { status: "unknown", error: String(e?.message || e).slice(0, 300) });
+      return "Gemini did not answer in time, so the result was lost. Up to $0.75 stays booked against the budget in case Google charged. Try again with a shorter video or a simpler question.";
+    }
     return await fail(`Watching failed: ${String(e?.message || e).slice(0, 200)}`);
   } finally {
     if (fileName) d.fetch(`${API}/v1beta/${fileName}`, { method: "DELETE", headers: { "x-goog-api-key": key } }).catch(() => {});

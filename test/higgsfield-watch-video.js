@@ -92,6 +92,13 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
   assert.ok(/^Hook/.test(out));
   assert.ok(!t.calls.some(([u]) => u.includes('/upload/')), 'YouTube is passed straight to Gemini');
 
+  t = make();
+  const f0 = t.d.fetch;
+  t.d.fetch = async (u, i) => { if (u.includes(':generateContent')) throw new Error('timed out'); return f0(u, i); };
+  assert.ok(/stays booked/.test(await t.run({ video: 'https://videos.example.com/a.mp4' })));
+  assert.strictEqual(t.rows[0].status, 'unknown');
+  assert.strictEqual(t.rows[0].est_cost_usd, wv.HOLD_USD, 'hold kept when Google may have charged');
+
   assert.ok(/Give video/.test(await make().run({})));
   console.log('higgsfield-watch-video: ok');
 })().catch((e) => { console.error(e); process.exit(1); });

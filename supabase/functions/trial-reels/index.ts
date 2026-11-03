@@ -33,6 +33,7 @@ import {
   ACTIONS,
   addVersion,
   answerPatches,
+  changePart,
   clean,
   cleanLink,
   deliverableUuid,
@@ -628,7 +629,13 @@ Deno.serve(async (req: Request) => {
       // The client's "Not this one" needs the client_pass_at column (migration 20261028150000). Until it is applied the
       // rows read back without it, and only a pass is refused; every other answer and action works as before.
       if (kind === "pass" && versions.length && !Object.prototype.hasOwnProperty.call(versions[0], "client_pass_at")) throw new Refusal(503, "pass_unavailable");
-      const r = answerPatches(versions, { stage, kind, letter, note: body.note, cardStatus: card.video_status }, now);
+      // V4: a change on a version's thumbnail or caption needs the V3 switch and F2's columns, as the fields do.
+      const cp = changePart(body.part);
+      if (cp.part && cp.part !== "video") {
+        await assertFieldsOn(supabase, client);
+        if (!fieldsAvailable(versions)) throw new Refusal(503, "fields_unavailable");
+      }
+      const r = answerPatches(versions, { stage, kind, letter, note: body.note, cardStatus: card.video_status, part: body.part }, now);
       if (r.error) throw new Refusal(400, r.error);
       changes = r.patches as Change[];
     } else if (action === "version_status_set") {

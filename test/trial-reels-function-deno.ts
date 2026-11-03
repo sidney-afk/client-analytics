@@ -611,6 +611,9 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   const pv3 = (l: string) => tables.studio_trial_versions.find((r) => r.id === "pv3" + l)!;
   const off = await step({ action: "version_fields_set", post_id: "pv3", letter: "B", caption: "B words" });
   ok(off.status === 403 && off.body.error === "fields_off", "V3: with trial_versions_v2 off, a version's fields are refused (" + off.status + " " + off.body.error + ")");
+  const offPart = await step({ action: "answer", post_id: "pv3", stage: "smm", kind: "change", letter: "B", note: "Brighter", part: "thumbnail" });
+  ok(offPart.status === 403 && offPart.body.error === "fields_off" && pv3("B").status === "waiting",
+    "V4: with trial_versions_v2 off, a change on a version's thumbnail is refused and writes nothing (" + offPart.status + " " + offPart.body.error + ")");
   tables.syncview_runtime_flags.push({ key: "trial_versions_v2", value: { clients: ["fixtureclient"] } });
   const early = await step({ action: "version_fields_set", post_id: "pv3", letter: "B", caption: "B words" });
   ok(early.status === 503 && early.body.error === "fields_unavailable" && !("caption" in pv3("B")), "V3: before F2's columns exist, refused and nothing written");
@@ -629,6 +632,15 @@ ok(p7Client.body.ok === true && p7().every((r) => r.status === "approved"), "and
   const cB = ((cRead.body.versions || []) as Row[]).find((r) => r.letter === "B") as Row;
   ok(cB && (cB.effective as Row).caption === "B words" && !("caption" in cB), "V3: a client read carries B's effective fields, not its own columns");
   ok(tables.calendar_posts.find((c) => c.id === "pv3")!.caption === "Card words", "V3: the card's own caption is never written by trial-reels");
+  // V4: a change on one part of a version, through the real function.
+  const badPart = await step({ action: "answer", post_id: "pv3", stage: "smm", kind: "change", letter: "B", note: "x", part: "sound" });
+  ok(badPart.status === 400 && badPart.body.error === "part_invalid" && pv3("B").status === "waiting", "V4: an unknown part is refused");
+  const thumbChg = await step({ action: "answer", post_id: "pv3", stage: "smm", kind: "change", letter: "B", note: "Brighter", part: "thumbnail" });
+  const tB = ((thumbChg.body.versions || []) as Row[]).find((r) => r.letter === "B") as Row;
+  ok(thumbChg.body.ok === true && pv3("B").status === "change asked" && pv3("B").change_part === "thumbnail" && tB && tB.change_part === "thumbnail",
+    "V4: the SMM's change on Video B's thumbnail is stored and read back with its part (" + thumbChg.status + " " + thumbChg.body.error + ")");
+  const cut = await step({ action: "version_new_cut", post_id: "pv3", letter: "B" }, "creative");
+  ok(cut.body.ok === true && pv3("B").status === "waiting" && pv3("B").change_part === null, "V4: the new cut clears the part with the change");
 }
 
 // V2 (plan combined.md): several versions from a Frame folder in one write, through the real function. Own card id pv2.

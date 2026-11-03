@@ -2,7 +2,7 @@ import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
-import { svRsFlagsReady, svTrialReelsOn } from './188-review-stage-switch.js';
+import { svRsFlagsReady, svTrialReelsOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialAttachBack, svTrialCall, svTrialRead, svTrialErrorText, svTrialHash, svTrialListShared, svTrialMoveCard, svTrialOnChange } from './189-trial-reels-card.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
@@ -252,7 +252,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const re = new RegExp('^Video ' + cur.letter + ':\\s*');
             const last = (m.thread || []).filter(t => t.part === 'video' && t.change && re.test(t.text)).slice(-1)[0];
             const q = String(cur.change_note || '') || (last ? last.text.replace(re, '') : '');
-            return '<span class="dst chg"><span class="ck chg">' + TRV_BACK + '</span>Change asked on Video ' + L + '</span>' + (q ? '<span class="dq" title="' + _calEscAttr(q) + '">' + _calEsc(q) + '</span>' : '');
+            return '<span class="dst chg"><span class="ck chg">' + TRV_BACK + '</span>Change asked on Video ' + L + _trvPartWord(cur) + '</span>' + (q ? '<span class="dq" title="' + _calEscAttr(q) + '">' + _calEsc(q) + '</span>' : '');
         }
         if (partSt === 'ok') return '';
         if (cur.status === 'change asked') return '';
@@ -263,10 +263,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* The version on screen has a change open while the card stays where it is (the owner's choice (a), OPEN_REPAIRS
        587): its own "Change asked" and note, never Approve again over a change just sent. Null otherwise. */
+    // V4: "'s thumbnail" or "'s caption" after the version's name, for a change asked on that part ('' for the video).
+    function _trvPartWord(v) { return v && (v.change_part === 'thumbnail' || v.change_part === 'caption') ? "'s " + v.change_part : ''; }
     function svTrialReviewAsked(m, mode) {
         if (!m || !m.trial || m.trial.winner) return null;
         const cur = _trvCurOf(m, mode);
-        return cur && cur.status === 'change asked' ? { letter: cur.letter, note: String(cur.change_note || '') } : null;
+        return cur && cur.status === 'change asked' ? { letter: cur.letter, note: String(cur.change_note || ''), part: cur.change_part || '' } : null;
     }
     /* THE CLIENT'S "CHANGE MY MIND" ON A VERSION THEY APPROVED (Sidney, 2026-10-31: "if a client says change my mind, that
        means they actually want to put a comment, like a better comment, like a tweak needed"). On a trial card it reopens
@@ -344,12 +346,49 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!m || !m.trial || !m.trial.winner) return '';
         return TRV_TAG + '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
     }
+    /* V4 (plan docs/plans/2026-11-trial-and-posting/combined.md row V4; switch trial_versions_v2): each version shows its
+       own thumbnail and caption under its player (the read's `effective` set: its own, else the card's), one Approve on
+       it covers its parts (195 approves the card's thumbnail and caption parts with the video, once the function says the
+       stage is done), and Ask for a change picks the part: Video, Thumbnail or Caption. Off, or a read without
+       `effective`, is today's page. */
+    function svTrialReviewFieldsOn(m) {
+        try { return !!(m && m.trial && !m.trial.winner && svTrialVersionsV2On(m.trial.slug)); } catch (e) { return false; }
+    }
+    // A Frame.io page is not a picture: the version's thumbnail then shows the card's derived poster, or nothing.
+    const _trvIsPic = u => /^https:\/\//i.test(u) && !/^https:\/\/([^/]*\.)?(f\.io|frame\.io)(\/|$)/i.test(u);
+    function _trvPicOf(m, v) {
+        const eff = v && v.effective, th = String((eff && eff.thumbnail_url) || '');
+        if (!th) return '';
+        if (th === String((m.post && m.post.thumbnail_url) || '')) return String(m.thumb || '');
+        return _trvIsPic(th) ? th : '';
+    }
+    function svTrialReviewFieldsHtml(m, mode) {
+        if (!svTrialReviewFieldsOn(m)) return '';
+        const cur = _trvCurOf(m, mode), eff = cur && cur.effective;
+        if (!eff || typeof eff !== 'object') return '';
+        const pic = _trvPicOf(m, cur), cap = String(eff.caption || '').trim(), L = _calEsc(cur.letter);
+        return '<div class="trv-fx" data-trv-fx="' + _calEscAttr(cur.letter) + '">'
+            + '<span class="trv-fx-pic">' + (pic ? '<img alt="Thumbnail of Video ' + _calEscAttr(cur.letter) + '" src="' + _calEscAttr(pic) + '" loading="lazy">' : TRV_PLAY) + '</span>'
+            + '<span class="trv-fx-t"><span class="trv-fx-l">Video ' + L + '\'s thumbnail and caption</span>'
+            + '<span class="trv-fx-cap' + (cap ? '' : ' none') + '">' + (cap ? _calEsc(cap) : 'No caption') + '</span></span></div>';
+    }
+    const TRV_PARTS = [['video', 'Video'], ['thumbnail', 'Thumbnail'], ['caption', 'Caption']];
+    const _trvPart = p => (TRV_PARTS.some(x => x[0] === p) ? p : 'video');
+    // The parts a change on a version can be about, above the change box ('' with the switch off).
+    function svTrialReviewPartPickHtml(m, mode, letter, picked) {
+        if (!svTrialReviewFieldsOn(m)) return '';
+        const v = (letter && m.trial.versions.find(x => x.letter === letter)) || _trvCurOf(m, mode), p = _trvPart(picked);
+        return '<div class="trv-parts" role="group" aria-label="Which part of Video ' + _calEscAttr(v.letter) + ' should change?"><span class="lbl">Video ' + _calEsc(v.letter) + '</span>'
+            + TRV_PARTS.map(([k, w]) => '<button type="button" class="trv-pt" data-trv-part="' + k + '" aria-pressed="' + (k === p) + '">' + w + '</button>').join('') + '</div>';
+    }
+    // The card's part a version's change goes on as today's change request: the thumbnail's is the graphic part.
+    function svTrialReviewPartComp(part) { return part === 'thumbnail' ? 'graphic' : part === 'caption' ? 'caption' : 'video'; }
     function svTrialReviewUnderHtml(m, mode) {
         if (!m || !m.trial || m.trial.winner) return '';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
         const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
         const cok = _trvClientOk(cur, stage) ? '<span class="trv-cok" title="The client approved Video ' + _calEscAttr(cur.letter) + '">Client approved</span>' : '';
-        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + cok + busy + '</div>';
+        if (vs.length === 1) return TRV_TAG + '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + cok + busy + '</div>' + svTrialReviewFieldsHtml(m, mode);
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : a === 'pass' || a === 'cpass' ? ' pass' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
@@ -359,7 +398,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
             + cok
-            + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
+            + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>' + svTrialReviewFieldsHtml(m, mode);
     }
     // The two arrows beside the player ('' with one version). They hide on a phone (CSS): there the video is swiped.
     function svTrialReviewArrowsHtml(m, mode) {
@@ -556,13 +595,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        versions read, so a refused or lost one is never dropped (it is what restarts the version when its new cut lands). */
     const TRV_PENDING_KEY = 'syncview_trv_pending_v1';
     function _trvPendingRead() { try { const v = JSON.parse(localStorage.getItem(TRV_PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
-    function _trvPendingWrite(list) { try { if (list.length) localStorage.setItem(TRV_PENDING_KEY, JSON.stringify(list.map(j => ({ slug: j.slug, pid: j.pid, stage: j.stage, letter: j.letter, note: j.note, at: j.at })))); else localStorage.removeItem(TRV_PENDING_KEY); } catch (e) {} }
+    function _trvPendingWrite(list) { try { if (list.length) localStorage.setItem(TRV_PENDING_KEY, JSON.stringify(list.map(j => Object.assign({ slug: j.slug, pid: j.pid, stage: j.stage, letter: j.letter, note: j.note, at: j.at }, j.part ? { part: j.part } : {})))); else localStorage.removeItem(TRV_PENDING_KEY); } catch (e) {} }
     let _trvPendingMem = null;   // the same list when storage is blocked
     const _trvPending = () => _trvPendingMem || (_trvPendingMem = _trvPendingRead());
     function _trvPendingSave() { _trvPendingWrite(_trvPending()); }
     async function _trvSendChange(job) {
         try {
-            const json = await svTrialCall({ action: 'answer', client: job.slug, post_id: job.pid, stage: job.stage, kind: 'change', letter: job.letter, note: job.note });
+            // V4: the part, only when the page named one (switch on); a write kept from before carries none.
+            const json = await svTrialCall(Object.assign({ action: 'answer', client: job.slug, post_id: job.pid, stage: job.stage, kind: 'change', letter: job.letter, note: job.note }, job.part ? { part: job.part } : {}));
             const list = _trvPending(), i = list.indexOf(job);
             if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
             const e = _trv[job.slug];
@@ -608,16 +648,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* `asked` is the version the change was asked on (the box remembers it when it opens, and the client's queue keeps
        it with each change): a change sent after a look at another version is still about the one it was asked on
        (Probe bugs 10 and 10b). Without it, the version on screen. */
-    function svTrialReviewChangeText(m, mode, text, frameNote, asked, onLanded) {
+    function svTrialReviewChangeText(m, mode, text, frameNote, asked, onLanded, part) {
         const had = asked && m.trial.versions.find(v => v.letter === asked);
         const letter = had ? had.letter : _trvCurOf(m, mode).letter;
+        // V4: with the switch on, the change names its part (Kasper's "Tweaks are on Frame" is always the video's).
+        const pt = svTrialReviewFieldsOn(m) ? (frameNote ? 'video' : _trvPart(part)) : '';
         const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now(), onLanded };
+        if (pt) job.part = pt;
         _trvPending().push(job); _trvPendingSave();
         // The version reads "change asked" at once, as Approve does (Trialtest, 2026-10-28: the client's own dot stayed
         // waiting); the server's answer, or the next read, replaces it.
         const ent = _trv[m.trial.slug], card = ent && ent.cards[m.id];
         if (card && Array.isArray(card.versions)) {
-            ent.cards[m.id] = Object.assign({}, card, { versions: card.versions.map(v => v.letter === letter && _trvLive(v) && ['waiting', 'approved'].includes(v.status) ? Object.assign({}, v, { status: 'change asked', change_by: job.stage }) : v) });
+            ent.cards[m.id] = Object.assign({}, card, { versions: card.versions.map(v => v.letter === letter && _trvLive(v) && ['waiting', 'approved'].includes(v.status) ? Object.assign({}, v, { status: 'change asked', change_by: job.stage }, pt ? { change_part: pt === 'video' ? null : pt } : {}) : v) });
             _trvRepaint();
         }
         job.inFlight = true;
@@ -628,7 +671,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 : 'Your words are kept. Marking Video ' + letter + ' as changed will be tried again in a moment.');
         });
         // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
-        return frameNote ? text : 'Video ' + letter + ': ' + text;
+        return frameNote ? text : 'Video ' + letter + (pt && pt !== 'video' ? ', ' + pt : '') + ': ' + text;
     }
 
     /* KASPER'S SECOND LAYOUT (decision 4): every version side by side, each named "Video A"… with its own Approve, change
@@ -641,8 +684,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // The card's poster; a card whose thumbnail is a Frame.io page has no picture, so each tile shows a quiet video
         // mark there instead of a black square (owner, 2026-10-28).
         const poster = m.thumb ? '<img alt="" src="' + _calEscAttr(m.thumb) + '">' : TRV_PLAY;
+        const own = svTrialReviewFieldsOn(m);
         const tiles = vs.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter);
+            // V4: each tile shows its version's own thumbnail (else the card's poster, as before).
+            const vp = own ? _trvPicOf(m, v) : '';
+            const vposter = vp ? '<img alt="" src="' + _calEscAttr(vp) + '">' : poster;
             const dropBtn = v.on_card && !_trvNextLive(vs, v.letter) ? '' : '<button type="button" class="trk-ic" data-trk-drop="' + l + '" title="Drop this version" aria-label="Drop Video ' + l + '"' + (busy ? ' disabled' : '') + '>' + TRV_DROP + '</button>';
             // The client said "Not this one": the team sees it and drops the version (owner, 2026-10-28).
             const acts = v.client_pass_at && v.status === 'waiting'
@@ -654,12 +701,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 // A version the SMM has not looked at is with the team, never "change asked" (follow-up, 2026-10-28).
                 : '<span class="trk-lab" data-l="' + (a === 'ok' ? 'approved' : a === 'team' ? 'team' : 'change') + '">' + (a === 'ok' ? 'approved' : a === 'team' ? 'with the team' : 'change asked') + '</span>';
             return '<div class="trk-v' + (v === cur ? ' cur' : '') + '"><button type="button" class="trk-go" data-trk-go="' + l + '" aria-label="Put Video ' + l + ' on stage"' + (v === cur ? ' aria-current="true"' : '') + '>'
-                + '<span class="trk-pic">' + poster + '</span><span class="trk-nm"><span class="trk-n">Video ' + l + '</span>'
+                + '<span class="trk-pic">' + vposter + '</span><span class="trk-nm"><span class="trk-n">Video ' + l + '</span>'
                 + (_trvClientOk(v, stage) ? '<span class="trv-cok" title="The client approved Video ' + l + '">Client approved</span>' : '') + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t"><span class="trv-tag trk-tag">Trial</span> ' + vs.length + ' versions</span>'
             + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
-            + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div></div>';
+            + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div>' + svTrialReviewFieldsHtml(m, mode) + '</div>';
     }
     // The tiles' placeholders, drawn at once in their place while the card's trial read is not in (one line, three tiles).
     function svTrialReviewSkeletonHtml() {
@@ -781,8 +828,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
 .dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
+/* V4: the version's own thumbnail and caption, under its player; the parts a change on it can be about. */
+.trv-fx{display:flex;align-items:flex-start;gap:10px;margin:8px auto 0;max-width:420px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface-raised);text-align:left}
+.trv-fx-pic{display:grid;place-items:center;flex:none;width:45px;height:80px;border-radius:6px;overflow:hidden;background:var(--fill);color:var(--pd-video)}
+.trv-fx-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.trv-fx-t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.trv-fx-l{font-size:.68rem;font-weight:600;color:var(--text-secondary)}
+.trv-fx-cap{font-size:.8rem;line-height:1.35;color:var(--text-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:8.2em;overflow:auto}
+.trv-fx-cap.none{color:var(--text-secondary)}
+.trk .trv-fx{max-width:none;margin:0}
+.trv-parts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.trv-parts .lbl{font-size:.72rem;font-weight:700;color:var(--text-secondary)}
+.trv-pt{border:1px solid var(--hair);border-radius:999px;background:var(--deck);color:var(--text-primary);font:inherit;font-size:.76rem;font-weight:600;padding:4px 11px;cursor:pointer}
+.trv-pt:hover{background:var(--fill-hover)}
+.trv-pt[aria-pressed="true"]{border-color:var(--text-primary);box-shadow:0 0 0 1px var(--text-primary)}
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 `;
 export {
-  TRV_CSS, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles
+  TRV_CSS, svTrialReviewFieldsOn, svTrialReviewPartPickHtml, svTrialReviewPartComp, svTrialReviewBehind, svTrialReviewPending, svTrialReviewSkeletonHtml, svTrialReviewAllHtml, svTrialReviewAnswered, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewCanPass, svTrialReviewPass, svTrialReviewPassed, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml, svTrialReviewWithTeam, svTrialReviewChangeHtml, svTrialReviewAsked, svTrialStageWaits, svTrialReviewAfterChange, svTrialReviewOpenChanges, svTrialReviewCanReopen, svTrialReviewMindHtml, svTrialReviewSettles
 };

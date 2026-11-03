@@ -36713,3 +36713,38 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **Live check (D6):** on one of the owner's two clients with YouTube and LinkedIn connected: schedule 7+ days ahead, cancel at once, and read back that it is gone. It waits for those accounts to be connected; then 652 can be marked LIVE.
 - **Way back:** clear `post_networks_v1`, or revert the PR.
 - **Ledger number:** 655 was held for P4; the supervisor gave P4 684 instead.
+
+## 661. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions, V4: the review page shows each version's own thumbnail and caption, one Approve covers its parts, and a change picks its part (session Vbuild)
+
+- **Asked:** plan `docs/plans/2026-11-trial-and-posting/combined.md`, row V4. It waited for V3 and for Trialchange's Safari fix (#2526, on main); the supervisor gave the go-ahead on 3 Nov. Everything new sits behind `trial_versions_v2` (test client first). With the switch off, the review page is today's trial page.
+- **Built:**
+  - **Server (`trial-reels`):** `answer` takes `part` (video, thumbnail or caption) on a change, stored in F2's `change_part`.
+    - Null means the video (today's meaning).
+    - A part on an approve is refused (`part_change_only`); an unknown part is refused (`part_invalid`).
+    - A thumbnail or caption part needs the V3 switch and F2's columns (`fields_off` or `fields_unavailable`), as `version_fields_set` does.
+    - Reads carry `change_part` while the change is open. The part is cleared whenever the version starts again: a new cut, a new link, new fields, a status set or a restore.
+    - A page that sends no part writes none, so pages from before are unchanged.
+  - **The review page (194, 195):**
+    - Each version shows its own thumbnail and caption under its player: its `effective` set, else the card's. A Frame.io page is not a picture, so it is not shown as one. This covers the client link, the SMM's Review tab and Kasper's second layout, where each tile shows its version's thumbnail.
+    - **One Approve covers the version's parts.** The function stays the only judge of "this reviewer's stage is done". When it says so and today's approve on the video has gone, the card's thumbnail and caption parts still waiting for this reviewer are approved the same way. They go one after the other, each exactly once, and each waits for the card's save before it (the card takes one save at a time). A part with a change asked, or already answered, is left as it is.
+    - **Ask for a change picks the part:** Video, Thumbnail or Caption, with Video first. The change is stored on the version with its part. A thumbnail or caption change goes as today's change request on the card's graphic or caption part, named "Video C, thumbnail: ...", so it reaches the designer. That part keeps its status, because the version holds the change.
+    - The video part moves as for a video change: it stays while other versions wait, moves on (`move`), or goes to Tweaks Needed once nothing waits. A card whose part is not open to this reviewer takes the change on the video, still naming the part. Kasper's "Tweaks are on Frame" stays the video's.
+    - The version's "Change asked" line names the part ("Change asked on Video C's thumbnail").
+  - **Not built (combined.md section 3):** the review-page thumbnail strip.
+- **Proof:**
+  - `test/trial-version-review-parts-logic.js` (16 checks). On main, 13 of them fail because the part is not stored.
+  - `test/trial-version-review-parts-browser.js` (25 checks, offline, real browser, the function answered by its own rules). It covers:
+    - each version's own thumbnail and caption on the client link, the SMM's tab, Kasper's tiles and at 390 wide;
+    - Approve all calls today's approve on video, thumbnail and caption exactly once each (client), and moves all three to Kasper (SMM);
+    - a thumbnail change stored with its part and reaching the graphic part, never the video's;
+    - a failed versions read falling back to today's page;
+    - with the switch off, no fields, no picker, and the video approved alone.
+
+    On main it fails (1 passed, 6 failed).
+  - `test/trial-reels-function-deno.ts` gains the V4 checks through the real function: refused with the switch off, an unknown part refused, a thumbnail change stored and read back, and the new cut clearing it.
+  - The existing trial review suites pass, as does the Calendar write-gateway browser test.
+- **Codex on #2571:**
+  - The client page's change queue (with the polish on) watched the video's save while a thumbnail or caption change was saved on another part. It therefore handed the words back as "Not sent". It now watches the part the change was actually saved on. A browser check covers it: it fails without the fix ("Not sent", the words back in the box) and passes with it.
+  - The team guide (ATLAS) now describes the review page's V4 controls and the switch.
+- **Live check (still to do):** walk SMM, Kasper and the client link on a test-client trial card at 1440 and 390, in WebKit too (plan row V4).
+- **Way back:** switch `trial_versions_v2` off for the client, which gives today's trial page, or revert the PR. No migration.

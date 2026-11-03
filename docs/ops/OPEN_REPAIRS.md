@@ -36660,7 +36660,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Under load (CPU slowed 4 times, 4 copies at once), 4 of 4 runs pass all 53 checks.
 - **Not touched:** the "next card's video is ready sooner" check at the end of the suite still compares two page loads (on < off - 400 ms). It has not failed in CI yet.
 
-## 654. [2026-11-03 UTC, BUILT, NOT MERGED] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
+## 654. [2026-11-03 UTC, BUILT: merged as 58f407f; a real folder dragged from a computer stays unproven by choice] A folder dropped on the Post tab fills the form, on both sides, behind post_sources_v1 (plan row P2; session Pbuild)
 
 - **Asked:** plan row P2 (`docs/plans/2026-11-trial-and-posting/combined.md`; `posting.md` section 2, "From files"). The sorting (P2a, 648) merged first; this wires it to the drop zones.
 - **Before:** a dropped folder did nothing useful. The browser handed the page a folder as an empty file, so the video, the cover and the caption each had to be dropped or typed one by one.
@@ -36682,6 +36682,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - **this branch:** `post-folder-drop-browser: 55 checks passed`.
   The Post tab suites still pass: post-from-card (51), post-tab (58), instagram-carousel (51), instagram-cover (38), instagram-facebook (38), instagram-platform-switch (59), tiktok-upload (35), tiktok-upload-steps (14), tiktok-press-key-reload (21), tiktok-carousel-browser-journey, tiktok-carousel-transport, post-folder-sort (13).
 - **Live check:** drop a folder on the test client's Post tab once the switch lists it: the form fills. No post is made.
+- **Status (owner's decision, 3 Nov):** this stays BUILT, not LIVE. The browser test builds the dropped folder in the page, in the shape browsers hand over, but a real folder dragged from a computer's file manager (Chrome, Safari) has not been tried. The owner chose to skip that hand check. The page is behind `post_sources_v1`, which lists the test client only.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 
 ## 655. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's Instagram side posts to YouTube and LinkedIn too, behind post_networks_v1 (plan row P3, page half, decision D5; session Pbuild)
@@ -36742,5 +36743,5 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - `test/post-source-logic.js` now has 34 checks. On main the new cases fail (`AssertionError`): letter A with its own row, a version's own or fallback thumbnail, and another client's card. One pin passes on main and on the branch alike, as asked by the supervisor: a card with no version rows at all is read exactly as before, with no letter and with letter A (the card's link and thumbnail; with no letter the version rows are never read);
   - `test/post-from-card-live-check.js` now has 11 checks: the letter run, and a bad letter or the TikTok side refused before anything is called.
   The Post tab suites still pass: post-from-card (51), post-networks (56), post-folder-drop (55), post-tab (58), instagram-facebook (38), instagram-platform-switch (59), instagram-cover (38), instagram-carousel (51), and the lifted-function suites.
-- **Live check (D6), after merge:** on one of the owner's own clients' trial cards, dispatch the live check once per version, for two versions. Each is scheduled 8 days ahead, cancelled at once, and read back as cancelled.
+- **Live check (D6): replaced (owner's decision, 3 Nov).** `trial_versions_v2` stays on the test client only, so the owner's own clients have no trial versions to post. The planned check (each version scheduled on one of their trial cards, cancelled, read back) will not run. Instead, after the merge, a test-client-only check covers the server half, up to the post: `post-source-live-check.yml` (storage only, never a post) on a test-client trial card, run once with the letter of a version that is not on the card, and once with A when A is not on the card. Pass means `ok`, the storage copy matches Frame's size, and `thumb_copied` is true. The create itself cannot run on the test client, which has no Post for Me account, so it rests on the browser test (the exact body per version) and on today's trial-reel create, which is unchanged. That is why this stays BUILT, not LIVE.
 - **Way back:** clear `post_sources_v1`, or revert the PR. post-source goes back to A as the card and no version thumbnail.

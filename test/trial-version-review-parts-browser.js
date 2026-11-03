@@ -25,6 +25,8 @@ const LINK = l => 'https://f.io/fixture-trial-' + l.toLowerCase();
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
 const B_THUMB = 'https://e.example/fixture-version-b-thumb.jpg';
 const B_CAPTION = 'Version B words, fictional.';
+const DRIVE = 'https://drive.google.com/file/d/FixtureDriveFile123/view?usp=sharing';
+const PNG = require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'frameio-viewer-poster-vertical.png'));
 
 (async () => {
   const L = await import(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'logic.mjs'));
@@ -38,6 +40,7 @@ const B_CAPTION = 'Version B words, fictional.';
   async function start(mode, v2, extra) {
     const x = extra || {};
     const T = { versions: fresh(), calls: [], failList: !!x.failList };
+    if (x.thumbs) T.versions.forEach(v => { if (v.letter in x.thumbs) v.thumbnail_url = x.thumbs[v.letter]; });
     if (mode !== 'smm') T.versions.forEach(v => { v.smm_ok_at = '2026-11-03T08:00:00.000Z'; if (mode === 'client') v.kasper_ok_at = '2026-11-03T08:10:00.000Z'; });
     const flagValues = { trial_reels_pages: { clients: [SLUG] }, trial_versions_v2: { clients: v2 ? [SLUG] : ['someotherclient'] } };
     if (x.layout2) flagValues.review_stage_kasper_layout2 = { all: true };
@@ -45,6 +48,10 @@ const B_CAPTION = 'Version B words, fictional.';
     t.T = T;
     const status = mode === 'smm' ? 'For SMM Approval' : mode === 'kasper' ? 'Kasper Approval' : 'Client Approval';
     let CARD = null;
+    // A Google Drive file page as a version's own thumbnail (the team's usual link): Google's image host answers it here.
+    T.pics = [];
+    await t.ctx.route('https://lh3.googleusercontent.com/**', r => { T.pics.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'image/png', body: PNG }); });
+    if (x.brokenPics) await t.ctx.route('https://e.example/**', r => r.fulfill({ status: 404, body: '' }));
     await t.ctx.route('**/functions/v1/trial-reels', async route => {
       const r = route.request();
       if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
@@ -164,6 +171,20 @@ const B_CAPTION = 'Version B words, fictional.';
       && !cpSent.some(u => /Shorter first line/.test(String(u.video_tweaks || ''))),
       'client polish: the queue watches the caption part, so the words are never handed back as "Not sent" (' + JSON.stringify(cpBox) + ')');
     ok(!t.errors.length, 'client polish: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- a Drive file page as a version's own thumbnail, and a picture that does not load (V4 live walk, 3 Nov) ----------
+    t = await start('client', true, { thumbs: { C: DRIVE }, brokenPics: true });
+    await inS(t.page, '.trv [data-trv-go="C"]').click(); await sleep(900);
+    const drv = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot, i = r.querySelector('.trv-fx img');
+      return { src: i ? i.getAttribute('src') : '', loaded: !!i && i.complete && i.naturalWidth > 0 }; });
+    ok(/^https:\/\/lh3\.googleusercontent\.com\/d\/FixtureDriveFile123=w\d+/.test(drv.src) && drv.loaded,
+      'a Drive file page as Video C\'s own thumbnail shows as its image, the way the card shows its own (' + drv.src.slice(0, 48) + ')');
+    await inS(t.page, '.trv [data-trv-go="B"]').click(); await sleep(1200);
+    const brk = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot, f = r.querySelector('.trv-fx-pic'), i = f && f.querySelector('img');
+      return { hidden: !!i && i.hidden, mark: !!(f && f.querySelector('.trk-mark')), alt: !!i && !i.hidden && i.getClientRects().length > 0 }; });
+    ok(brk.hidden && brk.mark && !brk.alt, 'a thumbnail that does not load shows the video mark, never a broken image or its alt text (' + JSON.stringify(brk) + ')');
+    ok(!t.errors.length, 'thumbnails: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // ---------- a failed versions read falls back to today's page ----------

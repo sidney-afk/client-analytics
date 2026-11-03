@@ -165,6 +165,14 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
       await sleep(900);
       ok(T.versions[1].thumbnail_url === 'https://e.example/fixture-b.jpg' && !!(await page.$('.trl-fields .trl-f-img')), `${label}: B gets its own thumbnail, shown small`);
       ok(card.thumbnail_url === CARD0.thumbnail_url && card.caption === CARD0.caption, `${label}: the card's own fields are untouched`);
+      // A Google Drive file page (the team's usual thumbnail link) is shown as its image, as the card's own is (V4 live walk).
+      await (await fieldBtn(page, 'C', 'Thumbnail')).click();
+      await sleep(200);
+      await page.fill('.trl-f-input', 'https://drive.google.com/file/d/FixtureDriveFile456/view');
+      await page.keyboard.press('Enter');
+      await sleep(900);
+      const cImg = await page.evaluate(() => { const i = [...document.querySelectorAll('.trl-fields .trl-f-img')].map(x => x.getAttribute('src')); return i.find(x => /FixtureDriveFile456/.test(x)) || ''; });
+      ok(/^https:\/\/lh3\.googleusercontent\.com\/d\/FixtureDriveFile456=w\d+/.test(cImg), `${label}: a Drive file page as C's thumbnail shows as its image (${cImg.slice(0, 44)})`);
       if (process.env.TRL_SHOTS) {
         await page.screenshot({ path: path.join(process.env.TRL_SHOTS, 'v3-row-' + label + '.png') });
         await (await fieldBtn(page, 'C', 'Caption')).click(); await sleep(300);

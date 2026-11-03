@@ -141,6 +141,14 @@ async function laterParts(page) {
       assert.equal(err.env.board, 'calendar'); assert.equal(rej.env.board, 'calendar');
       assert(!JSON.stringify([err, rej]).includes('boom-secret'), 'the error message is not in the report');
       ok('an uncaught error and an unhandled rejection on the Calendar are reported by kind, never by message');
+      // OPEN_REPAIRS 645: a frameless rejection used to read "TypeError at <page>:0:0"; an off-site frame keeps only its
+      // scheme, host and file name.
+      await page.evaluate(() => { const e = new TypeError('Failed to fetch'); e.stack = 'TypeError: Failed to fetch'; Promise.reject(e); });
+      await page.evaluate(() => { const e = new TypeError('boom-secret is not a function'); e.stack = 'TypeError: x\n    at Object.f (https://cdn.example.net/npm/lib/dist/lib.min.js?token=boom-secret#frag:2:3)'; Promise.reject(e); });
+      const fl = await until(() => ops(reports, 'calendar_uncaught').find(r => r.message === 'TypeError failed_to_fetch'), 'the frameless rejection says what it is');
+      const off = await until(() => ops(reports, 'calendar_uncaught').find(r => r.message === 'TypeError not_a_function at https cdn.example.net lib.min.js'), 'the off-site rejection says where');
+      assert(fl && off && !/:0:0|token|frag|boom-secret/.test(JSON.stringify(ops(reports, 'calendar_uncaught'))), 'no invented place, query, fragment or message');
+      ok('a frameless rejection says what it is and an off-site one says where, with no query and no message');
       noWords(reports);
     } finally { await S.close(); }
   }

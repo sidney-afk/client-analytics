@@ -218,7 +218,7 @@ export const STT_TOOL = {
 // Opens a link, following redirects by hand so every hop passes the
 // public-address check (skipped only for our own signed Storage links).
 // Returns the response, or a sentence for the person.
-async function openLink(link, headers, d, trusted, timeoutMs = RANGE_TIMEOUT_MS) {
+export async function openLink(link, headers, d, trusted, timeoutMs = RANGE_TIMEOUT_MS) {
   // One limit for every hop and for reading the body.
   const signal = d.timeout ? d.timeout(timeoutMs) : undefined;
   let url;

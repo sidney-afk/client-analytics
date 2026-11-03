@@ -106,7 +106,7 @@ const SPLIT_ROW = {
         // --- a client with no Facebook Page: the box is off, says why, and nothing goes to Facebook
         let b = await box();
         assert.deepEqual([b.checked, b.disabled], [false, true], 'no Page: unticked and disabled'); checks++;
-        assert.match(b.note, /No Facebook Page connected for this client/, 'no Page: the reason is shown'); checks++;
+        assert.match(b.note, /No Facebook Page linked to this client yet/, 'no Page: the reason is shown'); checks++;
         const c = await sendReel('No page caption');
         assert.ok(!('alsoFacebook' in c) && !('facebookAccountId' in c), 'no Page: the create is exactly as before'); checks++;
         assert.match(await page.innerText('#igFormCol'), /Sent to Instagram\. It will show as Posted here once Instagram confirms\./, 'no Page: the old message'); checks++;

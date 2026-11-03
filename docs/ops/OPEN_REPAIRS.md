@@ -36471,3 +36471,18 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Live check (after F3 and this are applied):** a `dry_run` on live, reported as counts only.
 - **Follow-up (Pbuild, once this is live):** the Post tab's "Ask Sidney to add its Connection ID" wording.
 - **Way back:** `select cron.unschedule('pfm-account-link-hourly');` then revert the PR; the run log's header gives its drop statements.
+
+## 653. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab's "no account" messages say the account links itself once it is connected in Post for Me (follow-up to N1, 646; session Pbuild)
+
+- **Asked:** the supervisor, 3 Nov, after L1 went live at 10:41 UTC: a client's Post for Me accounts now link themselves every hour on an exact, unique handle match, so the "no account" messages no longer need someone to paste an id.
+- **Now (299, 300, 099):** every "no account" message on the Post tab reads "No [TikTok / Instagram] account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney."
+  - It covers TikTok's account line and its refusal, Instagram's account line and refusal, and the Facebook box's reason ("No Facebook Page linked...").
+  - The phone's shorter line says "Connect it in Post for Me: it links itself here within the hour."
+  - N1's **Open Post for Me** link stays beside each one.
+  - Page only; no server change.
+- **Proof:**
+  - `test/postforme-link-browser.js` and `test/instagram-platform-switch-browser.js` now expect the new words. On main they fail ("TikTok: connect it in Post for Me, it links itself"; "the flag says to connect it in Post for Me"). Here every wording check passes.
+  - `instagram-facebook-browser` (38) and `instagram-facebook-crosspost` (79) pass with the Facebook line.
+  - In this sandbox `postforme-link-browser` then stops at its popup check, as it does on main; it passes in CI.
+- **Way back:** revert the PR.
+

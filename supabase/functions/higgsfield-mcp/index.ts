@@ -30,12 +30,12 @@ import { ACTION_NAMES as STUDIO_ACTION_NAMES, TOOL_DESCRIPTION as STUDIO_TOOL_DE
 import { lookup as frameLookup, tokenSource as frameTokenSource } from "../frameio-view/logic.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, handbookChange, handbookRead, listClients } from "./clientinfo.ts";
 import type { Asker } from "./clientinfo.ts";
-import { studioProfile, studioProfileSave } from "./studioprofile.ts";
+import { savedProfileText, studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
 import { STT_MODEL, STT_TOOL, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
 import { transcribeStore } from "./transcribe.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
-import { PROFILE_FIELDS } from "./profile.mjs";
+import { PROFILE_FIELDS, withSavedLook } from "./profile.mjs";
 import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
@@ -1405,7 +1405,11 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   // The handbook is also reachable through the existing topic and fact_id fields, so a chat that has not refreshed its tool list can still use it.
   const handbookTopic = /^\s*handbook(?::\s*([^\s].*))?\s*$/i.exec(String(args.topic || ""));
   if (name === "client_brain" && (String(args.handbook || "").trim() || handbookTopic)) return await handbookRead(String(args.handbook || (handbookTopic && handbookTopic[1]) || "start"));
-  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who));
+  if (name === "client_brain") {
+    const brainText = await clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who));
+    if (/^Which client\?/.test(brainText)) return brainText;
+    return withSavedLook(brainText, await savedProfileText(db(), String(args.client || "")));
+  }
   const handbookFact = /^\s*handbook:\s*([^\s].*)$/i.exec(String(args.fact_id || ""));
   if (name === "brain_change" && (String(args.handbook_page || "").trim() || handbookFact)) return await handbookChange(String(args.handbook_page || (handbookFact && handbookFact[1])), String(args.what_changed || ""), handbookFact ? "" : String(args.fact_id || ""), author);
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author, String(args.question_id || ""));

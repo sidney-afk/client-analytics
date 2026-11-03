@@ -2919,6 +2919,17 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // the unread dot clears immediately.
         if (pid) { _notesMarkSeen(pid); _calRefreshCommentsBtn(pid); }
     }
+    // A load from the server can change the open card's notes: another tab
+    // deleted or added one. The cards are redrawn on such a load, but the open
+    // Notes were not, so a note deleted elsewhere stayed on screen here until
+    // Notes was closed and reopened (OPEN_REPAIRS 682). Redraw it the same way
+    // a local change does, keeping whatever the person is typing.
+    function _calRefreshOpenNotesAfterLoad() {
+        const pid = _calOpenCommentsPid;
+        if (!pid || !calState.posts.some(p => p.id === pid)) return;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    }
     function _calCaptureModalDrafts() {
         const root = document.getElementById('calCommentsModal');
         if (!root) return;
@@ -4276,7 +4287,7 @@ export {
   _calCurrentAuthor, _calCurrentAuthorId, _calHasMedia, _calNoteAuthorName, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
   _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists, _calMergePostComments,
   _calMintCommentId, _calOpenCommentsPid, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
-  _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit,
+  _calRefreshCommentsBtn, _calRefreshOpenNotesAfterLoad, _calRenderCommentsModal, _calRetryCommentEdit,
   _calReviewComponentPreview, _calReviewRequestTweak, _calShowUrgent, _calSmmMissingMedia,
   _calSmmWarnDotHtml, _calSmmWarnOverlayHtml, _calStringifyComments, _calToggleCommentDone,
   _calUpdateCardStatusDisplay, _calUpdateReviewBadge, _calWatchNoteSave, _calWireReviewExpand,

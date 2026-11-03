@@ -10,6 +10,8 @@
  *   2. frameio-view part "list" lists that share;
  *   3. frameio-view part "video" looks up the first listed video that is not processing, by its own link, and the
  *      answer must name that same file (F0: a file link plays that file, never the folder's first video).
+ *      rows_with_duration counts the listed rows that came back with a length; video_has_duration says whether that
+ *      video's own lookup (which reads the file's metadata) has one. Both together settle where the length comes from.
  *
  * Prints only counts and true/false (summarize): never an address, an id, a name or a key. The repository and its CI
  * logs are public.
@@ -38,7 +40,8 @@ function summarize(list, video) {
   const first = rows.find((r) => !r.processing);
   if (!first || !video) return Object.assign(out, { video_same_file: null });
   const got = video.json && video.json.video && video.json.video.file_id;
-  return Object.assign(out, { video_http_status: video.status, video_same_file: !!got && got === first.file_id });
+  const vlen = video.json && video.json.video && video.json.video.duration_seconds;
+  return Object.assign(out, { video_http_status: video.status, video_same_file: !!got && got === first.file_id, video_has_duration: Number(vlen) > 0 });
 }
 
 async function call(fn, key, body) {

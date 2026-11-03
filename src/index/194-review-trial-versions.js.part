@@ -378,7 +378,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return '<div class="trs" role="group" aria-label="Versions of this video">' + m.trial.versions.map(v => {
             const a = _trvAnswer(v, stage), l = _calEscAttr(v.letter), on = v === cur;
             return '<button type="button" class="trs-s' + (on ? ' on' : '') + '" data-a="' + a + '" data-stage="' + stage + '" ' + attr + '="' + l + '" aria-pressed="' + on + '"'
-                + ' aria-label="Version ' + l + ', ' + TRV_SAY[a] + '"><span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter) + '</button>';
+                + ' aria-label="Version ' + l + ', ' + TRV_SAY[a] + '"><i class="trs-d"></i><span class="trs-t"><span class="trs-w">Version&nbsp;</span>' + _calEsc(v.letter) + '</span></button>';
         }).join('') + '</div>';
     }
     function svTrialReviewWord(m) { return _trvW(m); }
@@ -902,21 +902,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 @media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block;order:3}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:100%;white-space:nowrap;height:44px}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{width:100%;justify-content:center;white-space:nowrap}}
 
 /* Version tabs (688, option B): the segmented control and the board chip. Segment colours are the card status colours. */
-.trs{display:flex;gap:3px;padding:3px;border-radius:12px;background:var(--fill-hover);width:100%;max-width:440px;margin:0 auto}
-.trs-s{flex:1;min-width:0;height:36px;border:0;border-radius:9px;padding:0 6px;display:flex;align-items:center;justify-content:center;font:inherit;font-size:.86rem;font-weight:700;color:var(--text-secondary);cursor:pointer;position:relative;white-space:nowrap;--trs:var(--text-muted);background:color-mix(in srgb,var(--trs) 24%,transparent)}
-.trs-s::after{content:'';position:absolute;left:34%;right:34%;bottom:5px;height:3px;border-radius:2px;background:var(--trs)}
+.trs{display:flex;gap:22px;justify-content:center;border-bottom:1px solid var(--hair);width:100%;max-width:440px;margin:0 auto}
+.trs-s{flex:0 0 auto;min-width:0;height:38px;border:0;border-radius:0;padding:0 2px;display:flex;align-items:center;justify-content:center;gap:7px;font:inherit;font-size:.86rem;font-weight:600;color:var(--text-secondary);background:none;cursor:pointer;position:relative;white-space:nowrap;--trs:var(--text-muted)}
+.trs-s::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:transparent}
+.trs-d{width:7px;height:7px;border-radius:50%;background:var(--trs);flex:none}
 .trs-s[data-a="ok"]{--trs:var(--cal-status-approved-bg)}
 .trs-s[data-a="chg"]{--trs:var(--cal-status-tweaks-needed-bg)}
 .trs-s[data-a="wait"][data-stage="client"]{--trs:var(--cal-status-client-approval-bg)}
 .trs-s[data-a="wait"][data-stage="kasper"]{--trs:var(--cal-status-kasper-approval-bg)}
 .trs-s[data-a="wait"][data-stage="smm"]{--trs:var(--cal-status-for-smm-approval-bg)}
-.trs-s.on{background:var(--deck);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.12),inset 0 0 0 1.5px var(--trs)}
+.trs-s:hover{color:var(--text-primary)}
+.trs-s.on{color:var(--text-primary)}
+.trs-s.on::after{background:var(--text-primary)}
 .trs-s:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px}
 .trs-under{padding-top:12px}
 .trs-k .trs-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.trs-k .trs{margin:0;flex:1 1 260px;max-width:none}
+.trs-k .trs{margin:0;flex:1 1 260px;max-width:none;justify-content:flex-start}
 .trs-acts{display:flex;gap:6px;align-items:center}
-.trv-chip{display:inline-flex;align-items:center;flex:none;height:18px;padding:0 6px;border-radius:4px;background:var(--fill-hover);color:var(--text-secondary);font-size:.66rem;font-weight:700;letter-spacing:.02em;white-space:nowrap;vertical-align:middle}
+.trv-chip{display:inline-flex;align-items:center;flex:none;font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary);white-space:nowrap;vertical-align:middle}
 @media (max-width:600px){.trs-w{display:none}}
 `;
 export {

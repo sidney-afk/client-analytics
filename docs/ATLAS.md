@@ -393,6 +393,13 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Ask for a change** goes on that version (it is sent as "Video C: …").
   - **Not this one** tells the team to drop that version.
   - **Change my mind** on an approved version reopens it as a change, the same as **Ask for a change** on it: the version reads "Change asked", the client's words go to the editor as "Video A: …", and the card goes to Tweaks Needed once nothing else waits for the client. It is also beside "Video A approved" while another version still waits. This works only while the card's video is at Client Approval or Tweaks Needed; on a card already Approved it still sends a note naming the version.
+- **Each version's own thumbnail and caption (behind `trial_versions_v2`, plan row V4):** on that switch's clients the review page also does the following, for the client link, the SMM's Review tab and Kasper's Review Session alike.
+  - Each version shows its own thumbnail and caption under its player; a version with none of its own shows the card's.
+  - In Kasper's second layout, each version tile shows that version's thumbnail.
+  - **Approve covers the version's parts:** when a reviewer's last open version is answered, the card's video is approved as before. Then the card's thumbnail and caption, if they still wait for that reviewer, are approved too, once each.
+  - **Ask for a change** on a version first asks which part: **Video**, **Thumbnail** or **Caption**. A thumbnail or caption change is kept on that version. It reaches the designer, or whoever writes the caption, on the card's thumbnail or caption part, as "Video C, thumbnail: …".
+  - The card's own Thumbnail and Caption steps still show as before.
+  - With the switch off, the review page is today's trial page.
 - Once a winner is picked, the client sees only that one ("the one we are posting").
 - Samples never have trial reels.
 
@@ -963,7 +970,7 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `kasper_fast_boot` | Kasper tab opens from a saved list | 3 staff members |
 | `kasper_urgent_ping_enabled` | URGENT button pings Kasper | On |
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
-| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card | Off until set; the test client first, by its slug in `{"clients": [...]}` |
+| `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card; on the review page (V4), each version's thumbnail and caption, one Approve covering its parts, and a change that picks its part | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `post_sources_v1` | Post tab: "From a card" on both sides (the card's video copied from Frame.io on the server; P1) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |

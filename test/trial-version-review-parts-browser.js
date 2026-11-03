@@ -41,7 +41,7 @@ const B_CAPTION = 'Version B words, fictional.';
     if (mode !== 'smm') T.versions.forEach(v => { v.smm_ok_at = '2026-11-03T08:00:00.000Z'; if (mode === 'client') v.kasper_ok_at = '2026-11-03T08:10:00.000Z'; });
     const flagValues = { trial_reels_pages: { clients: [SLUG] }, trial_versions_v2: { clients: v2 ? [SLUG] : ['someotherclient'] } };
     if (x.layout2) flagValues.review_stage_kasper_layout2 = { all: true };
-    const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues, linkedParts: true }, mode !== 'client' ? { staff: STAFF } : {}, x.width ? { width: x.width, height: 844 } : {}));
+    const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues, linkedParts: true }, x.polish ? { polish: true } : {}, mode !== 'client' ? { staff: STAFF } : {}, x.width ? { width: x.width, height: 844 } : {}));
     t.T = T;
     const status = mode === 'smm' ? 'For SMM Approval' : mode === 'kasper' ? 'Kasper Approval' : 'Client Approval';
     let CARD = null;
@@ -137,7 +137,33 @@ const B_CAPTION = 'Version B words, fictional.';
     ok(sent.some(u => /Video C, thumbnail: A brighter picture, please\./.test(String(u.graphic_tweaks || ''))) && !sent.some(u => /A brighter picture/.test(String(u.video_tweaks || ''))),
       'client: today\'s change request goes on the card\'s graphic part, "Video C, thumbnail: ...", not the video\'s');
     ok(!sent.some(u => u.graphic_status === 'Tweaks Needed' || u.video_status === 'Tweaks Needed'), 'client: and the card keeps its status while other versions wait');
+    // Codex on #2571: the client's change queue watches the part the change was saved on, so it never hands the words back.
+    await sleep(1200);
+    const box = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot, ta = r.getElementById('ta');
+      return { back: /Not sent/.test(r.textContent || '') || /Not sent/.test(document.body.innerText || ''), words: ta ? ta.value : '' }; });
+    ok(!box.back && !/brighter picture/i.test(box.words), 'client: the words are not handed back as "Not sent" (' + JSON.stringify(box) + ')');
     ok(!t.errors.length, 'client change: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- the same change with the client page's polish on: its queue watches the graphic part (Codex on #2571) ----------
+    t = await start('client', true, { polish: true });
+    await inS(t.page, '.trv [data-trv-go="C"]').click(); await sleep(600);
+    n0 = t.state.upserts.length;
+    await inS(t.page, '[data-chg="video"]').click(); await sleep(300);
+    await inS(t.page, '[data-trv-part="caption"]').click(); await sleep(300);
+    await inS(t.page, '#ta').fill('Shorter first line, please.');
+    await inS(t.page, '#sendBtn').click();
+    await waitFor(async () => t.state.upserts.slice(n0).some(u => /Video C, caption: Shorter first line, please\./.test(String(u.caption_tweaks || ''))));
+    await sleep(1500);
+    const cpBox = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot, ta = r.getElementById('ta');
+      return { back: /Not sent/.test(r.textContent || '') || /Not sent/.test(document.body.innerText || ''), words: ta ? ta.value : '' }; });
+    const cpSent = t.state.upserts.slice(n0);
+    ok(cpSent.some(u => /Video C, caption: Shorter first line, please\./.test(String(u.caption_tweaks || ''))) && t.T.versions[2].change_part === 'caption',
+      'client polish: a caption change on Video C goes on the caption part and is stored with its part');
+    ok(!cpBox.back && !/Shorter first line/.test(cpBox.words) && cpSent.filter(u => /Shorter first line/.test(String(u.caption_tweaks || '') + String(u.video_tweaks || ''))).length >= 1
+      && !cpSent.some(u => /Shorter first line/.test(String(u.video_tweaks || ''))),
+      'client polish: the queue watches the caption part, so the words are never handed back as "Not sent" (' + JSON.stringify(cpBox) + ')');
+    ok(!t.errors.length, 'client polish: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // ---------- a failed versions read falls back to today's page ----------

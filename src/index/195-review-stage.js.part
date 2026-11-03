@@ -3604,7 +3604,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                such part open to this reviewer takes it on the video, still naming the part. */
             const pc = svTrialReviewFieldsOn(m) && text !== RS_FRAME_NOTE ? svTrialReviewPartComp(opts.trialPart) : 'video';
             const onPart = pc !== 'video' && m.parts.some(p => p.key === pc && (p.st === 'wait' || p.st === 'chg')) ? pc : 'video';
-            _rsSendChange(m, onPart, named, Object.assign({}, opts, { trial: true, keepStatus: onPart !== 'video' || after !== 'tweaks' }));
+            const savedOn = _rsSendChange(m, onPart, named, Object.assign({}, opts, { trial: true, keepStatus: onPart !== 'video' || after !== 'tweaks' })) || onPart;
             // The SMM's and Kasper's other versions go on to the next reviewer now, through today's stage approve, once the
             // change's own save on the part has landed (the save path takes one write per part at a time). A change sent on
             // another part with nothing left waiting moves the video part to Tweaks Needed the same way.
@@ -3619,7 +3619,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 };
                 setTimeout(go, 0);
             }
-            return;
+            // The part the change was saved on, so a caller that watches the save (the client's queue) watches that one.
+            return savedOn;
         }
         _rsActed(m, comp, 'tweak');
         R.S.saved = null;
@@ -3648,6 +3649,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (opts.quiet) _rsRender(); else _rsRender({ force: true });
         _rsWatch(m, comp, opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', R.mode === 'client' ? 'chg' : '');
         if (opts.where === 'stage') _rsAdvance(m, comp);
+        return comp;
     }
     /* Polish: a change request from the client page. The box stays open on the same part, empty, for the next change.
        Each change waits for the one before it to land (the save path takes one at a time per part and would drop a
@@ -3723,6 +3725,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!q) return;
         q.busy = true;
         let sent = false, inLetter = '';
+        /* V4 (Codex on #2571): a trial version's thumbnail or caption change is saved on the card's graphic or caption
+           part, not the video's. The queue watches the part the last change actually went on (ck): its save, its refusal,
+           its Try again and its delivery ledger. The queue itself stays keyed by the box's part (k). */
+        let ck = k;
         const giveBack = (why) => {
             [inLetter].concat(q.map(n => n.letter)).forEach(l => _rsTrvMark(m.id, l, ''));
             const rest = q.splice(0).map(n => n.body);
@@ -3748,21 +3754,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         };
         // The save path keeps one change per part in flight: the one before must have landed AND left this browser's
         // delivery ledger (a few ms after its save ends), or the next is refused as "still being confirmed".
-        const ledgerBusy = () => { try { return _linearOutboxRead().some(it => it && it.source_gate && String(it.source_gate.post_id) === String(m.id) && String(it.source_gate.component) === k); } catch (e) { return false; } };
+        const ledgerBusy = () => { try { return _linearOutboxRead().some(it => it && it.source_gate && String(it.source_gate.post_id) === String(m.id) && String(it.source_gate.component) === ck); } catch (e) { return false; } };
         let waitFrom = 0, retried = false;
         const step = () => {
             if (R.S !== S) return;
             const cur = _rsModelById(m.id) || m;
-            if (_rsSaving(cur, k)) { setTimeout(step, 40); return; }
+            if (_rsSaving(cur, ck)) { setTimeout(step, 40); return; }
             // A refused change still holds this part: sending again first tries that one again, then the rest follow.
-            if (!sent && q.length && _rsError(cur, k) && S.retry[key] && !retried) {
+            if (!sent && q.length && _rsError(cur, ck) && S.retry[m.id + '|' + ck] && !retried) {
                 retried = true;
-                S.retry[key]();
+                S.retry[m.id + '|' + ck]();
                 sent = true;
                 setTimeout(step, 40);
                 return;
             }
-            if (q.length && !(sent && _rsError(cur, k)) && ledgerBusy()) {
+            if (q.length && !(sent && _rsError(cur, ck)) && ledgerBusy()) {
                 if (!waitFrom) waitFrom = Date.now();
                 if (Date.now() - waitFrom < 15000) { setTimeout(step, 40); return; }
             }
@@ -3771,7 +3777,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 sent = false;
                 // Refused: it keeps its own words and Try again (that retry is the one the save path accepts next on this
                 // part); every change still waiting goes back into the box.
-                if (_rsError(cur, k)) {
+                if (_rsError(cur, ck)) {
                     giveBack('Not sent. Your next words are back in the box.');
                     // The refusal always shows. While the box has the caret the page only does the typing paint, which
                     // never redraws the box's own block, so its "Sent" stayed and the refusal never drew (Kasper's stage
@@ -3790,9 +3796,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             inLetter = nx.letter || '';
             _rsCpQSave(key, q);
             delete S.cpBack[key];
-            _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '', trialPart: nx.part || '' });
+            ck = _rsSendChange(cur, k, nx.body, { where: '', quiet: true, trialLetter: nx.letter || '', trialPart: nx.part || '' }) || k;
             // The save path can decline before it starts (the part moved on meanwhile): the words go back, never lost.
-            if (!_rsSaving(_rsModelById(m.id) || cur, k)) { q.unshift(nx); giveBack('Not sent. Your words are back in the box.'); _rsRender(); return; }
+            if (!_rsSaving(_rsModelById(m.id) || cur, ck)) { q.unshift(nx); giveBack('Not sent. Your words are back in the box.'); _rsRender(); return; }
             sent = true;
             setTimeout(step, 40);
         };

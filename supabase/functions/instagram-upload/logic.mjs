@@ -15,6 +15,8 @@ export const CAROUSEL_MIN_ITEMS = 2;
 export const CAROUSEL_MAX_ITEMS = 10;
 export const KINDS = Object.freeze(['reel', 'carousel']);
 export const MAX_CAPTION_CHARS = 2200;
+// With Instagram unticked, the longest caption any other network here takes (YouTube's description, 5,000 bytes).
+export const OTHER_CAPTION_MAX_CHARS = 5000;
 // A trial reel is shown to non-followers first. Only Post For Me's "manual" kind is offered: the reel stays
 // a trial until someone shares it to followers in the Instagram app. "performance" (Instagram shares it by
 // itself if it does well) is refused, so a trial can never reach followers without a person deciding.
@@ -129,9 +131,10 @@ export function refreshCandidates(rows, nowMs, limit) {
 }
 
 // An Instagram account id never doubles as a TikTok one: Post For Me tells us which network an account is on.
+export const NETWORK_NAMES = Object.freeze({ instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn' });
 export function platformMismatch(account, want = 'instagram') {
   const platform = clean(account && account.platform).toLowerCase();
-  const name = want === 'facebook' ? 'Facebook' : 'Instagram';
+  const name = NETWORK_NAMES[want] || 'Instagram';
   if (!platform) return 'Post For Me did not say which network that account is on.';
   if (platform !== want) return 'That Post For Me account is on ' + platform + ', not ' + name + '.';
   return '';
@@ -153,6 +156,117 @@ function facebookFromInput(body, { kind, trial, accountId, items }) {
     if (!types.every((t) => t === 'image')) return { error: 'Facebook takes a carousel of images only; this one has a video', facebook: null };
   }
   return { error: '', facebook: { account_id: fbId } };
+}
+
+/* YouTube and LinkedIn (plan row P3, decision D5, OPEN_REPAIRS 652). One Post for Me post carries every ticked
+   network, as Facebook does. The page sends each account id and YouTube's title and format; the server checks every
+   id against the client's profile and Post for Me's own platform before anything is written (checkNetworkAccounts),
+   and made for kids comes from the profile only (applyProfileSettings), never from the page. */
+export const YOUTUBE_ACCOUNT_COLUMN = 'postforme_youtube_account_id';
+export const LINKEDIN_ACCOUNT_COLUMN = 'postforme_linkedin_account_id';
+export const MADE_FOR_KIDS_COLUMN = 'youtube_made_for_kids';
+export const ACCOUNT_COLUMNS = Object.freeze({ instagram: ACCOUNT_COLUMN, facebook: FACEBOOK_ACCOUNT_COLUMN, youtube: YOUTUBE_ACCOUNT_COLUMN, linkedin: LINKEDIN_ACCOUNT_COLUMN });
+export const YOUTUBE_TITLE_MAX = 100;
+export const YOUTUBE_DESCRIPTION_MAX_BYTES = 5000;
+export const LINKEDIN_CAPTION_MAX = 3000;
+export const YOUTUBE_FORMATS = Object.freeze(['short', 'regular']);
+export const YOUTUBE_SHORT_MAX_SECONDS = 180;
+export const YOUTUBE_PRIVACY = 'public';
+const byteLength = (s) => new TextEncoder().encode(String(s)).length;
+function networksFromInput(body, { trial, title, instagramOn, ids }) {
+  const out = { error: '', youtube: null, linkedin: null };
+  const seen = new Set(ids);
+  const takeId = (raw, name) => {
+    const id = clean(raw);
+    if (!ACCOUNT_ID_RE.test(id)) return { error: name + ' accountId must be a Post For Me connection id (spc_...)' };
+    if (seen.has(id)) return { error: 'the ' + name + ' account cannot be the same as another network\'s' };
+    seen.add(id);
+    return { id };
+  };
+  if (trial && (body.youtube || body.linkedin || !instagramOn)) return { ...out, error: 'a trial reel is for Instagram only' };
+  if (body.youtube) {
+    const y = typeof body.youtube === 'object' ? body.youtube : {};
+    const got = takeId(y.accountId, 'YouTube');
+    if (got.error) return { ...out, error: got.error };
+    const ytTitle = clean(y.title).replace(/\s+/g, ' ');
+    if (!ytTitle) return { ...out, error: 'a YouTube post needs a title' };
+    if (ytTitle.length > YOUTUBE_TITLE_MAX) return { ...out, error: 'the YouTube title is over ' + YOUTUBE_TITLE_MAX + ' characters' };
+    if (/[<>]/.test(ytTitle)) return { ...out, error: 'YouTube does not take < or > in a title' };
+    if (byteLength(title) > YOUTUBE_DESCRIPTION_MAX_BYTES) return { ...out, error: 'the caption is too long for a YouTube description (5,000 bytes)' };
+    const format = clean(y.format).toLowerCase() || 'short';
+    if (!YOUTUBE_FORMATS.includes(format)) return { ...out, error: 'YouTube format must be short or regular' };
+    if (format === 'short') {
+      // YouTube itself makes a vertical video of 3 minutes or less a Short; Post for Me has no Shorts flag. What the
+      // page knows of the file is checked here; an unknown length or shape is left to YouTube.
+      const secs = Number(y.durationSeconds), w = Number(y.width), h = Number(y.height);
+      if (secs > YOUTUBE_SHORT_MAX_SECONDS) {
+        const m = Math.floor(secs / 60), sec = String(Math.round(secs % 60)).padStart(2, '0');
+        return { ...out, error: 'A Short is at most 3 minutes; this video is ' + m + ':' + sec + '. Post it as a regular video.' };
+      }
+      if (w > 0 && h > 0 && w >= h) return { ...out, error: 'A Short is a vertical video; this one is ' + w + '×' + h + '. Post it as a regular video.' };
+    }
+    out.youtube = { account_id: got.id, title: ytTitle, format };
+  }
+  if (body.linkedin) {
+    const l = typeof body.linkedin === 'object' ? body.linkedin : {};
+    const got = takeId(l.accountId, 'LinkedIn');
+    if (got.error) return { ...out, error: got.error };
+    if (title.length > LINKEDIN_CAPTION_MAX) return { ...out, error: 'the caption is over LinkedIn\'s ' + LINKEDIN_CAPTION_MAX + ' characters' };
+    out.linkedin = { account_id: got.id };
+  }
+  return out;
+}
+function youtubeConfiguration(y) {
+  return { title: y.title, privacy_status: YOUTUBE_PRIVACY, made_for_kids: false };
+}
+function networkRowPart(accountId, status) {
+  return { account_id: accountId, status, url: '', error: '', posted_at: null };
+}
+
+// Made for kids is a legal declaration: it comes from the client's profile (extra.youtube_made_for_kids === true;
+// off when absent), never from the page. Applied to both the post body and the row once the profile is read.
+export function applyProfileSettings(row, postBody, profile) {
+  const yt = row && row.options && row.options.youtube;
+  if (!yt) return { row, postBody };
+  const extra = profile && typeof profile.extra === 'object' && profile.extra ? profile.extra : {};
+  const kids = extra[MADE_FOR_KIDS_COLUMN] === true;
+  const configs = (postBody.account_configurations || []).map((c) => (c && c.configuration && 'made_for_kids' in c.configuration)
+    ? { ...c, configuration: { ...c.configuration, made_for_kids: kids } } : c);
+  return { row: { ...row, options: { ...row.options, youtube: { ...yt, made_for_kids: kids } } }, postBody: { ...postBody, account_configurations: configs } };
+}
+
+// Every network of the post other than an Instagram primary (that one keeps its own long-standing check in
+// index.ts), each as { name, account_id }.
+export function checkedNetworks(row) {
+  const o = (row && row.options) || {};
+  const list = [];
+  if (o.network) list.push({ name: o.network, account_id: row.account_id });
+  for (const name of ['youtube', 'linkedin']) {
+    const p = o.networks && o.networks[name];
+    if (p && p.account_id) list.push({ name, account_id: p.account_id });
+  }
+  return list;
+}
+/* Each of those accounts must be the one on the client's profile, and Post for Me must say it is on that network.
+   getAccount(id) -> { ok, status, data } (Post for Me's GET /social-accounts/:id). Answers { ok:true } or
+   { ok:false, status, error }. Runs before anything is written. */
+export async function checkNetworkAccounts(row, profile, getAccount) {
+  const extra = profile && typeof profile.extra === 'object' && profile.extra ? profile.extra : {};
+  for (const n of checkedNetworks(row)) {
+    const label = NETWORK_NAMES[n.name] || n.name;
+    const expected = clean(extra[ACCOUNT_COLUMNS[n.name]]);
+    if (!expected) return { ok: false, status: 409, error: 'No ' + label + ' account on file for this client. Untick ' + label + ', or ask Sidney to connect it in Post for Me and add it to the client\'s profile.' };
+    if (expected !== n.account_id) return { ok: false, status: 403, error: 'That ' + label + ' account is not the one on file for this client.' };
+    const acct = await getAccount(n.account_id);
+    if (!acct || !acct.ok) {
+      return acct && acct.status === 404
+        ? { ok: false, status: 400, error: 'Post For Me does not know that ' + label + ' account id.' }
+        : { ok: false, status: 502, error: 'Could not check the ' + label + ' account with Post For Me. Try again.' };
+    }
+    const mismatch = platformMismatch(acct.data, n.name);
+    if (mismatch) return { ok: false, status: 400, error: mismatch };
+  }
+  return { ok: true };
 }
 
 // The Facebook part of a queue row (options.facebook): its own status, link and error, apart from
@@ -179,11 +293,18 @@ export function buildCreate(input, nowMs, actor) {
   const mediaUrl = clean(body.mediaUrl);
   const kind = clean(body.kind).toLowerCase() || 'reel';
   if (!KINDS.includes(kind)) return { ok: false, error: 'kind must be reel or carousel' };
-  if (kind === 'carousel') return buildCarousel(body, nowMs, actor, { client, accountId, title });
+  const instagramOn = !(body.instagram === false || clean(body.instagram).toLowerCase() === 'false');
+  const wantsMore = !!(body.youtube || body.linkedin);
+  if (kind === 'carousel') {
+    if (wantsMore || !instagramOn) return { ok: false, error: 'a carousel goes to Instagram (and Facebook) only, not YouTube or LinkedIn' };
+    return buildCarousel(body, nowMs, actor, { client, accountId, title });
+  }
   if (!client) return { ok: false, error: 'clientName required' };
-  if (!ACCOUNT_ID_RE.test(accountId)) return { ok: false, error: 'socialAccountId must be a Post For Me connection id (spc_...)' };
+  if (instagramOn && !ACCOUNT_ID_RE.test(accountId)) return { ok: false, error: 'socialAccountId must be a Post For Me connection id (spc_...)' };
+  if (!instagramOn && clean(accountId)) return { ok: false, error: 'socialAccountId is for Instagram, which is not ticked' };
   if (!title) return { ok: false, error: 'caption required' };
-  if (title.length > MAX_CAPTION_CHARS) return { ok: false, error: 'caption is over ' + MAX_CAPTION_CHARS + ' characters' };
+  // Instagram's 2,200 is the limit only when Instagram is ticked; YouTube and LinkedIn check their own below.
+  if (title.length > (instagramOn ? MAX_CAPTION_CHARS : OTHER_CAPTION_MAX_CHARS)) return { ok: false, error: 'caption is over ' + (instagramOn ? MAX_CAPTION_CHARS : OTHER_CAPTION_MAX_CHARS) + ' characters' };
   if (!MEDIA_URL_RE.test(mediaUrl)) return { ok: false, error: 'mediaUrl must be a Post For Me media url' };
   if (body.mediaUrls != null) return { ok: false, error: 'mediaUrls is only for a carousel' };
 
@@ -209,6 +330,10 @@ export function buildCreate(input, nowMs, actor) {
 
   const fb = facebookFromInput(body, { kind: 'reel', trial, accountId });
   if (fb.error) return { ok: false, error: fb.error };
+  const more = networksFromInput(body, { trial, title, instagramOn, ids: [instagramOn ? accountId : '', fb.facebook ? fb.facebook.account_id : ''].filter(Boolean) });
+  if (more.error) return { ok: false, error: more.error };
+  if (!instagramOn && !fb.facebook && !more.youtube && !more.linkedin) return { ok: false, error: 'tick at least one network' };
+  if (!instagramOn && (coverUrl || (Number.isFinite(coverMs) && coverMs > 0)) && !more.youtube) return { ok: false, error: 'a cover is for Instagram or YouTube' };
 
   const media = { url: mediaUrl };
   let cover = null;
@@ -218,23 +343,42 @@ export function buildCreate(input, nowMs, actor) {
   if (trial) configuration.trial_reel_type = trial;
   const postBody = {
     caption: title,
-    social_accounts: [accountId],
+    social_accounts: instagramOn ? [accountId] : [],
     media: [media],
-    account_configurations: [{ social_account_id: accountId, configuration }],
+    account_configurations: instagramOn ? [{ social_account_id: accountId, configuration }] : [],
     external_id: id,
   };
   if (fb.facebook) {
     postBody.social_accounts.push(fb.facebook.account_id);
     postBody.account_configurations.push({ social_account_id: fb.facebook.account_id, configuration: { placement: FACEBOOK_REEL_PLACEMENT } });
   }
+  if (more.youtube) {
+    postBody.social_accounts.push(more.youtube.account_id);
+    postBody.account_configurations.push({ social_account_id: more.youtube.account_id, configuration: youtubeConfiguration(more.youtube) });
+  }
+  // LinkedIn takes nothing extra for a video: the caption and the media are the post's own.
+  if (more.linkedin) postBody.social_accounts.push(more.linkedin.account_id);
   if (scheduledUtc) postBody.scheduled_at = scheduledUtc;
 
   const nowIso = new Date(nowMs).toISOString();
   const status0 = scheduledUtc ? 'scheduled' : 'uploading';
   const rowOptions = { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null, trial_reel_type: trial };
-  if (fb.facebook) rowOptions.facebook = facebookRowPart(fb.facebook.account_id, FACEBOOK_REEL_PLACEMENT, status0);
+  // The row's own account_id / status / instagram_url describe the first ticked network (Instagram, else
+  // Facebook, else YouTube, else LinkedIn); options.network names it when it is not Instagram, so every row
+  // written before P3 reads as Instagram, unchanged.
+  const primary = instagramOn ? { name: 'instagram', account_id: accountId }
+    : fb.facebook ? { name: 'facebook', account_id: fb.facebook.account_id }
+    : more.youtube ? { name: 'youtube', account_id: more.youtube.account_id }
+    : { name: 'linkedin', account_id: more.linkedin.account_id };
+  if (primary.name !== 'instagram') rowOptions.network = primary.name;
+  if (fb.facebook && primary.name !== 'facebook') rowOptions.facebook = facebookRowPart(fb.facebook.account_id, FACEBOOK_REEL_PLACEMENT, status0);
+  if (more.youtube) rowOptions.youtube = { title: more.youtube.title, format: more.youtube.format, privacy_status: YOUTUBE_PRIVACY, made_for_kids: false };
+  const parts = {};
+  if (more.youtube && primary.name !== 'youtube') parts.youtube = networkRowPart(more.youtube.account_id, status0);
+  if (more.linkedin && primary.name !== 'linkedin') parts.linkedin = networkRowPart(more.linkedin.account_id, status0);
+  if (Object.keys(parts).length) rowOptions.networks = parts;
   const row = {
-    id, client, account_id: accountId, title,
+    id, client, account_id: primary.account_id, title,
     options: rowOptions,
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
@@ -325,6 +469,22 @@ function withFacebook(row, patch) {
   if (!fb) return row;
   return { ...row, options: { ...row.options, facebook: { ...fb, ...patch } } };
 }
+// YouTube's and LinkedIn's parts of a row (options.networks), when they are not its first network.
+export function networkParts(row) {
+  const n = row && row.options && row.options.networks && typeof row.options.networks === 'object' ? row.options.networks : {};
+  return Object.keys(n).filter((k) => n[k] && n[k].account_id).map((k) => ({ name: k, part: n[k] }));
+}
+function withNetwork(row, name, patch) {
+  const n = (row.options && row.options.networks) || {};
+  if (!n[name]) return row;
+  return { ...row, options: { ...row.options, networks: { ...n, [name]: { ...n[name], ...patch } } } };
+}
+// The same patch on every part of the post: Facebook's and each other network's.
+function withAllParts(row, patch) {
+  let next = withFacebook(row, patch);
+  for (const { name } of networkParts(next)) next = withNetwork(next, name, patch);
+  return next;
+}
 
 // Post For Me's answer to "create post" becomes the row's next state. One post carries both networks, so
 // a create that fails fails both, and an accepted one moves both to the same state.
@@ -335,7 +495,7 @@ export function applyCreateResponse(row, resp, nowIso) {
     let raw = r.message || r.error || (r.errors && JSON.stringify(r.errors));
     if (raw && typeof raw === 'object') raw = JSON.stringify(raw);
     const error = String(raw || 'Post For Me did not return a post id').slice(0, 280);
-    return withFacebook({ ...row, status: 'failed', error, updated_at: nowIso }, { status: 'failed', error });
+    return withAllParts({ ...row, status: 'failed', error, updated_at: nowIso }, { status: 'failed', error });
   }
   const pf = clean(r.status);
   let status = 'processing';
@@ -343,9 +503,9 @@ export function applyCreateResponse(row, resp, nowIso) {
   // "processed" means Post For Me handled the post, not that each network took it. On a cross-post both
   // networks wait for their own result (a failure on either must show); an Instagram-only row keeps its
   // old behaviour.
-  else if (pf === 'processed' && !facebookPart(row)) status = 'posted';
+  else if (pf === 'processed' && !facebookPart(row) && !networkParts(row).length) status = 'posted';
   const next = { ...row, status, post_id: postId, error: '', posted_at: status === 'posted' ? nowIso : row.posted_at, updated_at: nowIso };
-  return withFacebook(next, { status, error: '' });
+  return withAllParts(next, { status, error: '' });
 }
 
 function resultError(bad, fallback) {
@@ -382,12 +542,13 @@ export function applyResults(row, resultsResp, nowIso) {
   const mine = list.filter((x) => x && typeof x === 'object' && (!x.post_id || String(x.post_id) === row.post_id));
   if (!mine.length) return row;
   const fb = facebookPart(row);
+  const others = networkParts(row);
   const acct = (x) => clean(x.social_account_id);
-  const igList = mine.filter((x) => acct(x) === row.account_id || (!acct(x) && !fb));
+  const igList = mine.filter((x) => acct(x) === row.account_id || (!acct(x) && !fb && !others.length));
   const fbList = fb ? mine.filter((x) => acct(x) === fb.account_id) : [];
   let next = row;
   if (!TERMINAL.includes(row.status)) {
-    const ig = readNetwork(igList, 'Instagram rejected the post');
+    const ig = readNetwork(igList, (NETWORK_NAMES[row.options && row.options.network] || 'Instagram') + ' rejected the post');
     if (ig && ig.status === 'posted') next = { ...next, status: 'posted', instagram_url: ig.url, error: '', posted_at: row.posted_at || nowIso, updated_at: nowIso };
     else if (ig) next = { ...next, status: 'failed', error: ig.error, updated_at: nowIso };
   }
@@ -398,6 +559,13 @@ export function applyResults(row, resultsResp, nowIso) {
       next = { ...next, updated_at: nowIso };
     }
   }
+  for (const { name, part } of others) {
+    if (TERMINAL.includes(part.status)) continue;
+    const r = readNetwork(mine.filter((x) => acct(x) === part.account_id), (NETWORK_NAMES[name] || name) + ' rejected the post');
+    if (!r) continue;
+    next = withNetwork(next, name, { status: r.status, url: r.url, error: r.error, posted_at: r.status === 'posted' ? (part.posted_at || nowIso) : part.posted_at || null });
+    next = { ...next, updated_at: nowIso };
+  }
   return next;
 }
 
@@ -406,20 +574,21 @@ export function applyResults(row, resultsResp, nowIso) {
 export function needsRefresh(row) {
   if (!row || !row.post_id) return false;
   if (!TERMINAL.includes(row.status)) return true;
+  if (row.status === 'cancelled') return false;
   const fb = facebookPart(row);
-  return !!fb && !TERMINAL.includes(fb.status) && row.status !== 'cancelled';
+  return (!!fb && !TERMINAL.includes(fb.status)) || networkParts(row).some(({ part }) => !TERMINAL.includes(part.status));
 }
 
 // A cancelled post is cancelled on both networks: it is one Post For Me post.
 export function markCancelled(row, nowIso) {
-  return withFacebook({ ...row, status: 'cancelled', updated_at: nowIso }, { status: 'cancelled' });
+  return withAllParts({ ...row, status: 'cancelled', updated_at: nowIso }, { status: 'cancelled' });
 }
 
 // The queue's overall group for a row: failed if any network failed, upcoming while any is still going,
 // otherwise done. The page shows each network's own status inside the row.
 export function overallStatus(row) {
   const fb = facebookPart(row);
-  const all = [row.status].concat(fb ? [fb.status] : []);
+  const all = [row.status].concat(fb ? [fb.status] : [], networkParts(row).map(({ part }) => part.status));
   if (all.includes('failed')) return 'failed';
   const going = all.find((s) => !TERMINAL.includes(s));
   if (going) return going;
@@ -446,5 +615,12 @@ export function publicRow(row) {
       status: facebookPart(r).status || '', url: facebookPart(r).url || '', error: facebookPart(r).error || '',
       posted_at: facebookPart(r).posted_at || '', placement: facebookPart(r).placement || '',
     } : null,
+    // P3: which network the row's own status and link describe (Instagram unless it was not ticked), and YouTube's
+    // and LinkedIn's results, each without its account id. null = none of them.
+    network: (r.options && r.options.network) || 'instagram',
+    networks: networkParts(r).length ? Object.fromEntries(networkParts(r).map(({ name, part }) => [name, {
+      status: part.status || '', url: part.url || '', error: part.error || '', posted_at: part.posted_at || '',
+    }])) : null,
+    youtube: (r.options && r.options.youtube) ? { title: r.options.youtube.title || '', format: r.options.youtube.format || '', made_for_kids: !!r.options.youtube.made_for_kids } : null,
   };
 }

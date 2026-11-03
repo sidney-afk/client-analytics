@@ -36275,3 +36275,49 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
     On main the first new case fails (no thumbnail is fetched).
   - `test/frameio-view-source.js`: 175 checks. The new ones fail on main (no `metadata_fields`, no size from "Resolution"); every earlier check is unchanged.
 - **Way back:** revert the PR. Nothing on the page reads `thumb_url` yet (P1b does).
+
+## 652. [2026-11-03 UTC, BUILT, NOT MERGED] instagram-upload posts to YouTube and LinkedIn too, in the same one post (plan row P3, server half, decision D5; session Pbuild)
+
+- **Asked:** plan row P3 (`docs/plans/2026-11-trial-and-posting/combined.md`). The supervisor, 3 Nov: start the server half now; the page half waits for P1b.
+- **Now (`supabase/functions/instagram-upload/logic.mjs` and `index.ts`):**
+  - **`create` takes:**
+    - `youtube: { accountId, title, format, durationSeconds?, width?, height? }`;
+    - `linkedin: { accountId }`;
+    - `instagram: false`.
+    Every ticked account goes in the same one Post for Me post. YouTube is sent its title, `privacy_status: public` and `made_for_kids`; LinkedIn gets nothing extra.
+  - **Made for kids comes from the client's profile only** (`extra.youtube_made_for_kids === true`, F3), set by `applyProfileSettings` after the profile is read. The page cannot set it.
+  - **Account checks (`checkNetworkAccounts`):** every YouTube or LinkedIn account, and the first network's when Instagram is unticked, must be the one on the profile and on that network according to Post for Me. This runs before the row is written or the post is created. The Instagram and Facebook checks are unchanged.
+  - **Short or regular:** a Short is refused when the file is known to be over 3 minutes ("this video is 4:00. Post it as a regular video.") or not vertical. An unknown length or shape is left to YouTube.
+  - **Limits:**
+    - YouTube title 1 to 100 characters, no `<` or `>`;
+    - caption 5,000 bytes with YouTube, 3,000 characters with LinkedIn, Instagram's 2,200 only when Instagram is ticked;
+    - a trial and a carousel stay Instagram's;
+    - one account per network.
+  - **Queue row:**
+    - `options.network` names the row's own network when Instagram is not ticked (absent = Instagram, so every earlier row reads as before);
+    - `options.networks.{youtube,linkedin}` keep each one's own status, link and error, read from Post for Me's per-account results;
+    - a failed create, a cancel, the queue's group and the status poll cover every part;
+    - `publicRow` shows `network`, `networks` and the YouTube title and format, never an account id.
+- **No migration** (JSON columns, as Facebook). No new secret.
+- **Proof:**
+  - `test/instagram-networks.js` (new, unit, 62 checks):
+    - one post with three accounts;
+    - Instagram unticked (YouTube first, Facebook first, nothing ticked refused);
+    - a 4-minute vertical file refused as a Short and accepted as regular;
+    - horizontal refused as a Short;
+    - title and caption limits;
+    - trial and carousel kept Instagram's;
+    - a duplicate account;
+    - made for kids from the profile only;
+    - wrong account (403), no account (409), wrong platform (400), unknown id, Post for Me down;
+    - the handler checking before `.insert(row)` and before the create;
+    - the same key returning the same post;
+    - results per network;
+    - a cancel covering every network;
+    - no account id to the page.
+    On main it fails (`applyProfileSettings` is not there).
+  - Every existing Instagram and Facebook suite passes unchanged: `instagram-upload-source` (139), `instagram-facebook-crosspost` (79).
+  - The test also found and fixed one bug before commit: Instagram's 2,200-character limit had been applied with Instagram unticked.
+- **Live check (D6), after merge:** on one of the owner's clients with YouTube and LinkedIn connected, schedule 7+ days ahead through Post for Me's `scheduled_at`, cancel at once, read back gone. The page half and its live check follow P1b.
+- **Way back:** revert the PR. Rows already written keep reading as Instagram.
+

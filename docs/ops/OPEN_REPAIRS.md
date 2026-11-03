@@ -36868,6 +36868,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - Logins come word for word from the snapshot.
   - Anything missing is a bracketed placeholder, never a guess.
   - The code is `scripts/n8n-finalizer-build-kickoff.js`, and `docs/ops/NEW_CLIENT_ONBOARDING.md` documents the layout and sources.
-- **Proof.** `test/n8n-finalizer-build-kickoff.js` runs the step's own code on fictional step outputs (30 checks). The finalizer never sends test clients, so no live run.
+- **Owner's review, 3 Nov.** "I think it's good", with one change: "remove the CCS, GD and videographer thing because no one ever signed them". Team is now just the SMM and the lead; there are no videographer lines; and the Canva line is the lead's. The ManyChat condition, the logins and the other placeholders are kept.
+- **Proof.** `test/n8n-finalizer-build-kickoff.js` runs the step's own code on fictional step outputs (33 checks). The finalizer never sends test clients, so no live run.
 - **Not yet applied.** Before version `49a29c76`. The publish waits for the owner's direct go to edit this workflow (house rule: the go-ahead in the same request).
 - **Way back:** restore version `49a29c76` in n8n; revert the PR.

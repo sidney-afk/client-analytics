@@ -569,7 +569,8 @@ Changed (one change, three steps):
   provisioning (still writes the snapshot the logins come from).
 Why: owner, 3 Nov 2026 ("fix the onboarding documents so that ... the onboarding message in the creative channel ... is done
 correctly"; "Yes, change the n8n workflow"; "Keep posting logins in Slack").
-Tested: `node test/n8n-finalizer-build-kickoff.js` runs the step's code on fictional step outputs (30 checks: the full layout,
+Tested: `node test/n8n-finalizer-build-kickoff.js` runs the step's code on fictional step outputs (33 checks, after the owner's
+review removed the CCS, GD and videographer lines: the full layout,
 every placeholder when a piece is missing, logins word for word, the newest live sales intake, no double asterisks). The
 finalizer never sends test clients, so no live run.
 Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.

@@ -56,7 +56,6 @@ if (a0 >= 0) {
 const isAi = s(job.funnel).toLowerCase() === "ai";
 const funnel = isAi ? "AI funnel" : s(job.funnel) ? "Standard funnel" : FILL("funnel");
 const scope = s(intake.deliverables);
-const filming = scope ? /film|shoot|videograph/i.test(scope) : null;
 const manychat = scope ? /many ?chat/i.test(scope) : null;
 const folder = s(job.folder_id) ? "https://drive.google.com/drive/folders/" + s(job.folder_id) : FILL("Drive folder");
 const formUrl = s(job.viewer_slug) ? "https://syncview.synchrosocial.com/?onboarding_view=" + encodeURIComponent(s(job.viewer_slug)) : FILL("onboarding form link");
@@ -73,16 +72,13 @@ const styleParts = [
   field("Thumbnail") ? "Thumbnail: " + field("Thumbnail") : "",
   field("Always / never include") ? "Always / never: " + field("Always / never include") : "",
 ].filter(Boolean);
-const team = ["SMM " + smm, "Lead " + lead, "CCS " + FILL("assign"), "GD " + FILL("assign")];
-if (filming === true) team.push("Videographer " + FILL("assign"));
-if (filming === null) team.push("Videographer " + FILL("if the scope includes filming"));
+// Owner, 3 Nov 2026: no CCS, GD or videographer lines ("no one ever signed them").
+const team = ["SMM " + smm, "Lead " + lead];
 const actions = [
   "• " + lead + " book the kickoff call with " + smm,
   "• " + smm + " connect Post for Me" + (manychat === true ? ", and do the ManyChat plan" : manychat === null ? " " + FILL("and the ManyChat plan, if it is in scope") : ""),
-  "• CCS / GD " + FILL("assign") + " build the thumbnail Canva template",
+  "• " + lead + " thumbnail Canva template",
 ];
-if (filming === true) actions.push("• " + lead + " book the videographer");
-if (filming === null) actions.push("• " + FILL("book the videographer, if the scope includes filming"));
 const lines = [
   "*New client — " + (name || FILL("client")) + "* · " + funnel,
   "",

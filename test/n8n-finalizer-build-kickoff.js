@@ -45,7 +45,7 @@ const t = a.kickoff_text;
 if (process.env.RENDER) console.log('\n' + t + '\n');
 ok(a.creative_channel_id === 'CFIXTURE1' && a.state === 'client_info_verified', 'passes the channel id and state through for the post step');
 ok(t.startsWith('*New client — Fixture Person* · Standard funnel'), 'heading: name and funnel');
-ok(t.includes('SMM <@UFIXTURESMM> · Lead <@UFIXTURELEAD> · CCS [ assign ] · GD [ assign ] · Videographer [ assign ]'), 'team: SMM and lead tagged from the steps before; filming in scope adds the videographer');
+ok(t.includes('*Team*\nSMM <@UFIXTURESMM> · Lead <@UFIXTURELEAD>\n'), 'team: just the SMM and the lead, tagged from the steps before (owner: no CCS, GD or videographer)');
 ok(t.includes('Onboarding form — https://syncview.synchrosocial.com/?onboarding_view=fixtureperson'), 'resources: onboarding form link from the viewer slug');
 ok(t.includes('Drive folder — https://drive.google.com/drive/folders/FIXTUREFOLDER') && t.includes('Filming plan — https://docs.example.invalid/fixture-plan'), 'resources: Drive folder and filming plan');
 ok(t.includes('Brand deck — https://example.invalid/fixture-deck') && t.includes('Onboarding call — [ add link ]'), 'resources: brand deck from the form; the call stays a placeholder');
@@ -55,7 +55,8 @@ ok(t.includes('*Audience*\nBusy fixture founders\nPain points: No time to post\n
 ok(t.includes('*Goals*\nMore booked calls\nA win: Ten leads a month'), 'goals');
 ok(t.includes('Inspiration: @fixture.one  (calm) · @fixture.two') && t.includes('Subtitles: Bold - with highlights'), 'style: inspiration handles and form style answers');
 ok(t.includes('*Scope*\n12 short videos a month, one filming day, ManyChat setup'), 'scope: the newest live sales intake, never the cancelled one');
-ok(t.includes('• <@UFIXTURELEAD> book the kickoff call with <@UFIXTURESMM>') && t.includes('• <@UFIXTURESMM> connect Post for Me, and do the ManyChat plan') && t.includes('• <@UFIXTURELEAD> book the videographer'), 'action items: tagged, ManyChat and the videographer only because the scope has them');
+ok(t.includes('*Action items*\n• <@UFIXTURELEAD> book the kickoff call with <@UFIXTURESMM>\n• <@UFIXTURESMM> connect Post for Me, and do the ManyChat plan\n• <@UFIXTURELEAD> thumbnail Canva template\n'), 'action items: tagged; ManyChat only because the scope has it; the Canva template is the lead\'s');
+ok(!/CCS|GD|[Vv]ideographer/.test(t), 'no CCS, GD or videographer anywhere, even with filming in scope');
 ok(t.includes('*Timeline*\n[ Kasper — strategy · first samples · first post ]') && t.endsWith('Full form answers in the next message.'), 'timeline stays Kasper\'s placeholder; the form answers follow');
 ok(!t.includes('**'), 'Slack bold: single asterisks only');
 
@@ -65,13 +66,14 @@ const bare = run({
 });
 const b = bare.kickoff_text;
 if (process.env.RENDER) console.log('\n' + b + '\n');
-for (const ph of ['[ SMM ]', '[ Kasper ]', '[ funnel ]', '[ onboarding form link ]', '[ Drive folder ]', '[ filming plan link ]', '[ brand summary from the research ]', '[ audience ]', '[ goals ]', '[ style ]', '[ deliverables from the sales intake ]', 'Videographer [ if the scope includes filming ]', '[ and the ManyChat plan, if it is in scope ]']) {
+for (const ph of ['[ SMM ]', '[ Kasper ]', '[ funnel ]', '[ onboarding form link ]', '[ Drive folder ]', '[ filming plan link ]', '[ brand summary from the research ]', '[ audience ]', '[ goals ]', '[ style ]', '[ deliverables from the sales intake ]', '[ and the ManyChat plan, if it is in scope ]']) {
   ok(b.includes(ph), 'missing piece becomes a placeholder, never a guess: ' + ph);
 }
+ok(!/CCS|GD|[Vv]ideographer/.test(b) && b.includes('• [ Kasper ] thumbnail Canva template'), 'nothing known: still no CCS, GD or videographer; the Canva line names the lead placeholder');
 ok(b.includes('Brand deck — none sent') && b.includes('_No account access in the form yet: chase it before the first post._'), 'no deck says "none sent"; no logins says so plainly');
 
 const noFilm = run({ ...full, 'Read Sales Intake': [{ client_email: 'fixture@example.invalid', created_at: '2026-11-01', status: 'signed', deliverables: '12 short videos a month' }] }).kickoff_text;
-ok(!/Videographer|videographer|ManyChat/.test(noFilm), 'a scope without filming or ManyChat names neither');
+ok(!/[Vv]ideographer|ManyChat|CCS|GD/.test(noFilm), 'a scope without ManyChat names it nowhere; no CCS, GD or videographer');
 
 const same = run({ ...full, 'Check Readiness and Slack Decision': [{ private_required_members: ['UFIXTURESMM'] }] }).kickoff_text;
 ok(same.includes('SMM <@UFIXTURESMM> · Lead <@UFIXTURESMM>'), 'when the lead is also the SMM (one id in the set), both are tagged, never a placeholder');

@@ -490,8 +490,8 @@ Kickoff** step writes it from what exists when the channels are made. Its code l
 renders it from fictional data. Layout, in order:
 
 - **New client — <display name>** · <funnel>
-- **Team**: SMM (tagged) · Lead (Kasper, tagged) · CCS `[ assign ]` · GD `[ assign ]` · Videographer `[ assign ]` when the
-  scope includes filming (named only then; `[ if the scope includes filming ]` when the scope is unknown)
+- **Team**: SMM (tagged) · Lead (Kasper, tagged). No CCS, GD or videographer lines (owner, 3 Nov 2026: "no one ever signed
+  them")
 - **Resources**: the onboarding form link (`?onboarding_view=<slug>`) · the Drive folder · the filming plan · the brand deck
   (from the form, or "none sent") · Onboarding call `[ add link ]`
 - **Account access**: the logins, word for word from the form-time snapshot (owner rule, 24 Aug: logins stay in Slack)
@@ -499,14 +499,14 @@ renders it from fictional data. Layout, in order:
   customer, pain points) · **Goals** (desired outcomes, what makes this a win) · **Style** (inspiration handles, look,
   subtitles, music, thumbnail, always/never) · **Scope** (the newest live sales intake's deliverables)
 - **Action items**, tagged: Kasper books the kickoff call with the SMM; the SMM connects Post for Me (and does the ManyChat plan
-  when the scope has it); CCS/GD `[ assign ]` build the thumbnail Canva template; book the videographer when filming is in scope
+  when the scope has it); Kasper: thumbnail Canva template
 - **Timeline** `[ Kasper — strategy · first samples · first post ]`
 
 Sources: the queue row (name, email, funnel, Drive folder id, the form-time snapshot of logins and form answers), **Check
 Readiness and Slack Decision** (Kasper's id), **Read SMM Assignment** (the SMM's Slack id), **Read Clients Info** (description,
 keywords), **Read Filming Plan** (the link) and **Read Sales Intake** (`sales_intakes` by the form email, newest not cancelled).
-Anything missing is a bracketed placeholder, never a guess. Placeholders that stay for Kasper by design: CCS, GD, the onboarding
-call link and the timeline. The full form answers still follow as the second message, unchanged. The owner's fallback DM still
+Anything missing is a bracketed placeholder, never a guess. Placeholders that stay for Kasper by design: the onboarding call link and
+the timeline. The full form answers still follow as the second message, unchanged. The owner's fallback DM still
 carries the form-time snapshot.
 
 If setup is still incomplete, the worker leaves the private job pending and posts nothing. If a
@@ -546,7 +546,7 @@ workflow on 2026-09-30):
   client's pending queue row only; the channels appear within a minute or two. Without a name it takes the oldest pending row, so
   always send the name. It is safe to send twice: a row that is processing or done is skipped.
 - **What to check after.** The `creative_channel_id` cell on the **Clients Info** row is filled; the kickoff tags the SMM and Kasper
-  and links the filming plan, with only Kasper's placeholders left (CCS, GD, onboarding call, timeline); and the kickoff message and the
+  and links the filming plan, with only Kasper's placeholders left (onboarding call, timeline); and the kickoff message and the
   full form answers are in the new channel. If neither happens within ten minutes, do not call it again and do not hand create a
   channel: read the queue row (`pending` with a reason, or `manual` plus the owner's private DM) and follow the reconciliation
   paragraph above.

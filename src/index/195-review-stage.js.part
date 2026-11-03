@@ -1498,7 +1498,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const card = String(x.card || ''), comp = String(x.component || ''), act = String(x.act || '');
         const found = _rsReloadPost(card);
         if (found === undefined) return false;
-        if (_calReviewState.saving[card + '|' + comp] || _calSaveInFlight[card] || _calPendingEdits[card]) return false;
+        if (_calReviewState.saving[card + '|' + comp] || _calReviewState.errors[card + '|' + comp] || _calSaveInFlight[card] || _calPendingEdits[card]) return false;
+        // Kasper's board shows his approve at once and keeps its own save on the item until it ends: a press during the
+        // watch is not a landing until that save is done and refused nothing (Codex on #2576).
+        const it = found && found.item;
+        if (it && ((it._saving && it._saving[comp]) || (it._errors && it._errors[comp]))) return false;
         let pending = 0;
         try { pending = _noteOutboxFor(card, e => e.state !== 'sent').length; } catch (e) { pending = 0; }
         if (pending) return false;

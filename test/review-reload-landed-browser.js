@@ -15,11 +15,13 @@
  *      same card, part and action;
  *   2. the same with a save that never lands (the server answers no save, before or after the reload, and the card
  *      stays waiting): the reload is reported and nothing says it landed.
+ *   3. Kasper's board, the interrupted approve never landing, and Kasper approving again during the watch: his board
+ *      shows the approve while his own save is still running, and that is not taken for a landing (Codex on #2576).
  * No words, titles or names in any report. On main, 1 fails: no "landed" report follows the reload.
  */
 const { chromium, webkit } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
-const { CLIENT, TOKEN, open, inS, waitNew, sleep } = require('./fixtures/review-stage-fixture.js');
+const { CLIENT, TOKEN, STAFF, open, inS, waitNew, sleep } = require('./fixtures/review-stage-fixture.js');
 
 const failures = [];
 let engineName = '';
@@ -51,6 +53,14 @@ async function askChangeOnVideo(t) {
   await inS(t.page, '#sendBtn').click();
 }
 const reloads = t => t.beacons.filter(b => b.operation === 'review_reload_mid_save');
+const KASPER = { stage: 'kasper', flags: 'on', staff: STAFF, layout2: true, fast: true, expectNew: true, linkedParts: true, mergeComments: true, nativeReceipts: true, project: true };
+async function goKasper(t, origin) {
+  await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+  await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
+  await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
+  await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
+  await sleep(1800);
+}
 
 async function runEngine(browserType, origin) {
   const browser = await browserType.launch();
@@ -93,6 +103,26 @@ async function runEngine(browserType, origin) {
     await sleep(8000);
     expect(card(t).video_status !== 'Tweaks Needed', '2: (control) the lost save is not on the server (' + card(t).video_status + ')');
     expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '2: nothing says a lost save landed');
+    await t.ctx.close();
+
+    // 3. Kasper's board: the interrupted approve never lands, and he approves again during the watch. His board shows
+    //    the approve at once while his own save is still running (and never answered): that is not a landing.
+    console.log('--- 3. Kasper approves again while the lost approve is watched ---');
+    t = await open(browser, origin, KASPER);
+    await watchBeacons(t);
+    await goKasper(t, origin);
+    Object.assign(t.state, { gatewayHang: true, writeHang: true });
+    await inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first().click();
+    await sleep(700);
+    await goKasper(t, origin);
+    const rep3 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 10000);
+    expect(rep3 >= 0, '3: the reload during his approve is reported');
+    const again = inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first();
+    if (await again.count()) await again.click({ timeout: 3000 }).catch(() => {});
+    await sleep(6000);
+    const saving3 = await t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post && x.post.id === 'rs1'); return !!(i && i._saving && i._saving.video); });
+    expect(card(t).video_status === 'Kasper Approval', '3: (control) nothing reached the server (' + card(t).video_status + ', his save still running: ' + saving3 + ')');
+    expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '3: his board showing the approve while it saves is not taken for a landing');
     await t.ctx.close();
   } finally {
     await browser.close();

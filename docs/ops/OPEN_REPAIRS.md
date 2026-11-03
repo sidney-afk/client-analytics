@@ -36800,6 +36800,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **Test:** `test/review-reload-landed-browser.js`, new, on the shared fixture's client link, Chromium and WebKit (WebKit required in CI):
   1. a change request on the video, a slow line, a reload mid-save, the save landing after: the reload is reported (code tweak), then reported as landed, once, for the same card and part. **On main this fails:** nothing follows the reload report.
   2. a line that never answers, before or after the reload: the reload is reported, the card stays waiting, and nothing says it landed.
+  3. Kasper's board, the interrupted approve never landing, and Kasper approving again during the watch. His board shows the approve at once while his own save is still running, and that is not taken for a landing. Codex on #2576 found this: the first head checked only the Calendar's saving flags. The check now also reads the item's own `_saving` and `_errors`, and the Calendar's errors. Case 3 failed on the first head.
   - The fixture gains `gatewayHang`, a status write the server never answers.
   - Chromium passes here. WebKit is not installed in this sandbox, so its first run is in CI.
 - **Way back:** revert the PR. Until it is live, the watcher can read a `reload_mid_save` signature against `calendar_post_events` for the same card and part.

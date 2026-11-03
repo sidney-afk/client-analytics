@@ -36393,3 +36393,12 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   Pass/fail and every wait are unchanged.
 - **Proof:** a normal run passes 75 checks and prints no trace. With the switch forced off for the winner case, the two checks still fail and the trace says `"switch":{"on":false}`, `"reads":[]`, `"listCallsMs":[]`.
 - **Next:** the next CI miss prints its `TRV_TRACE`. The cause is then fixed failing-first, and this entry is closed by that fix.
+
+## 679. [2026-11-03 UTC, BUILT, NOT MERGED] Main's Calendar unit runs stacked one full run per merge and starved every pull request (SyncView supervisor)
+
+- **What happened:** "Calendar unit tests" gave every push to main its own run group (one per commit), and a main run is never cancelled. On the night of 2 to 3 Nov about a dozen merges landed in four hours. Each main run starts roughly 25 browser jobs, and the account runs at most 20 jobs at once. So 14 main runs waited at the same time, the oldest since 22:05. The pull-request runs, which wait for runner seats, sat for up to 3.5 hours: F4's browser-guards and repair-checkpoint waited from 23:26.
+- **Done by hand meanwhile:** the supervisor cancelled the superseded main runs that were still waiting (11 at 02:03 UTC, 4 at 02:57 UTC). It never cancelled a started one. Each later main run tests everything the cancelled ones would have.
+- **Fix:** pushes to main now share one run group, `calendar-unit-tests-main`, with cancel-in-progress still false. GitHub keeps one run going and one waiting per group, and a newer push replaces the waiting one. So a started main run always finishes, and a busy evening tests main's tip instead of a backlog of older commits. Pull requests are unchanged (a newer push cancels the run it replaces). Manual runs keep a group per commit.
+- **What this gives up:** a commit whose main run was replaced while it waited has no main run of its own. The next one tests it together with the commits after it. When that run goes red, the culprit is any commit since the last green main run, not one commit.
+- **Proof:** `test/ci-runner-seats.js` pins the new group and that main never cancels a started run. Against main's workflow it fails; with the change it passes (139 checks). `ci-shards-wired` 230 and `workflow-plain-scalars` (56 files) pass.
+- **Way back:** revert the PR.

@@ -36152,3 +36152,37 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
 - **Not yet proven live:** a real YouTube or LinkedIn id check (needs one of Sidney's connected accounts; read-only). Live check after apply, on the test client: made-for-kids on, saved with a history row, off again.
 - **Way back:** revert the PR and run the ROLLBACK file.
 
+## 656. [2026-11-02 UTC, BUILT, NOT MERGED] Trial versions, V1: a version's status is set with the card's own status picker (plan combined.md row V1, Sidney's D1; session Vbuild)
+
+- **Asked:** Sidney, 2 Nov (D1): the SMM sets a trial version's status the way a card's status is set (for example straight to Approved), using the card's list, the card's permissions and the card's logging, with no new rule. The supervisor settled the open details: the list stops at Approved (Scheduled and Posted stay card-only, because Posted starts the trial), N/A is left out (Drop covers it), admin and SMM keys only, and the log action is `trial_status`.
+- **Before:** a version's status moved only as a side effect of an answer on the review page, and the version row showed a plain label ("with SMM", "with Kasper"...).
+  - `trial-reels` has a new action, `version_status_set` (`logic.mjs` `versionStatusPatches`). Each word is stored in the columns the review already uses, so no migration is needed:
+    - In Progress and For SMM Approval: one state, no OKs. The page shows For SMM Approval when the version has a link and In Progress when it has none.
+    - Kasper Approval: the SMM's OK.
+    - Client Approval: the SMM's and Kasper's OKs.
+    - Approved: all three OKs.
+    - Tweaks Needed: a change asked by the SMM. No note is needed, as on a card.
+  - Refused: an unknown word, a dropped version, a version on trial or decided, a review word on a version with no link (the card's empty-part rule), and a pick the card's own state would read back as another word (`status_follows_card`, for example a card sent on whole to the client).
+  - The staff read gains `card_status` for each version.
+  - One `calendar_post_events` row per pick, in the card's `status_change` shape but under action `trial_status`, with from and to in the card's words. A pick that changes nothing writes nothing.
+  - The page (189), behind `trial_versions_v2`: the label slot becomes the card's status pill and menu (the card's menu, colours and phone sheet). The capability is `trial-version-status` (admin, SMM).
+- **One pick never moves another version** (Codex P2 on #2535, fixed):
+  - On a card sent on whole, stamping one version's SMM OK ended the "sent on whole" reading for every version, so an untouched version went back to the team.
+  - A pick that would change how any other version reads is now refused with `status_follows_card`.
+  - Kasper's OK is stamped only where Kasper is on the card's route, so a card the SMM sent straight to the client does not put Kasper back on it.
+- **Narrower than the card, on purpose:** on a card, an editor may set the status of their own assigned video. On a version, a creative key may not: a version has no assignee to check, and Sidney asked for "the SMM, at least".
+- **Readers of `calendar_post_events` checked for the new action:**
+  - The Kasper history (330) reads `status_change` and `mirror_in_status_change` only.
+  - The archive restore (186) reads `archive`.
+  - `calendar-auto-posted` reads `status_change` with its own source. Its due list skips any card with an event in the last hour; today's `trial_*` rows already have that effect.
+  - The caption history reads caption rows only.
+  - The link-gap and leak checks read `link_set` and `create` only.
+  - The status bridges and repair scripts write, never count this action.
+  - The drift robot (`card-calendar-status-drift-check.js`) reads cards and work items, not events.
+  - The n8n status sync is not touched.
+- **Never writes the card:** the card reaches Approved only through today's approve, when `card_approvable` says every live version is approved.
+  - `test/trial-version-status-logic.js` (52 checks). The list is read from the page's `CAL_STATUSES`. On main it fails at once (`versionStatusPatches is not a function`).
+  - `test/trial-version-status-browser.js` (38 checks, 1440 and 390, mocked). On main's page it fails at the first picker check.
+  - A Deno case in `test/trial-reels-function-deno.ts`.
+  - `trial-reels-logic.js` is unchanged and passes.
+- **Way back:** turn `trial_versions_v2` off (the rows are back to today's label at once), or revert the PR.

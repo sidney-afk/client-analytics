@@ -1,12 +1,14 @@
 import { hideToast, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffCan, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { CAL_STATUSES, _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
 import { _calLinkFieldHtml, _calRenderBody, onCalViewChange } from './160-calendar-organize-ui.js';
-import { _calFlushCardSave } from './170-calendar-links-status.js';
+import {
+  _calCloseStatusMenu, _calFlushCardSave, _calOpenStatusMenu, _calSetOpenStatusMenu, _calStatusMenuTitleHtml, _calStatusSlug
+} from './170-calendar-links-status.js';
 import { svTrialReelsOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* TRIAL REELS ON THE STAFF CARD (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
@@ -77,6 +79,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         letter_invalid: 'Versions go from Video A to Video G.',
         too_many_versions: 'A card takes at most seven versions, Video A to Video G.',
         nothing_to_import: 'Give at least one video a letter first.',
+        status_invalid: 'A version takes the card\'s statuses up to Approved. Scheduled and Posted are set on the card.',
+        status_follows_card: 'The card was sent on as a whole, so this version follows the card. Set the card\'s Video status instead.',
     };
 
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
@@ -676,7 +680,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>' + (v.status === 'dropped' ? '' : '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>');
             // A version the server has not taken yet says so, not "waiting" (Trialeyes E7, 2026-10-29).
             const label = v._saving ? '<span class="trl-lab" data-l="saving" role="status">saving…</span>'
-                : _trlLinkBadHtml(pid, v) || (svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
+                : _trlLinkBadHtml(pid, v) || (_trlStatusPickOn(_trlPost(pid), v) ? _trlStatusPickHtml(pid, v)
+                    : svTrialLabelShown(vs, v) ? svTrialLabelHtml(v.status, v) : '<span class="trl-lab-gap"></span>');
             const decided = ['on trial', 'winner', 'lost'].includes(v.status);
             const tools = '<span class="trl-tools">'
                 + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
@@ -969,6 +974,69 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // The live version after this one that has a link: where "on the card" moves when the version on the card is dropped.
     function _trlNextLive(vs, letter) {
         return (vs || []).find(x => x.letter !== letter && x.status !== 'dropped' && x.frame_url) || null;
+    }
+    /* V1 (plan docs/plans/2026-11-trial-and-posting/combined.md, Sidney's D1; switch trial_versions_v2): a version's
+       status is set with the card's own status picker: the card's list up to and including Approved (N/A, Scheduled
+       and Posted stay card-only: Drop covers N/A, and Posted starts the trial for the whole post), the card's menu and
+       colours, and the card's rule that a review status needs something to review. Admin and SMM keys only, the line
+       the trial-reels function holds too (narrower than the card for creatives, by Sidney's ask). The function stores
+       the word in the review's own columns and logs it as trial_status; the card's status is never written here. */
+    const TRL_STATUS_WORDS = CAL_STATUSES.slice(0, CAL_STATUSES.indexOf('Approved') + 1).filter(s => s !== 'N/A');
+    const TRL_STATUS_REVIEW = ['For SMM Approval', 'Kasper Approval', 'Client Approval', 'Approved'];
+    function _trlStatusPickOn(post, v) {
+        return !!v && !!v.card_status && !v._saving && _trlStaffOn(post) && svTrialVersionsV2On(post.client || calState.client)
+            && _syncviewStaffCan('trial-version-status');
+    }
+    function _trlStatusPickHtml(pid, v) {
+        const l = _calEscAttr(v.letter), p = _calEscAttr(pid), s = String(v.card_status), word = _calEscAttr(s);
+        return '<button type="button" class="trl-lab trl-st" data-l="' + word + '" aria-haspopup="menu" title="' + _calEscAttr(_trlStagesTitle(v)) + '"'
+            + ' aria-label="Video ' + l + ' status: ' + word + '" onclick="svTrialStatusMenu(event,\'' + p + '\',\'' + l + '\',this)">' + _calEsc(s) + '</button>';
+    }
+    function svTrialStatusMenu(event, pid, letter, btn) {
+        if (event) { event.stopPropagation(); event.preventDefault(); }
+        const key = pid + '|trial-' + letter;
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === key) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const v = shape && _trlFind(shape, letter);
+        if (!v || !btn || !_trlStatusPickOn(post, v)) return;
+        const noLink = !v.frame_url;
+        const p = _calEscAttr(pid), l = _calEscAttr(letter);
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        menu.innerHTML = _calStatusMenuTitleHtml('Video ' + letter + ' status') + TRL_STATUS_WORDS.map(s => {
+            const blocked = noLink && TRL_STATUS_REVIEW.includes(s);
+            const word = _calEscAttr(s);
+            return '<button type="button" class="cal-fld-status-item cal-fld-status-' + _calStatusSlug(s) + (s === v.card_status ? ' active' : '') + '"'
+                + (blocked ? ' disabled title="' + _calEscAttr(TRL_ERRORS.version_has_no_link) + '"' : '')
+                + ' onclick="svTrialStatusPick(\'' + p + '\',\'' + l + '\',\'' + word + '\')">' + _calEsc(s) + '</button>';
+        }).join('') + (noLink ? '<div class="cal-fld-status-note">' + _calEsc(TRL_ERRORS.version_has_no_link) + '</div>' : '');
+        document.body.appendChild(menu);
+        // Placed as the card's status menu is (170 _calStatusToggleMenu): under the pill, flipped up near the bottom.
+        const rect = btn.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200), menuH = menu.offsetHeight, gap = 5;
+        menu.style.left = Math.max(10, Math.min(rect.left, window.innerWidth - menuW - 10)) + 'px';
+        const below = window.innerHeight - rect.bottom - 10, above = rect.top - 10;
+        menu.style.top = (menuH <= below || below >= above
+            ? Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10))
+            : Math.max(10, rect.top - menuH - gap)) + 'px';
+        menu.style.minWidth = '200px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calSetOpenStatusMenu({ pid, key, comp: 'trial', el: menu, triggerEl: btn });
+    }
+    function svTrialStatusPick(pid, letter, status) {
+        _calCloseStatusMenu();
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const v = shape && _trlFind(shape, letter);
+        if (!v || !TRL_STATUS_WORDS.includes(status)) return;
+        // In Progress and For SMM Approval are one state: a version with a link reads For SMM Approval.
+        const want = status === 'In Progress' || status === 'For SMM Approval' ? (v.frame_url ? 'For SMM Approval' : 'In Progress') : status;
+        if (want === v.card_status) return;
+        const stored = status === 'Approved' ? 'approved' : status === 'Tweaks Needed' ? 'change asked' : 'waiting';
+        return _trlOptimistic(pid, s => { const x = _trlFind(s, letter); if (x) Object.assign(x, { card_status: want, status: stored }); return s; },
+            () => _trlRun(pid, 'status-' + letter, { action: 'version_status_set', letter, status }, 'Video ' + letter));
     }
     /* V2 (plan docs/plans/2026-11-trial-and-posting/combined.md row V2, variants.md 4.3; switch trial_versions_v2): import
        several versions' video links from one Frame share link. Step 1 takes the link; step 2 lists the folder's videos
@@ -1394,7 +1462,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     Object.assign(window, {
         svTrialDrop, svTrialEdit, svTrialImportAdd, svTrialImportBack, svTrialImportClose, svTrialImportList,
         svTrialImportOpen, svTrialImportPick, svTrialLinkKey, svTrialLinkSave, svTrialNewCut,
-        svTrialNotesPick, svTrialOpen, svTrialPick, svTrialToggle
+        svTrialNotesPick, svTrialOpen, svTrialPick, svTrialStatusMenu, svTrialStatusPick, svTrialToggle
     });
 export {
   svTrialAttachBack, svTrialCall, svTrialRead, svTrialHash, svTrialOnChange, svTrialListShared, svTrialListSharedMany, svTrialPrime, svTrialCardOn, svTrialLabelHtml, svTrialLabelShown, svTrialErrorText, svTrialMoveCard, svTrialNotesBody, svTrialClientTagHtml, svTrialReviewWanted, svTrialPrimeWait, svTrialWaitsWith,

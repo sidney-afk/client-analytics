@@ -3762,5 +3762,5 @@ export {
   _calOnFieldBlur, _calOnFieldInput, _calOpenStatusMenu, _calRefreshCaption, _calRefreshCardThumb,
   _calRefreshMediaWarning, _calRenderInlineCard, _calRestoreParkedEdits, _calReviewBlockReason, _calUnsentFields,
   _calSetNativeBatchOptionsHtml, _calSetNativePostState, _calSetOpenStatusMenu, _calSmmApproveTo,
-  _calStatusSlug, _calThumbSrcBase, _svSaveIndApply, _svSaveIndHtml
+  _calStatusMenuTitleHtml, _calStatusSlug, _calThumbSrcBase, _svSaveIndApply, _svSaveIndHtml
 };

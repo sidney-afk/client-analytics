@@ -1923,6 +1923,16 @@
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with SMM"] { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with Kasper"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
         :is(.trl-v, .trl-prod-v) .trl-lab[data-l="with client"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        /* V1: a version's status picker (189 _trlStatusPickHtml), in the card's status words and colours. */
+        .trl-v button.trl-st { border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+        .trl-v button.trl-st:hover { filter: brightness(.96); }
+        .trl-v button.trl-st:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 1px; }
+        .trl-v .trl-st[data-l="In Progress"] { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+        .trl-v .trl-st[data-l="For SMM Approval"] { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
+        .trl-v .trl-st[data-l="Kasper Approval"] { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
+        .trl-v .trl-st[data-l="Client Approval"] { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        .trl-v .trl-st[data-l="Tweaks Needed"] { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
+        .trl-v .trl-st[data-l="Approved"] { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
         .trl-v .trl-lab:is([data-l="link not found"], [data-l="no access"]) { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .trl-v .trl-tools { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity .12s; }
         .trl-v:hover .trl-tools, .trl-v:focus-within .trl-tools { opacity: 1; }

@@ -36813,13 +36813,14 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - **The YouTube and LinkedIn sides** are the Instagram panel (299) with that network as the only target (`igState.network`, set by `mountInstagramPanel`). Each has its own account line, the same video source, caption and schedule, and no carousel or trial. The **YouTube card** keeps P3's title, Short or Regular video, and made-for-kids note. LinkedIn takes no cover. Each side's queue lists its own network's posts, under its own heading.
   - **The Instagram side** has no Instagram, YouTube or LinkedIn tick (P3b's "Post to" card is gone). It keeps only **Also post to Facebook**, on by default with a connected Page and not shown when there is none. With the switch off, the Facebook card is exactly as before, including its no-Page reason.
   - **Server unchanged.** Each side sends the body instagram-upload already takes (P3, 652): `instagram: false` with YouTube's `{ accountId, title, format, … }` or LinkedIn's `{ accountId }`, and the Instagram side's body as before.
+- **Codex on PR 2580, fixed with a case:** a browser that last used YouTube or LinkedIn, with the switch later cleared, reopened that hidden side when the switch read was already in before the tab opened. `svPostNetworksAny` now answers null while unknown, and the tab starts on Instagram when the answer is already a clear no, whichever order the two came in.
 - **Layout:**
   - with four sides the switch takes the width its buttons need, and the header wraps it under the title on a narrower window. Two sides stay at today's 220px;
   - the rules use `:where()` so the phone's own switch rules still win;
   - a hidden side stays hidden on the staff phone too (`display: none !important` on `[hidden]`, which the switch rules would otherwise beat).
 - **Proof:**
   - `test/post-source-choice-browser.js` (new, isolated browser, 22 checks): **main** `AssertionError` (the default and the labels); **this branch** `22 checks passed`.
-  - `test/post-networks-browser.js` (rewritten for the sides, 50 checks): **main** `AssertionError: switch on: YouTube and LinkedIn are on the platform switch`; **this branch** `50 checks passed`.
+  - `test/post-networks-browser.js` (rewritten for the sides, 54 checks): **main** `AssertionError: switch on: YouTube and LinkedIn are on the platform switch`; **this branch** `54 checks passed`.
   - `post-from-card-browser` now expects From Content Calendar as the default (51 checks). `post-folder-drop-browser` chooses From files before dropping, as a person now does (55).
   - Also passing:
     - post-trial-versions (43)

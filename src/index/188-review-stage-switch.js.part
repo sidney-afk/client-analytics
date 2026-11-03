@@ -338,11 +338,13 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         return !!slug && _rsFlags.pn.has(slug);
     }
     // Does post_networks_v1 list anyone? The Post tab's YouTube and LinkedIn buttons sit above the client picker, so they
-    // show when the switch lists any client (OPEN_REPAIRS 687); each side then checks the picked client itself.
+    // show when the switch lists any client (OPEN_REPAIRS 687); each side then checks the picked client itself. null
+    // until the read is in, so a caller can tell "not yet known" from "no" (Codex on PR 2580).
     function svPostNetworksAny() {
         if (_isClientLink) return false;
         _rsPrime();
-        return !!_rsFlags.loaded && (_rsFlags.pnAll || _rsFlags.pn.size > 0);
+        if (!_rsFlags.loaded) return null;
+        return !!(_rsFlags.pnAll || _rsFlags.pn.size > 0);
     }
     /* The Calendar Sheet fits the window (sheet_fit_v1): a listed client's link, or a listed signed-in staff member on
        the staff Sheet; { "all": true } is both, for everyone. Off until the read is in, and off for an unreadable or

@@ -261,6 +261,24 @@ const sent = (page, re) => page.waitForFunction((src) => new RegExp(src).test(do
       ok(!errors.length, 'switch off: no page errors');
       await context.close();
     }
+    // (Codex on PR 2580) a browser that last used YouTube, with the switch now off: the Instagram side, whether the switch
+    // read lands after the tab opens or was already in when the tab is opened again.
+    {
+      const { context, page, errors } = await newPage(browser, { flag: false });
+      await context.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('syncview_uploadPlatform_v1', 'youtube'); sessionStorage.setItem('seeded', '1'); } } catch (e) {} });
+      await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => document.querySelector('.tk-page')?.getAttribute('data-platform') === 'instagram', null, { timeout: 20000 });
+      ok(true, 'switch off: a remembered YouTube side opens as Instagram once the switch read is in');
+      // Away and back after the read is in: still Instagram.
+      await page.evaluate(() => { try { localStorage.setItem('syncview_uploadPlatform_v1', 'youtube'); } catch (e) {} navTo('today'); });
+      await page.waitForFunction(() => !document.querySelector('.tk-page'));
+      await page.evaluate(() => navTo('tiktok-upload'));
+      await page.waitForSelector('.tk-page');
+      assert.equal(await page.getAttribute('.tk-page', 'data-platform'), 'instagram'); checks++;
+      ok(!(await page.isVisible('#tkPlatYoutube')), 'and no YouTube button');
+      ok(!errors.length, 'remembered side: no page errors (' + errors.join(' | ') + ')');
+      await context.close();
+    }
     {
       const { context, page, errors } = await newPage(browser, { flag: false, ids: { tiktok: IDS.tiktok, instagram: IDS.instagram } });
       await openInstagram(page, base);

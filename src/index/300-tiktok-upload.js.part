@@ -817,7 +817,14 @@ import {
     function _tkSyncNetworkButtons() {
         const on = svPostNetworksAny();
         ['youtube', 'linkedin'].forEach(p => { const b = document.getElementById(p === 'youtube' ? 'tkPlatYoutube' : 'tkPlatLinkedin'); if (b) b.hidden = !on; });
-        if (!on && _tkMounted && (tkState.platform === 'youtube' || tkState.platform === 'linkedin')) _tkApplyPlatform('instagram', true);
+        if (on === false && _tkMounted && (tkState.platform === 'youtube' || tkState.platform === 'linkedin')) _tkApplyPlatform('instagram', true);
+    }
+    // The side remembered from last time, unless the switch is already known to list nobody: then the Instagram side,
+    // whichever order the page and the switch read came in (Codex on PR 2580). Not yet known: the side as remembered,
+    // and _tkSyncNetworkButtons moves it once the read is in.
+    function _tkStartPlatform() {
+        const p = _tkLoadPlatform();
+        return (p === 'youtube' || p === 'linkedin') && svPostNetworksAny() === false ? 'instagram' : p;
     }
     // Shows one side of the tab and hides the other. Nothing is torn down on the TikTok side: its form, draft and
     // queue stay exactly as they were, so switching back loses nothing.
@@ -2668,7 +2675,7 @@ import {
         _tkRenderPreview();
         _tkRenderQueue();
         _tkMounted = true;
-        tkState.platform = _tkLoadPlatform();
+        tkState.platform = _tkStartPlatform();
         if (_tkPanelSide()) {
             // The Instagram panel has its own queue and its own polling; TikTok's stays quiet until the switch is flipped back.
             _tkApplyPlatform(tkState.platform, false);

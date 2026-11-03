@@ -1862,7 +1862,7 @@
         /* 688 part 2: Version A/B/C tabs on a trial card's picture, in the Quiet look (Sidney, 3 Nov): text tabs on a
            hairline, each with its status dot, the selected one underlined. The picked version's picture and caption are
            drawn over the card's own, read only. */
-        .cal-card-thumb .trl-tabs { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 4; display: flex; gap: 12px; padding: 0 9px; border-radius: 8px; background: color-mix(in srgb, var(--surface-raised) 92%, transparent); box-shadow: 0 1px 3px rgba(0,0,0,.14); max-width: calc(100% - 16px); }
+        .cal-card-thumb .trl-tabs { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 4; display: flex; gap: 12px; padding: 0 9px; border-radius: 8px; background: color-mix(in srgb, var(--surface-raised) 92%, transparent); box-shadow: var(--shadow-sm); max-width: calc(100% - 16px); }
         .trl-tabs .trl-tab { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 1px; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
         .trl-tabs .trl-tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
         .trl-tabs .trl-tab:hover, .trl-tabs .trl-tab.on { color: var(--text-primary); }

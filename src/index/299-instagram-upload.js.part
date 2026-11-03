@@ -80,7 +80,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     };
     let _igDeps = null;
     let _igMounted = false;
-    let _igSwitchHeard = false;
+    // The post_sources_v1 answer may arrive after the form is drawn: draw it again then (registered once, at load).
+    try { window.addEventListener('sv-review-stage-switch', () => { if (_igMounted && !igState.submitting) _igRenderForm(); }); } catch (e) { /* no window: nothing to redraw */ }
     let _igPollTimer = null;
     let _igActiveXhr = null;
     let _igAbort = null;           // aborts every step before the post is created
@@ -175,7 +176,9 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
        thumbnail of a Calendar card as a ready-made image. Only one is ever sent. */
     const _igCover = () => igState.cover;
     const _igSrc = () => (igState.source || (igState.source = svPostSourceNew()));
-    const _igFromCard = () => svPostSourceActive(_igSrc(), igState.client, igState.kind === 'reel');
+    // `active` is kept on the source itself, so the functions the tests lift alone (_igValidate, _igLeaveClient) read
+    // only igState.
+    const _igFromCard = () => { const s = _igSrc(); s.active = svPostSourceActive(s, igState.client, igState.kind === 'reel'); return s.active; };
     function _igCoverClear(keepMode) {
         const c = _igCover();
         if (c.url) { try { URL.revokeObjectURL(c.url); } catch (e) {} }
@@ -243,6 +246,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         return !!src && src.mode === 'card' && svPostSourceOffered(client, singleVideo);
     }
     function svPostSourceReady(src) { return !!src && src.state === 'ready' && !!(src.data && src.data.media_url); }
+    // Young enough that Post for Me still holds the copy (it deletes an unused upload after 24 hours).
+    function svPostSourceYoung(src) { return !!src && Date.now() - (Number(src.copiedAt) || 0) < SV_POST_SOURCE_MAX_AGE_MS; }
     // The card's caption for this network: its second caption when written for it, else the first (as the file-name fill).
     function svPostSourceCaption(card, platform) {
         if (!card) return '';
@@ -283,7 +288,9 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         Object.assign(src, { cardId: card ? card.id : '', cardName: card ? card.name : '', client: opts.client || '', data: null, message: '', previewUrl: '', copiedAt: 0, state: card ? 'copying' : '' });
         opts.rerender();
         if (!card) return;
-        const live = () => src.seq === seq && src.cardId === card.id && src.client === opts.client;
+        // A later pick, Remove, a client change or a switch back to "From files" retires this one (Codex P2 on #2555):
+        // an abandoned card never fills the caption or the cover.
+        const live = () => src.seq === seq && src.cardId === card.id && src.client === opts.client && src.mode === 'card';
         if (card.link) {
             _svPostSourceAsk(SV_FRAMEIO_VIEW_URL, { link: card.link, part: 'video' }, 30000).then(res => {
                 const v = res.json && res.json.ok && res.json.video;
@@ -303,7 +310,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     // At the press: the copy, made again first when it is old enough that Post for Me may have deleted it.
     async function svPostSourceFresh(src, side) {
         if (!svPostSourceReady(src)) throw new Error('Pick a card and wait for its video to be copied.');
-        if (Date.now() - src.copiedAt < SV_POST_SOURCE_MAX_AGE_MS) return src.data;
+        if (svPostSourceYoung(src)) return src.data;
         const out = await svPostSourceCopy(src.client, src.cardId, side);
         if (!out.ok) throw new Error(out.message);
         src.data = out.data; src.copiedAt = Date.now();
@@ -366,6 +373,8 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     function svPostSourceBind(prefix, src, ctx) {
         document.querySelectorAll(`input[name="${prefix}SrcMode"]`).forEach(r => r.addEventListener('change', (e) => {
             src.mode = e.target.value === 'card' ? 'card' : 'files';
+            // Back to files: a copy still on its way is dropped, so it can never fill the form later.
+            if (src.mode === 'files' && src.state === 'copying') svPostSourceClear(src);
             if (typeof ctx.onMode === 'function') ctx.onMode(src.mode);
             ctx.rerender();
         }));
@@ -505,7 +514,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
         igState.titleFromCard = '';
         igState.captionFill = null;
-        svPostSourceClear(_igSrc());
+        if (igState.source) svPostSourceClear(igState.source);
     }
     async function _igUseCalendarCard(cardId) {
         const c = _igCover();
@@ -774,9 +783,10 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
         if (igState.kind === 'carousel') {
             if (igState.items.length < IG_CAROUSEL_MIN) return 'A carousel needs at least ' + IG_CAROUSEL_MIN + ' images or videos.';
             if (igState.items.length > IG_CAROUSEL_MAX) return 'A carousel holds at most ' + IG_CAROUSEL_MAX + ' items.';
-        } else if (_igFromCard()) {
-            if (_igSrc().state === 'copying') return 'Wait for the video to finish copying from Frame.';
-            if (!svPostSourceReady(_igSrc())) return 'Pick a card for the video.';
+        } else if (igState.source && igState.source.active) {
+            const src = igState.source;
+            if (src.state === 'copying') return 'Wait for the video to finish copying from Frame.';
+            if (!(src.state === 'ready' && src.data && src.data.media_url)) return 'Pick a card for the video.';
         } else {
             if (!igState.file) return 'Attach a video.';
             if (igState.file.size > _igDeps.maxBytes) return 'That video is over the ' + _igDeps.formatBytes(_igDeps.maxBytes) + ' limit.';
@@ -1004,6 +1014,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
     // Cancel works for steps 1 and 2. Once step 3 is sent its outcome may be unknown (a timeout, a dropped
     // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
     async function _igSubmit() {
+        _igFromCard();
         const err = _igValidate();
         if (err) { igState.error = err; _igRenderForm(); return; }
         if (igState.kind === 'carousel') return _igSubmitCarousel();
@@ -1344,7 +1355,7 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
            bar and the top bar and the TikTok side said B while this form, empty,
            still said A, and a video attached then went to A's Instagram. */
         // A caption a Calendar card filled in, unedited, is not a post being written.
-        const igIdle = !igState.file && !igState.items.length && !igState.submitting && !_igSrc().cardId
+        const igIdle = !igState.file && !igState.items.length && !igState.submitting && !(igState.source && igState.source.cardId)
             && (!String(igState.title || '').trim() || (!!igState.titleFromCard && igState.title === igState.titleFromCard));
         if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
             const leaving = igState.client && igState.client !== shared;
@@ -1352,8 +1363,6 @@ import { svPostSourcesOn } from './188-review-stage-switch.js';
             if (leaving) _igLeaveClient();
         }
         _igMounted = true;
-        // The post_sources_v1 answer may arrive after the form is drawn: draw it again then.
-        if (!_igSwitchHeard) { _igSwitchHeard = true; window.addEventListener('sv-review-stage-switch', () => { if (_igMounted && !igState.submitting) _igRenderForm(); }); }
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
         if (form) form.hidden = false;
         if (right) right.hidden = false;
@@ -1383,5 +1392,5 @@ export {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
   svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel,
   svPostSourceActive, svPostSourceBind, svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh,
-  svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady
+  svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady, svPostSourceYoung
 };

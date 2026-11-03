@@ -36277,8 +36277,8 @@ Owner, 2 Nov: "can we make it so it doesn't happen again". Measured read-only (n
   - it makes the page's own calls (post-source, then the side's create);
   - the post is SCHEDULED 8 days ahead (TikTok also private and to drafts), cancelled at once through the queue's own cancel, and read back as `cancelled`;
   - exit 3 means a cancel or read-back failed. The summary then names the queue row to cancel by hand;
-  - the client's name comes from the `POST_LIVE_CHECK_CLIENT` secret, or a masked input, and is never printed;
+  - the card id is the only input. The client is read from the card (`calendar_posts.client`), and the run is refused unless its slug's SHA-256 is on the script's allowlist: the test client now, and the owner's two clients by hash when the supervisor supplies them. Nothing that names the client is an input or is printed;
   - post-source itself does not read `post_sources_v1`, so the check needs no switch change.
-  `test/post-from-card-live-check.js` (unit, 8 checks) proves those rules offline.
+  `test/post-from-card-live-check.js` (unit, 9 checks) proves those rules offline.
 - **Way back:** clear `post_sources_v1`, or revert the PR.
 

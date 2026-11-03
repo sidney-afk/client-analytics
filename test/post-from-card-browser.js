@@ -11,7 +11,10 @@
 //   4. a copy older than 20 hours is made again at the press, and the post keeps the SAME key as the press before
 //      it (an answer lost on the first press can never become a second post);
 //   5. switch off (or unreadable): no "From a card" anywhere; each side shows today's drop zone;
-//   6. at 390 wide the picker fits with no sideways scroll.
+//   6. at 390 wide the picker fits with no sideways scroll;
+//   7. (Codex on #2555) a copy still on its way when the person goes back to "From files" never fills the caption or
+//      cover; Cancel while an old copy is made again creates nothing; a TikTok retry after a lost answer copies an old
+//      card again, under the same key.
 // Nothing is ever posted for real: every function is answered here.
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -62,6 +65,7 @@ async function newPage(browser, opts) {
     if (/functions\/v1\/post-source\b/.test(url)) {
       const body = JSON.parse(req.postData() || '{}');
       log.copies.push(body);
+      if (o.copyDelayMs) await new Promise((r) => setTimeout(r, o.copyDelayMs));
       if (copyNo++ < o.copyFails) return reply(409, { ok: false, error: 'no_link', message: 'This card has no Frame link yet.' });
       return reply(200, { ok: true, media_url: 'https://data.postforme.dev/v/' + copyNo, file_name: 'video_15_final.mp4', rendition: 'original', fell_back_from_original: false,
         bytes: 28291416, width: 1080, height: 1920, duration_seconds: 57.28, thumb_url: 'https://data.postforme.dev/t/' + copyNo, thumb_note: '', metadata_fields: [], took_ms: 4875 });
@@ -226,6 +230,69 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
       await page.waitForSelector('#igDrop');
       ok(await page.locator('input[name="igSrcMode"]').count() === 0, 'switch off: no "From a card" on Instagram');
       ok(log.copies.length === 0 && log.previews.length === 0, 'switch off: post-source and frameio-view are never asked');
+      assert.deepEqual(errors, []); checks++;
+      await context.close();
+    }
+
+    // ---- 7a. back to files while a copy is on its way: the abandoned card fills nothing
+    {
+      const { context, page, log, errors } = await newPage(browser, { copyDelayMs: 1500 });
+      await openTikTok(page, base);
+      await page.click('#tkPlatInstagram');
+      await page.waitForSelector('#igFormCol:not([hidden])');
+      if (!(await page.locator('#igFormCol .tk-profile-line').count())) await pickSv(page, 'igClient', TEST_CLIENT);
+      await page.waitForSelector('input[name="igSrcMode"]');
+      await page.click('label:has(input[name="igSrcMode"][value="card"])');
+      await pickSv(page, 'igSrcCard', 'p_card_a');
+      await page.waitForSelector('#igSrcStatus');
+      await page.click('label:has(input[name="igSrcMode"][value="files"])');
+      await page.waitForTimeout(2200);
+      ok(log.copies.length === 1, 'the copy was asked for');
+      assert.equal(await page.inputValue('#igTitle'), ''); checks++;   // the abandoned card's caption never lands
+      ok(await page.locator('#igCoverRemote').count() === 0 && await page.evaluate(() => !igState.cover.remoteUrl), 'nor its thumbnail as the cover');
+      ok(await page.locator('#igDrop').count() === 1, 'the drop zone is back');
+      assert.deepEqual(errors, []); checks++;
+      await context.close();
+    }
+
+    // ---- 7b. TikTok: Cancel while an old copy is made again creates nothing
+    {
+      const { context, page, log, errors } = await newPage(browser, { copyDelayMs: 1200 });
+      await openTikTok(page, base);
+      await page.waitForSelector('input[name="tkSrcMode"]');
+      await page.click('label:has(input[name="tkSrcMode"][value="card"])');
+      await pickSv(page, 'tkSrcCard', 'p_card_a');
+      await page.waitForSelector('#tkSrcReady');
+      await page.evaluate(() => { tkState.source.copiedAt = Date.now() - 21 * 3600 * 1000; });
+      await page.click('#tkSubmit');
+      await page.waitForSelector('#tkFormCol button:has-text("Cancel")');
+      await page.click('#tkFormCol button:has-text("Cancel")');
+      await page.waitForFunction(() => !tkState.submitting);
+      await page.waitForTimeout(1500);
+      ok(log.copies.length === 2, 'the old copy was being made again');
+      ok(log.creates.length === 0, 'Cancel before the create: no post is created');
+      assert.equal(await page.evaluate(() => tkState.error), 'Upload cancelled.'); checks++;
+      assert.deepEqual(errors, []); checks++;
+      await context.close();
+    }
+
+    // ---- 7c. TikTok: a retry after a lost answer copies an old card again, same key
+    {
+      const { context, page, log, errors } = await newPage(browser, { createFailsOnce: true });
+      await openTikTok(page, base);
+      await page.waitForSelector('input[name="tkSrcMode"]');
+      await page.click('label:has(input[name="tkSrcMode"][value="card"])');
+      await pickSv(page, 'tkSrcCard', 'p_card_a');
+      await page.waitForSelector('#tkSrcReady');
+      await page.click('#tkSubmit');
+      await page.waitForFunction(() => !tkState.submitting && !!tkState.error);
+      ok(log.creates.length === 1 && !!(await page.evaluate(() => tkState.retryCreate && tkState.retryCreate.key)), 'the first press: its answer lost, its key kept');
+      await page.evaluate(() => { tkState.source.copiedAt = Date.now() - 21 * 3600 * 1000; });
+      await page.click('#tkSubmit');
+      await page.waitForFunction(() => !tkState.submitting && !tkState.error);
+      ok(log.copies.length === 2, 'the old copy is made again before the retry');
+      ok(log.creates.length === 2 && log.creates[1].mediaUrl === 'https://data.postforme.dev/v/2', 'the retry carries the new copy');
+      assert.equal(log.creates[1].idempotencyKey, log.creates[0].idempotencyKey, 'under the same key'); checks++;
       assert.deepEqual(errors, []); checks++;
       await context.close();
     }

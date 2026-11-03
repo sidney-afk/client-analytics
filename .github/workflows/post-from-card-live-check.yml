@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       card:
-        description: 'A card id of the client (Approved or Scheduled, with a Frame link)'
+        description: 'The card id (its client must be on the allowlist in scripts/post-from-card-live-check.js)'
         required: true
         type: string
       side:
@@ -18,11 +18,6 @@ on:
         required: true
         type: string
         default: 'instagram'
-      client:
-        description: 'Only if the POST_LIVE_CHECK_CLIENT secret is not set: the client display name (masked in the log)'
-        required: false
-        type: string
-        default: ''
 
 permissions:
   contents: read
@@ -42,15 +37,9 @@ jobs:
           node-version: '22'
       - name: Schedule 8 days ahead, cancel at once, read back cancelled
         env:
-          # The SMM role key and, when set, the client's name: repository secrets, never printed.
+          # The SMM role key, a repository secret, never printed. The client is read from the card itself and must be
+          # on the script's allowlist (by hash); nothing that names it is an input or reaches this log.
           SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
-          CLIENT_SECRET: ${{ secrets.POST_LIVE_CHECK_CLIENT }}
           POST_LIVE_CHECK_CARD: ${{ inputs.card }}
           POST_LIVE_CHECK_SIDE: ${{ inputs.side }}
-        run: |
-          # The client's name never goes through an expression, so it is never written into this log: the secret,
-          # or the input read from the event file and masked before anything else runs.
-          CLIENT="$CLIENT_SECRET"
-          if [ -z "$CLIENT" ]; then CLIENT=$(jq -r '.inputs.client // ""' "$GITHUB_EVENT_PATH"); fi
-          if [ -n "$CLIENT" ]; then echo "::add-mask::$CLIENT"; fi
-          POST_LIVE_CHECK_CLIENT="$CLIENT" node scripts/post-from-card-live-check.js
+        run: node scripts/post-from-card-live-check.js

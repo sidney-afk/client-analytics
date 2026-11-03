@@ -11,14 +11,26 @@
  * post may still exist and must be cancelled by hand in the Post tab's queue: that is the stop-and-tell case.
  *
  * Prints only safe facts: the step reached, statuses, the rendition and size, and the queue row id (needed to cancel
- * by hand). Never a client name, account id, caption, address or key: the repository and its CI logs are public.
+ * by hand). Never a client name, slug, account id, caption, address or key: the repository and its CI logs are public.
  *
- * Env (all from the workflow): SYNCVIEW_STAFF_KEY (a staff role key, secret), POST_LIVE_CHECK_CLIENT (the client's
- * display name, secret, so it never appears in a log), POST_LIVE_CHECK_CARD (a card id of that client),
- * POST_LIVE_CHECK_SIDE (instagram or tiktok).
+ * The card id is the only input (a card id is not a name). The client is read from the card itself
+ * (calendar_posts.client, the publishable-key read the page makes), and the run is refused unless the SHA-256 of
+ * that slug is in ALLOWED_CLIENT_SHA256: the test client and the owner's two own clients, by hash only. Its
+ * account is read from the Clients Info copy the Post tab reads first.
+ *
+ * Env (from the workflow): SYNCVIEW_STAFF_KEY (a staff role key, secret), POST_LIVE_CHECK_CARD, POST_LIVE_CHECK_SIDE
+ * (instagram or tiktok).
  */
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+
+// The only clients a live check may touch, as SHA-256 of the client slug (never the slug or name in the repository):
+// the test client, and the owner's two own clients (D6), added as the supervisor supplies their hashes.
+const ALLOWED_CLIENT_SHA256 = Object.freeze([
+  'c1424f0e39a727bd6c9f3e8fd68c241afa728472692d547509efde88d1edf964', // the test client
+]);
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 const SUPA = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/';
 const DAY = 24 * 60 * 60 * 1000;
@@ -28,17 +40,21 @@ const CAPTION = 'SyncView live check. Scheduled and cancelled at once; never pub
 const ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
 const COLUMNS = { instagram: 'postforme_instagram_account_id', tiktok: 'postforme_account_id' };
 
-// The client's Post for Me account for the side, from the same Clients Info copy the Post tab reads first.
-function accountFromCsv(csv, client, side) {
+// The servers' own client key ("Fixture Client" and "fixtureclient" are one client).
+const clientKey = (s) => String(s == null ? '' : s).trim().toLowerCase().replace(/[^a-z0-9&]/g, '');
+// The client's Post for Me account for the side, from the same Clients Info copy the Post tab reads first. The row is
+// the one whose slug column, or whose name's key, is the card's client slug; none or two finds nothing (fail closed).
+function accountFromCsv(csv, slug, side) {
   const rows = parseCsv(String(csv || ''));
   if (!rows.length) return '';
   const head = rows[0].map((h) => h.trim().toLowerCase());
   const nameAt = head.indexOf('client_name');
+  const slugAt = head.indexOf('slug');
   const colAt = head.indexOf(COLUMNS[side]);
-  if (nameAt < 0 || colAt < 0) return '';
-  const want = String(client || '').trim().toLowerCase();
-  const hit = rows.slice(1).find((r) => String(r[nameAt] || '').trim().toLowerCase() === want);
-  const id = hit ? String(hit[colAt] || '').trim() : '';
+  if ((nameAt < 0 && slugAt < 0) || colAt < 0) return '';
+  const want = clientKey(slug);
+  const hits = rows.slice(1).filter((r) => (slugAt >= 0 && clientKey(r[slugAt]) === want) || (nameAt >= 0 && clientKey(r[nameAt]) === want));
+  const id = hits.length === 1 ? String(hits[0][colAt] || '').trim() : '';
   return ACCOUNT_RE.test(id) ? id : '';
 }
 function parseCsv(text) {
@@ -56,19 +72,26 @@ function parseCsv(text) {
 }
 
 /* The whole run with every outside thing passed in (test/post-from-card-live-check.js drives it against fakes).
-   deps: { call(fnName, body) -> { status, json }, readClientsCsv() -> text, now() -> ms, log(line) }. */
+   deps: { readCard(id) -> [{ id, client }], call(fnName, body) -> { status, json }, readClientsCsv() -> text,
+           now() -> ms, log(line), allowed? (hashes; ALLOWED_CLIENT_SHA256 by default) }. */
 async function runCheck(input, deps) {
   const side = input.side === 'tiktok' ? 'tiktok' : 'instagram';
   const report = { side, step: 'start' };
   const done = (code, extra) => { Object.assign(report, extra || {}); deps.log('post-from-card live check: ' + JSON.stringify(report)); return code; };
-  if (!input.client || !input.card) return done(2, { step: 'input', error: 'client and card are required' });
+  if (!input.card) return done(2, { step: 'input', error: 'a card id is required' });
+
+  report.step = 'card';
+  const rows = await deps.readCard(input.card).catch(() => null);
+  if (!Array.isArray(rows) || rows.length !== 1 || !rows[0].client) return done(2, { error: 'the card was not found, or more than one card has that id' });
+  const client = String(rows[0].client).trim();
+  if (!(deps.allowed || ALLOWED_CLIENT_SHA256).includes(sha256(client))) return done(2, { error: 'this card\'s client is not on the live check\'s allowlist' });
 
   report.step = 'account';
-  const account = accountFromCsv(await deps.readClientsCsv(), input.client, side);
+  const account = accountFromCsv(await deps.readClientsCsv(), client, side);
   if (!account) return done(2, { error: 'no ' + side + ' account on file for this client' });
 
   report.step = 'copy';
-  const copy = await deps.call('post-source', { client: input.client, post_id: input.card, side });
+  const copy = await deps.call('post-source', { client, post_id: input.card, side });
   const c = copy.json || {};
   if (copy.status !== 200 || !c.ok || !c.media_url) return done(1, { http_status: copy.status, error: String(c.error || 'copy_failed') });
   Object.assign(report, { rendition: c.rendition, bytes: c.bytes, thumb_copied: !!c.thumb_url });
@@ -79,9 +102,9 @@ async function runCheck(input, deps) {
 
   report.step = 'create';
   const create = side === 'instagram'
-    ? await deps.call('instagram-upload', { action: 'create', clientName: input.client, socialAccountId: account, title: CAPTION,
+    ? await deps.call('instagram-upload', { action: 'create', clientName: client, socialAccountId: account, title: CAPTION,
         mediaUrl: c.media_url, coverUrl: c.thumb_url || '', options: { cover_timestamp_ms: 0 }, scheduledAtUTC: at, timezone: 'UTC', idempotencyKey: key })
-    : await deps.call('tiktok-upload', { action: 'create', clientName: input.client, socialAccountId: account, title: CAPTION,
+    : await deps.call('tiktok-upload', { action: 'create', clientName: client, socialAccountId: account, title: CAPTION,
         options: { privacy_level: 'SELF_ONLY', post_mode: 'MEDIA_UPLOAD', disable_comment: true, disable_duet: true, disable_stitch: true },
         scheduledAt: '', scheduledAtUTC: at, timezone: 'UTC', idempotencyKey: key, mediaUrl: c.media_url });
   const row = (create.json && create.json.row) || null;
@@ -117,13 +140,21 @@ async function runCheck(input, deps) {
 async function main() {
   const key = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
   const input = {
-    client: String(process.env.POST_LIVE_CHECK_CLIENT || '').trim(),
     card: String(process.env.POST_LIVE_CHECK_CARD || '').trim(),
     side: String(process.env.POST_LIVE_CHECK_SIDE || 'instagram').trim(),
   };
   if (!key) { console.error('Set SYNCVIEW_STAFF_KEY.'); process.exit(2); }
-  const sheet = fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '040-shared-briefs.js.part'), 'utf8').match(/const SHEET_ID\s*=\s*'([^']+)'/);
+  const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'src', 'index', f), 'utf8');
+  const sheet = src('040-shared-briefs.js.part').match(/const SHEET_ID\s*=\s*'([^']+)'/);
+  const anon = src('100-onboarding-staff-controls.js.part').match(/CAL_SUPABASE_ANON_KEY\s*=\s*'([^']+)'/);
   const deps = {
+    // The card's client, read as the page reads cards (the publishable key; it is in the page already).
+    readCard: async (id) => {
+      if (!anon) return null;
+      const r = await fetch(SUPA.replace('/functions/v1/', '/rest/v1/') + 'calendar_posts?select=id,client&id=eq.' + encodeURIComponent(id) + '&limit=2',
+        { headers: { apikey: anon[1], Authorization: 'Bearer ' + anon[1], Accept: 'application/json' } }).catch(() => null);
+      return r && r.ok ? r.json() : null;
+    },
     call: async (fn, body) => {
       const r = await fetch(SUPA + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': key }, body: JSON.stringify(body), signal: AbortSignal.timeout(170000) })
         .catch(() => null);
@@ -142,4 +173,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((e) => { console.error('post-from-card live check failed:', e && e.name); process.exit(1); });
-module.exports = { runCheck, accountFromCsv, AHEAD_MS, MIN_AHEAD_MS };
+module.exports = { runCheck, accountFromCsv, AHEAD_MS, MIN_AHEAD_MS, ALLOWED_CLIENT_SHA256 };

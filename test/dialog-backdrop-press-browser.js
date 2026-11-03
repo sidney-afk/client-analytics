@@ -33,6 +33,8 @@ const CASES = [
   { name: 'Supporting reels info', overlay: '.mr-info-overlay', open: () => { _mrInfoStore.t = [{ handle: 'a', url: 'https://example.invalid/r' }]; showMRInfo('t'); } },
   { name: 'Calendar preview', overlay: '#calPreviewOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; calState.posts = [${POST}]; _calRenderShell(); openCalPreview('p1');`) },
   { name: 'Calendar import', overlay: '#calImportOverlay.open', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _calRenderShell(); openCalImport();`) },
+  // Trial reels Import from Frame (V2, OPEN_REPAIRS 658): the Calendar import's dialog, opened from a trial card.
+  { name: 'Trial reels import from Frame', overlay: '#trlImportOverlay.open', open: new Function(`${mountViews}; calState.client = ${CLIENT}; calState.posts = [${POST}]; _calRenderShell(); svTrialImportOpen('p1');`) },
   { name: 'Calendar comments', overlay: '#calCommentsOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; calState.posts = [${POST}]; _calRenderShell(); openCalComments('p1');`) },
   { name: 'Calendar caption prompt', overlay: '#calPromptOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _calRenderShell(); _calOpenCaptionPromptModal();`) },
   { name: 'Samples comments', overlay: '#sxrCommentsOverlay', open: new Function(`${mountViews}; sxrState.client = ${CLIENT}; sxrState.posts = [${POST}]; _sxrRenderShell(); openSxrComments('p1');`) },

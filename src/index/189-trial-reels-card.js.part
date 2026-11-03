@@ -1072,8 +1072,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ovl.id = 'trlImportOverlay';
             ovl.className = 'cal-import-overlay';
             ovl.innerHTML = '<div class="cal-import-modal trl-imp" role="dialog" aria-modal="true" aria-labelledby="trlImpTitle"></div>';
-            ovl.addEventListener('mousedown', e => { ovl._down = e.target === ovl; });
-            ovl.addEventListener('click', e => { if (e.target === ovl && ovl._down) svTrialImportClose(); });
+            // The shared backdrop guard (040): closes only on a press that began on the backdrop itself (OPEN_REPAIRS 215).
+            ovl.setAttribute('data-backdrop-dismiss', '');
+            ovl.addEventListener('click', e => { if (e.target === ovl && ovl._backdropPressBegan) svTrialImportClose(); });
             document.body.appendChild(ovl);
         }
         ovl.classList.add('open');

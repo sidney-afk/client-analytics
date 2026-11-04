@@ -1,7 +1,7 @@
 # One card, many versions: the plan (session Trialplan, 4 Nov 2026)
 
 **Plan only. No code, no migration, no deploy, no data change.** Plain English.
-**Status: revision 3, 4 Nov 2026 ~21:30 UTC, final for review.** All of Sidney's answers (section 9, Q1 to Q17, and A to D in section 12) and the first adversarial review's findings are in. **Revision 3 reverses one earlier reading:** after a winner the card now *becomes* the winner (section 3.3), so the earlier "nothing is copied" is gone. Only Q-G and Q-H (3.4) are open with him. Where an answer changed the plan, the text below is already rewritten; section 9 lists each answer and where it landed.
+**Status: revision 4, 4 Nov 2026 ~21:45 UTC, final for review.** Includes Sidney's rethink of the trial flow (manual "Start trial", a Trial status on the versions, "Pick the winner" during the trial, the winner gets Posted and becomes the card). **Revision 4 replaces revision 3's section 3.4**: it removes the Posted-to-Approved step back, the Post control before a winner, the 24 h countdown and the automatic start. Open for Sidney: Q-I to Q-L (3.4). Q-G and Q-H are dropped.
 Counts quoted from earlier measurements are dated; step 1 below re-measures them before anything is built.
 The only live read was one counts-only query on the version table (section 7.1). What was read: STATE_OF_THINGS, OPEN_REPAIRS 688 (parts 1 to 3), 656/657/659/661, ATLAS "Trial reels", `src/index/189`, `194`, `245`, `299`, the `trial-reels` Edge Function (`logic.mjs`, `index.ts`), the three trial migrations, draft plans #2521, #2524 and the design-options PR #2581.
 
@@ -59,15 +59,15 @@ The only live read was one counts-only query on the version table (section 7.1).
 - **Notes** are not rewritten (section 5).
 - **No new `calendar_posts` columns.** A's call to action is the card's existing `cta`; A's part statuses are in its row. This matters because `calendar-upsert`'s allow-list is frozen (review, low 12).
 
-**The route value, precisely (rule sheet in step 1):** per part, in the order In Progress, Tweaks Needed, For SMM Approval, Kasper Approval, Client Approval, Approved. Tweaks Needed on any live version wins, so a change request is never hidden; otherwise the least-advanced live version sets it; all live versions Approved gives Approved. **Once a winner exists the route value is the winner's statuses alone** (the others are ignored), so the card reads as an ordinary card of the winner. **The writer never overwrites Scheduled or Posted** while a version is not yet through them; see 3.4 for the one deliberate step back when a winner is picked.
+**The route value, precisely (rule sheet in step 1):** per part, in the order In Progress, Tweaks Needed, For SMM Approval, Kasper Approval, Client Approval, Approved. Tweaks Needed on any live version wins, so a change request is never hidden; otherwise the least-advanced live version sets it; all live versions Approved gives Approved. **Once a winner exists the route value is the winner's statuses alone** (the others are ignored), so the card reads as an ordinary card of the winner. **The writer sets Posted only when a winner is picked, and never overwrites a Scheduled or Posted that came from elsewhere** (3.4).
 
-**Posted and Scheduled are the post's, not a version's.** They live today in the card's video status and Posted starts every approved version's 24 h trial (`logic.mjs autoTrialPatches`, `189:474, 496, 639`). So they become a **separate control in the trial strip**: "Post: Not scheduled / Scheduled / Posted", with the card's own rules. It still writes the card's status column (so the 24 h start, the status sync and the posting code keep working unchanged). **Version menus stop at Approved** (they already omit Scheduled and Posted, V1 of 656). This placement is Q-A, with this as the default.
+**Posted and Scheduled are not used by a trial card before its winner (revision 4, 3.4).** A trial card stays at Approved while the trial runs; the trial is a status on the *versions*, not on the card, so no new card status is needed and no Section 4 status map changes. The winner takes **Posted** when it is picked. Version menus stop at Approved; "On trial" is set only by the Start trial button.
 
 **What every reader of a card's status shows for a trial card (full inventory is step 1):**
 
 | Reader | Shows for a trial card |
 |---|---|
-| Card (staff) | No status pill; the version's part pills; the trial strip with the Post control |
+| Card (staff) | No status pill; the version's part pills; the trial strip with Start trial, Trial running and Pick the winner |
 | Month and Week | Before a winner: one dot per live version, its least-advanced part. After a winner: one ordinary card, the winner's, no dots |
 | SMM Review tab, Kasper, client link, Today | Decided from the version rows (step 1). A card stays in a reviewer's queue while any live version waits on them, whatever the other versions say. The client's queue lists per version; the card stays while any version waits at the client (Q-D) |
 | Production (parent issue, work items) | Follow the route value, as today. B to E have **no work items**, only one "Deliverable file" row each; **this must stay true** (the drift check is safe only because of it; step 1 adds a test that fails if a version row ever gets a work item). The parent shows "Trial · N versions" with dots (Q13) |
@@ -105,7 +105,7 @@ The only live read was one counts-only query on the version table (section 7.1).
 | Paste or change a link, New cut ready | the Video row of the selected tab |
 | Thumbnail and caption lines | the card's Thumbnail and Caption of the selected tab |
 | Drop / Bring back | a menu on the tab (the three dots) |
-| Winner trophy | the same menu, shown only when the 24 h are over |
+| Winner trophy | "Pick the winner" in the trial strip, available while the trial runs (3.4) |
 | + Add version and Import from Frame | the `+` at the end of the tabs; Import from Frame inside it |
 
 Until step 5 lands, the list stays and the tabs remain as they are, so nothing breaks half way.
@@ -124,18 +124,49 @@ Until step 5 lands, the list stays and the tabs remain as they are, so nothing b
 - **After a winner, everywhere** (Q-A, Q-B, Q-D answered): views, the client link, posting, Production and Analytics treat the card as an ordinary card of the winner. The client link shows only the winner. Month and Week show one ordinary card, no per-version dots. Posting offers the winner as an ordinary post; the other versions are not offered (Q15). Scheduled and Posted are the winner's (3.4).
 - **The 5 winners that exist today** (2 are not A) were copied under the old rule without keeping A's data. Nothing changes for them. "Clear the winner" on those is refused ("picked before versions kept their own data"). Step 1a lists them (counts only).
 
-### 3.4 What Scheduled and Posted mean before and after a winner
+### 3.4 The trial flow: manual start, a Trial status, pick the winner
 
-Plainly, because the same words carry two meanings:
-- **Before a winner, "Posted" means the trial has started.** The post has one date. **Scheduled** means every approved version is lined up to go out together on that date as an Instagram trial reel (shown mostly to people who do not follow the client). **Posted** means they went out, and it starts the 24 h clock for all of them (today's `autoTrialPatches`, `189:474, 496, 639`). A version that is not approved yet is not in that batch. The strip says "Trial running · 17 h left", not just "Posted", so it is never mistaken for the real post.
-- **After a winner, Scheduled and Posted are an ordinary post of the winner** (D3: nothing goes anywhere automatically; someone schedules it). When the winner is picked, the card takes the winner's statuses, usually Approved, so **the card steps back from the trial's Posted to the winner's own status, ready to be posted for real.** The trial itself is recorded in the version rows (`trial_ends_at`, the winner flag), not in the word Posted.
-- **Where it is controlled:** a Post control in the trial strip, before and after. It writes the card's status column as today, so the 24 h start and the status sync keep working. Version menus stop at Approved.
+**Sidney's rethink (4 Nov ~21:30):** the trial must not start from the upload date or from Posted. A person starts it. Versions on trial show Trial. The SMM picks the winner, who gets Posted and becomes the card. "I'm not an expert in trials, so maybe I'm making a mistake": the plain recommendation below is to build his flow, with three small safeguards.
 
-**The risk to the Opus review (high):** moving the card from Posted back to the winner's status is a backward step. Whether the card's status rules, the Production work items, the status sync and the drift check accept Posted going back to Approved is **not verified**; step 1a must prove it on a throwaway unlinked card before anything else is built. If it is refused anywhere, the alternative is that the trial's start is stored only in `trial_reel_cards` (a started-at time) and the card never reads Posted for a trial, so there is no step back; that touches `autoTrialPatches`.
+**The flow:**
+1. **Approved.** Each version is approved on its own (Version A, B, C each reach Approved). The card stays Approved.
+2. **Posted as trial reels, by a person, on the Post tab** (today's "From a card" with Trial reel on; nothing posts by itself, no automated check ever posts).
+3. **Start trial** (one button in the trial strip, SMM and admin): every **approved** version goes to **On trial** at once, in one write. Nothing starts from the upload date, the Posted word or a timer. Versions not yet approved are left out and stay as they are (Q-J).
+4. **Trial running** is shown on the strip and on each version's tab (small "Trial" status). **No countdown, no hours.**
+5. **Pick the winner** is available the whole time the trial runs. The picked version becomes the card by the swap in 3.3 and takes the status **Posted**; it is the default tab. **The other versions end as "Not chosen"** (today's `lost` status, shown with that word). A version that was dropped stays dropped.
+6. **End the trial without a winner** is also offered (today's `no clear winner` status): the card goes back to Version A as its version, still Approved.
 
-**Two questions this raised for Sidney (defaults given):**
-- **Q-G.** A version approved *after* the trial was posted: does it join the trial? Default: no, it waits; the trial is the batch that went out together. (Today's behaviour is to be confirmed in step 1a.)
-- **Q-H.** The strip says "Trial running · N h left" while the trial runs, and "Winner: Version B" afterwards. Default: yes.
+**What changes against today (live for every client since 2 Nov, and it stays so until `trial_versions_v2` reaches them):**
+
+| | Today | New (on `trial_versions_v2` clients) |
+|---|---|---|
+| What starts the trial | Automatic: once the card's video is Posted, any read of the card puts every approved version on trial (`autoTrialPatches`, since OPEN_REPAIRS 570), with `posted_at` from the card's Posted time | A person presses Start trial (the existing manual `trial_start` action, which exists and is already callable by hand). `autoTrialPatches` does not run for these clients |
+| The clock | `trial_ends_at` = start + 24 h; "On trial · 17 h left" on the card, and the winner is refused until the 24 h are over (`trial_not_over`) | No clock on screen. The winner can be picked any time during the trial (Q-K). `trial_ends_at` is left empty for new trials; old rows keep theirs |
+| The card's status | Posted starts it; the card then reads Posted or Scheduled | The card stays Approved during the trial; Posted comes only when the winner is picked, so **the card never steps back** (revision 3's risk is gone) |
+| Losers | "lost", with the 24 h gone | "Not chosen" |
+| Client link | The client sees only the winner once picked | Unchanged |
+
+**What Instagram trial reels do, and what that means for this flow.** From what I know of Instagram, **not verified in this session** (step 1a checks Instagram's own documentation): a trial reel is shown mostly to people who do not follow the account, so the team can see how it does with a cold audience before followers see it. This repo posts them with the **manual** setting only (`instagram-upload` accepts `trial_reel_type = manual` and nothing else). Manual means **Instagram never shares it to followers by itself; a person shares it from Instagram when they decide.** So:
+- Instagram has **no 24 h end** of its own for a manual trial. The 24 h was this team's own rule, so dropping the timer loses nothing on Instagram's side.
+- **Picking the winner in SyncView does not change anything on Instagram.** The winner's Posted records that it is the chosen post. Someone still has to share that reel to followers from Instagram. A pick that says "Posted" while the reel is still trial-only is a trap (risk below). Safeguard 1: the pick's confirm dialog says "Share Version B to followers in Instagram", and Q-L asks whether that step is theirs or SyncView's to do one day (whether Instagram's publishing interface can do it, I do not know).
+
+**Three safeguards (recommended):**
+1. The confirm line above, in the pick dialog.
+2. **A gentle nudge:** a trial running with no winner shows "Pick a winner" on the SMM's Today page after one day, once, in the app only, no message to Slack or anyone. Default yes, because a trial left running forever is the main way this flow goes wrong (Q-L). The day count is an ordinary setting.
+3. **Start trial writes a plain history line** ("Trial started: Versions A, B, C") and Pick the winner another ("Winner: Version B, chosen by <staff>"), in the card's history, so what happened and when can be read later.
+
+**Risks of this flow:**
+- **Two ways to start for a while:** clients on the switch start by button, other clients start automatically as today. The function must branch on `trial_versions_v2` and a test must cover both.
+- **A card can still become Posted another way** (a Production work item set to Posted flows to the card through the status sync, or SyncLinear). For a v2 trial card, Posted that arrives this way must not start or end a trial and must not hide the versions. Step 1a lists every way a card can become Posted; the rule is that such a Posted is ignored for the trial and shown as a warning on the strip.
+- **"Posted" on the winner when nobody has shared it on Instagram** (above).
+- **Every reader of the 24 h** (the card's countdown, the Production line, the nightreel check, `trial_not_over` in the function and its tests, the journey tests) must stop expecting it. Step 5 owns this; the existing trial suites are updated in the same PR.
+- **An early pick** (hours in) is allowed; the dialog shows when the trial started, nothing else (Q-K).
+
+**Questions for Sidney (defaults given; Q-G and Q-H are dropped, they no longer apply):**
+- **Q-I.** Is the card staying **Approved** while the trial runs (not Scheduled or Posted) right? Default: yes.
+- **Q-J.** A version approved *after* Start trial: it waits and does not join; the SMM can press Start trial again for the late ones. Default: yes.
+- **Q-K.** The winner can be picked at any time during the trial, with a one-line confirm. Default: yes.
+- **Q-L.** The in-app nudge after one day, and the reminder to share the winner from Instagram: yes? And who shares it to followers, the SMM in Instagram (default) or should SyncView one day do it?
 
 ## 4. Seeing every version's status without switching
 
@@ -181,7 +212,7 @@ Four layers, from quietest to most detail. Recommended: build the first three, o
 
 ### 7.3 Write-refusal log
 
-Every new write (version field, version part status, the route writer, the Post control) calls the existing refusal reporting (`_writeUiRecordFailure`, board `calendar`) and gets a read-back test, because absence from the log is not proof a save worked.
+Every new write (version field, version part status, the route writer, Start trial, Pick the winner) calls the existing refusal reporting (`_writeUiRecordFailure`, board `calendar`) and gets a read-back test, because absence from the log is not proof a save worked.
 
 ## 8. Edge cases (each is a test)
 
@@ -232,32 +263,33 @@ Everything stays behind `trial_versions_v2`, on for the test client only. The ca
 
 | Step | PR | What it is | What Sidney can click after |
 |---|---|---|---|
-| 0 | **Clickable mockup of the final card** (design only, no wiring) | Every state in sections 3, 4 and 8, on the card, Month, Week, the client link and the phone, **including every dead end**: no link yet, refused save, dropped version on screen, winner, trial off with a winner, a version the client cannot see, offline, empty fields, the Post control. Approved before step 1 | Click through all of it |
+| 0 | **Clickable mockup of the final card** (design only, no wiring) | Every state in sections 3, 4 and 8, on the card, Month, Week, the client link and the phone, **including every dead end**: no link yet, refused save, dropped version on screen, winner, trial off with a winner, a version the client cannot see, offline, empty fields, Start trial, Trial running, Pick the winner and its confirm line, End trial without a winner, the nudge. Approved before step 1 | Click through all of it |
 | 1a | **Measure and write the rules** (docs and read-only tests) | Inventory every reader of a card's status and of its `asset_url`, thumbnail, caption and CTA (list in 2.2 and 3.3 is a start); the route-value rule sheet; the notes check; the list of the 5 existing winners (counts only); a test that fails if a version row ever gets a work item | The rule sheet |
 | 1b | **Queues read version rows** (code, no new look) | SMM tab, Kasper, client link, Today and `trial-reels` reads decide "waits on me" from versions for a trial card. Fixes "A approved, B waiting, B vanishes". Test: A Approved and B at the SMM, B is in the SMM tab; at Kasper, at the client | Nothing new on screen; the queues are right in the odd cases |
 | 2 | **Migration and function** | CTA and thumbnail and caption status columns on the version rows; `trial-reels` reads and writes them; the cap moves to A to E for **adding** (in `logic.mjs:7`, `higgsfield-mcp/trialreels.mjs:45`, and the `189`/`194` regexes); the route writer and `effectiveCardFields` as tested functions. Migration held until Lighthouse applies it; no `calendar_posts` column | Nothing visible (flag off to the page) |
 | 3 | **Tabs edit the selected version** | The card's Video, Thumbnail, Caption and CTA follow the tab and save to it; the old list still present | Type a caption on B, reload, see it on B, A unchanged |
-| 4 | **Part statuses, pips, status grid and the Post control** | Each part's pill on the selected tab; the route writer runs; the Post control in the trial strip; version menus stop at Approved; the card shows no status pill | Set B's thumbnail to Approved; see the grid without switching; schedule the post and see every approved version's 24 h trial start (test client, nothing posts) |
-| 5 | **The old list goes; the winner becomes the card** | Drop, bring back, add, Import from Frame, winner move to the tab menu; `trial-reels`: `winnerPatches` does the two-way swap (fields, call to action, part statuses) in place of `attach_first`; undo becomes the reverse swap; `mainLetter`/`on_card`/`healMainPatch` follow the winner; the card opens on the winner and a reload returns to it; **first, the Posted-to-winner step back (3.4) is proven on a throwaway unlinked card** | Run a whole trial: add, drop, bring back, post (test client, nothing posts), pick a winner, see the card become it, clear the winner and see A back |
+| 4 | **Part statuses, pips, status grid, Start trial** | Each part's pill on the selected tab; the route writer runs; **Start trial** in the trial strip (the existing manual `trial_start`, `autoTrialPatches` off for these clients); "Trial" on versions without a countdown; version menus stop at Approved; the card shows no status pill | Set B's thumbnail to Approved; see the grid without switching; approve three versions, press Start trial and see all three go to Trial at once (test client, nothing posts) |
+| 5 | **The old list goes; Pick the winner; the winner becomes the card** | Drop, bring back, add, Import from Frame move to the tab menu; **Pick the winner** during the trial (no `trial_not_over`); the others end as Not chosen; `trial-reels`: `winnerPatches` does the two-way swap (fields, call to action, part statuses) in place of `attach_first`, and sets the winner Posted; undo becomes the reverse swap; `mainLetter`/`on_card`/`healMainPatch` follow the winner; the card opens on the winner and a reload returns to it; End trial without a winner; the 24 h readers and their tests retired; **first, step 1a's list of every way a card can become Posted is settled** | Run a whole trial: add, approve, Start trial, pick a winner, see the card become it and read Posted, clear the winner and see A back |
 | 6 | **Notes per version** | Notes switch follows the tab; unprefixed notes are Whole post | Write a note on C, see it only under C |
 | 7 | **Month, Week and phone** | Dots with a trophy; popover; phone layout | Look at the Calendar at 390 and 1440 |
 | 8 | **Review boards per part** (Q4) | Each part approves by itself; one "Approve Version B" stays | Approve B's caption as the client link, see the grid change |
-| 9 | **Posting reads the new rule** | "Approved" means all three parts; before a winner the Post control posts the approved versions as trial reels; after a winner the winner is an ordinary post and the other versions are not offered; nothing posts in a check | Pick the trial card on the Post tab (nothing is posted) |
+| 9 | **Posting reads the new rule + the nudge** | "Approved" means all three parts; the Post tab posts the approved versions as trial reels (a person, nothing automatic); after a winner the winner is an ordinary post and the other versions are not offered; the in-app "Pick a winner" nudge (Q-L); nothing posts in a check | Pick the trial card on the Post tab (nothing is posted); leave a trial running a day and see the nudge |
 
 Each step ships with a browser test at 1440 and 390 that fails on `main` and passes on the branch, the existing trial suites kept green (`trial-version-card-tabs-browser`, `trial-version-fields-browser`, `trial-reels-journey-browser`, `trial-version-review-parts-browser`), the identity check before pushing, and the refusal-log call plus a read-back on every new write. Rough size: step 0 a day; 1a and 1b two or three; 2 to 5 about a week and a half together; the rest another week. A fingerprint re-pin is not expected at any step; if a step touches a Section 4 function, re-pin in the same PR.
 
 ### Process before any build (Sidney, 4 Nov)
 
-1. Sidney approves this plan (after Q-G and Q-H are answered).
+1. Sidney approves this plan (after Q-I to Q-L are answered).
 2. **A strong model reviews the plan once more**, after his approval.
 3. **Only when the plan is final are the mockups made** (step 0). No mockup and no build starts before that.
 
 ## 11. Risks
 
 - **The route value is a second copy of "where the card is".** It exists so Production, the drift check and old readers keep working; step 1a lists every reader, step 1b moves the queues off it, and the writer is one function with tests. A missed reader is the main risk.
-- **Posted and Scheduled still live in the card's status column**, shown as the Post control. The writer must never overwrite them; that is a test.
+- **Posted comes only with the winner now** (3.4); a Posted that arrives another way (Production sync, SyncLinear) is ignored for the trial and warned about. Step 1a lists every way in.
 - **The winner swap** changes `trial-reels` (not Section 4) and writes the card through the page; a failed card write stops the pick and puts everything back. Its upside: every server reader already reads the card's columns, so none changes.
-- **Posted going back to the winner's status** (3.4) is unverified against the status rules, Production work items, the status sync and the drift check. High risk, proved first in step 5, with a stated alternative.
+- **The trial flow change (3.4)** retires the automatic start and the 24 h clock for v2 clients; both ways coexist for a while, and every reader of the 24 h must be updated with its tests.
+- **Winner Posted before it is shared on Instagram** (3.4): the confirm line and the nudge are the safeguards; whether SyncView can ever share it is unknown.
 - **The 5 existing winners** (2 not A) keep their old copy; Clear-the-winner is refused on them.
 - **Per-part approval changes what "approved" means** for the review boards and posting; steps 8 and 9 change those on purpose, not as a side effect.
 - **A reload during a save** and **two staff on one version** are section 8 cases, each with a test.
@@ -267,7 +299,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 | # | Finding | What the plan does now |
 |---|---|---|
 | 1 HIGH | The card's video status is the routing key for every queue and for `trial-reels` | "No status of its own" is a visual rule; a hidden system-written route value stays; queues move onto version rows first (step 1b). 2.2 |
-| 2 HIGH | Posted and Scheduled live in A's video status and start every version's 24 h trial | A separate Post control in the trial strip; version menus stop at Approved; the writer never overwrites Posted or Scheduled. 2.2, step 4. **Q-A** |
+| 2 HIGH | Posted and Scheduled live in A's video status and start every version's 24 h trial | Revision 4: no automatic start; Start trial is a button; the card stays Approved during the trial; Posted comes with the winner (3.4). Version menus stop at Approved |
 | 3 HIGH | A winner needs `trial-reels` changes and every reader of the card's picture to agree | Revision 3: the winner becomes the card by a two-way swap (3.3), so server readers need no change; the `trial-reels` changes are listed (`attach_first`, undo, `mainLetter`/`on_card`/`healMainPatch`, `svTrialPick`). Supersedes the first helper-based answer. **Q-B** |
 | 4 HIGH | 2.2 said "nothing is copied" and 3.3 said previews read the winner | Revision 3 removes the contradiction: the winner is copied (swapped) onto the card, A's data goes to A's row |
 | 5 MED | The cap of five is in more places | Named in 2.2 and step 2; the table's check stays |
@@ -282,7 +314,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 | 14 LOW | Client link never shows dropped tabs; 390 px; 44 px targets; the mockup shows every dead end | Section 8 and step 0 |
 
 **Questions A to D, with defaults** (the review's A to F; E and F were relayed by the supervisor and both match the plan as written):
-- **Q-A. Where do Posted and Scheduled live?** **Answered (~21:15):** once there is a winner, they are the winner's, on the winner's tab, which is the default. Before a winner: the Post control in the trial strip (3.4); Sidney asked for that to be said plainly, so 3.4 and Q-G, Q-H await his read.
+- **Q-A. Where do Posted and Scheduled live?** **Answered, then reworked (~21:30):** after a winner they are the winner's, on the winner's tab, which is the default. Before a winner a trial card shows neither: see 3.4 and Q-I to Q-L.
 - **Q-B. Does the winner show on Month and Week and get posted?** **Answered (~21:15):** yes, the card behaves as the winner everywhere. Built as the swap in 3.3.
 - **Q-C. Notes with no version prefix?** **Answered:** they sit under Whole post.
 - **Q-D. A card with A approved and B waiting on the client: does it stay in the client's queue?** **Answered:** yes, any version waiting for approval shows on that board.

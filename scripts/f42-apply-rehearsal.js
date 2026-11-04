@@ -353,11 +353,14 @@ async function rehearse() {
     if (!condition) throw new Error(`rehearsal_check_failed: ${name}`);
   };
 
-  if (!which('initdb') && !fs.existsSync('/usr/lib/postgresql/16/bin/initdb')) {
+  const cluster = new Cluster();
+  // The server binaries are needed only to start a private cluster. In external
+  // mode (CI: the postgres:16 service) the server is already running, and the
+  // runner image no longer ships PostgreSQL 16's initdb, which made this guard
+  // refuse every CI run before the rehearsal began (OPEN_REPAIRS 690).
+  if (!cluster.external && !which('initdb') && !fs.existsSync('/usr/lib/postgresql/16/bin/initdb')) {
     throw new Error('initdb_unavailable: PostgreSQL 16 server binaries are required for the rehearsal');
   }
-
-  const cluster = new Cluster();
   cluster.start();
   try {
     // 1. Foundation + prerequisite + pending migrations, in exact order.

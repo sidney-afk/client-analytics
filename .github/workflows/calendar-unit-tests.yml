@@ -98,7 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the changed-file list needs the merge base
+          filter: blob:none # history without old file contents (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -214,6 +215,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Full history WITH old file contents, not blobless (OPEN_REPAIRS 693):
+          # qa/native-label-catalog/write-proof.mjs reads an old commit's
+          # production-write source with on-demand fetching switched off, by design.
           fetch-depth: 0 # truth-sync verifies freshness anchors resolve and are ancestors
       - uses: actions/setup-node@v4
         with:
@@ -257,6 +261,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the diff scan needs the merge base
+          filter: blob:none # old file contents are fetched when read (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -512,7 +517,8 @@ jobs:
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
           Trial versions (V1): each version row's status picker is the card's own, behind trial_versions_v2, admin and SMM only|node test/trial-version-status-browser.js
           Trial versions (V3): each version's own thumbnail and caption behind trial_versions_v2, and the winner's copied onto the card with Undo|node test/trial-version-fields-browser.js
-          Trial versions (V4): the review page shows each version's own thumbnail and caption, one Approve covers its parts, a change picks its part|node test/trial-version-review-parts-browser.js
+          Trial versions on the card (688 part 2): Version A/B/C tabs on the picture in the Quiet look behind trial_versions_v2, the picked version's row, picture and caption shown read only, nothing written; desktop and phone|node test/trial-version-card-tabs-browser.js
+          Trial versions (V4, 688): the review boards' Version tabs, each version's own thumbnail and caption on its parts, one Approve covers its parts, a change picks its part|node test/trial-version-review-parts-browser.js
           Trial versions (V2): import several versions from a Frame folder behind trial_versions_v2, one all-or-nothing write|node test/trial-versions-import-browser.js
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           Trial reels round 2 on the card: the link rows' colour to the end, the state never cut, the versions read again by themselves, Client passed, the Notes player's shape|node test/trial-reels-round2-card-browser.js
@@ -587,6 +593,7 @@ jobs:
           Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)|node test/review-stage-finish-browser.js
           Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)|node test/review-stage-client-composer-browser.js
           Client review page polish behind its switch (Approve spinner then check, no wait cursor, a sent change keeps its box open, no Sending text, delete cross with a confirm, old page when off)|node test/review-client-polish-browser.js
+          A client deleting their own change request on a Production-linked part also deletes the Production copy (OPEN_REPAIRS 690)|node test/client-delete-front-door-browser.js
           Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
           Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
           Client link Sheet and Notes get the team's unread badges behind the same switch (one Synchro team picture, corner count for new, plain number for a waiting question, own notes never count, no staff names, no inbox read; today's look when off)|node test/client-unread-badges-browser.js
@@ -745,6 +752,22 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A client's change request after a reload on a slow line keeps its words, or says it was not saved (OPEN_REPAIRS 691; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-slow-words-browser.js
+      - name: A client's change request refused after a reload offers the words and Try again, and lands once (OPEN_REPAIRS 697; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_RETRY_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-retry-browser.js
+      - name: A trial version's refused change is sent again unchanged and lands once; a different one is still refused (OPEN_REPAIRS 699; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          TRIAL_RETRY_REQUIRE_WEBKIT: '1'
+        timeout-minutes: 6
+        run: node test/trial-change-retry-browser.js
       - name: Kasper's Redo on each part (Chromium and WebKit; the first click arms it and sends nothing, the second sends the fixed team-only note once and the part goes to Tweaks Needed, left alone it disarms; a post, a sample, phone width; never on the client's or the SMM's page; OPEN_REPAIRS 694)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -755,6 +778,12 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           WORKLOAD_REPORTS_REQUIRE_WEBKIT: '1'
         run: node test/workload-reports-browser.js
+      - name: Trial version tabs on the review boards in WebKit (688; the segmented control, each version's own parts once, the Trial chip, 1440 and 390)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          TRIAL_TABS_ENGINE: webkit
+          TRIAL_TABS_REQUIRE_WEBKIT: '1'
+        run: node test/trial-version-review-parts-browser.js
       - name: The content Calendar reports what goes wrong, like the review boards and Workload (a refused save and its landing, a reload during a save, a dropped press, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

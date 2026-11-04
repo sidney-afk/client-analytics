@@ -302,6 +302,31 @@ function missingSourceMark(fileId: string): string {
   return MISSING_SOURCE_MARKER + "[" + clean(fileId) + "]: ";
 }
 
+/* The second kind of source the scanner can never use: a thumbnail link to a
+ * Drive file that is readable but is NOT an image (a video or a PDF pasted into
+ * the thumbnail field). Like a 404 it is a property of the record, not of the
+ * run, so it fails identically on every lap until a person fixes the link; on
+ * 3 Nov one such card made the lane red about twice an hour (OPEN_REPAIRS 695).
+ * It gets its own marker, bound to the file the same way, so a 404 mark never
+ * makes a not-an-image failure read as known, nor the other way round. */
+const NOT_IMAGE_SOURCE_MARKER = "drive_not_image";
+
+function notImageSourceMark(fileId: string): string {
+  return NOT_IMAGE_SOURCE_MARKER + "[" + clean(fileId) + "]: ";
+}
+
+type NotImageError = Error & { driveNotImage?: true };
+
+function notImageError(): NotImageError {
+  const err = new Error("Drive file is not an image") as NotImageError;
+  err.driveNotImage = true;
+  return err;
+}
+
+function isNotImageError(e: unknown): boolean {
+  return !!e && typeof e === "object" && (e as NotImageError).driveNotImage === true;
+}
+
 type DriveStatusError = Error & { driveStatus?: number };
 
 function driveError(message: string, status: number): DriveStatusError {
@@ -360,7 +385,7 @@ async function imageBytesFrom(resp: Response): Promise<{ bytes: Uint8Array; cont
 
 async function downloadSnapshot(fileId: string, meta: DriveMeta): Promise<{ bytes: Uint8Array; contentType: string }> {
   if (!clean(meta.mimeType).toLowerCase().startsWith("image/")) {
-    throw new Error("Drive file is not an image");
+    throw notImageError();
   }
   // Drive thumbnailLink and drive.google.com/thumbnail can lag behind the
   // revision metadata that triggered this scan. Archive the authenticated
@@ -926,18 +951,24 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
        * instead of settling it. The `error` column still records exactly what
        * happened, per row, for anyone querying the table. */
       const driveGone = driveStatusOf(e) === 404;
-      const mark = missingSourceMark(sourceFileId);
-      const knownMissing = driveGone && clean(row.error).startsWith(mark);
+      /* A readable file that is not an image joins the same subset (see
+       * NOT_IMAGE_SOURCE_MARKER): still inside `failed`, NEW the first time a
+       * file is seen that way, KNOWN after. Only these two typed kinds qualify;
+       * every other error stays a real failure on every lap. */
+      const notImage = !driveGone && isNotImageError(e);
+      const unusable = driveGone || notImage;
+      const mark = notImage ? notImageSourceMark(sourceFileId) : missingSourceMark(sourceFileId);
+      const knownMissing = unusable && clean(row.error).startsWith(mark);
       out.failed++;
-      if (driveGone) {
+      if (unusable) {
         out.missing_source++;
         if (!knownMissing) out.missing_source_new++;
       }
-      const stored = driveGone ? mark + msg : msg;
+      const stored = unusable ? mark + msg : msg;
       await input.supabase.from("thumbnail_media_revisions")
         .update({ error: stored.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", id);
-      out.items.push({ id, status: driveGone ? "missing_source" : "failed", error: msg });
+      out.items.push({ id, status: driveGone ? "missing_source" : notImage ? "not_image_source" : "failed", error: msg });
     }
   }
 

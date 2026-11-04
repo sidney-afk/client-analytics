@@ -34,6 +34,10 @@
  * drives it, so a test run's report is never counted as a person's); added to the golden by hand. The approve and
  * request-changes requests, and every source hash, are unchanged.
  *
+ * OPEN_REPAIRS 699 (2026-11-04): only the _calReviewRequestTweak hash was re-pinned. The change is in its conflict
+ * branch only (a change request refused as "still being confirmed" is now reported to the refusal log, codes only);
+ * the client's approve and request-changes requests above are unchanged.
+ *
  * OPEN_REPAIRS 626 (2026-11-01): the two write-diagnostics REPORTS gained `env` (the browser store's fill, numbers
  * only), added to the golden by hand with the numbers normalised; the approve and request-changes requests, and every
  * source hash, are unchanged.

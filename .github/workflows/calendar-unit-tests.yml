@@ -768,7 +768,7 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           TRIAL_RETRY_ENGINES: webkit
         run: |
-          git show origin/main:test/trial-change-retry-browser.js > test/zz-trial-retry-main.js 2>/dev/null || git show HEAD~1:test/trial-change-retry-browser.js > test/zz-trial-retry-main.js
+          curl -fsSL https://raw.githubusercontent.com/sidney-afk/client-analytics/452e257ebd0bd237591e2103aa34027b265562a7/test/trial-change-retry-browser.js -o test/zz-trial-retry-main.js
           for i in $(seq 1 $(( $(nproc) ))); do (timeout 1300 sh -c 'while :; do :; done' &) ; done
           for f in test/zz-trial-retry-main.js test/trial-change-retry-browser.js; do
             for r in 1 2 3 4; do

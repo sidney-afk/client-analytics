@@ -108,6 +108,8 @@
     "analytics-same-day-rows-count-once.js",
     "analytics-top-videos-collect-function.js",
     "analytics-top-videos-collect.js",
+    "analytics-weekly-followers-function.js",
+    "analytics-weekly-followers.js",
     "anon-read-scope-migrations.js",
     "app-update-floor.js",
     "app-update-nudge.js",

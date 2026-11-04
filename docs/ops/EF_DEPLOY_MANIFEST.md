@@ -10,8 +10,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 70 |
-| Main-push plus manual-dispatch paths | 65 |
+| Deployable function slugs | 71 |
+| Main-push plus manual-dispatch paths | 66 |
 | Manual-dispatch-only paths | 3 |
 | No CI deploy path | 4 |
 | Deliberate-manual subset of no-CI paths | 6 |
@@ -25,6 +25,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `analytics-metrics-collect` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/analytics-collect-live.mjs`<br>`_shared/analytics-metrics-collect.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `analytics-read` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `analytics-top-videos-collect` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/analytics-collect-live.mjs`<br>`_shared/analytics-top-videos-collect.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
+| `analytics-weekly-followers` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml) | main push (auto, in order) | `_shared/analytics-weekly-followers.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `analytics-write` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard)<br>dispatched on merge by deploy-on-merge (the lane captures the rollback bundle itself) | `_shared/b4-write.ts` | - |
 | `brain` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/change.mjs`<br>`brain/parse.mjs` |

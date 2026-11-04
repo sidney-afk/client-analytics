@@ -1921,6 +1921,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsSyncTheme();
         _rsSizeTop();
         _rsAfterReload();
+        // A change left only in the delivery record (697): once this page has its cards, and again shortly after in
+        // case they were still loading.
+        if (mode === 'client' && !_rsGatesAdopted) { _rsGatesAdopted = true; [0, 2000, 6000, 12000, 20000, 30000].forEach(ms => setTimeout(_rsAdoptStaleGates, ms)); }
     }
     function _rsSizeTop() {
         if (!R.host) return;
@@ -2673,11 +2676,57 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode === 'kasper') { const it = m.item; return it && !m.sample && it._errors && it._errors[k] ? String(it._errors[k]) : ''; }
         return String(_calReviewState.errors[m.id + '|' + k] || '');
     }
-    /* Save problems on this post, whichever part is on stage (the stage moves on to the next part while a save
-       runs): a refused save says why, with Try again; a save with no answer after a few seconds says so. */
+    /* A client's change request that this page did not send itself and that was refused here: the next page's re-send
+       of a change the reload cut off (the Calendar's recovered save and the client queue), or a change left only in
+       this browser's delivery record (below). The stage gave Try again only for its own sends, so the part said "Not
+       saved" with an empty box and nothing to press, and nothing sent the change later (OPEN_REPAIRS 697). Its words
+       are the Calendar's draft for the part; Try again sends them through the stage with the same action id
+       (draftActionIds), which the tweak inspection takes for the same change, so pressing it never adds a copy. */
+    function _rsAdoptRefused(m, k) {
+        const key = m.id + '|' + k, words = String(_calReviewState.drafts[key] || '').trim();
+        if (!words) return;
+        R.S.retry[key] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, k, words, { where: '' }); };
+        R.S.retryText[key] = words;
+    }
+    /* After a reload a change can be left only in this browser's delivery record: its re-send was refused, the client
+       queue let it go (a refusal is not retried by itself), and nothing sends the record. The next page showed the card
+       as if nothing had been asked. A record for this client link's card and part, at least 15 s old, that the card
+       does not show, with no save of that part running here, is put back as not sent: its words and action id become
+       the part's draft, so the part says so with Try again (above). Read a few times in the page's first 30 s (a record
+       can still be young when the page opens), each record at most once. */
+    let _rsGatesAdopted = false;
+    const _rsGatesSeen = new Set();
+    function _rsAdoptStaleGates() {
+        if (R.mode !== 'client') return;
+        const posts = (typeof calState !== 'undefined' && calState.posts) || [];
+        if (!posts.length) return;
+        let changed = false;
+        try {
+            _linearOutboxRead().forEach(it => {
+                const g = it && it.source_gate;
+                if (!g || it.transport !== 'source_only' || g.surface !== 'calendar' || g.comment_is_tweak !== true) return;
+                const pid = String(g.post_id || ''), comp = String(g.component || ''), id = String(g.comment_id || ''), body = String(g.comment_body || '').trim();
+                if (!pid || !comp || !id || !body || Date.now() - Number(it.queuedAt || 0) < 15000) return;
+                const post = posts.find(p => p && String(p.id) === pid);
+                if (!post) return;
+                const key = pid + '|' + comp;
+                if (_rsGatesSeen.has(id) || _calReviewState.saving[key] || _calSaveInFlight[pid] || _calReviewState.errors[key]) return;
+                _rsGatesSeen.add(id);
+                let notes = [];
+                try { notes = JSON.parse(post[comp + '_tweaks'] || '[]'); } catch (e) { notes = []; }
+                if ((Array.isArray(notes) ? notes : []).some(n => n && (String(n.id || '') === id || String(n.body || '').trim() === body))) return;
+                _calReviewState.drafts[key] = body;
+                _calReviewState.draftActionIds[key] = id;
+                _calReviewState.errors[key] = 'Your change request was not sent.';
+                changed = true;
+            });
+        } catch (e) {}
+        if (changed) _rsRender();
+    }
     function _rsSaveIssue(m, k, onStage) {
         const S = R.S;
         const key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
+        if (err && !editError && R.mode === 'client' && !S.retry[key]) _rsAdoptRefused(m, k);
         const who = k === onStage ? '' : RS_PART[k] + ': ';
         if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _rsClientWords(err) : err) + (R.cp && S.cpBack[key] ? ' Your next words are back in the box.' : '')) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
         // Offline, the wait is the client's own connection, as the toast below already says (OPEN_REPAIRS 614).

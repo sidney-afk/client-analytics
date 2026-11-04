@@ -37016,3 +37016,23 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Way back:** revert the PR, or take the client off `trial_versions_v2`.
 - **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
 - **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.
+
+## 697. [2026-11-04 UTC, BUILT, NOT MERGED] A client's change request refused after a reload: no Try again, no words, and nothing ever sent it (session Reviewguard)
+
+- **Found:** while checking why 691's case 3 missed "Try again" in WebKit on #2592 (run 41780677570). It was not a race. That check read the page's text for "try again", and the refusal's own wording ("Please try again.") passed it in Chromium with no button on the page. In WebKit the wording differed, so it missed.
+- **Measured on main (fixture, Chromium):** a client asks for a change on the video, the page reloads mid-save, and the next page's re-send is refused.
+  - The part said "Not saved… Please try again." with an empty change box and no Try again button.
+  - Once the line answered again, nothing re-sent the change, on that page or on the next load (45 s each). One source-only delivery record (`syncview_linear_outbox_v1`) stayed, with the words, never delivered: a refusal is not retried by itself, and the client queue had let the entry go.
+  - On the next load the error was gone too: the card looked untouched, and the client's words had never reached the server.
+  - So the save could be lost: unless the client typed it again, it never arrived.
+- **Cause:** the review stage offers Try again only for changes it sent itself on that page (`S.retry`). After a reload the re-send comes from the Calendar's recovered save and the client queue, so a refusal there had no Try again, and its words stayed in the Calendar's draft, which the stage does not show.
+- **Fix (195, page only; no server, Edge Function or migration change):**
+  - A client-link part refused on this page with no Try again of its own gets one built from the Calendar's draft for the part, with the words under "Your unsent words".
+  - Try again sends them through the stage with the same action id (`draftActionIds`), which the tweak inspection takes for the same change, so pressing it never adds a copy.
+  - On a new load, a delivery record for this client link's card and part, at least 15 s old, whose change the card does not show, with no save of that part running, is put back as not sent: its words and action id become the part's draft, so the part says so with Try again. It is read a few times in the page's first 30 s, each record at most once.
+- **Test:** `test/review-reload-retry-browser.js`, new, Chromium and WebKit (WebKit required in CI):
+  1. same page: a real Try again button and the words offered back; once the line answers, Try again lands the change, and after another reload there is exactly one copy on the server;
+  2. new load: the part still says it was not sent, with the words and Try again, and Try again lands it exactly once.
+  - Both fail on main in Chromium. 691's case 3 now checks for the real button and the words, not the text, and also fails on main.
+- **Unchanged and passing (Chromium):** client-review-queue, client-review-queue-behavior, client-review-requests-unchanged (37), review-stage-save, review-stage, review-stage-client-composer, review-board-gauntlet, prod-write-gateway-browser, write-ui-repair-races, samples-write-guard-browser, review-reload-slow-words.
+- **Way back:** revert the PR. The gap returns; nothing else changes.

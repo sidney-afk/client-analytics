@@ -2160,6 +2160,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-reload-retry-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_RETRY_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, slow and refusing writes switched at run time), fictional client and cards, no hosted credentials and no live data. The client link: a change request, a reload while it saves, and every later write refused: the part shows a real Try again button and offers the words back, and Try again lands the change exactly once, also after another reload; on a new load the part still says it was not sent, with the words and Try again, and lands once (failed on main: no button, no words, and nothing ever sent the change).",
+      "reproduce": "node test/review-reload-retry-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

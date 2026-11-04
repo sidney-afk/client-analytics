@@ -36988,3 +36988,31 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - So a non-image source goes red the first time it is seen (`missing_source_new`), then stays green on later laps for the same file. Re-linking to another non-image file is new again. A 404 mark never makes a not-an-image failure read as known, nor the other way round. Every other error kind stays a real failure on every lap. The caller's exit rule is unchanged.
 - **Proof:** `test/thumbnail-revision-scan-deno.ts` (new, rides the Edge Function type ratchet lane) drives `scanPendingThumbnailRevisions` against an in-memory database and a stubbed Drive. **main:** `a non-image source is in the known-unusable subset (got 0, want 1)`; **this branch:** `27 checks passed`. `test/thumbnail-revision-scheduler.js` passes with its marker assertion widened to both kinds. The Deno type ratchet reports no new errors.
 - **Still for a person:** the card's thumbnail link should point at the image. Its team fixes it on the page (it is not the test client, so no session edits it). Until then the row stays pending with the mark and the lane stays green for it.
+
+## 688. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: the review boards show a version's own three parts once, as "Version A, B, C" tabs (part 1 of 3: the review boards)
+
+- **Seen:** Sidney picked option B from the three version-tab samples (the realistic ones were built on the real app, read only). He asked for three changes:
+  - "Version A / B / C", never "Video A";
+  - a clear "Trial" label on the review boards;
+  - Kasper should not see the caption twice: "shouldn't he see 3 components for each version?"
+- **Why the caption showed twice:** under the version switch, V4's "Video B's thumbnail and caption" block showed B's own thumbnail and caption. Below it, the stage's Thumbnail and Caption parts still drew the card's, which belong to Version A. The client link and the SMM tab did the same.
+- **Fix, behind `trial_versions_v2` (test client only), on the client link, the SMM's Review tab and Kasper's Review Session:**
+  - The versions are one segmented control, "Version A, B, C", in place of the dots and of Kasper's tiles. Each segment is coloured by where that version stands for this reviewer (approved, change asked, or waiting at this stage). A phone shows the letters only.
+  - The stage's own Video, Thumbnail and Caption parts show the selected version's player, thumbnail and caption (its own, else the card's), each once. The separate block is gone, and no card caption sits beside a version's. The player's still image is the version's thumbnail too.
+  - Each part keeps its own state and actions:
+    - one "Approve Version B" on the video covers the version's parts, as V4 decided;
+    - the Thumbnail and Caption parts each have their own Ask for a change, which goes on that version with its part ("Version C, thumbnail: …");
+    - an answered version reads "Version B approved" or "Change asked on Version C's thumbnail" on each part.
+    - A version has one status in trial-reels, so a per-part approve inside a version would need a migration; it is not built.
+  - Kasper sees the selected version's own Approve, change and drop beside the control, and Approve all.
+  - A trial card carries a quiet "Trial" chip on the client's and SMM's strip and on Kasper's list.
+  - A version that is not the one on the card shows its caption but does not edit it on the stage. The version on the card edits as before.
+  - Change notes are named "Version C: …" with the switch on. Every reader of those names accepts both "Video" and "Version".
+- **Proof:** `test/trial-version-review-parts-browser.js` rewritten for 688, 40 checks. On main, 15 of 37 fail. It covers:
+  - the client link: the control, the parts per version, the caption shown once, the chip, a thumbnail change on its part, a Drive thumbnail, and a broken one that hides;
+  - the SMM tab, Kasper's second layout, and the phone at 390;
+  - the switch off, where the page is today's word for word.
+- **Not in this part:** the Calendar card's tabs (part 2), and the remaining "Version" wording on the card, in Production, in the Post tab and in trial-reels' own notes (part 3).
+- **Way back:** revert the PR, or take the client off `trial_versions_v2`.
+- **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
+- **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.

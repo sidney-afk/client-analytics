@@ -37060,3 +37060,31 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **`test/trial-reels-round2-review-browser.js`, its refused-change case:** it refused the save with the fixture's 503 (`writeFail`), which the client queue reads as the line being down and sends again. On main that re-send met this bug and ended as a refusal with Try again, which the case expected; with the fix the re-send is accepted and the page says "Still waiting… Nothing is lost", as it should for a 503. The case now refuses with a 400 and a code (`writeRefuse`, new in the shared fixture), a refusal the queue does not send again, and still expects no "Change sent" and Try again. It passes 230 of 230 on main and with the fix.
 - **Unchanged and passing (Chromium):** trial-version-review-parts (44), trial-reels-review (75), trial-reels-change-naming, trial-reels-race, client-review-requests-unchanged (37), client-review-queue, client-review-queue-behavior, client-request-linked-status-push (19), client-comment-lane-routing, client-entry-legacy-resume-lease, calendar-pinned-gate-migration, legacy-route-deferred-source-checkpoint, linear-project-source-gate, samples-legacy-save-order, write-ui-writer-durability, write-ui-repair-races, prod-write-gateway-browser, samples-write-guard-browser.
 - **Way back:** revert the PR. A trial change refused once is again stuck; nothing else changes.
+
+## 698. [2026-11-04 UTC, BUILT, NOT MERGED] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
+
+- **Seen:** main 555d9fa (run 41768158269), the review stage's first-frame guard: "1440x900 dark: the player is there in the end (null)". PR #2592 (run 41780677570), "Calm Workload for everyone" died with `page.goto: Target page, context or browser has been closed`. main 4ff002e passed the same job.
+- **Measured (session Guardcrash):** all 49 part-2 suites on 3 lanes, on a 4-CPU, 16 GB machine like the runner, sampled every 2 s.
+  - Memory used peaked at 1.7 GB.
+  - /dev/shm stayed at 0 MB.
+  - No suite kills processes or closes another lane's browser.
+  - The CPU was full: load averaged 3.4 and peaked at 4.6 on 4 CPUs.
+  - Memory is not the cause; the cause is two waits that run on the wall clock.
+- **Cause 1, `test/review-stage-first-frame-browser.js`:** the end state was read after a fixed 2.6 s sleep. On an idle machine the player arrives about 1.3 s before that read, and with CPUs busy about 1.2 s before it. A stall longer than that on a loaded runner left the media box empty at the read, which reads as `null`. The recorded frames showed no fallback and no icon, only a player that had not arrived yet.
+- **Cause 2, `docs/syncview-design/tests/workload-calm-all-browser.js`:** the hint case polls the page with `page.evaluate` while the `page.goto` it started is still running. That has two races:
+  - a read that lands while the document swaps throws "Execution context was destroyed";
+  - a read that lands before the commit sees the calm page being left, whose `.workload-day` cells count as "the old calendar painted".
+  - Reproduced by polling every 2 ms: 6 of 6 runs crashed, and with the crash fixed, 2 of 8 still failed on the old document.
+  - Either throw ran the `finally`, which closed the browser under the goto nobody awaited. That unhandled rejection killed Node with the goto's message, so the log named the wrong cause.
+- **Fix, tests only (no check is loosened, skipped or retried; every fixed sleep that read an end state is now a bounded wait on the condition, with a message that names it):**
+  - **First frame:** records until the player has arrived (bounded at 20 s, failing as "the player arrives within 20 s of the stage") and 30 frames more, never for a fixed time. Every frame is judged by the same rules.
+  - **Calm all:** the reload is awaited to its commit (`waitUntil: 'commit'`) before the first read, so every read is of the new page and no browser is closed under a pending goto. The hold is polled for up to 10 s; the switch read is gated until `release()`, so waiting longer loosens nothing. After release, "calm on" is waited for (bounded at 20 s) instead of read after a fixed 1.2 s, and the no-swap-back check still holds 1.2 s after that.
+  - **Every lane run (`scripts/ci-lanes.js`)** ends with a "runner headroom" line: the lowest available memory, the /dev/shm peak, and the peak load against the CPU count. A later "browser died" can then be told apart from an out-of-memory at a glance.
+- **Proof, failing on main under CPU load first:**
+  - **First frame:** with the first-load switch answer 1.4 s late (what a stall on a loaded runner does), main fails 4 of 8 cases with the CI signature: `the player is there in the end (null)`, no fallback. The fix passes all of them.
+  - **Calm all:** pinned to one CPU with two busy loops and run at nice 15, main died 3 of 3 times with `page.goto: Target page, context or browser has been closed`; the fix passed 7 of 9 at that load.
+    - The two misses were "calm on within 20 s" at about a twentieth of a CPU. That is far below a runner, and the cause is not established.
+    - At one busy loop, main died 1 of 3 and the fix passed 3 of 3.
+  - `test/ci-lanes.js` checks the headroom line (15 checks).
+  - The PR's browser-guards jobs print the headroom line.
+- **Not this:** the WebKit tab crash in repair-checkpoint (#2576, `review-reload-landed-browser`, another job and engine) is traced on its own PR.

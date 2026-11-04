@@ -164,8 +164,8 @@ The stored card status stays **Scheduled** while the trial runs, and becomes **P
 
 | | Today | New (on `trial_versions_v2` clients) |
 |---|---|---|
-| What starts the trial | Once the card is **Posted** (the robot turns Scheduled into Posted at the **end** of the scheduled day), any read of the card puts every approved version on trial (`autoTrialPatches`, OPEN_REPAIRS 570) | **The morning of the scheduled date, from 06:00 US Eastern** (a check every 15 minutes, when the gate passes), or a person presses Start trial. `autoTrialPatches` does not run for these clients. Non-trial cards still turn Posted at the end of the day, unchanged |
-| What the card reads | Scheduled, then Posted at the end of the date | Scheduled, then the Trial label on the morning of the date, then Posted with the winner |
+| What starts the trial | Once the card is **Posted** (the robot turns Scheduled into Posted at the **end** of the scheduled day), any read of the card puts every approved version on trial (`autoTrialPatches`, OPEN_REPAIRS 570) | **When the reels are sent from the Post tab** (default S2), or a person presses Start trial; **from 06:00 US Eastern on the scheduled date** only as a fallback when nothing went through SyncView. `autoTrialPatches` does not run for these clients. Non-trial cards still turn Posted at the end of the day, unchanged |
+| What the card reads | Scheduled, then Posted at the end of the date | Scheduled, then the Trial label once the reels are sent (or from the morning fallback), then Posted with the winner |
 | The clock | `trial_ends_at` = start + 24 h; "On trial · 17 h left"; the winner is refused until then (`trial_not_over`) | No clock on screen. The winner can be picked any time. `trial_ends_at` left empty for new trials; old rows keep theirs |
 | Unapproved versions | Whatever was approved at that moment goes on trial; the rest are left out | Cannot schedule or start with one unapproved; the date start waits |
 | Losers | "lost" | "Not chosen" |
@@ -177,7 +177,7 @@ The stored card status stays **Scheduled** while the trial runs, and becomes **P
 
 **Risks:**
 - **Two ways to start for a while:** clients on the switch use the new rules, others the old automatic start. `trial-reels` and the due() SQL branch on `trial_versions_v2`, and a test covers both. **Cards already Posted or already on trial when the flag reaches a client finish on the old rules** (Q-P).
-- **The morning start (3.4)** is a new check (default: a small new function; the Posted robot stays untouched for other cards). Step 1a settles it, that it is idempotent (a card already on trial is not started twice), that it respects the gate, whether it needs a fingerprint re-pin, and the hour (06:00 US Eastern proposed, one setting). Because the trial now starts about a day-part before the Posted robot would have run, a v2 trial card must never also reach the end-of-day Posted robot.
+- **The start (3.4)** is the Post tab's send, with the on-read morning rule as the fallback (a rule in `trial-reels`, no new function). Step 1a settles that it is idempotent (a card already on trial is not started twice), that it respects the gate on counted versions, the watchdog signal and whether either needs a fingerprint re-pin. The due() skip applies only while the trial is open (3.4), so a trial that ended or has one live version falls back to the ordinary Posted robot.
 - **A card can become Scheduled or Posted another way** (a Production work item or SyncLinear moved through the status bridge). **The gate must hold on the server**, not only in the button: a v2 trial card that arrives at Scheduled with a live version unapproved does not start a trial; one that arrives at Posted does not start or end a trial or hide versions. Both are ignored for the trial and **warned about on the strip**. Step 1a lists every way in for both words.
 - **A trial that waits for an unapproved version** needs a clear strip message, or it looks stuck. It is in the mockup.
 - **Every reader of the 24 h** (the card's countdown, the Production line, the nightreel check, `trial_not_over`, the journey tests) must stop expecting it; step 5 owns this with its tests.
@@ -186,7 +186,7 @@ The stored card status stays **Scheduled** while the trial runs, and becomes **P
 
 **Questions for Sidney: all answered** (Q-G and Q-H were dropped; Q-I to Q-O are recorded below).
 - **Q-M.** **Answered:** yes, Trial is a label on the strip, tabs and Month and Week; the stored card status stays Scheduled until the winner.
-- **Q-N.** **Answered:** the trial starts on the **morning** of the scheduled date, not at the end of the day. Built as above (06:00 US Eastern proposed; Posted for ordinary cards stays as it is, at the end of the day).
+- **Q-N.** **Answered (4 Nov), and under review:** the trial starts on the morning of the scheduled date. The second review found this freezes versions before the Post tab sends them, so by default (S2, section 14) the **send** is the start and 06:00 ET is only the fallback. This stands until Sidney answers S2.
 - **Q-O.** **Answered:** hold. A version sent back after scheduling (for example the client asks for changes on an approved version) holds the trial until it is approved or dropped; the strip says so.
 
 ### 3.5 How the Production tab looks for a trial card (Sidney's question, 4 Nov)

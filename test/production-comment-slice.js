@@ -769,7 +769,7 @@ function snapshotFor(calendar, sxr, mutateManifest, deliverables) {
   // before the deferred CAS so a committed response-loss retry adopts the first
   // result instead of 409-ing on the already-advanced row.
   const dispatchAt = writer.indexOf('const currentRow = lifecycleRow as JsonMap;');
-  const dispatch = writer.slice(dispatchAt, dispatchAt + 1600);
+  const dispatch = writer.slice(dispatchAt, dispatchAt + 2000);   // 690 added the already-deleted no-op branch
   ok(dispatchAt > 0
     && /readLifecycleReceipt\(\s*supabase, dedup, productionCommentId, action, fingerprint/.test(dispatch)
     && dispatch.indexOf('readLifecycleReceipt(') < dispatch.indexOf('write_conflict')

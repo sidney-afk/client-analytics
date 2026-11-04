@@ -453,6 +453,29 @@ async function attachThreeImagesAndCaption(page, caption) {
     }
 
     /* ---------------------------------------------------------------- *
+     * 4b. A remount right after typing keeps the caption (OPEN_REPAIRS 700) *
+     * ---------------------------------------------------------------- */
+    // The caption box saves the draft 400 ms after the last key, and the mount reads the draft back into the form. A
+    // remount inside those 400 ms read the draft from before the caption and emptied it, with the photos still there:
+    // exactly the CI miss of attachThreeImagesAndCaption on #2599 (photos 3/3, caption 0 in state and box). The
+    // remount here goes through the page's own navigation, the path every mount of this tab takes.
+    {
+      const { page, pageErrors } = await bootToTiktokUpload(browser, port, {});
+      await page.setInputFiles('#tkPhotoFile', TEST_IMAGES);
+      await page.waitForFunction(() => document.querySelectorAll('.tk-photo-item').length === 3);
+      await page.fill('#tkTitle', 'Remount journey test caption');
+      const lengths = await page.evaluate(() => { const before = tkState.title.length; navTo('tiktok-upload', false); return { before, after: tkState.title.length }; });
+      ok('the caption was typed before the remount (' + lengths.before + ' characters)', lengths.before === 'Remount journey test caption'.length);
+      check('a remount within 400 ms of typing keeps the caption in the form state', lengths.after, lengths.before);
+      await page.waitForSelector('#tkTitle');
+      check('the caption box shows it after the remount', await page.$eval('#tkTitle', el => el.value), 'Remount journey test caption');
+      ok('the three photos are still there after the remount', await page.$$eval('.tk-photo-item', els => els.length === 3));
+      ok('Submit is enabled after the remount', await page.$eval('#tkSubmit', el => !el.disabled));
+      ok('no page errors around the remount', pageErrors.length === 0);
+      await page.close();
+    }
+
+    /* ---------------------------------------------------------------- *
      * 5. Reorder/remove keep keyboard focus usable, not dropped to body *
      * ---------------------------------------------------------------- */
     {

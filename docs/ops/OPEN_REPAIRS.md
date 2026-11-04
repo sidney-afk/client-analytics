@@ -36526,7 +36526,7 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Next:** once the next report says which error it is, the cause is fixed in its own PR, failing-first.
 - **Way back:** revert the PR.
 
-## 682. [2026-11-03 UTC, BUILT, NOT MERGED] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
+## 682. [2026-11-03 UTC, LIVE (merged #2562 as 4e0c3a5; Gauntlet Three all green on main 7c23fce, run 41632766799)] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
 
 Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six main runs (`e77b492` at 1024, `36e1536` at 1920), each time only on `client <width> Notes dialog two-tabs delete: locator.waitFor: Timeout 15000ms exceeded`. All 336 other checks passed, two-tabs reply and edit included.
 
@@ -36542,6 +36542,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - On main the second tab's data did refresh (its copy of the note reads deleted), but the open Notes still drew the deleted note until Notes was closed and reopened. A background load redraws the cards and the Notes dots, never the open Notes.
 - **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
 - **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
+- **LIVE (2026-11-03, supervisor's read; recorded by Chanfix):** merged in #2562 (`4e0c3a5`). The open-tab delete case ran on main in Gauntlet Three for `7c23fce` (Calendar unit tests run 41632766799): all 9 engine and width legs green, Firefox at 1024, 1440 and 1920 included. A later Firefox red on the two-tabs open (the second tab's first Notes click left the dialog shut) is a different defect and is tracked as 689.
 
 ## 651. [2026-11-03 UTC, LIVE 2026-11-03: merged as 7c23fce; the D6 check passed on one of the owner's own clients, Instagram run 41632986793 and TikTok run 41633117059, each scheduled, cancelled at once and read back as cancelled] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
 
@@ -36817,6 +36818,30 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - **WebKit:** not run, because it is not installed in the session sandbox. It goes through a hand-run workflow.
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
+
+## 689. [2026-11-03 UTC, BUILT, NOT MERGED] Gauntlet Three, Firefox: a second tab's first Notes click left the dialog shut; not reproduced in about 130 local Firefox two-tab tries, so the miss now records the click's whole path (session Chanfix, test only)
+
+Main run 41652850035 (`0320346`), review-gauntlet-three Firefox, two jobs, one case each: `client 1440 Notes dialog two-tabs reply` (job 126002198251) and `client 1920 Notes dialog two-tabs delete` (job 126003393869). 682's step diagnostics named the step both times: "its Notes box shows", 15 s, after "open its Notes" took 128 and 135 ms. The second tab had the card and its notes, was not loading and was visible, but the Notes dialog was never open (no rows drawn, no composer). The first tab was fine. The same cases were green on `7c23fce` and on the other legs of this run.
+
+- **Reading.** The second tab's one click on the card's Notes button (no retry, by design) landed, and nothing opened.
+- **Firefox, locally this time.** Playwright 1.63's own Firefox was fetched into the session scratchpad, a separate folder, so the pre-installed Chromium was left alone. Nothing failed:
+  - the three two-tabs cases at 1440, 16 times, four runs in parallel: 48 of 48;
+  - the full client dialogs set at 1440, three runs in parallel: 111 of 111;
+  - the whole Gauntlet Three in CI order (regressions, matrix, auxiliary, dialogs, refusals; client and reviewer) at 1440 and at 1920 side by side: 338 of 338 each;
+  - a probe of the exact two-tab order (first tab adds a note, then a fresh second tab clicks once), 60 tries in four parallel runs at 1440 and 1920: 60 opened.
+- **Ruled out, with Firefox evidence:**
+  - *The click lost to a redraw.* Pressing the Notes button and holding it while a background refresh lands, or while the whole Sheet body is redrawn, keeps the same button node, and the release still opens the dialog. The existing case "Sheet Notes door click lost to a re-render" also passed in that run.
+  - *The client link's held open.* On a client link, Notes waits for the player's switch read (`openCalComments`, `svFrameFlagWait`). With that read slowed to 3, 6 and 20 s, the first click still opened at about 3.1, 4.0 and 4.1 s, in both Firefox and Chromium. It never waits 15 s.
+- **So no page change in this PR.** Not reproduced, so there is no failing-first case to fix against, and the test still clicks once (no extra wait, no second click).
+- **What the next miss will say.** On a miss, the second tab's state now carries:
+  - a trail from just before its click: press, release and click, each with its target (the Notes button or what else) and whether it was still attached;
+  - any redraw of a Notes button;
+  - "open asked" when the page's `openCalComments` is called;
+  - the dialog opening or closing, with the view at that moment;
+  - its current view, and when it asked for and got the player's switch.
+  
+  That separates a click that never reached the button, a click that reached it with no open asked, an open that was asked and held, and an open that happened and was closed again. Fictional fixture data only.
+- **Next:** the next Firefox red decides the fix, made failing-first in its own change. Way back: revert the PR.
 
 ## 687. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab after the owner tried it: From Content Calendar first in a quieter row, and YouTube and LinkedIn as their own sides (session Pbuild)
 

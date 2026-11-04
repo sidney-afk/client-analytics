@@ -62,11 +62,12 @@ const releaseHung = t => { const h = t.state.hung || []; t.state.hung = []; h.fo
 // review-stage-phone and review-stage-player-leaving fixed the cause of the same wording, because there it was a
 // page fault (a request asked again after its page had moved on).
 const pageErrors = t => t.errors.filter(e => !/\/functions\/v1\/(production-write|write-diagnostics) due to access control checks/.test(e));
-// reload: a real reload of the same tab (what a person's Cmd-R does), not the page opened again by its address.
-// On a reload the requests the fixture holds are dropped as the reload starts, as a browser cancels its requests in
-// flight: held through it, WebKit's tab hung and crashed 29 s in (Kasper's reload never came back, 4 Nov).
+// reload: the same tab loaded again where Cmd-R on Kasper's board lands (the /kasper route stub hands the page to
+// /?sv_path=/kasper#kasper), not the page opened again by /index.html. The requests the fixture holds are dropped as
+// it starts, as a browser cancels its requests in flight.
+// Not page.reload(): Playwright-WebKit crashes on the stub's location.replace hop, which real Safari runs on every Cmd-R (Kasper, daily, no reports).
 async function goKasper(t, origin, afterGoto, reload) {
-  if (reload) { const r = t.page.reload({ waitUntil: 'domcontentloaded' }); if (afterGoto) afterGoto(); await r; afterGoto = null; }
+  if (reload) { const r = t.page.goto(origin + '/?sv_path=/kasper#kasper', { waitUntil: 'domcontentloaded' }); if (afterGoto) afterGoto(); await r; afterGoto = null; }
   else await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   if (afterGoto) afterGoto();
   await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });

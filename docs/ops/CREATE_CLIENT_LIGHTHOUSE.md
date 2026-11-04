@@ -167,7 +167,8 @@ row, so no channels. Every real client fills the form today, so this is not need
 change: in **Client - Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) add a Webhook node `Enqueue From
 SyncView` (POST `/webhook/slack-creative-enqueue`, header auth with the existing "Roster service key" credential)
 followed by a Code node that builds `client_name`, `email`, `viewer_slug`, `client_key` (`email|viewer_slug`),
-`channel_name`, a `kickoff` text (same template as provisioning's, with "No onboarding form yet") and a one-line
+`channel_name`, a `kickoff` text (only its Account access block is used since OPEN_REPAIRS 696: the finalizer builds the
+posted kickoff itself at finalize time; here it would say "No onboarding form yet") and a one-line
 `form_brief`, then a Data Table "Insert" into **Slack Creative Channel Queue** (`SLpem4MfCeVoli4G`) with
 `status: pending` only when no row with that `client_key` exists. Create client would then call it for real
 clients with no form on file. Undo: delete the three nodes.

@@ -181,7 +181,7 @@ const SHARE = 'https://f.io/fixture-folder';
       ok(sent.length === 1 && JSON.stringify(sent[0].items) === JSON.stringify([{ letter: 'B', link: FILE(1) }, { letter: 'C', link: FILE(3) }]),
         `${label}: one versions_import with exactly the picked letters and links (${JSON.stringify(sent[0] && sent[0].items)})`);
       ok(!(await page.$('#trlImportOverlay.open')), `${label}: the sheet closes after the import`);
-      ok(/Video C/.test(await listText(page)) && T.versions.find((x) => x.letter === 'B').frame_url === FILE(1), `${label}: the card lists the imported versions`);
+      ok(/Version C/.test(await listText(page)) && T.versions.find((x) => x.letter === 'B').frame_url === FILE(1), `${label}: the card lists the imported versions`);
       await page.close();
 
       // Replacing an answered version asks first; a refused import writes nothing and says why.
@@ -195,7 +195,7 @@ const SHARE = 'https://f.io/fixture-folder';
       await sleep(800);
       await page.click('#trlImportOverlay .cal-import-btn-primary');
       await sleep(400);
-      ok(await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active') && /Video B was already answered/.test(document.getElementById('confirmMsg').textContent)),
+      ok(await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active') && /Version B was already answered/.test(document.getElementById('confirmMsg').textContent)),
         `${label}: replacing an answered Video B asks first`);
       T.importFail = 'conflict';
       await page.click('#confirmYes');

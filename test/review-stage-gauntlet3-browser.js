@@ -517,6 +517,7 @@ function notesState(page, id, rootId) {
       notes_open: !!document.querySelector('#calCommentsOverlay.open'), rows_drawn: document.querySelectorAll('#calCommentsModal .cal-cm-row').length,
       box: box ? (box.offsetParent ? 'visible' : 'hidden') : 'absent', confirm_open: !!document.querySelector('#confirmOverlay.active'),
       loading: typeof calState !== 'undefined' ? !!calState.loading : null, tab: document.visibilityState,
+      view: typeof calState !== 'undefined' ? calState.view : null, trail: window.__g3Trail || null,
     };
   }, { id, rootId }).catch(e => ({ unreadable: String(e && e.message || e).slice(0, 120) }));
 }
@@ -622,18 +623,41 @@ async function dialogMatrix(browser, origin, role, width) {
         // which step stalled and what each tab held were unknown. Each step
         // now names itself, and a miss prints both tabs' state before failing
         // exactly as before. Fictional data only.
-        const done = [];
+        const done = [], switchReads = [], born = Date.now();
         const stepTo = async (label, fn) => {
           const started = Date.now();
           try { await fn(); done.push(label + ' ' + (Date.now() - started) + ' ms'); }
           catch (e) {
-            const tabs = { first: await notesState(t.page, id, rootId), peer: peer ? await notesState(peer.page, id, rootId) : 'not open' };
+            const tabs = { first: await notesState(t.page, id, rootId), peer: peer ? await notesState(peer.page, id, rootId) : 'not open', peer_switch_reads: switchReads };
             console.log('DIAG two-tabs ' + kind + ': stuck at "' + label + '" after ' + (Date.now() - started) + ' ms; done: ' + (done.join(', ') || 'nothing') + '; tabs: ' + JSON.stringify(tabs));
             throw e;
           }
         };
-        await stepTo('open the second tab', async () => { peer = await setup(browser, origin, role, width, t.state); });
+        await stepTo('open the second tab', async () => {
+          peer = await setup(browser, origin, role, width, t.state);
+          // A client link holds a Notes open until the player's switch is read (openCalComments), so the trail
+          // also records when the second tab asked for that switch and whether it was answered.
+          const isSwitch = r => /syncview_runtime_flags/.test(r.url()) && /frame_viewer_clients/.test(decodeURIComponent(r.url()));
+          peer.page.on('request', r => { if (isSwitch(r)) switchReads.push('asked ' + (Date.now() - born)); });
+          peer.page.on('requestfinished', r => { if (isSwitch(r)) switchReads.push('answered ' + (Date.now() - born)); });
+          peer.page.on('requestfailed', r => { if (isSwitch(r)) switchReads.push('failed ' + (Date.now() - born) + ' ' + ((r.failure() || {}).errorText || '')); });
+        });
         await stepTo('open its Notes', async () => {
+          // OPEN_REPAIRS 689: on main (Firefox, 1440 and 1920) this click landed
+          // and the dialog never opened. The trail says, on a miss, whether the
+          // press and release reached the Notes button, whether the button was
+          // redrawn in between, and whether the page began to open the dialog.
+          await peer.page.evaluate(() => {
+            const trail = window.__g3Trail = [], t0 = performance.now(), at = () => Math.round(performance.now() - t0);
+            const on = e => (e.target && e.target.closest && e.target.closest('[data-comments-btn]')) ? 'door' : String((e.target && (e.target.id || e.target.tagName)) || '?');
+            new MutationObserver(ms => { for (const m of ms) for (const n of m.removedNodes) if (n.nodeType === 1 && (n.matches('[data-comments-btn]') || n.querySelector('[data-comments-btn]'))) trail.push('door redrawn ' + at()); }).observe(document.body, { childList: true, subtree: true });
+            // The dialog opening and then closing again (a view switch, say) would also leave it shut.
+            let wasOpen = false;
+            new MutationObserver(() => { const ovl = document.getElementById('calCommentsOverlay'), now = !!(ovl && ovl.classList.contains('open')); if (now !== wasOpen) { wasOpen = now; trail.push((now ? 'dialog opened ' : 'dialog closed ') + at() + ' view ' + calState.view); } }).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
+            for (const ev of ['pointerdown', 'pointerup', 'click']) document.addEventListener(ev, e => trail.push(ev + ' ' + on(e) + (e.target && e.target.isConnected === false ? ' detached' : '') + ' ' + at()), true);
+            const open = window.openCalComments;
+            if (typeof open === 'function') window.openCalComments = function () { trail.push('open asked ' + at()); return open.apply(this, arguments); };
+          });
           await peer.page.evaluate(() => onCalViewChange('organizer'));
           await peer.page.locator('[data-comments-btn="' + id + '"]').filter({ visible: true }).click();
         });

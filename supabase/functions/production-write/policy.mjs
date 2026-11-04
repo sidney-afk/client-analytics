@@ -830,6 +830,42 @@ export function commentLifecycleAllowed(principal, actionValue, row) {
     && clean(actor.actorKey) === clean(comment.author_key);
 }
 
+// OPEN_REPAIRS 690. A client deleting its own note through the front door may
+// leave out the version check, and nothing else may. The calendar client (and
+// the unlinked samples client) can never read the canonical thread, so it never
+// holds the row's version; the note it deletes is the card note it wrote, which
+// the front-door add copied here under the card note's own id. Without this the
+// card copy was deleted and this copy stayed open for staff. Every condition is
+// required: a delete, by a client, through the front door on its own binding,
+// naming the row by the card note id it was added under (never the canonical
+// id), and the row being that client's own client-visible note. An edit, any
+// other action, a staff note, another client's note, a wrong binding or an
+// unknown id keep the version check (or are refused) exactly as before.
+export function clientFrontDoorDeleteWithoutVersion(
+  principal,
+  actionValue,
+  surface,
+  existing,
+  row,
+  commentRef,
+  requestedCardId,
+) {
+  const actor = principal && typeof principal === "object" ? principal : {};
+  const comment = row && typeof row === "object" ? row : {};
+  if (lower(actor.kind) !== "client") return false;
+  if (normalizeCommentAction(actionValue) !== "delete" || lower(actionValue) !== "delete") return false;
+  const lane = lower(surface);
+  if (lane !== "calendar" && lane !== "sxr") return false;
+  const ref = clean(commentRef);
+  const nativeId = clean(comment.native_comment_id);
+  if (!ref || !nativeId || ref !== nativeId || nativeId === clean(comment.id)) return false;
+  if (lower(comment.origin) !== "native") return false;
+  if (!clientCommentFrontDoorTargetAllowed(lane, existing, comment.component, requestedCardId, actor.clientSlug)) {
+    return false;
+  }
+  return commentLifecycleAllowed(actor, "delete", comment);
+}
+
 export function commentLifecycleCapabilities(principal, row) {
   const comment = row && typeof row === "object" ? row : {};
   return {

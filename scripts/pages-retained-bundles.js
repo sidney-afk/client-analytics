@@ -82,9 +82,27 @@ function addFile(rel, bytes, added, dryRun) {
   return true;
 }
 
+/* A blobless checkout (actions/checkout `filter: blob:none`) has the history
+   but not old file contents, and fetches missing blobs on first read: one
+   request per `cat-file`, and one per worktree. The ~550-file legacy set took
+   over 15 minutes that way (measured 2026-11-03, OPEN_REPAIRS 693). Ask for
+   each set in one request first, the same fetch git's own on-demand read
+   makes. A full clone is not a promisor and makes no request. */
+function isPartialClone() {
+  return spawnSync('git', ['-C', ROOT, 'config', '--get', 'remote.origin.promisor'], { encoding: 'utf8' }).stdout.trim() === 'true';
+}
+function prefetchIfPartial(oids) {
+  if (!oids.length || !isPartialClone()) return;
+  execFileSync('git', ['-C', ROOT, '-c', 'fetch.negotiationAlgorithm=noop', 'fetch', '--quiet', 'origin', '--no-tags', '--no-write-fetch-head', '--recurse-submodules=no', '--filter=blob:none', '--stdin'], { input: oids.join('\n') + '\n', stdio: ['pipe', 'inherit', 'inherit'] });
+}
+
 function addLegacy(legacy, dryRun) {
   const added = [];
-  const names = git(['ls-tree', '-r', '--name-only', legacy, '--', 'js']).split('\n').filter(n => BUNDLE.test(n));
+  const entries = git(['ls-tree', '-r', legacy, '--', 'js']).split('\n').filter(Boolean)
+    .map(line => { const [meta, rel] = line.split('\t'); return { oid: meta.split(' ')[2], rel }; })
+    .filter(e => BUNDLE.test(e.rel));
+  const names = entries.map(e => e.rel);
+  prefetchIfPartial(entries.filter(e => !fs.existsSync(path.join(ROOT, e.rel))).map(e => e.oid));
   for (const rel of names) {
     if (fs.existsSync(path.join(ROOT, rel))) continue;
     addFile(rel, git(['cat-file', 'blob', `${legacy}:${rel}`], { encoding: 'buffer' }), added, dryRun);
@@ -123,6 +141,10 @@ function main() {
   const legacyResult = addLegacy(legacy, dryRun);
   console.log(`pages-retained-bundles: legacy set from ${legacy.slice(0, 12)} (last commit with committed bundles): ${legacyResult.listed} file(s), ${legacyResult.added.length} added`);
   const commits = recentBuildCommits(legacy, keep);
+  // Every blob those worktrees will check out that is not here yet (`?` = missing; never fetched by this listing).
+  if (commits.length && isPartialClone()) {
+    prefetchIfPartial(git(['rev-list', '--objects', '--no-walk', '--missing=print', ...commits]).split('\n').filter(l => l.startsWith('?')).map(l => l.slice(1)));
+  }
   let recentAdded = 0;
   for (const sha of commits) {
     const added = [];

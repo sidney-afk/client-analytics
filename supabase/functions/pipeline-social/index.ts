@@ -39,6 +39,7 @@
 // default 2000; credits does not count). A call is written down before it is
 // made, so parallel calls cannot overshoot the cap. Refusals are plain English, ok:false.
 
+import { Buffer } from "node:buffer";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "../pipeline-google/pass.mjs";
 import { pipelineGate } from "../pipeline-google/users.mjs";
@@ -177,9 +178,7 @@ async function watch(plan: Plan, link: string, scKey: string, fail: (e: string) 
       bytes = new Uint8Array(await f.arrayBuffer());
     } catch (_e) { await fail("file not fetched"); return refused("The video file could not be fetched.", 502); }
     if (bytes.length > WATCH_MAX_BYTES) { await fail("file too big"); return refused("The video file is too big to watch.", 422); }
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    video = { base64: btoa(bin), mime: "video/mp4" };
+    video = { base64: Buffer.from(bytes).toString("base64"), mime: "video/mp4" };
   }
   let g: Response;
   try {
@@ -209,12 +208,10 @@ async function watchFrame(address: string, questions: string): Promise<{ ok: boo
     bytes = new Uint8Array(await f.arrayBuffer());
   } catch (_e) { return { ok: false, status: 502, error: "The video file could not be fetched.", cost: 0 }; }
   if (bytes.length > WATCH_MAX_BYTES) return { ok: false, status: 422, error: "The video file is too big to watch.", cost: 0 };
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   let g: Response;
   try {
     g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${WATCH_MODEL}:generateContent`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": gKey }, body: JSON.stringify(geminiBody({ base64: btoa(bin), mime: "video/mp4" }, questions)) });
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": gKey }, body: JSON.stringify(geminiBody({ base64: Buffer.from(bytes).toString("base64"), mime: "video/mp4" }, questions)) });
   } catch (_e) { return { ok: false, status: 502, error: "Gemini did not answer. Try again in a minute.", cost: 0 }; }
   // deno-lint-ignore no-explicit-any
   const out = await g.json().catch(() => ({})) as Record<string, any>;

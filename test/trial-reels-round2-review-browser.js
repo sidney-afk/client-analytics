@@ -485,7 +485,10 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     if (part('keepcard')) {
       const t = await start('client', true, three(), { width: 1440, height: 900, beforeOpen: keepGateway, flagValues: { trial_reels_pages: { clients: [SLUG] }, review_client_polish: { all: true } } });
       if (!/Video C of 3/.test((await dec(t)).bar)) { await press(t, '[data-trv-go="C"]'); await sleep(600); }
-      t.state.writeFail = 50;   // the card's save is refused
+      // The card's save is refused by the server (a 400 with a code). A 503 (writeFail) reads as the line being down: the
+      // client queue holds it and sends it again, and with OPEN_REPAIRS 699 that re-send is no longer refused as "still
+      // being confirmed", so it says "Still waiting… Nothing is lost" instead of Try again, as it should for a 503.
+      t.state.writeRefuse = 50;
       await askChange(t, 'Fictional note: a warmer colour on C.');
       // The refused change keeps its own Try again and its words (the save path's "Your unsent words").
       const retry = () => R(t, `return !!r.querySelector('[data-retry="video"]');`);

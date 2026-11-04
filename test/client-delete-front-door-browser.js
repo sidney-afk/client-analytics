@@ -37,7 +37,11 @@ const comments = (state) => state.gateway.map(raw => { try { return JSON.parse(r
     await inS(t.page, '#drow [data-chg]').first().click(); await sleep(200);
     await inS(t.page, '#ta').fill('Fixture change: start on the second shot.');
     await inS(t.page, '#sendBtn').click();
-    for (let i = 0; i < 60 && !comments(t.state).some(b => (b.comment || {}).action !== 'delete' && /second shot/.test((b.comment || {}).body || '')); i++) await sleep(100);
+    // Wait for both halves: the front-door comment AND the card's own save. They are separate requests, and on a loaded
+    // runner the card save can land after the comment (main red 4 Nov 10:21, reproduced with a 1.5 s card save).
+    const sent = () => comments(t.state).some(b => (b.comment || {}).action !== 'delete' && /second shot/.test((b.comment || {}).body || ''));
+    const saved = () => notes(card, 'video_tweaks').some(n => /second shot/.test(n.body || ''));
+    for (let i = 0; i < 150 && !(sent() && saved()); i++) await sleep(100);
     const add = comments(t.state).find(b => /second shot/.test((b.comment || {}).body || ''));
     const note = notes(card, 'video_tweaks').find(n => /second shot/.test(n.body || ''));
     expect(note && note.is_tweak, 'the change request is on the card');
@@ -50,7 +54,10 @@ const comments = (state) => state.gateway.map(raw => { try { return JSON.parse(r
     await own.hover(); await sleep(200);
     await inS(t.page, '[data-cp-note="' + (note && note.id) + '"] [data-cp-del]').click({ force: true }); await sleep(200);
     await inS(t.page, '[data-cp-yes]').click();
-    for (let i = 0; i < 60 && !comments({ gateway: t.state.gateway.slice(sentBefore) }).some(b => (b.comment || {}).action === 'delete'); i++) await sleep(100);
+    // Again both halves: the front-door delete and the card's own save of the deleted note.
+    const delSent = () => comments({ gateway: t.state.gateway.slice(sentBefore) }).some(b => (b.comment || {}).action === 'delete');
+    const delSaved = () => notes(card, 'video_tweaks').some(n => n.id === (note && note.id) && n.deleted);
+    for (let i = 0; i < 150 && !(delSent() && delSaved()); i++) await sleep(100);
     await sleep(300);
     const cardRow = t.state.cards.find(c => c.id === 'rs1');
     expect(notes(cardRow, 'video_tweaks').some(n => n.id === (note && note.id) && n.deleted), 'the card copy is deleted, as before');

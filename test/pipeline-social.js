@@ -148,6 +148,8 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(r.geminiBody({ base64: 'AA==' }).generationConfig.responseSchema, 'the standard watch keeps its schema');
   ok(src.indexOf('watchFrame(String(found.url') > 0 && /GEMINI_API_KEY/.test(src), 'frame.watch fetches the card video address and uses the Gemini secret');
 
+  ok(!/fromCharCode|btoa\(/.test(src) && /Buffer\.from\(bytes\)\.toString\("base64"\)/.test(src), 'a video is turned into base64 natively (the char-by-char way ran out of time and memory on big files)');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
   ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');

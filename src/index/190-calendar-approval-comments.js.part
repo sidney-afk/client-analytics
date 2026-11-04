@@ -1380,6 +1380,13 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                     || attemptId);
                 _calReviewState.draftActionIds[key] = failedActionId;
                 _calReviewState.errorActionIds[key] = failedActionId;
+                /* OPEN_REPAIRS 699: this refusal reached the person but never the refusal log, so a change request
+                   stuck behind its own record left no trace. Reported once per refusal, with the decision's reason as
+                   its code, the card and part: no words. */
+                try {
+                    const conflictCode = 'change_request_conflict_' + String(targetConflict.reason || 'target_owned').replace(/[^a-z0-9_]/gi, '').slice(0, 48);
+                    _writeUiRecordFailure('calendar', 'comment', Object.assign(new Error(conflictCode), { code: conflictCode }), { card: String(pid), component: String(comp) });
+                } catch (e) {}
                 if (_isClientLink) _calCrqFailed(pid, comp, _calReviewState.errors[key]);
                 _calRenderBody({ preserveScroll: true });
                 return;

@@ -138,9 +138,18 @@ async function seed(db: SupabaseClient, week: string, slugs: string[] | null): P
   if (error) throw error;
   const rows = (data || []).map((c: JsonMap) => ({ week_of: week, client_slug: c.slug as string }));
   if (!rows.length) return;
-  if (slugs) { // manual run: start those clients over for this week
-    const { error: ue } = await db.from("analytics_weekly_followers_queue").upsert(rows.map((r) => ({ ...r, state: "pending", attempts: 0, stages: {}, lease_until: null })), { onConflict: "week_of,client_slug" });
-    if (ue) throw ue;
+  if (slugs) {
+    // Manual run: a finished client starts over for this week, an UNFINISHED one resumes with
+    // its attempts and answered platforms, so repeated runs against a failing provider reach
+    // the last attempt and record the failure instead of restarting at attempt 1 every time.
+    const { data: have, error: he } = await db.from("analytics_weekly_followers_queue").select("client_slug,state").eq("week_of", week).in("client_slug", slugs);
+    if (he) throw he;
+    const open = new Set(((have || []) as JsonMap[]).filter((r) => r.state !== "done").map((r) => r.client_slug as string));
+    const fresh = rows.filter((r) => !open.has(r.client_slug)).map((r) => ({ ...r, state: "pending", attempts: 0, stages: {}, lease_until: null }));
+    if (fresh.length) {
+      const { error: ue } = await db.from("analytics_weekly_followers_queue").upsert(fresh, { onConflict: "week_of,client_slug" });
+      if (ue) throw ue;
+    }
     return;
   }
   const { error: se } = await db.from("analytics_weekly_followers_queue").upsert(rows, { onConflict: "week_of,client_slug", ignoreDuplicates: true });

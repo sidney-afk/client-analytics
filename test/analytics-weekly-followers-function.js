@@ -162,6 +162,20 @@ const queue = slug => globalThis.__DB.analytics_weekly_followers_queue.find(r =>
   assert.equal(row('sidneylaruel', 'instagram').followers, 1200);
   assert.equal(snap().filter(x => x.client_slug === 'sidneylaruel').length, 1, 'N/A platforms of the test client are skipped too');
 
+  // repeated manual runs against a failing provider resume the unfinished entry and reach the terminal failure
+  reset(); scDown = true;
+  assert.deepEqual((await call({ action: 'run', slugs: ['bbb'] })).body.results, { waiting: 1 });
+  assert.deepEqual((await call({ action: 'run', slugs: ['bbb'] })).body.results, { waiting: 1 });
+  assert.equal(queue('bbb').attempts, 2, 'an unfinished manual run resumes, it does not restart at attempt 1');
+  assert.deepEqual((await call({ action: 'run', slugs: ['bbb'] })).body.results, { done: 1 });
+  assert.equal(row('bbb', 'instagram').status, 'failed');
+  assert.equal(row('bbb', 'instagram').error_class, 'provider_error');
+  scDown = false;
+  // a finished client does start over on the next manual run
+  await call({ action: 'run', slugs: ['bbb'] });
+  assert.equal(row('bbb', 'instagram').status, 'ok', 'a later good run replaces the recorded failure');
+  assert.equal(queue('bbb').attempts, 1);
+
   // last attempt: a transient failure is recorded failed with its class, never a number
   reset(); scDown = true;
   await call({ action: 'run', slugs: ['bbb'] });

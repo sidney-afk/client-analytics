@@ -280,3 +280,7 @@ verify_jwt = false
 # Weekly analytics snapshot (step 2): top posts and the client message; x-analytics-collect-key checked in code (same key as step 1); pg_cron on Mondays after the followers window.
 [functions.analytics-weekly-posts]
 verify_jwt = false
+
+# Weekly analytics snapshot (step 3): posts each built message in the client's private Slack channel; OFF by default (runtime flag analytics_weekly_slack_post); x-analytics-collect-key checked in code; pg_cron on Mondays.
+[functions.analytics-weekly-slack-post]
+verify_jwt = false

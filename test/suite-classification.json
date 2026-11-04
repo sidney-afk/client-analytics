@@ -2520,6 +2520,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-version-card-tabs-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 688 part 2: behind trial_versions_v2 a trial card with two or more live versions carries Version A/B/C tabs on its picture (a row above the Video field on the staff phone), each with its status dot; the version on the card is picked first; picking another shows its Video row, picture and caption read only and writes nothing; picking the card's version puts the card's own back; a dropped version, one live version or a winner means no tabs; at 1440 and 390 pixel width.",
+      "reproduce": "node test/trial-version-card-tabs-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-version-review-parts-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

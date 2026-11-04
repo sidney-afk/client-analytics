@@ -517,6 +517,7 @@ jobs:
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
           Trial versions (V1): each version row's status picker is the card's own, behind trial_versions_v2, admin and SMM only|node test/trial-version-status-browser.js
           Trial versions (V3): each version's own thumbnail and caption behind trial_versions_v2, and the winner's copied onto the card with Undo|node test/trial-version-fields-browser.js
+          Trial versions on the card (688 part 2): Version A/B/C tabs on the picture in the Quiet look behind trial_versions_v2, the picked version's row, picture and caption shown read only, nothing written; desktop and phone|node test/trial-version-card-tabs-browser.js
           Trial versions (V4, 688): the review boards' Version tabs, each version's own thumbnail and caption on its parts, one Approve covers its parts, a change picks its part|node test/trial-version-review-parts-browser.js
           Trial versions (V2): import several versions from a Frame folder behind trial_versions_v2, one all-or-nothing write|node test/trial-versions-import-browser.js
           Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js

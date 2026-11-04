@@ -37112,3 +37112,14 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - With the fix, every check of the journey passes.
   - The TikTok upload, steps, cancel and Instagram/TikTok switch suites pass unchanged.
 - **Way back:** revert the PR.
+
+## 688 (part 2 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions on the Calendar card: Version A/B/C tabs on the picture, in the Quiet look (session Vbuild)
+- **Ask:** Sidney's option B, revised, in the Quiet look he picked on 3 Nov ("let's go with 1, the quiet one"). Part 1 is the review boards; part 3 the remaining wording.
+- **What it does (189 `_trlTabsHtml`, `_trlDress`, `svTrialTab`; CSS in 020):** on the staff Calendar card of a client on `trial_versions_v2`, a trial card with two or more live versions and no winner carries Version A/B/C tabs on its picture. They are text tabs, each with its status dot (also in its accessible name and tooltip), and the selected one is underlined. On the staff phone, where the picture is a tool strip, they are their own row above the Video field.
+  - The version on the card is picked first. Picking another one shows that version on the card in place: the Video row says "Version B" with its state and opens B's link, B's own picture is drawn over the card's, and B's caption (its own, else the card's) shows read only where the card's caption box was.
+  - **Nothing is written.** The card's own thumbnail and caption stay exactly as they are; a version's own fields are still set in its row of the list (V3), which the chevron opens as before.
+  - A dropped version has no tab; one live version left, or a winner, and there are no tabs. The client link never shows them.
+- **Proof:** `test/trial-version-card-tabs-browser.js` (new, 40 checks at 1440 and 390, Month and Week opened on the card's own month and week): **main** fails at "one tab per version on the picture"; **this branch** all passed. Also passing: trial-reels-card, -polish, -round2-card, -round3-card, -journey, -action-matrix, -empty-card, -race, -nightreel, trial-version-fields, trial-version-status, trial-versions-import.
+- **Month and Week (from the samples):** the same trial card carries a small dot per live version in its status colour (189 `svTrialMonthMarkHtml`, in 180's Month pill and Week card); the Week card also says each letter. The words are its accessible name and tooltip. The first list read on Month or Week draws them again.
+- **Way back:** clear `trial_versions_v2` for the client (today's card), or revert.
+

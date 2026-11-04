@@ -157,15 +157,29 @@ async function runEngine(browserType, origin) {
       const diagSeen = [];
       t.page.on('request', r => { if (/\/functions\/v1\/write-diagnostics/.test(r.url())) diagSeen.push(r.method()); });
       t.page.on('requestfailed', r => { if (/\/functions\/v1\/write-diagnostics/.test(r.url())) diagSeen.push('failed:' + ((r.failure() && r.failure().errorText) || '').slice(0, 60)); });
-      await goKasper(t, origin, () => releaseHung(t), how === 'reload');
-      const rep3 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
+      // What the tab itself did from here (seconds since the reload): a crash or close, its navigations and loads.
+      const t0nav = Date.now(), tabEvents = [];
+      const ev = name => () => tabEvents.push(name + '@' + ((Date.now() - t0nav) / 1000).toFixed(1));
+      t.page.on('crash', ev('crash')); t.page.on('close', ev('close'));
+      t.page.on('domcontentloaded', ev('dcl')); t.page.on('load', ev('load'));
+      t.page.on('framenavigated', f => { if (f === t.page.mainFrame()) ev('nav')(); });
+      try {
+        await goKasper(t, origin, () => releaseHung(t), how === 'reload');
+      } catch (e) {
+        // The next page never showed his board: say what the tab did, count it as a miss, and go on to the next case.
+        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, boardNeverShown: String(e && e.message || e).split('\n')[0].slice(0, 120), tab: tabEvents, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), diag: diagSeen }));
+        expect(false, '3 (' + how + '): the reload during his approve is reported (his board did not come back)');
+        await t.ctx.close().catch(() => {});
+        continue;
+      }
+      const rep3 =await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
       // On a miss, what the test saw (fictional fixture data): the note before the reload, the requests the fixture held
       // then and now, the reports that arrived, the note at the next page's start and at its board's mount (with the
       // time since navigation and the board's mode), the note now, and the diagnostics requests the next page made.
       if (rep3 < 0) {
         const after = await t.page.evaluate(() => { const k = 'syncview_rs_inflight_v1'; const h = document.getElementById('svReviewStage'); const app = h && h.shadowRoot && h.shadowRoot.getElementById('rsApp');
           return { atStart: window.__rsNoteAtStart || null, atMount: window.__rsAtMount || null, nowS: !!sessionStorage.getItem(k), nowL: !!localStorage.getItem(k), stage: !!(h && !h.hidden), mode: app ? app.getAttribute('data-mode') : null, ms: Math.round(performance.now()) }; }).catch(e => ({ err: String(e && e.message).slice(0, 80) }));
-        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), next: after, diag: diagSeen }));
+        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), next: after, tab: tabEvents, diag: diagSeen }));
       }
       expect(rep3 >= 0, '3 (' + how + '): the reload during his approve is reported');
       const again = inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first();

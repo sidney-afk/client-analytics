@@ -1,7 +1,7 @@
 import { svBusyHtml } from './040-shared-briefs.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
-import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialReelsOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialCall, svTrialErrorText, svTrialHash, svTrialLabelHtml, svTrialLabelShown, svTrialOnChange } from './189-trial-reels-card.js';
 import { _prodCanWrite, _prodIssue, _prodToast, _prodWriteGateText } from './220-production-attribution-views.js';
 import { _prodRender } from './260-production-refresh-boot.js';
@@ -107,6 +107,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
         if (String(shape.video_deliverable_id || '') !== String(issue.id)) return null;
         const vs = shape.versions;
         const main = vs.find(v => v.on_card) || vs[0];
+        // 688 part 3: "Version A" on the clients of trial_versions_v2, "Video A" elsewhere.
+        const W = svTrialVersionsV2On(_trlProdClient(issue)) ? 'Version ' : 'Video ';
         // Today's row just saved a new file: read again, so the version rows and their states follow it.
         if (h.mainUrl && String(main.frame_url || '') !== h.mainUrl && !e.promise && Date.now() - e.at > 1500) _trlProdLoad(issue);
         const labelHtml = v => svTrialLabelShown(vs, v)
@@ -124,21 +126,21 @@ import { _prodRender } from './260-production-refresh-boot.js';
             const edit = h.readOnly ? '' : '<button class="prod-assets-action prod-asset-edit" type="button" data-trl-edit="' + _calEscAttr(v.letter) + '"'
                 + ' onclick="return svTrialProdEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(v.letter) + ')"' + h.gateAttrs + '>Edit</button>';
             const row = '<div class="prod-asset-row trl-prod-v" data-trl-slot="' + _calEscAttr(v.letter) + '">'
-                + '<span class="prod-asset-label">Deliverable file · Video ' + _calEsc(v.letter) + '</span>'
+                + '<span class="prod-asset-label">Deliverable file · ' + W + _calEsc(v.letter) + '</span>'
                 + '<span class="prod-asset-value">' + value + labelHtml(v) + '</span>' + pill + edit + '</div>';
             if (e.editing !== v.letter) return row;
             return row + '<form class="prod-assets-editor" data-trl-editor="' + _calEscAttr(v.letter) + '" onsubmit="return svTrialProdSave(event,' + _jsAttrArg(id) + ')">'
                 + '<input class="prod-assets-input" data-trl-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false"'
-                + ' placeholder="Paste the Frame.io link of Video ' + _calEscAttr(v.letter) + '" value="' + _calEscAttr(e.draft) + '"'
+                + ' placeholder="Paste the Frame.io link of ' + W + _calEscAttr(v.letter) + '" value="' + _calEscAttr(e.draft) + '"'
                 + ' oninput="svTrialProdDraft(' + _jsAttrArg(id) + ',this.value)"' + (e.saving ? ' disabled' : '') + '>'
                 + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return svTrialProdCancel(' + _jsAttrArg(id) + ')"' + (e.saving ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
-                + '<button class="prod-assets-action prod-assets-save" type="submit"' + (e.saving ? ' disabled' : '') + '>' + (e.saving ? svBusyHtml('Saving…') : 'Save Video ' + _calEsc(v.letter)) + '</button></div>'
+                + '<button class="prod-assets-action prod-assets-save" type="submit"' + (e.saving ? ' disabled' : '') + '>' + (e.saving ? svBusyHtml('Saving…') : 'Save ' + W + _calEsc(v.letter)) + '</button></div>'
                 + (e.error ? '<div class="prod-assets-error" role="alert">' + _calEsc(e.error) + '</div>' : '') + '</form>';
         };
         const at = vs.indexOf(main);
         return {
             letter: main.letter,
-            label: 'Deliverable file · Video ' + main.letter,
+            label: 'Deliverable file · ' + W + main.letter,
             extra: labelHtml(main) + (main.status === 'winner' ? '' : ' <span class="trl-oncard">on the card</span>'),
             before: vs.slice(0, at).map(rowHtml).join(''),
             after: vs.slice(at + 1).map(rowHtml).join('') + failNote,

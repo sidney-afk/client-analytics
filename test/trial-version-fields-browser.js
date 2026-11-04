@@ -99,13 +99,13 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
 
   const fieldsText = (page, l) => page.evaluate((letter) => {
     const rows = [...document.querySelectorAll('.trl-list .trl-v')].filter((n) => n.offsetParent);
-    const row = rows.find((n) => new RegExp('Video ' + letter + '\\b').test(n.innerText));
+    const row = rows.find((n) => new RegExp('(?:Video|Version) ' + letter + '\\b').test(n.innerText));
     const next = row && row.nextElementSibling;
     return next && next.classList.contains('trl-fields') ? next.innerText.replace(/\s+/g, ' ').trim() : '';
   }, l);
   const fieldBtn = (page, l, k) => page.evaluateHandle(({ letter, key }) => {
     const rows = [...document.querySelectorAll('.trl-list .trl-v')].filter((n) => n.offsetParent);
-    const row = rows.find((n) => new RegExp('Video ' + letter + '\\b').test(n.innerText));
+    const row = rows.find((n) => new RegExp('(?:Video|Version) ' + letter + '\\b').test(n.innerText));
     const f = row && row.nextElementSibling;
     return f ? [...f.querySelectorAll('button.trl-f')].find((b) => b.querySelector('.trl-f-k').textContent === key) || null : null;
   }, { letter: l, key: k });
@@ -186,7 +186,7 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
       card.video_status = 'Posted'; T.saves = []; T.calls = [];
       page = await open(w, h);
       const trophy = (await page.evaluateHandle(() => {
-        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /Video B\b/.test(n.innerText));
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /(?:Video|Version) B\b/.test(n.innerText));
         return row ? row.querySelector('.trl-pick') : null;
       })).asElement();
       ok(!!trophy, `${label}: B offers the trophy`);
@@ -205,7 +205,7 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
       Object.assign(card, CARD0, { video_status: 'Posted' }); vid.file_url = LINK('A'); card.asset_url = LINK('A'); T.saves = [];
       page = await open(w, h);
       const trophy2 = (await page.evaluateHandle(() => {
-        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /Video B\b/.test(n.innerText));
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /(?:Video|Version) B\b/.test(n.innerText));
         return row ? row.querySelector('.trl-pick') : null;
       })).asElement();
       if (trophy2) {
@@ -229,7 +229,7 @@ const LINK = (l) => 'https://f.io/fixture-fields-' + l.toLowerCase();
       page = await open(w, h);
       T.failSave = true;
       const trophy3 = (await page.evaluateHandle(() => {
-        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /Video B\b/.test(n.innerText));
+        const row = [...document.querySelectorAll('.trl-list .trl-v')].find((n) => n.offsetParent && /(?:Video|Version) B\b/.test(n.innerText));
         return row ? row.querySelector('.trl-pick') : null;
       })).asElement();
       if (trophy3) {

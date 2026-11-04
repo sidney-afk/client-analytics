@@ -42,7 +42,7 @@ export function slimCard(r) {
 
 export async function cardsFor(sb, slug) {
   const { data, error } = await sb.from("calendar_posts").select("id,name,caption,post_url,scheduled_date,posted_at,asset_url")
-    .eq("client", slug).neq("asset_url", "").not("asset_url", "is", null).order("scheduled_date", { ascending: false }).limit(MAX_CARDS);
+    .eq("client", slug).or("asset_url.ilike.%frame.io%,asset_url.ilike.%f.io%").order("scheduled_date", { ascending: false }).limit(MAX_CARDS);
   if (error) return { ok: false, status: 503, error: "Could not read the cards." };
   const rows = (data || []).filter((r) => parseFrameLink(clean(r.asset_url)));
   return { ok: true, result: { client: slug, cards: rows.map(slimCard), truncated: (data || []).length >= MAX_CARDS } };

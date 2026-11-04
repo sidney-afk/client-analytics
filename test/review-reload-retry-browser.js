@@ -10,7 +10,9 @@
  *   1. same page: the refusal shows a real Try again button and offers the client's words back; once the line answers,
  *      Try again lands the change exactly once, and a further reload adds no second copy;
  *   2. next load: the change is either on the server, or the part still says it was not sent, with the words and Try
- *      again, and Try again lands it exactly once.
+ *      again, and Try again lands it exactly once;
+ *   3. a team member's internal change request kept in the same browser's delivery record is never offered to the
+ *      client (only the client link's own requests are put back).
  * On main, both fail in both engines.
  */
 const { chromium, webkit } = require('playwright');
@@ -102,6 +104,30 @@ async function runEngine(browserType, origin) {
     }
     await sleep(6000);
     expect(copies(t) === 1, '2: exactly one copy on the server (' + copies(t) + ', ' + card(t).video_status + ')');
+    await t.ctx.close();
+
+    // 3. A team member's internal change request kept in this same browser's delivery record is never shown to the
+    //    client as their words (Codex on #2598): only the client link's own requests are put back as not sent.
+    console.log('--- 3. a team member\'s internal request in the same browser is not offered to the client ---');
+    t = await open(browser, origin, { stage: 'client', flags: 'on', polish: true, linkedParts: true, mergeComments: true, nativeReceipts: true, project: true });
+    const TEAM = 'Team only: tighten the cut at 0:12.';
+    await t.ctx.addInitScript(words => {
+      try {
+        if (localStorage.getItem('rg697_seeded')) return;
+        localStorage.setItem('rg697_seeded', '1');
+        const id = 'rb_teamseed01';
+        localStorage.setItem('syncview_linear_outbox_v1', JSON.stringify([{ id: 'deferred_calendar_' + id + '_source', kind: 'source_only', payload: {}, attempts: 0, lastError: '', lastAttempt: 0,
+          queuedAt: Date.now() - 120000, transport: 'source_only', client_slug: 'fixturestudio',
+          source_gate: { surface: 'calendar', client_slug: 'fixturestudio', source_transport: 'supabase', post_id: 'rs1', component: 'video', comment_id: id, comment_body: words,
+            comment_author: 'Synchro Social', comment_role: 'smm', comment_audience: 'internal', comment_is_tweak: true, intended_status: 'Tweaks Needed', approval_clears: [], linear_issue: '', principal: 'staff:m1:smm' } }]));
+      } catch (e) {}
+    }, TEAM);
+    await t.page.goto(url(origin), { waitUntil: 'domcontentloaded' });
+    await waitNew(t);
+    await sleep(9000);
+    const shown3 = await t.page.evaluate(words => { const r = document.getElementById('svReviewStage').shadowRoot; const html = (r.getElementById('rsApp') || r).textContent || ''; const ta = r.getElementById('ta');
+      return { teamWords: html.includes(words) || !!(ta && ta.value.includes(words)), err: !!r.querySelector('[data-err="video"]'), retry: !!r.querySelector('[data-retry="video"]') }; }, TEAM);
+    expect(!shown3.teamWords && !shown3.retry, '3: the team\'s internal words are not offered to the client, and no Try again for them (' + JSON.stringify(shown3) + ')');
     await t.ctx.close();
   } finally {
     await browser.close();

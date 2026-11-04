@@ -7,7 +7,7 @@ import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui
 import { _calReviewState, _notesGetSeen, _notesMarkSeen } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
 import { svRsCalOn, svRsClientPolishOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsKasperPolishOn, svRsToolsEl } from './188-review-stage-switch.js';
-import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiReviewEvent, _writeUiSetBoardHint, _writeUiStackWhere } from './120-calendar-flags-write-repair.js';
+import { _writeUiRefreshAuthority, _writeUiErrWhere, _writeUiPrincipalKey, _writeUiReviewEvent, _writeUiSetBoardHint, _writeUiStackWhere } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
@@ -2680,17 +2680,33 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        of a change the reload cut off (the Calendar's recovered save and the client queue), or a change left only in
        this browser's delivery record (below). The stage gave Try again only for its own sends, so the part said "Not
        saved" with an empty box and nothing to press, and nothing sent the change later (OPEN_REPAIRS 697). Its words
-       are the Calendar's draft for the part; Try again sends them through the stage with the same action id
-       (draftActionIds), which the tweak inspection takes for the same change, so pressing it never adds a copy. */
+       are the Calendar's draft for the part. Try again sends that same Calendar request again, as the client queue does:
+       the same words and action id (draftActionIds), which the tweak inspection takes for the same change, so pressing
+       it never adds a copy. Not through the stage's own send: for a trial reel the draft already names its version
+       ("Video A: ..."), and the stage would name it again, for whichever version is open now (Codex on #2598). A trial
+       part sent without moving its status (keepStatus) is sent the same way again: its delivery record kept the part's
+       status at the time, which is not Tweaks Needed then. */
     function _rsAdoptRefused(m, k) {
         const key = m.id + '|' + k, words = String(_calReviewState.drafts[key] || '').trim();
         if (!words) return;
-        R.S.retry[key] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, k, words, { where: '' }); };
+        const actionId = String(_calReviewState.draftActionIds[key] || '');
+        let keepStatus = false;
+        try {
+            const g = actionId && (_linearOutboxRead().find(it => it && it.source_gate && String(it.source_gate.comment_id || '') === actionId) || {}).source_gate;
+            keepStatus = !!(g && String(g.intended_status || '').trim() && String(g.intended_status).trim().toLowerCase() !== 'tweaks needed');
+        } catch (e) { keepStatus = false; }
+        R.S.retry[key] = () => {
+            _calReviewState.drafts[key] = words;
+            if (actionId) _calReviewState.draftActionIds[key] = actionId;
+            window._calReviewRequestTweak(m.id, k, keepStatus ? { keepStatus: true } : undefined);
+            _rsRender();
+        };
         R.S.retryText[key] = words;
     }
     /* After a reload a change can be left only in this browser's delivery record: its re-send was refused, the client
        queue let it go (a refusal is not retried by itself), and nothing sends the record. The next page showed the card
-       as if nothing had been asked. A record for this client link's card and part, at least 15 s old, that the card
+       as if nothing had been asked. A record of this client link's own change request (its role, audience and principal)
+       for a card and part, at least 15 s old, that the card
        does not show, with no save of that part running here, is put back as not sent: its words and action id become
        the part's draft, so the part says so with Try again (above). Read a few times in the page's first 30 s (a record
        can still be young when the page opens), each record at most once. */
@@ -2705,6 +2721,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _linearOutboxRead().forEach(it => {
                 const g = it && it.source_gate;
                 if (!g || it.transport !== 'source_only' || g.surface !== 'calendar' || g.comment_is_tweak !== true) return;
+                // The client's own requests only: a team member's internal change request kept in this same browser is
+                // never shown to the client as their words (Codex on #2598).
+                if (g.comment_role !== 'client' || g.comment_audience !== 'client') return;
+                const me = _writeUiPrincipalKey();
+                if (!me || String(g.principal || '') !== me) return;
                 const pid = String(g.post_id || ''), comp = String(g.component || ''), id = String(g.comment_id || ''), body = String(g.comment_body || '').trim();
                 if (!pid || !comp || !id || !body || Date.now() - Number(it.queuedAt || 0) < 15000) return;
                 const post = posts.find(p => p && String(p.id) === pid);

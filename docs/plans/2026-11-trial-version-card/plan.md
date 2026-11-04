@@ -1,7 +1,7 @@
 # One card, many versions: the plan (session Trialplan, 4 Nov 2026)
 
 **Plan only. No code, no migration, no deploy, no data change.** Plain English.
-**Status: revision 5, 4 Nov 2026 ~21:50 UTC, ready for Sidney's approval.** Revision 5 folds in his last answers: the trial also starts **by itself on the card's date** (as well as by a button), only when every version is approved or dropped; **Trial is shown clearly** on the strip, the tabs and Month and Week; **no nudge and no Instagram reminder**. Replaces revision 4's 3.4. Open: Q-M to Q-O (3.4), each with a default.
+**Status: revision 5, 4 Nov 2026 ~21:50 UTC, ready for Sidney's approval.** Revision 5 folds in his last answers: the trial also starts **by itself on the card's date** (as well as by a button), only when every version is approved or dropped; **Trial is shown clearly** on the strip, the tabs and Month and Week; **no nudge and no Instagram reminder**. Replaces revision 4's 3.4. After a winner the card shows Posted only: no "Winner" label, no trophy. Open: Q-M to Q-O (3.4), each with a default.
 Counts quoted from earlier measurements are dated; step 1 below re-measures them before anything is built.
 The only live read was one counts-only query on the version table (section 7.1). What was read: STATE_OF_THINGS, OPEN_REPAIRS 688 (parts 1 to 3), 656/657/659/661, ATLAS "Trial reels", `src/index/189`, `194`, `245`, `299`, the `trial-reels` Edge Function (`logic.mjs`, `index.ts`), the three trial migrations, draft plans #2521, #2524 and the design-options PR #2581.
 
@@ -105,7 +105,7 @@ The only live read was one counts-only query on the version table (section 7.1).
 | Paste or change a link, New cut ready | the Video row of the selected tab |
 | Thumbnail and caption lines | the card's Thumbnail and Caption of the selected tab |
 | Drop / Bring back | a menu on the tab (the three dots) |
-| Winner trophy | "Pick the winner" in the trial strip, available while the trial runs (3.4) |
+| Winner | "Pick the winner" in the trial strip, available while the trial runs (3.4) |
 | + Add version and Import from Frame | the `+` at the end of the tabs; Import from Frame inside it |
 
 Until step 5 lands, the list stays and the tabs remain as they are, so nothing breaks half way.
@@ -119,7 +119,7 @@ Until step 5 lands, the list stays and the tabs remain as they are, so nothing b
   - **Picking the winner swaps the two sets of data:** the winner's fields and statuses go onto the card; the old card version's (A's) go into A's row, so nothing is lost. The winner becomes the `on_card` version.
   - **Why a real swap and not "read the winner's fields on screen":** the review showed that Production's sync, the drift check, the client card, `post-source`, Post for Me and the three Section 4 functions read the card's columns **on the server**, where a page helper cannot reach. If the card's columns hold the winner's data, every one of them is already right and none changes (no fingerprint re-pin). This is the mechanism for the Opus review to challenge. The first draft proposed "no copy, the winner only highlighted"; Sidney's answer on the same evening (card behaves as the winner everywhere) made that unworkable.
   - **Clear the winner reverses the swap with the data as it is now.** If B was edited after the pick, those edits go back to B's row, and A's data returns to the card. There is no saved snapshot to go stale, so the old "Undo is refused because the card was edited" case disappears.
-  - **The tab:** the winner's tab has a trophy mark, **the card opens on it by default, and a reload returns to it** even after someone looked at another tab. Other tabs stay viewable. Before a winner the card opens on Version A, and no tab is remembered (Q9: no).
+  - **The tab:** the winner's tab has no mark of its own (Sidney: it just shows Posted, that's it), **the card opens on it by default, and a reload returns to it** even after someone looked at another tab. Other tabs stay viewable. Before a winner the card opens on Version A, and no tab is remembered (Q9: no).
   - **`trial-reels` changes (not Section 4, no re-pin):** `winnerPatches` stops refusing with `attach_first` and does the two-way move, now including the call to action and the part statuses; `undoWinnerPatches` becomes the reverse swap; `mainLetter`, `on_card` and `healMainPatch` follow the winner; the page's `svTrialPick` (`189:1486-1530`) keeps writing the card through `calendar-card-write` with its `updated_at` check, and a pick whose card write fails stops and puts everything back (the 657 rule, kept).
 - **After a winner, everywhere** (Q-A, Q-B, Q-D answered): views, the client link, posting, Production and Analytics treat the card as an ordinary card of the winner. The client link shows only the winner. Month and Week show one ordinary card, no per-version dots. Posting offers the winner as an ordinary post; the other versions are not offered (Q15). Scheduled and Posted are the winner's (3.4).
 - **The 5 winners that exist today** (2 are not A) were copied under the old rule without keeping A's data. Nothing changes for them. "Clear the winner" on those is refused ("picked before versions kept their own data"). Step 1a lists them (counts only).
@@ -144,7 +144,7 @@ Until step 5 lands, the list stays and the tabs remain as they are, so nothing b
 - Default: this. Alternatives (start with the approved ones and leave the rest out, or drop the unapproved automatically) are not recommended because a late version then cannot join and the batch is no longer one test.
 
 **Where Trial shows (Sidney: "where would we say that it's in trial then?").** Recommendation: **no new card status; make Trial unmissable in three places the team already looks.**
-1. **The trial strip on the card:** a status-style pill that reads **Trial** (replacing the pill that would read Scheduled) as soon as the versions are On trial, and "Winner: Version B" afterwards.
+1. **The trial strip on the card:** a status-style pill that reads **Trial** (replacing the pill that would read Scheduled) as soon as the versions are On trial, and **Posted** afterwards, nothing else (no "Winner: Version B" label and no trophy, per Sidney).
 2. **Each version's tab:** its pip and a small "Trial" word.
 3. **Month and Week:** the dot per version in a Trial colour, with "Trial" in its accessible name and tooltip; Production's parent line reads "Trial · N versions".
 
@@ -185,7 +185,7 @@ Four layers, from quietest to most detail. Recommended: build the first three, o
 
 1. **On each tab: three small pips** after the letter (Video, Thumbnail, Caption), each in its status colour, with the words in the tab's accessible name and tooltip. Today it is one dot.
 2. **A status grid under the tabs, always visible, three rows by three columns:** rows A, B, C; columns Video, Thumbnail, Caption; each cell a coloured dot with a one-word state on hover. Clicking a cell selects that version. It is small (about 3 lines tall) and collapses to a single line of pips on the phone. This answers "know their statuses by just looking".
-3. **Month and Week:** today's one dot per live version stays, showing that version's least-advanced part, with a trophy on the winner's dot. There is no card-level dot. Hover or focus opens the grid in a small popover.
+3. **Month and Week:** today's one dot per live version stays, showing that version's least-advanced part, before a winner. After a winner the card is one ordinary Posted card, with no dots. There is no card-level dot. Hover or focus opens the grid in a small popover.
 4. **Later, if Sidney wants:** a filter "trial versions waiting on me" on the SMM and Kasper review tabs.
 
 **Production:** no change in step order (one Deliverable file row per version already exists). A later option is to show the three pips next to each version row.
@@ -282,7 +282,7 @@ Everything stays behind `trial_versions_v2`, on for the test client only. The ca
 | 4 | **Part statuses, pips, status grid, Start trial** | Each part's pill on the selected tab; the route writer runs; **Start trial** in the trial strip with its gate (every live version approved, at least two live); the Trial label on the strip, tabs, and Month and Week; "Trial" on versions without a countdown; version menus stop at Approved; the card shows no status pill | Set B's thumbnail to Approved; see the grid without switching; approve three versions, press Start trial and see Trial on all of them at once; try with one unapproved and see why it will not start (test client, nothing posts) |
 | 5 | **The old list goes; the date start; Pick the winner; the winner becomes the card** | Drop, bring back, add, Import from Frame move to the tab menu; **Pick the winner** during the trial (no `trial_not_over`); the others end as Not chosen; `trial-reels`: `winnerPatches` does the two-way swap (fields, call to action, part statuses) in place of `attach_first`, and sets the winner Posted; undo becomes the reverse swap; `mainLetter`/`on_card`/`healMainPatch` follow the winner; the card opens on the winner and a reload returns to it; End trial without a winner; the 24 h readers and their tests retired; **`calendar-auto-posted` starts the trial for v2 trial cards at the date instead of Posting them, with its idempotence and the waiting-for-approval rule tested; first, step 1a's list of every way a card can become Posted is settled** | Run a whole trial: add, approve, Start trial, pick a winner, see the card become it and read Posted, clear the winner and see A back |
 | 6 | **Notes per version** | Notes switch follows the tab; unprefixed notes are Whole post | Write a note on C, see it only under C |
-| 7 | **Month, Week and phone** | Dots with a trophy; popover; phone layout | Look at the Calendar at 390 and 1440 |
+| 7 | **Month, Week and phone** | Trial dots; popover; phone layout; after a winner an ordinary Posted card | Look at the Calendar at 390 and 1440 |
 | 8 | **Review boards per part** (Q4) | Each part approves by itself; one "Approve Version B" stays | Approve B's caption as the client link, see the grid change |
 | 9 | **Posting reads the new rule** | "Approved" means all three parts; the Post tab posts the approved versions as trial reels (a person, nothing automatic); after a winner the winner is an ordinary post and the other versions are not offered; nothing posts in a check | Pick the trial card on the Post tab (nothing is posted) |
 

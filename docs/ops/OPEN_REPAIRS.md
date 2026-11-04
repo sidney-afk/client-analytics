@@ -37028,7 +37028,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Proof:** `trial-version-status-browser` now looks for the status pill by "Version A status" and `trial-versions-import-browser` for "Version C" and "Version B was already answered": **main** fails both; **this branch** 38 and 50 checks pass. `trial-version-fields-browser` (42) finds rows by either name. With the switch off, trial-reels-card, -polish, -round3-card, -journey, -notes, -today, -change-naming, -production and post-trial-versions pass unchanged ("Video A").
 - **Way back:** clear `trial_versions_v2` for the client, or revert.
 
-## 697. [2026-11-04 UTC, BUILT, NOT MERGED] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
+## 698. [2026-11-04 UTC, BUILT, NOT MERGED] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
 
 - **Seen:** main 555d9fa (run 41768158269), the review stage's first-frame guard: "1440x900 dark: the player is there in the end (null)". PR #2592 (run 41780677570), "Calm Workload for everyone" died with `page.goto: Target page, context or browser has been closed`. main 4ff002e passed the same job.
 - **Measured (session Guardcrash):** all 49 part-2 suites on 3 lanes, on a 4-CPU, 16 GB machine like the runner, sampled every 2 s.

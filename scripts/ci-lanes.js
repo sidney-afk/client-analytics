@@ -23,7 +23,7 @@
  *   - a cancelled job stops its children;
  *   - the end of the log names the runner's headroom while the commands ran: the
  *     lowest available memory, the peak use of /dev/shm and the peak load against
- *     the CPU count (OPEN_REPAIRS 697: two "browser died" reds were CPU timing
+ *     the CPU count (OPEN_REPAIRS 698: two "browser died" reds were CPU timing
  *     races, not memory, and this line is the measurement that tells them apart).
  */
 const fs = require('fs');

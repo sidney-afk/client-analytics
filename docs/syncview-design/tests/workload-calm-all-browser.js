@@ -132,7 +132,7 @@ const isCalm = page => page.evaluate(() => !!document.querySelector('.workload-v
       await gate;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([auth, { key: 'workload_calm_staff', value: { all: true } }]) });
     });
-    // The navigation is awaited to its commit before the first read (OPEN_REPAIRS 697, session Guardcrash): the new
+    // The navigation is awaited to its commit before the first read (OPEN_REPAIRS 698, session Guardcrash): the new
     // document exists and its scripts have not run yet, so every read below is of the new page. The poll used to start
     // while this goto was still in flight; under CPU load a read landed on the page being left (whose calm .workload-day
     // cells counted as "the old calendar painted") or in the swap itself ("Execution context was destroyed"), and the
@@ -150,7 +150,7 @@ const isCalm = page => page.evaluate(() => !!document.querySelector('.workload-v
     expect(!painted && await p.evaluate(() => !document.querySelector('.workload-day')), 'the old calendar was not painted meanwhile');
     release();
     await p.waitForLoadState('domcontentloaded');
-    // Waited for, bounded, never read after a fixed 1.2 s (OPEN_REPAIRS 697): a starved runner can take longer to draw it.
+    // Waited for, bounded, never read after a fixed 1.2 s (OPEN_REPAIRS 698): a starved runner can take longer to draw it.
     const calmed = await p.waitForFunction(() => !!document.querySelector('.workload-view.wl-calm'), null, { timeout: 20000 }).then(() => true, () => false);
     expect(calmed, 'once answered: calm on within 20 s');
     await p.waitForTimeout(1200);

@@ -44,7 +44,7 @@ const ok = (c, m) => { assert(c, m); checks++; };
   const m = await runLanes(parseLines('nope|this-command-does-not-exist-xyz'), { lanes: 2, log: quiet });
   ok(m.failed.length === 1 && m.failed[0].code !== 0, 'a command that cannot start is a failure');
 
-  // The headroom line (OPEN_REPAIRS 697): every run says how much memory, /dev/shm and CPU the commands left.
+  // The headroom line (OPEN_REPAIRS 698): every run says how much memory, /dev/shm and CPU the commands left.
   const hr = [];
   const h = await runLanes(parseLines('a|sleep 0.3'), { lanes: 1, log: s => hr.push(s), sampleMs: 100 });
   const line = hr.find(s => s.startsWith('runner headroom:')) || '';

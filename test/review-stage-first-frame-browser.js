@@ -15,7 +15,7 @@
  *   - a play button, when there is one, is the player's 44 px round button;
  *   - the "opens in a new tab" fallback never shows for a card the player will play.
  * Fails on main.
- * Each run records until the player has arrived (bounded at 20 s) and 30 frames more, never for a fixed time (OPEN_REPAIRS 697).
+ * Each run records until the player has arrived (bounded at 20 s) and 30 frames more, never for a fixed time (OPEN_REPAIRS 698).
  */
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -65,7 +65,7 @@ function judge(frames, label) {
         await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
         await waitNew(t);
         if (sw) { await sleep(300); await inS(t.page, '#skList [data-id="rs2"]').click(); }
-        // Recorded until the player has arrived, then 30 frames more, never for a fixed time (OPEN_REPAIRS 697, session
+        // Recorded until the player has arrived, then 30 frames more, never for a fixed time (OPEN_REPAIRS 698, session
         // Guardcrash). The end used to be read after a fixed 2.6 s (4.2 s after a switch), about 1.2 s after the player
         // normally lands; with three suites side by side on a 4-CPU runner a stall ran past that and the end read null.
         // Every frame recorded is judged by the same rules below; a player that never arrives fails here, by name.

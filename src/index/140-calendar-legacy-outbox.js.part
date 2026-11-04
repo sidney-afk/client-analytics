@@ -203,8 +203,20 @@ import {
             principal: String(gate && gate.principal || '')
         });
     }
-    function _writeUiLegacyTargetPair(surface, slug, pid, comp, rows) {
+    /* A lone source gate's intended status: Tweaks Needed, as every change request sets, or, for a trial reel's change
+       sent with keepStatus (587: other versions still wait, so the part keeps its status), the part's own status as it
+       stands, which that request left alone. Before OPEN_REPAIRS 699 only Tweaks Needed passed, so a keepStatus gate
+       read as another change still being confirmed, and the same change sent again (Try again, the client queue, a
+       reload's re-send) was refused for good: the client's words never reached the card. A different change still
+       meets the action id, words and principal checks below and is refused as before. */
+    function _writeUiLegacyTargetPair(surface, slug, pid, comp, rows, post) {
         const items = Array.isArray(rows) ? rows : [];
+        const normStatus = v => surface === 'sxr' ? _sxrNormStatus(v || '') : _calNormStatus(v || '');
+        const intendedOk = g => {
+            const intended = normStatus(g && g.intended_status);
+            return !!intended && (intended === normStatus('Tweaks Needed')
+                || (!!post && normStatus(post[String(comp || '') + '_status']) === intended));
+        };
         if (items.length === 1) {
             const source = items[0];
             const gate = source && source.source_gate;
@@ -221,7 +233,7 @@ import {
                 || !String(gate.comment_role || '')
                 || (gate.comment_audience !== 'client' && gate.comment_audience !== 'internal')
                 || gate.comment_is_tweak !== true
-                || String(gate.intended_status || '').trim().toLowerCase() !== 'tweaks needed'
+                || !intendedOk(gate)
                 /* `gate.linear_issue` used to have to be EMPTY here: a lone
                    source record meant a card with no Linear URL, and a card
                    with one staged the legacy comment+status pair instead. That
@@ -293,7 +305,7 @@ import {
             committedSourceSuperseded = true;
         }
         if (active.length) {
-            const pair = _writeUiLegacyTargetPair(surface, slug, pid, comp, active);
+            const pair = _writeUiLegacyTargetPair(surface, slug, pid, comp, active, post);
             if (!pair) return conflict(active[0], false, 'active_pair_invalid');
             if (pair.gate.principal !== _writeUiPrincipalKey()) {
                 return conflict(pair.comment, false, 'active_principal_mismatch');

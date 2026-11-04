@@ -1,0 +1,152 @@
+'use strict';
+/*
+ * OPEN_REPAIRS 699 (session Reviewguard, 2026-11-04): a client's change on a trial version's part (sent with keepStatus,
+ * 587: the part keeps its status while other versions wait) that is refused once can never be sent again. Its
+ * source-only delivery record keeps the part's status at the time, and the record check accepted only "Tweaks
+ * Needed", so the same change sent again read as another one "still being confirmed" and was refused for good: Try
+ * again, the client queue and a reload's re-send all. Found by 697's trial case (Codex P1 on #2598).
+ *
+ * On the review-stage fixture with trial versions (fictional client, card and versions; the trial-reels function
+ * answered by its own rules, logic.mjs), the client link, Chromium and WebKit:
+ *   1. a thumbnail change on Version C whose first send is refused: once the line answers, the same change (Try again,
+ *      or the client queue's own re-send) lands once, its text unchanged ("Version C, thumbnail: ..."), and the
+ *      thumbnail keeps its status;
+ *   2. (guard) a different change on that part while another one's record waits is still refused, and nothing of it
+ *      reaches the card.
+ * On main, 1 fails ("Another change request for this item is still being confirmed").
+ */
+const path = require('node:path');
+const { chromium, webkit } = require('playwright');
+const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
+const { CLIENT, SLUG, TOKEN, open, inS, waitNew, sleep } = require('./fixtures/review-stage-fixture.js');
+
+const failures = [];
+let engineName = '';
+function expect(value, message) { const m = '[' + engineName + '] ' + message; if (!value) { failures.push(m); console.error('FAIL  ' + m); } else console.log('  ok  ' + m); }
+async function until(fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return Date.now() - t0; await sleep(250); } return -1; }
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+const LINK = l => 'https://f.io/fixture-trial-' + l.toLowerCase();
+const WORDS = 'A brighter picture, please.';
+const SENT = 'Version C, thumbnail: ' + WORDS;
+const url = origin => origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN });
+const card = t => t.state.cards.find(c => c.id === 'rs1');
+const notes = (t, comp) => { try { return JSON.parse(card(t)[comp + '_tweaks'] || '[]').map(n => String(n.body || '')); } catch (e) { return []; } };
+
+async function openTrialClient(browser, origin, L) {
+  const versions = ['A', 'B', 'C'].map(l => ({ id: 'v' + l, letter: l, status: 'waiting', frame_url: LINK(l), revision: 0, updated_at: '2026-11-03T09:00:00.000Z',
+    smm_ok_at: '2026-11-03T08:00:00.000Z', kasper_ok_at: '2026-11-03T08:10:00.000Z', client_ok_at: null, client_pass_at: null, change_by: null, change_note: null, change_at: null, change_part: null, thumbnail_url: null, caption: null }));
+  const flagValues = { trial_reels_pages: { clients: [SLUG] }, trial_versions_v2: { clients: [SLUG] } };
+  const t = await open(browser, origin, { stage: 'client', flags: 'on', flagValues, linkedParts: true, polish: true });
+  t.versions = versions;
+  let CARD = null;
+  await t.ctx.route('**/functions/v1/trial-reels', async route => {
+    const r = route.request();
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    const b = JSON.parse(r.postData() || '{}');
+    if (!CARD) CARD = await t.page.evaluate(() => { const p = (calState.posts || []).find(x => x.id === 'rs1') || {}; return { thumbnail_url: p.thumbnail_url || null, caption: p.caption || null }; }).catch(() => ({}));
+    const shape = () => Object.assign({ enabled: true }, L.readShape(versions, { client: true, mainLink: versions[0].frame_url, cardStatus: 'Client Approval', card: CARD }));
+    const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
+    if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
+    if (b.action === 'answer') {
+      const res = L.answerPatches(versions, { stage: 'client', kind: b.kind, letter: b.letter, note: b.note, cardStatus: 'Client Approval', part: b.part }, new Date().toISOString());
+      if (res.error) return reply({ ok: false, error: res.error }, 400);
+      for (const p of res.patches) Object.assign(versions.find(v => v.id === p.id), p.patch);
+      return reply(Object.assign({ ok: true }, shape()));
+    }
+    return reply({ ok: false, error: 'unknown_action' }, 400);
+  });
+  await t.page.goto(url(origin), { waitUntil: 'domcontentloaded' });
+  await waitNew(t); await sleep(1800);
+  return t;
+}
+const graphicShows = t => t.page.evaluate(sent => {
+  const r = document.getElementById('svReviewStage').shadowRoot;
+  const e = r.querySelector('[data-err="graphic"]'), ta = r.getElementById('ta');
+  return { err: !!e || !!_calReviewState.errors['rs1|graphic'], retry: !!r.querySelector('[data-retry="graphic"]'),
+    words: !!(e && (e.textContent || '').includes(sent)) || !!(ta && ta.value.includes(sent)),
+    open: ((r.querySelector('.trs-s[aria-pressed="true"]') || {}).dataset || {}).trvGo || '' };
+}, SENT).catch(() => ({}));
+
+async function askOnVersionC(t, words) {
+  await inS(t.page, '.trv [data-trv-go="C"]').click(); await sleep(600);
+  await inS(t.page, '[data-chg="video"]').click(); await sleep(300);
+  await inS(t.page, '[data-trv-part="thumbnail"]').click(); await sleep(300);
+  await inS(t.page, '#ta').fill(words);
+  await inS(t.page, '#sendBtn').click();
+}
+
+async function runEngine(browserType, origin, L) {
+  const browser = await browserType.launch();
+  try {
+    console.log('--- 1. a thumbnail change on Version C, its first send refused, Try again ---');
+    let t = await openTrialClient(browser, origin, L);
+    const before = card(t).graphic_status;
+    Object.assign(t.state, { writeFail: 50 });
+    await askOnVersionC(t, WORDS);
+    // The refusal is either shown with Try again, or held by the client queue to be sent again by itself.
+    await until(async () => { const s = await graphicShows(t); return (s.err && s.retry) || t.state.writeAttempts >= 2; }, 15000);
+    await sleep(2000);
+    expect(!notes(t, 'graphic').some(b => b.includes(WORDS)), '1: (control) nothing of it is on the server while the line refuses');
+    Object.assign(t.state, { writeFail: 0 });
+    const s = await graphicShows(t);
+    if (s.retry) await inS(t.page, '[data-retry="graphic"]').first().click({ timeout: 5000 }).catch(() => {});
+    await until(async () => notes(t, 'graphic').some(b => b.includes(WORDS)), 70000);
+    await sleep(5000);
+    const err1 = await t.page.evaluate(() => String(_calReviewState.errors['rs1|graphic'] || '')).catch(() => '');
+    const got = notes(t, 'graphic').filter(b => b.includes(WORDS));
+    expect(got.length === 1 && got[0] === SENT, '1: once the line answers, the same change lands once (Try again or the queue\'s own re-send), its text unchanged (' + JSON.stringify(got) + (err1 ? ', page says: ' + err1.slice(0, 90) : '') + ')');
+    expect(card(t).graphic_status === before, '1: and the thumbnail keeps its status (' + before + ' -> ' + card(t).graphic_status + ')');
+    expect(!notes(t, 'video').some(b => b.includes(WORDS)), '1: and nothing of it on the video part');
+    await t.ctx.close();
+
+    console.log('--- 2. (guard) a different change while another one\'s record waits is still refused ---');
+    t = await openTrialClient(browser, origin, L);
+    const OLDER = 'Version C, thumbnail: An older change, still waiting.';
+    // Another change's record for the same part, sent the trial way (the part's status kept), by this same link.
+    await t.page.evaluate(([older]) => {
+      const post = (calState.posts || []).find(p => p.id === 'rs1');
+      const id = 'rb_olderchange1';
+      const gate = { surface: 'calendar', client_slug: _writeUiSourceClientSlug('calendar', { post }), source_transport: 'supabase', post_id: 'rs1', component: 'graphic',
+        comment_id: id, comment_body: older, comment_author: String(calState.client || 'Client'), comment_role: 'client', comment_audience: 'client', comment_is_tweak: true,
+        intended_status: String(post.graphic_status || ''), approval_clears: [], linear_issue: String(_calLinearUrlFor(post, 'graphic') || ''), principal: _writeUiPrincipalKey() };
+      const rows = JSON.parse(localStorage.getItem('syncview_linear_outbox_v1') || '[]');
+      rows.push({ id: 'deferred_calendar_' + id + '_source', kind: 'source_only', payload: {}, attempts: 0, lastError: '', lastAttempt: 0, queuedAt: Date.now(), transport: 'source_only', client_slug: gate.client_slug, source_gate: gate });
+      localStorage.setItem('syncview_linear_outbox_v1', JSON.stringify(rows));
+    }, [OLDER]).catch(e => console.log('seed failed: ' + String(e && e.message).slice(0, 120)));
+    const NEWER = 'A different change, please.';
+    await askOnVersionC(t, NEWER);
+    await sleep(6000);
+    const err2 = await t.page.evaluate(() => String(_calReviewState.errors['rs1|graphic'] || '')).catch(() => '');
+    expect(/still being confirmed|another change request/i.test(err2), '2: the different change is refused while the other one waits (' + err2.slice(0, 90) + ')');
+    expect(!notes(t, 'graphic').some(b => b.includes(NEWER) || b.includes('older change')), '2: and nothing of either reaches the card');
+    await t.ctx.close();
+  } finally {
+    await browser.close();
+  }
+}
+
+(async () => {
+  const L = await import(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'logic.mjs'));
+  const server = await serveStatic();
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    const engines = [['chromium', chromium], ['webkit', webkit]];
+    const only = String(process.env.TRIAL_RETRY_ENGINES || '').split(',').filter(Boolean);
+    for (const [name, type] of engines) {
+      if (only.length && !only.includes(name)) continue;
+      engineName = name;
+      let probe = null;
+      try { probe = await type.launch(); } catch (e) { probe = null; }
+      if (!probe) {
+        if (name === 'webkit' && process.env.TRIAL_RETRY_REQUIRE_WEBKIT === '1') expect(false, 'WebKit is required in this run but could not start');
+        else console.log('(' + name + ' is not installed here: skipped)');
+        continue;
+      }
+      await probe.close();
+      console.log('===== ' + name + ' =====');
+      await runEngine(type, origin, L);
+    }
+  } finally { server.close(); }
+  if (failures.length) { console.error('\ntrial-change-retry-browser: ' + failures.length + ' failed'); process.exit(1); }
+  console.log('\ntrial-change-retry-browser: a trial version\'s refused change is sent again unchanged, once; a different one is still refused ✅');
+})().catch(e => { console.error(e); process.exit(1); });

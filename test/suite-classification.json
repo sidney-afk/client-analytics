@@ -2160,6 +2160,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-change-retry-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (TRIAL_RETRY_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js with trial versions, the trial-reels function answered by supabase/functions/trial-reels/logic.mjs), fictional client, card and versions, no hosted credentials and no live data. The client link: a thumbnail change on a trial version, sent keeping the part's status, whose first send is refused lands once when the line answers, its version-named text unchanged and the status kept (failed on main: refused for good as another change still being confirmed); a different change while another one's record waits is still refused.",
+      "reproduce": "node test/trial-change-retry-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

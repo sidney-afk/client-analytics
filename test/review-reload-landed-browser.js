@@ -96,6 +96,11 @@ async function runEngine(browserType, origin) {
     expect(landed >= 0 && land.env.part === 'video' && land.env.board === 'client' && land.identifiers && first.identifiers && land.identifiers.card && land.identifiers.card === first.identifiers.card,
       '1: once the card shows the change, the page says the save landed, for the same card and part (' + JSON.stringify(land.env || null) + ')');
     expect(reloads(t).filter(b => b.env && b.env.code === 'landed_after_retry').length === 1, '1: it says so once');
+    // The review stage reports this reload (with its card, part and action, and later its landing). The Calendar's own
+    // reload report, which has no card and never a landing, must not report it a second time on the client link: the
+    // watcher read that one as a client still blocked (live, 4 Nov).
+    const cardSave = t.beacons.filter(b => b.operation === 'calendar_reload_mid_save');
+    expect(cardSave.length === 0, '1: the reload is reported once, by the review stage, not also by the Calendar (' + cardSave.map(b => (b.env && b.env.code) || '').join(',') + ')');
     expect(noWords(t.beacons), '1: no words, titles or names in any report');
     expect(pageErrors(t).length === 0, '1: no page errors (' + pageErrors(t).join(' | ') + ')');
     await t.ctx.close();

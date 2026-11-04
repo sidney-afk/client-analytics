@@ -1450,6 +1450,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 // A save that started on this page since it loaded owns the note; it is not from before the reload.
                 if (_calInflightCount > 0) return;
                 sessionStorage.removeItem(CAL_INFLIGHT_KEY);
+                // The review stage left its own note of this reload: it reports it with the card, part and action, and
+                // later says when that save lands. This runs before the stage has mounted (its board hint is not set
+                // yet), so without this the same reload was reported twice, the second time with no card and so never
+                // followed by a landing: the watcher read every such reload as a client still blocked (live, 4 Nov).
+                // The stage's rule for its note: this tab's own, or the shared copy when a minute old at most.
+                const rsNote = store => { try { return JSON.parse(store.getItem('syncview_rs_inflight_v1') || 'null'); } catch (e) { return null; } };
+                const rsOwn = rsNote(sessionStorage), rsShared = rsNote(localStorage);
+                if (rsOwn || (rsShared && Date.now() - Number(rsShared.at || 0) < 60000)) return;
                 if (Date.now() - Number(note.at || 0) < 60000) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
             } catch (e) {}
         });

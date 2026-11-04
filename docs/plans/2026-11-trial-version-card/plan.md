@@ -300,7 +300,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 - **Posted comes only with the winner now** (3.4); a Posted that arrives another way (Production sync, SyncLinear) is ignored for the trial and warned about. Step 1a lists every way in.
 - **The winner swap** changes `trial-reels` (not Section 4) and writes the card through the page; a failed card write stops the pick and puts everything back. Its upside: every server reader already reads the card's columns, so none changes.
 - **The trial flow change (3.4)** retires the automatic start and the 24 h clock for v2 clients; both ways coexist for a while, and every reader of the 24 h must be updated with its tests.
-- **The trial flow (3.4)** retires the automatic start from Posted and the 24 h clock for v2 clients and moves the start to the date through `calendar-auto-posted`; both ways coexist for a while, and every reader of the 24 h is updated with its tests.
+- **The trial flow (3.4)** retires the automatic start from Posted and the 24 h clock for v2 clients and moves the start to the morning of the scheduled date through a new check (the Posted robot is untouched); both ways coexist for a while, and every reader of the 24 h is updated with its tests.
 - **A trial waiting for an unapproved version** must say so on the strip, or it looks stuck.
 - **The 5 existing winners** (2 not A) keep their old copy; Clear-the-winner is refused on them.
 - **Per-part approval changes what "approved" means** for the review boards and posting; steps 8 and 9 change those on purpose, not as a side effect.

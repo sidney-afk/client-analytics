@@ -88,7 +88,7 @@ globalThis.fetch = async (url) => {
       if (h === 'h_tie') return res({ items: [igPost('T1', 500, 1, 4, 3, 'tie IG')] });
       if (h === 'h_test') return res({ items: [igPost('S1', 10, 1, 1, 1, 'test post')] });
     }
-    if (p === '/v3/profile/videos') {
+    if (p === '/v3/tiktok/profile/videos') {
       if (h === 't_gone') return res({ success: false }, 404);
       if (h === 't_aaa') return res({ aweme_list: [ttPost('T-A', 3000, 40, 2, 'TikTok winner')] });
       if (h === 't_tie') return res({ aweme_list: [ttPost('T-T', 500, 9, 1, 'tie TikTok')] });

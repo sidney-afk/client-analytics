@@ -64,7 +64,7 @@ async function scrapeCreators(platform: string, id: string): Promise<Read> {
   const key = Deno.env.get("SCRAPECREATORS_API_KEY") || "";
   const handle = encodeURIComponent(id.replace(/^@/, ""));
   const path = platform === "instagram" ? `/v2/instagram/user/posts?handle=${handle}`
-    : platform === "tiktok" ? `/v3/profile/videos?handle=${handle}&sort_by=latest`
+    : platform === "tiktok" ? `/v3/tiktok/profile/videos?handle=${handle}&sort_by=latest`
     : `/v1/youtube/channel-videos?channelId=${encodeURIComponent(id)}`;
   const res = await get(`${SC}${path}`, { "x-api-key": key });
   if (res.net) return { error_class: res.net };

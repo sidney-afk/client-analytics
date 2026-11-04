@@ -2168,6 +2168,22 @@
       "ci": "representative"
     },
     {
+      "file": "review-reload-retry-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_RETRY_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, slow and refusing writes switched at run time), fictional client and cards, no hosted credentials and no live data. The client link: a change request, a reload while it saves, and every later write refused: the part shows a real Try again button and offers the words back, and Try again lands the change exactly once, also after another reload; on a new load the part still says it was not sent, with the words and Try again, and lands once (failed on main: no button, no words, and nothing ever sent the change).",
+      "reproduce": "node test/review-reload-retry-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-change-retry-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (TRIAL_RETRY_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js with trial versions, the trial-reels function answered by supabase/functions/trial-reels/logic.mjs), fictional client, card and versions, no hosted credentials and no live data. The client link: a thumbnail change on a trial version, sent keeping the part's status, whose first send is refused lands once when the line answers, its version-named text unchanged and the status kept (failed on main: refused for good as another change still being confirmed); a different change while another one's record waits is still refused.",
+      "reproduce": "node test/trial-change-retry-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-reports-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2400,6 +2416,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-kasper-redo-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 694: Kasper's Redo on each part of his Review Session; the first click arms it in place and writes nothing, a second within four seconds sends the fixed team-only note once and the part goes to Tweaks Needed, left alone it disarms; a post in the second layout at 1440 and 1920 (on Approve's row), a sample through the Samples save path, today's page at 390; never on the client page or the SMM Review tab.",
+      "reproduce": "node test/review-stage-kasper-redo-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2504,11 +2528,27 @@
       "ci": "representative"
     },
     {
+      "file": "trial-hover-tooltip-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 686: a trial version's status pill has no native title; a hover shows who approved it in the shared tooltip; a click opens its menu with no tooltip over it; a click outside closes it and no tooltip comes back; and a press on any titled control keeps the native title away until the pointer leaves.",
+      "reproduce": "node test/trial-hover-tooltip-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-version-fields-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Plan row V3: behind trial_versions_v2 each version shows its own thumbnail and caption (Same as the card when empty, the card's own on the version on the card), a caption or thumbnail saves through version_fields_set for that letter only, an http thumbnail is refused before anything is sent, Escape sends nothing, and a winner's thumbnail and caption go onto the card through today's card save with Undo putting the card's back, at 1440 and 390 pixel width.",
       "reproduce": "node test/trial-version-fields-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-version-card-tabs-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 688 part 2: behind trial_versions_v2 a trial card with two or more live versions carries Version A/B/C tabs on its picture (a row above the Video field on the staff phone), each with its status dot; the version on the card is picked first; picking another shows its Video row, picture and caption read only and writes nothing; picking the card's version puts the card's own back; a dropped version, one live version or a winner means no tabs; at 1440 and 390 pixel width.",
+      "reproduce": "node test/trial-version-card-tabs-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

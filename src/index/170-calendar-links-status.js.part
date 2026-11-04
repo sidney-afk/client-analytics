@@ -283,6 +283,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     function _calSetOpenStatusMenu(value) {
         _calOpenStatusMenu = value;
         if (!value) return;
+        // The pill says its menu is open: assistive tech hears it, and the shared tooltip (345) shows nothing over it.
+        try { if (value.triggerEl && value.triggerEl.setAttribute) value.triggerEl.setAttribute('aria-expanded', 'true'); } catch (e) {}
         svLayerOpen({
             key: 'cal-status',
             region: () => (_calOpenStatusMenu ? _calOpenStatusMenu.el : null),
@@ -303,8 +305,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
     function _calCloseStatusMenu() {
         if (!_calOpenStatusMenu) return;
-        const m = _calOpenStatusMenu.el;
+        const m = _calOpenStatusMenu.el, trig = _calOpenStatusMenu.triggerEl;
         if (m && m.parentNode) m.parentNode.removeChild(m);
+        try { if (trig && trig.setAttribute) trig.setAttribute('aria-expanded', 'false'); } catch (e) {}
         _calOpenStatusMenu = null;
         svLayerRelease('cal-status', { focus: true });
     }

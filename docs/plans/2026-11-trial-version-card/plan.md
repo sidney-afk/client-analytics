@@ -205,7 +205,7 @@ Every new write (version field, version part status, the route writer, the Post 
 | Q11 | Yes: the old list goes in step 5 | 3.2 |
 | Q12 | "Up to 5 versions, A to E" (he wrote "ABCDF"; read as five). **Assumption, flagged** | 2.2 |
 
-**New questions this raised.** Each has a default; if Sidney says nothing, the default is built.
+**Questions this raised. Sidney answered Q13 to Q17 on 4 Nov (~20:05 UTC): Q13 yes; Q14 no button ("no, no better"), so there is no "Keep Version C as the card"; Q15 yes; Q16 yes; Q17 yes, five versions, A to E.** Questions A to F (section 12) are still open with him; each has a default that is built if he says nothing.
 
 13. **Q13. Production's parent issue for a trial card.** It follows the hidden route value. Recommended: show "Trial · N versions" with the version dots on the parent.
 14. **Q14. Ending a trial with a winner that is not A.** Recommended: no copy, the highlight is the pick; trial switch-off is refused until the winner is cleared. Alternative: an explicit "Keep Version C as the card" button.
@@ -232,6 +232,12 @@ Everything stays behind `trial_versions_v2`, on for the test client only. The ca
 | 9 | **Posting reads the new rule** | "Approved" means all three parts; after a winner only the winner is offered; `post-source` reads through the helper; nothing posts in a check | Pick the trial card on the Post tab (nothing is posted) |
 
 Each step ships with a browser test at 1440 and 390 that fails on `main` and passes on the branch, the existing trial suites kept green (`trial-version-card-tabs-browser`, `trial-version-fields-browser`, `trial-reels-journey-browser`, `trial-version-review-parts-browser`), the identity check before pushing, and the refusal-log call plus a read-back on every new write. Rough size: step 0 a day; 1a and 1b two or three; 2 to 5 about a week and a half together; the rest another week. A fingerprint re-pin is not expected at any step; if a step touches a Section 4 function, re-pin in the same PR.
+
+### Process before any build (Sidney, 4 Nov)
+
+1. Sidney approves this plan (after Q-A to Q-F are answered).
+2. **A strong model reviews the plan once more**, after his approval.
+3. **Only when the plan is final are the mockups made** (step 0). No mockup and no build starts before that.
 
 ## 11. Risks
 

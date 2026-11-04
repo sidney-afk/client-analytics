@@ -158,7 +158,10 @@ function mockBackend(page, state) {
     ok(state.statusReads === 0, 'render without a rename from this page makes no status read');
 
     // 2. A rename save nudges the drain; the marker shows, then clears.
-    state.statusQueue = [{ id: 11, source_id: 'k1', state: 'pending' }, { id: 11, source_id: 'k1', state: 'done' }];
+    // The rename stays pending until the test has seen the marker, then lands. A queue of [pending, done] let a
+    // render's own status read (400 ms after the save) use up the pending answer, so on a busy runner the marker
+    // could show and clear before the check below looked (main 339e19c, browser-guards (2), 4 Nov).
+    state.statusQueue = [{ id: 11, source_id: 'k1', state: 'pending' }];
     const saved = await page.evaluate(async () => {
       _calPendingEdits.k1 = { name: 'New name' };
       await _calFlushCardSave('k1');
@@ -172,6 +175,7 @@ function mockBackend(page, state) {
     }, null, { timeout: 5000 });
     ok(state.pokes >= 1, 'staff rename nudges the drain');
     ok(true, 'marker shows "Name syncing…" while pending');
+    state.statusQueue = [{ id: 11, source_id: 'k1', state: 'done' }];
     await page.waitForFunction(() => document.querySelector('[data-name-sync="k1"]').hidden, null, { timeout: 10000 });
     ok(true, 'marker clears once the rename lands');
     const readsSettled = state.statusReads;

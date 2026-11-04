@@ -750,6 +750,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A client's change request after a reload on a slow line keeps its words, or says it was not saved (OPEN_REPAIRS 691; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-slow-words-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

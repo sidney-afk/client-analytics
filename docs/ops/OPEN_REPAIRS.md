@@ -36857,6 +36857,30 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
 
+## 691. [2026-11-03 UTC, BUILT, NOT MERGED] A client's change request lost its words after a reload on a slow line: the next page's recovery deadlocked (session Reviewguard)
+
+- **Found while building 685, on the shared review-stage fixture (fictional data):** a client asks for a change on the video, the page reloads while the save is running, and the line stays slow (3 s a request). The card reached Tweaks Needed, but the client's words never reached the server, and the next page stayed saving (`_calSaveInFlight`, `_calPendingEdits`) for good. This also happens on main.
+  - Controls: no reload, the words land; a reload and then a fast line, the next page sends them again and they land.
+  - It is also what turned #2576's Chromium leg red in CI.
+- **Live:** no case of this is known yet. Today's iPhone change request (685) was the second control: its words landed 1 s after the reload report.
+- **Root cause: two locks taken in opposite order on the next page.**
+  - **The journal replay** (`_writeUiReplayJournalGroupOwned`, 290) holds the source-repair flight lock (`syncview-source-repair-flight:<surface|client|card>`). It reconciles the status receipt, then queues its card edits and awaits `_calFlushCardSave`.
+  - **The page's own recovered save of the change** (the card's edits with the words) had started meanwhile. It holds the card's save lock (`_calSaveInFlight`). Its status push (`_writeUiGatewayWithRepair`) asks for the same flight lock.
+  - The replay's flush saw the card owned and awaited that save, and that save awaited the replay's lock. Neither ever ended.
+  - On a fast line the replay finished first, which is why only a slow line lost the words.
+  - The journal scan already skipped a card whose save was in flight when the scan starts. The race is the other order: the save starts after the replay already holds the lock.
+- **Fix (290, page only):**
+  - When another save owns the card, the replay leaves its card edits in the pending bucket and returns without awaiting. The bucket holds the edits, the precommitted flag and the repair refs.
+  - That save sends this bucket as its trailing batch from its `finally`, and completes the refs only when that write lands. The replay completes nothing itself, so the journal keeps its debt until the card write lands, and a later replay finds it if that write fails.
+  - The same applies to a Sample's card (`_sxrSaveInFlight`).
+  - No Section 4 function or Edge Function changes. Every refusal, receipt and repair ref path is unchanged.
+- **Test:** `test/review-reload-slow-words-browser.js`, new, on the shared fixture's client link, Chromium and WebKit (WebKit required in CI):
+  1. a change request on a 3 s line, a reload mid-save, the line staying slow: within 40 s the client's words are on the server once, and the page is no longer saving. **On main this fails:** the words never land and the page stays saving.
+  2. the control, the same with no reload: the words land.
+  3. a reload mid-save with every later write refused: the page stops saving and says the change was not saved, with Try again. Nothing of it is on the server.
+  - After case 1 the journal is empty. The server saw the old page's status write, one reconcile, and two same-value status writes from the next page: its recovered save, and the replay's trailing batch. That trailing batch pushes the status as the replay's own flush already did on main when nothing raced it, so it is the same push, no longer stuck. Card writes: one.
+- **Way back:** revert the PR. The deadlock returns, nothing else changes.
+
 ## 693. [2026-11-03 UTC, BUILT, NOT MERGED] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
 
 - **Seen:** from about 17:15 UTC on 3 Nov the full-history checkout took 3 to 12 minutes instead of 40 to 50 s, and jobs hit `timeout-minutes` and came out cancelled: module-check (job 126080092299), the Pages build (126080021235), identity-exposure (126089893903). GitHub's status page was green.

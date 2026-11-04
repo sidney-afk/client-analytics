@@ -1,3 +1,4 @@
+import { loadCalendarPosts } from './150-calendar-hydration-import.js';
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSyncStepper, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';

@@ -125,6 +125,24 @@ async function laterParts(page) {
     } finally { await S.close(); }
   }
 
+  // 2b. The landing watch reads the Calendar's cards again when a cut-off save does not show (OPEN_REPAIRS 704). The
+  // import of the reader was once missing there: a ReferenceError the watch's own try/catch swallowed, so nothing
+  // failed. A note whose save started "in the future" can never look landed, so the watch must reach its reread.
+  {
+    const { S, page, reports } = await env();
+    try {
+      await page.evaluate(() => sessionStorage.setItem('syncview_cal_inflight_v1', JSON.stringify({ at: Date.now() + 600000, n: 1, cards: ['p_t1'] })));
+      await S.openCalendar(page);
+      await until(() => ops(reports, 'calendar_reload_mid_save')[0], 'the reload is reported');
+      await sleep(2500);
+      const reads = () => S.log.filter(l => l.key === 'READ calendar_posts').length;
+      const base = reads();
+      await until(() => reads() > base || null, 'the watch reads the cards again', 20000);
+      assert.equal(ops(reports, 'calendar_reload_mid_save').filter(x => x.env.code === 'landed_after_retry').length, 0, 'never said to have landed when it does not show');
+      ok('a cut-off save that does not show is read for again, and never said to have landed (704)');
+    } finally { await S.close(); }
+  }
+
   // 3. A press dropped because the same part is still saving; 4. an uncaught error while the Calendar is open.
   {
     const { S, page, reports } = await env();

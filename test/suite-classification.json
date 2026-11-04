@@ -632,6 +632,7 @@
     "production-write-auth-matrix.js",
     "production-write-card-link.js",
     "production-write-client-comment-front-door.js",
+    "n8n-finalizer-build-kickoff.js",
     "production-write-drill-coverage.js",
     "production-write-drill.js",
     "production-write-gateway.js",

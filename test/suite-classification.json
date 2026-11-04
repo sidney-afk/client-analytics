@@ -110,6 +110,8 @@
     "analytics-top-videos-collect.js",
     "analytics-weekly-followers-function.js",
     "analytics-weekly-followers.js",
+    "analytics-weekly-posts-function.js",
+    "analytics-weekly-posts.js",
     "anon-read-scope-migrations.js",
     "app-update-floor.js",
     "app-update-nudge.js",

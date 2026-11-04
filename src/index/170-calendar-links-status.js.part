@@ -1422,7 +1422,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        on a client link). Ids only; sent after the save is handled, capped per page. */
     const CAL_INFLIGHT_KEY = 'syncview_cal_inflight_v1';
     let _calInflightCount = 0, _calLeaving = false;
-    const _calInflightCards = {};   // card id -> saves of it running now; the note carries these so the report names the card (OPEN_REPAIRS 703)
+    const _calInflightCards = {};   // card id -> saves of it running now; the note carries these so the report names the card (OPEN_REPAIRS 704)
     const _calMarkLeaving = () => { if (_calInflightCount > 0) _calLeaving = true; };
     addEventListener('beforeunload', _calMarkLeaving);
     addEventListener('pagehide', _calMarkLeaving);
@@ -1446,7 +1446,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             _writeUiReviewEvent('calendar', action, code, { board, card: card ? String(card) : '' }, where || '');
         } catch (e) {}
     }
-    /* 703: says `landed_after_retry` once, under the same action, when a card the reload cut off shows a write newer than
+    /* 704: says `landed_after_retry` once, under the same action, when a card the reload cut off shows a write newer than
        the save's start (the server finishes a request it received, or this page's recovery sent it again), with nothing
        of its own still saving or queued. Watches two minutes; a save that never shows is never said to have landed. */
     function _calReloadLandedWatch(cards, at) {
@@ -1497,7 +1497,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 if (rsOwn || (rsShared && Date.now() - Number(rsShared.at || 0) < 60000)) return;
                 if (Date.now() - Number(note.at || 0) < 60000) {
                     // One report per card the cut-off save was for (ids only), so the watcher can follow each one; a note
-                    // from an older page carries none. 703: the report had no card, so no landing could ever follow it.
+                    // from an older page carries none. 704: the report had no card, so no landing could ever follow it.
                     const cards = Array.isArray(note.cards) ? note.cards.filter(c => c && !_calIsBlankId(c)) : [];
                     if (!cards.length) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
                     cards.forEach(c => _calReportEvent('calendar_reload_mid_save', 'card_save', c, 'card'));

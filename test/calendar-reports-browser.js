@@ -114,13 +114,13 @@ async function laterParts(page) {
       const r = await until(() => ops(reports, 'calendar_reload_mid_save')[0], 'the reload during the save is reported');
       assert.equal(r.env && r.env.board, 'calendar');
       assert.equal(r.env.code, 'card_save');
-      assert.equal(String(r.identifiers && r.identifiers.card || ''), 'p_t1', 'the report names the card (OPEN_REPAIRS 703)');
+      assert.equal(String(r.identifiers && r.identifiers.card || ''), 'p_t1', 'the report names the card (OPEN_REPAIRS 704)');
       ok('a reload while a card save was on its way is reported (calendar_reload_mid_save)');
       await sleep(400);
       assert.equal(ops(reports, 'calendar_reload_mid_save').filter(x => x.env.code === 'card_save').length, 1, 'reported once');
       const lnd = await until(() => ops(reports, 'calendar_reload_mid_save').find(x => x.env.code === 'landed_after_retry'), 'the cut-off save is said to have landed', 40000);
       assert.equal(lnd.identifiers && lnd.identifiers.card, 'p_t1');
-      ok('the cut-off save is followed by landed_after_retry on the same card (703)');
+      ok('the cut-off save is followed by landed_after_retry on the same card (704)');
       noWords(reports);
     } finally { await S.close(); }
   }

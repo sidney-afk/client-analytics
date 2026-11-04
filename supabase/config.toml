@@ -276,3 +276,7 @@ verify_jwt = false
 # Weekly followers snapshot (step 1): x-analytics-collect-key checked in code (same key as the daily collectors); pg_cron on Mondays.
 [functions.analytics-weekly-followers]
 verify_jwt = false
+
+# Weekly analytics snapshot (step 2): top posts and the client message; x-analytics-collect-key checked in code (same key as step 1); pg_cron on Mondays after the followers window.
+[functions.analytics-weekly-posts]
+verify_jwt = false

@@ -112,6 +112,8 @@
     "analytics-weekly-followers.js",
     "analytics-weekly-posts-function.js",
     "analytics-weekly-posts.js",
+    "analytics-weekly-slack-post-function.js",
+    "analytics-weekly-slack-post.js",
     "anon-read-scope-migrations.js",
     "app-update-floor.js",
     "app-update-nudge.js",

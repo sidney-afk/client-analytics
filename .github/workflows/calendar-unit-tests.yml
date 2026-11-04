@@ -98,7 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the changed-file list needs the merge base
+          filter: blob:none # history without old file contents (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -214,6 +215,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Full history WITH old file contents, not blobless (OPEN_REPAIRS 693):
+          # qa/native-label-catalog/write-proof.mjs reads an old commit's
+          # production-write source with on-demand fetching switched off, by design.
           fetch-depth: 0 # truth-sync verifies freshness anchors resolve and are ancestors
       - uses: actions/setup-node@v4
         with:
@@ -257,6 +261,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the diff scan needs the merge base
+          filter: blob:none # old file contents are fetched when read (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -587,6 +592,7 @@ jobs:
           Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)|node test/review-stage-finish-browser.js
           Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)|node test/review-stage-client-composer-browser.js
           Client review page polish behind its switch (Approve spinner then check, no wait cursor, a sent change keeps its box open, no Sending text, delete cross with a confirm, old page when off)|node test/review-client-polish-browser.js
+          A client deleting their own change request on a Production-linked part also deletes the Production copy (OPEN_REPAIRS 690)|node test/client-delete-front-door-browser.js
           Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
           Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
           Client link Sheet and Notes get the team's unread badges behind the same switch (one Synchro team picture, corner count for new, plain number for a waiting question, own notes never count, no staff names, no inbox read; today's look when off)|node test/client-unread-badges-browser.js
@@ -745,6 +751,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A client's change request after a reload on a slow line keeps its words, or says it was not saved (OPEN_REPAIRS 691; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-slow-words-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

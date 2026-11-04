@@ -547,3 +547,35 @@ Why: an empty profile email counted as `client_email_mismatch`, which parks the 
 - Client — Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`), Code node "Check Readiness and Slack Decision": before `aedcda8b-4ccc-4ddd-ab86-f455117c0a91`, after `49a29c76-1c2a-4292-b37b-1e1aec21dd38` (published, applied by the supervisor at about 23:13 UTC). One line added before the email comparison: `if (!clean(clients[0].email)) return wait("Client email is not on the SyncView profile yet.");`. A different, non-empty email still parks as `client_email_mismatch`.
 - Not changed: the owner declined the proposal to drop the form answers from "DM Owner Manual Reconcile"; it still carries them.
 - Undo: publish `aedcda8b` again.
+
+## 2026-11-03 OPEN_REPAIRS 696: Slack Creative Channel Finalizer builds the kickoff at finalize time (published by the supervisor on the owner's go)
+Workflow: Client - Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`)
+Version before: `49a29c76-1c2a-4292-b37b-1e1aec21dd38`      Version after: `f2bf8c50-df81-4e76-aab5-f41a910878b5` (published 2026-11-04, about 00:02 UTC)
+Changed (one change, three steps):
+- New step **Read Sales Intake** (Supabase, credential "Supabase - SyncView Calendar", the one Read Filming Plan uses): get all
+  `sales_intakes` rows whose `client_email` matches the queue row's email (case-insensitive); always outputs, continues on error.
+- New Code step **Build Kickoff**: the code in `scripts/n8n-finalizer-build-kickoff.js` (`BUILD_KICKOFF_JS`), byte for byte. It
+  writes `kickoff_text` and passes the Clients Info readback fields through.
+- Exact steps added (Clients Info Verified? sits at [5020,80], Post Kickoff to Slack at [5260,40]):
+  - **Read Sales Intake**: `n8n-nodes-base.supabase` v1 at [5140,-200]; resource row, operation getAll, table `sales_intakes`,
+    return all, filter manual / all filters: `client_email` **ilike** `={{ $("Pick One Pending Job").first().json.email }}`;
+    settings Always Output Data on, On Error "continue (regular output)"; credential as Read Filming Plan.
+  - **Build Kickoff**: `n8n-nodes-base.code` v2 at [5380,-200]; mode run once for all items, JavaScript, code =
+    `BUILD_KICKOFF_JS` from `scripts/n8n-finalizer-build-kickoff.js`.
+- Wiring: Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack (the old direct link from
+  Clients Info Verified? (true) to Post Kickoff to Slack is removed; its false branch is unchanged). Post Kickoff to Slack's text
+  changes from the queue row's `kickoff` to `{{ $json.kickoff_text }}`; its channel stays `{{ $json.creative_channel_id }}`.
+- Not changed: every readiness, channel, roster, readback and form-answers step; the owner's fallback DM (still the snapshot);
+  provisioning (still writes the snapshot the logins come from).
+Why: owner, 3 Nov 2026 ("fix the onboarding documents so that ... the onboarding message in the creative channel ... is done
+correctly"; "Yes, change the n8n workflow"; "Keep posting logins in Slack").
+Tested: `node test/n8n-finalizer-build-kickoff.js` runs the step's code on fictional step outputs (33 checks, after the owner's
+review removed the CCS, GD and videographer lines: the full layout,
+every placeholder when a piece is missing, logins word for word, the newest live sales intake, no double asterisks). The
+finalizer never sends test clients, so no live run.
+Read back after publishing (Chanfix, live, read-only): active version `f2bf8c50`; Build Kickoff's code sha256 `e92e593b…`, equal to
+`BUILD_KICKOFF_JS` at the merged commit; Read Sales Intake always outputs, continues on error, uses the Read Filming Plan
+credential; wiring Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack, false branch
+unchanged; Post Kickoff's text `{{ $json.kickoff_text }}`. The validator's two warnings (userIds on the two invite steps) were
+there before. Live proof: the next real client's kickoff.
+Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.

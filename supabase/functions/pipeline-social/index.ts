@@ -19,6 +19,12 @@
 //   reddit.search    { query, filter?, sort?, timeframe?, after? }
 //   reddit.subreddit { subreddit, sort?, timeframe?, cache_max_age?, after? }
 //   transcript       { url, language? }       a TikTok, Instagram or YouTube link
+//   frame.cards      {}                      the pass client's production cards that have a Frame.io link: id, caption, post link, date
+//   frame.video      { card }                a short-lived address of that card's small (efficient) video, for the client video study
+//   frame.watch      { card, questions? }    Gemini watches that card's Frame.io video (the small rendition) and answers our own
+//                                            question text as JSON (or the standard questions). Answers cost_usd like watch.
+//   own.views        {}                      the pass client's own Instagram videos: caption, post link, views
+//                    (these three are reads of our own data, always for the pass's own client, no ScrapeCreators call, not counted)
 //   credits          {}                       the ScrapeCreators credit balance
 //   watch            { url, max_seconds? }    Gemini watches one TikTok, Instagram or YouTube video and answers its words,
 //                                            what is on screen, the hook, how it is built, ad or repost (Sidney, 2026-10-28).
@@ -36,6 +42,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "../pipeline-google/pass.mjs";
 import { pipelineGate } from "../pipeline-google/users.mjs";
+import { lookup as frameLookup, tokenSource } from "../frameio-view/logic.mjs";
+import { cardsFor, isOwnAction, ownScope, planOwn, videoFor, viewsFor } from "./own-reads.mjs";
 import { BASE, CAP_KEY, WATCH_MAX_BYTES, WATCH_MODEL, buildRequest, capFrom, geminiBody, logLine, mediaFrom, monthStart, slimResult, watchCost } from "./rules.mjs";
 
 const clean = (v: unknown) => String(v == null ? "" : v).trim();
@@ -79,6 +87,7 @@ async function handle(req: Request): Promise<Response> {
   // deno-lint-ignore no-explicit-any
   const b = await req.json().catch(() => ({})) as Record<string, any>;
   const action = clean(b.action);
+  if (isOwnAction(action)) return await ownRead(sb, pass, action, b);
   const plan = buildRequest(action, b) as Plan;
   if (!plan.ok) return refused(String(plan.error), 400);
 
@@ -187,6 +196,70 @@ async function watch(plan: Plan, link: string, scKey: string, fail: (e: string) 
   if (seconds !== null && read && typeof read === "object" && (read as Record<string, unknown>).seconds == null) (read as Record<string, unknown>).seconds = seconds;
   await note(`watch: ${plan.site} - $${cost.toFixed(4)}`);
   return json({ ok: true, action: "watch", result: { read, model: WATCH_MODEL, usage: out.usageMetadata ?? null, cost_usd: cost, seconds } });
+}
+
+// Gemini watches the small Frame.io rendition (fetched here, sent inline) with our own questions.
+async function watchFrame(address: string, questions: string): Promise<{ ok: boolean; status?: number; error?: string; read?: unknown; usage?: unknown; cost: number }> {
+  const gKey = clean(Deno.env.get("GEMINI_API_KEY"));
+  let bytes: Uint8Array;
+  try {
+    const f = await fetch(address);
+    if (!f.ok) return { ok: false, status: 502, error: `The video file could not be fetched (status ${f.status}).`, cost: 0 };
+    if (Number(f.headers.get("content-length") || 0) > WATCH_MAX_BYTES) return { ok: false, status: 422, error: "The video file is too big to watch.", cost: 0 };
+    bytes = new Uint8Array(await f.arrayBuffer());
+  } catch (_e) { return { ok: false, status: 502, error: "The video file could not be fetched.", cost: 0 }; }
+  if (bytes.length > WATCH_MAX_BYTES) return { ok: false, status: 422, error: "The video file is too big to watch.", cost: 0 };
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  let g: Response;
+  try {
+    g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${WATCH_MODEL}:generateContent`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": gKey }, body: JSON.stringify(geminiBody({ base64: btoa(bin), mime: "video/mp4" }, questions)) });
+  } catch (_e) { return { ok: false, status: 502, error: "Gemini did not answer. Try again in a minute.", cost: 0 }; }
+  // deno-lint-ignore no-explicit-any
+  const out = await g.json().catch(() => ({})) as Record<string, any>;
+  if (!g.ok) return { ok: false, status: 502, error: `Gemini could not watch it (status ${g.status}).`, cost: 0 };
+  const text = String(out?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") || "");
+  let read: unknown = null;
+  try { read = JSON.parse(text); } catch (_e) { read = { text }; }
+  return { ok: true, read, usage: out.usageMetadata ?? null, cost: watchCost(out.usageMetadata) };
+}
+
+let frameTokens: ReturnType<typeof tokenSource> | null = null;
+
+// frame.cards, frame.video, own.views: reads of our own data for the pass's client. Written down in hf_activity like the rest.
+// deno-lint-ignore no-explicit-any
+async function ownRead(sb: Db, pass: any, action: string, b: Record<string, any>): Promise<Response> {
+  const scope = ownScope(pass, b);
+  if (!scope.ok) return refused(String(scope.error), Number(scope.status));
+  const p = planOwn(action, b);
+  if (!p.ok) return refused(String(p.error), 400);
+  const entry = await sb.from("hf_activity").insert({ member_name: String(pass.member ?? ""), tool: "pipeline." + action, client: scope.slug, summary: `${action}: ${p.card ?? scope.slug}`, ok: true, error: null }).select("id").single();
+  if (entry.error || !entry.data) return refused("Could not write the call down, so it was not made.", 503);
+  let out;
+  if (action === "frame.cards") out = await cardsFor(sb, scope.slug);
+  else if (action === "own.views") out = await viewsFor(sb, scope.slug);
+  else {
+    if (action === "frame.watch" && !clean(Deno.env.get("GEMINI_API_KEY"))) return refused("Watching is not set up yet (the Gemini key is missing in Supabase). Tell the Connector supervisor.", 503);
+    const url = clean(Deno.env.get("SUPABASE_URL")).replace(/\/+$/, "");
+    const brokerKey = clean(Deno.env.get("FRAMEIO_BROKER_KEY"));
+    const clientId = clean(Deno.env.get("FRAMEIO_CLIENT_ID"));
+    if (!url || brokerKey.length < 32 || !clientId) out = { ok: false, status: 503, error: "The Frame.io connection is not set up on the server." };
+    else {
+      if (!frameTokens) frameTokens = tokenSource({ fetchFn: fetch, brokerUrl: url + "/functions/v1/frameio-token", brokerKey });
+      const t = frameTokens;
+      out = await videoFor(sb, scope.slug, String(p.card), (link: string) => frameLookup(link, { fetchFn: fetch, getToken: () => t.get(), dropToken: () => t.drop(), clientId, now: Date.now, cache: new Map() }, { client: true, strict: true }));
+    }
+  }
+  if (action === "frame.watch" && out.ok) {
+    const found = (out.result ?? {}) as { url?: string };
+    const w = await watchFrame(String(found.url ?? ""), String(p.questions ?? ""));
+    if (!w.ok) { await sb.from("hf_activity").update({ ok: false, error: String(w.error).slice(0, 200) }).eq("id", entry.data.id); return refused(String(w.error), Number(w.status)); }
+    await sb.from("hf_activity").update({ summary: `frame.watch: ${p.card} - $${w.cost.toFixed(4)}` }).eq("id", entry.data.id);
+    return json({ ok: true, action, result: { card: p.card, read: w.read, model: WATCH_MODEL, usage: w.usage, cost_usd: w.cost } });
+  }
+  if (!out.ok) { await sb.from("hf_activity").update({ ok: false, error: String(out.error).slice(0, 200) }).eq("id", entry.data.id); return refused(String(out.error), Number(out.status)); }
+  return json({ ok: true, action, result: out.result });
 }
 
 Deno.serve(async (req) => {

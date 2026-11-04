@@ -482,6 +482,33 @@ Admin-only and deliberately credential-stripped (an SMM-role identity cannot see
 through it) — so the kickoff message carries the raw account-access answers itself rather than
 relying on that link. The full posted brief retains **Account access** too, same as before.
 
+**The kickoff is built at finalize time (OPEN_REPAIRS 696, owner's go 3 Nov 2026: "change the n8n workflow").**
+Before, the finalizer posted the kickoff provisioning wrote at form time, before an SMM, a filming plan or any research
+existed, so it carried `[ assign ]` and `[ Kasper — fill in ]` and nothing about the brand. Now the finalizer's **Build
+Kickoff** step writes it from what exists when the channels are made. Its code lives in the repo,
+`scripts/n8n-finalizer-build-kickoff.js`, and the n8n step holds the same code byte for byte. `test/n8n-finalizer-build-kickoff.js`
+renders it from fictional data. Layout, in order:
+
+- **New client — <display name>** · <funnel>
+- **Team**: SMM (tagged) · Lead (Kasper, tagged). No CCS, GD or videographer lines (owner, 3 Nov 2026: "no one ever signed
+  them")
+- **Resources**: the onboarding form link (`?onboarding_view=<slug>`) · the Drive folder · the filming plan · the brand deck
+  (from the form, or "none sent") · Onboarding call `[ add link ]`
+- **Account access**: the logins, word for word from the form-time snapshot (owner rule, 24 Aug: logins stay in Slack)
+- **The brand** (the profile's content description and keyword research, else the form's own answer) · **Audience** (ideal
+  customer, pain points) · **Goals** (desired outcomes, what makes this a win) · **Style** (inspiration handles, look,
+  subtitles, music, thumbnail, always/never) · **Scope** (the newest live sales intake's deliverables)
+- **Action items**, tagged: Kasper books the kickoff call with the SMM; the SMM connects Post for Me (and does the ManyChat plan
+  when the scope has it); Kasper: thumbnail Canva template
+- **Timeline** `[ Kasper — strategy · first samples · first post ]`
+
+Sources: the queue row (name, email, funnel, Drive folder id, the form-time snapshot of logins and form answers), **Check
+Readiness and Slack Decision** (Kasper's id), **Read SMM Assignment** (the SMM's Slack id), **Read Clients Info** (description,
+keywords), **Read Filming Plan** (the link) and **Read Sales Intake** (`sales_intakes` by the form email, newest not cancelled).
+Anything missing is a bracketed placeholder, never a guess. Placeholders that stay for Kasper by design: the onboarding call link and
+the timeline. The full form answers still follow as the second message, unchanged. The owner's fallback DM still
+carries the form-time snapshot.
+
 If setup is still incomplete, the worker leaves the private job pending and posts nothing. If a
 channel already exists for that client, an identity is missing/invalid, a readback fails, or any
 Slack write is uncertain, it marks the job **manual reconciliation** and sends the owner one private
@@ -518,7 +545,8 @@ workflow on 2026-09-30):
   `{"client_name": "<the canonical display name exactly as in Clients Info>"}`. It answers at once and starts one pass for that
   client's pending queue row only; the channels appear within a minute or two. Without a name it takes the oldest pending row, so
   always send the name. It is safe to send twice: a row that is processing or done is skipped.
-- **What to check after.** The `creative_channel_id` cell on the **Clients Info** row is filled, and the kickoff message and the
+- **What to check after.** The `creative_channel_id` cell on the **Clients Info** row is filled; the kickoff tags the SMM and Kasper
+  and links the filming plan, with only Kasper's placeholders left (onboarding call, timeline); and the kickoff message and the
   full form answers are in the new channel. If neither happens within ten minutes, do not call it again and do not hand create a
   channel: read the queue row (`pending` with a reason, or `manual` plus the owner's private DM) and follow the reconciliation
   paragraph above.

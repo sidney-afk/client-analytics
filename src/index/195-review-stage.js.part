@@ -2683,7 +2683,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        are the Calendar's draft for the part. Try again sends that same Calendar request again, as the client queue does:
        the same words and action id (draftActionIds), which the tweak inspection takes for the same change, so pressing
        it never adds a copy. Not through the stage's own send: for a trial reel the draft already names its version
-       ("Video A: ..."), and the stage would name it again, for whichever version is open now (Codex on #2598). A trial
+       ("Video A: ..."), and the stage would name it again, for whichever version is open now (Codex on PR 2598). A trial
        part sent without moving its status (keepStatus) is sent the same way again: its delivery record kept the part's
        status at the time, which is not Tweaks Needed then. */
     function _rsAdoptRefused(m, k) {
@@ -2722,7 +2722,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const g = it && it.source_gate;
                 if (!g || it.transport !== 'source_only' || g.surface !== 'calendar' || g.comment_is_tweak !== true) return;
                 // The client's own requests only: a team member's internal change request kept in this same browser is
-                // never shown to the client as their words (Codex on #2598).
+                // never shown to the client as their words (Codex on PR 2598).
                 if (g.comment_role !== 'client' || g.comment_audience !== 'client') return;
                 const me = _writeUiPrincipalKey();
                 if (!me || String(g.principal || '') !== me) return;

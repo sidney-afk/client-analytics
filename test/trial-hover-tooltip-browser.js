@@ -67,7 +67,7 @@ const LINK = (l) => 'https://f.io/fixture-status-' + l.toLowerCase();
     return route.fallback();
   });
 
-  const pill = (page, l) => page.$(`.trl-v .trl-st[aria-label^="Video ${l} status"]`);
+  const pill = (page, l) => page.$(`.trl-v .trl-st[aria-label^="Version ${l} status"], .trl-v .trl-st[aria-label^="Video ${l} status"]`);
   const pillText = async (page, l) => { const h = await pill(page, l); return h ? (await h.innerText()).trim() : ''; };
   const open = async (w, h) => {
     const page = await S.newPage();
@@ -92,7 +92,7 @@ const LINK = (l) => 'https://f.io/fixture-status-' + l.toLowerCase();
   // paints that one itself, under a resting pointer).
   const tipState = (page) => page.evaluate(() => {
     const t = document.getElementById('globalTooltip');
-    const pill = document.querySelector('.trl-v .trl-st[aria-label^="Video B status"]');
+    const pill = document.querySelector('.trl-v .trl-st[aria-label^="Version B status"], .trl-v .trl-st[aria-label^="Video B status"]');
     return { tip: !!(t && t.isConnected && t.getClientRects().length), text: t && t.isConnected ? t.textContent : '', title: pill ? pill.getAttribute('title') : 'no-pill',
       expanded: pill ? pill.getAttribute('aria-expanded') : '', menu: !!document.querySelector('.cal-fld-status-menu') };
   });

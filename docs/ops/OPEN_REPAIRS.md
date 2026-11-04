@@ -37225,6 +37225,13 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Not done here:** nothing deployed or applied; no Slack post; no staff page that reads the messages.
 - **Way back:** the rollback statements are at the top of the migration.
 
+## 704. [2026-11-04 UTC, BUILT, PR OPEN (session Fix-calreload)] A Calendar reload mid-save was reported with no card and never followed by a landing, so the watcher could not tell a lost save from a kept one
+
+- **Signature (4 Nov, 20:07:58 UTC):** one `calendar_reload_mid_save` on a staff page, `card_ref` empty, no `landed_after_retry`. Read-only look: the Calendar write function logged no 4xx/5xx in that window; one status change event was recorded at 20:08, so a save most likely landed. Counts only; the report itself cannot prove it.
+- **Root cause (reporting only, no save was lost):** the in-flight note the Calendar keeps in sessionStorage held only a time and a count, so the report after the reload had no card id, and the landing watch that review boards got in 685 never existed on the Calendar path.
+- **Fix (page only):** the note carries the ids of the cards being saved; the report is sent once per card; the page then watches two minutes and says `landed_after_retry` when that card shows a write newer than the save's start with nothing of its own saving or queued. Never said when it does not show.
+- **Test:** `test/calendar-reports-browser.js` case 2 now asserts the card id and the landing; fails on main (empty card).
+
 ## 703. [2026-11-04 UTC, BUILT, NOT YET MERGED OR APPLIED: PR for session Snapshot2; the supervisor applies the migration, then turns the switch on for the test client first] Weekly client analytics snapshot, step 3: the SyncView bot posts each client's weekly message in their private Slack channel, OFF by default (session Snapshot2)
 
 - **What:** the owner's go on 4 Nov 2026 (relayed by the supervisor): "let's tag the client when this is being sent... look at the logic we use for the notify client button on Syncview. It's the same concept." A new Edge Function `analytics-weekly-slack-post` posts each built message (`analytics_weekly_messages`, 702) with the SyncView bot (`SLACK_BOT_TOKEN`, the same bot as the Notify client button) into the client's private channel (`client_profiles.slack_channel_id`, never `creative_channel_id`).

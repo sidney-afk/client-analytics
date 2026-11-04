@@ -114,10 +114,32 @@ async function laterParts(page) {
       const r = await until(() => ops(reports, 'calendar_reload_mid_save')[0], 'the reload during the save is reported');
       assert.equal(r.env && r.env.board, 'calendar');
       assert.equal(r.env.code, 'card_save');
+      assert.equal(String(r.identifiers && r.identifiers.card || ''), 'p_t1', 'the report names the card (OPEN_REPAIRS 704)');
       ok('a reload while a card save was on its way is reported (calendar_reload_mid_save)');
       await sleep(400);
-      assert.equal(ops(reports, 'calendar_reload_mid_save').length, 1, 'reported once');
+      assert.equal(ops(reports, 'calendar_reload_mid_save').filter(x => x.env.code === 'card_save').length, 1, 'reported once');
+      const lnd = await until(() => ops(reports, 'calendar_reload_mid_save').find(x => x.env.code === 'landed_after_retry'), 'the cut-off save is said to have landed', 40000);
+      assert.equal(lnd.identifiers && lnd.identifiers.card, 'p_t1');
+      ok('the cut-off save is followed by landed_after_retry on the same card (704)');
       noWords(reports);
+    } finally { await S.close(); }
+  }
+
+  // 2b. The landing watch reads the Calendar's cards again when a cut-off save does not show (OPEN_REPAIRS 704). The
+  // import of the reader was once missing there: a ReferenceError the watch's own try/catch swallowed, so nothing
+  // failed. A note whose save started "in the future" can never look landed, so the watch must reach its reread.
+  {
+    const { S, page, reports } = await env();
+    try {
+      await page.evaluate(() => sessionStorage.setItem('syncview_cal_inflight_v1', JSON.stringify({ at: Date.now() + 600000, n: 1, cards: ['p_t1'] })));
+      await S.openCalendar(page);
+      await until(() => ops(reports, 'calendar_reload_mid_save')[0], 'the reload is reported');
+      await sleep(2500);
+      const reads = () => S.log.filter(l => l.key === 'READ calendar_posts').length;
+      const base = reads();
+      await until(() => reads() > base || null, 'the watch reads the cards again', 20000);
+      assert.equal(ops(reports, 'calendar_reload_mid_save').filter(x => x.env.code === 'landed_after_retry').length, 0, 'never said to have landed when it does not show');
+      ok('a cut-off save that does not show is read for again, and never said to have landed (704)');
     } finally { await S.close(); }
   }
 

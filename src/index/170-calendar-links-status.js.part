@@ -1,3 +1,4 @@
+import { loadCalendarPosts } from './150-calendar-hydration-import.js';
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSyncStepper, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
@@ -1422,15 +1423,20 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        on a client link). Ids only; sent after the save is handled, capped per page. */
     const CAL_INFLIGHT_KEY = 'syncview_cal_inflight_v1';
     let _calInflightCount = 0, _calLeaving = false;
+    const _calInflightCards = {};   // card id -> saves of it running now; the note carries these so the report names the card (OPEN_REPAIRS 704)
     const _calMarkLeaving = () => { if (_calInflightCount > 0) _calLeaving = true; };
     addEventListener('beforeunload', _calMarkLeaving);
     addEventListener('pagehide', _calMarkLeaving);
     addEventListener('pageshow', () => { _calLeaving = false; });
-    function _calInflightNote(delta) {
+    function _calInflightNote(delta, card) {
         _calInflightCount = Math.max(0, _calInflightCount + delta);
+        if (card) {
+            _calInflightCards[card] = Math.max(0, (_calInflightCards[card] || 0) + delta);
+            if (!_calInflightCards[card]) delete _calInflightCards[card];
+        }
         try {
             // Written when a save starts; once the page is leaving (which aborts the save) nothing clears it.
-            if (_calInflightCount > 0) sessionStorage.setItem(CAL_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), n: _calInflightCount }));
+            if (_calInflightCount > 0) sessionStorage.setItem(CAL_INFLIGHT_KEY, JSON.stringify({ at: Date.now(), n: _calInflightCount, cards: Object.keys(_calInflightCards).slice(0, 5), client: String(calState && calState.client || '') }));
             else if (!_calLeaving) sessionStorage.removeItem(CAL_INFLIGHT_KEY);
         } catch (e) {}
     }
@@ -1439,6 +1445,35 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             if (_writeUiBoardHinted()) return;   // the review stage reports its own
             const board = _writeUiPageBoard('calendar');
             _writeUiReviewEvent('calendar', action, code, { board, card: card ? String(card) : '' }, where || '');
+        } catch (e) {}
+    }
+    /* 704: says `landed_after_retry` once, under the same action, when a card the reload cut off shows a write newer than
+       the save's start (the server finishes a request it received, or this page's recovery sent it again), with nothing
+       of its own still saving or queued. Watches two minutes; a save that never shows is never said to have landed. */
+    function _calReloadLandedWatch(cards, at) {
+        try {
+            const left = (cards || []).slice();
+            if (!left.length) return;
+            const t0 = Date.now(), rereadAt = [6000, 20000, 60000];
+            const tick = () => {
+                try {
+                    for (let i = left.length - 1; i >= 0; i--) {
+                        const id = left[i];
+                        if (calState.loading || _calSaveInFlight[id] || _calPendingEdits[id]) continue;
+                        const post = (calState.posts || []).find(p => p && String(p.id) === String(id));
+                        const u = post && Date.parse(post.updated_at || '');
+                        if (!post || post._saveError || !(u >= at - 2000)) continue;
+                        left.splice(i, 1);
+                        _calReportEvent('calendar_reload_mid_save', 'landed_after_retry', id, 'card');
+                    }
+                    if (left.length && rereadAt.length && Date.now() - t0 >= rereadAt[0]) {
+                        rereadAt.shift();
+                        if (!calState.loading) loadCalendarPosts({ background: true, quiet: true });
+                    }
+                } catch (e) {}
+                if (left.length && Date.now() - t0 < 120000) setTimeout(tick, 500);
+            };
+            setTimeout(tick, 500);
         } catch (e) {}
     }
     (function _calReportsMount() {
@@ -1461,7 +1496,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 const rsNote = store => { try { return JSON.parse(store.getItem('syncview_rs_inflight_v1') || 'null'); } catch (e) { return null; } };
                 const rsOwn = rsNote(sessionStorage), rsShared = rsNote(localStorage);
                 if (rsOwn || (rsShared && Date.now() - Number(rsShared.at || 0) < 60000)) return;
-                if (Date.now() - Number(note.at || 0) < 60000) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
+                if (Date.now() - Number(note.at || 0) < 60000) {
+                    // One report per card the cut-off save was for (ids only), so the watcher can follow each one; a note
+                    // from an older page carries none. 704: the report had no card, so no landing could ever follow it.
+                    const cards = Array.isArray(note.cards) ? note.cards.filter(c => c && !_calIsBlankId(c)) : [];
+                    if (!cards.length) _calReportEvent('calendar_reload_mid_save', 'card_save', '', 'card');
+                    cards.forEach(c => _calReportEvent('calendar_reload_mid_save', 'card_save', c, 'card'));
+                    _calReloadLandedWatch(cards, Number(note.at || 0));
+                }
             } catch (e) {}
         });
         const on = () => {
@@ -1567,7 +1609,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         let _releaseSave;
         _calSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
         let realId = pid;
-        _calInflightNote(1);
+        _calInflightNote(1, _calIsBlankId(pid) ? '' : pid);
         try {
         const isBlank = _calIsBlankId(pid);
         const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
@@ -2133,7 +2175,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             if (gatewayCommitted && !wasNewRow) _calScheduleSyncRetry(realId);
         }
         } finally {
-            _calInflightNote(-1);
+            _calInflightNote(-1, _calIsBlankId(pid) ? '' : pid);
             // Release the per-card lock and, if the user kept editing while
             // this save was in flight, flush the queued edits now — strictly
             // after this request finished, so writes to the same sheet row

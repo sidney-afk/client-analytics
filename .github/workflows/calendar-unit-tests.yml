@@ -98,7 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the changed-file list needs the merge base
+          filter: blob:none # history without old file contents (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -214,6 +215,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Full history WITH old file contents, not blobless (OPEN_REPAIRS 693):
+          # qa/native-label-catalog/write-proof.mjs reads an old commit's
+          # production-write source with on-demand fetching switched off, by design.
           fetch-depth: 0 # truth-sync verifies freshness anchors resolve and are ancestors
       - uses: actions/setup-node@v4
         with:
@@ -257,6 +261,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the diff scan needs the merge base
+          filter: blob:none # old file contents are fetched when read (OPEN_REPAIRS 693)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -746,6 +751,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A client's change request after a reload on a slow line keeps its words, or says it was not saved (OPEN_REPAIRS 691; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-slow-words-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

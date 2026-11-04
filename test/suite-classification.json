@@ -633,6 +633,7 @@
     "production-write-card-link.js",
     "production-write-client-comment-front-door.js",
     "client-front-door-delete.js",
+    "n8n-finalizer-build-kickoff.js",
     "production-write-drill-coverage.js",
     "production-write-drill.js",
     "production-write-gateway.js",
@@ -2148,6 +2149,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_GAUNTLET_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, with the database's copy of a native status onto its card), fictional client, cards and people, no hosted credentials and no live data. Kasper's review board (second layout, fast boot) and the client link under his conditions: three approves in a row on one card all reach the server (failed on main), a double click, a slow line, a lost answer, a reload during a save (re-read after the reload; failed on main), two tabs, a tab open five hours, a nearly full browser store, an uncaught error, and the client link's double tap and refusal; every report carries ids, codes and the store's fill, never names, titles or words.",
       "reproduce": "node test/review-board-gauntlet-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-reload-slow-words-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_SLOW_WORDS_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js, slow and refusing writes switched at run time), fictional client and cards, no hosted credentials and no live data. The client link: a change request, a reload while it saves and a line that stays slow keeps the client's words on the server once and ends saving (failed on main: the next page's journal replay and its own recovered save deadlocked); the same with no reload lands; with every later write refused the page says the change was not saved, with Try again.",
+      "reproduce": "node test/review-reload-slow-words-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
       "ci": "representative"
     },
     {

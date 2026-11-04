@@ -756,6 +756,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
         run: node test/review-reload-slow-words-browser.js
+      - name: A client's change request refused after a reload offers the words and Try again, and lands once (OPEN_REPAIRS 697; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_RETRY_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-retry-browser.js
       - name: A trial version's refused change is sent again unchanged and lands once; a different one is still refused (OPEN_REPAIRS 699; Chromium and WebKit)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

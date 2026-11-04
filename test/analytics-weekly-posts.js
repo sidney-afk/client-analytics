@@ -39,6 +39,15 @@ const ROOT = path.resolve(__dirname, '..');
   const yv = m.readYoutubeVideos(200, { items: [{ id: 'in', snippet: { title: 'Hi', publishedAt: '2026-11-03T00:00:00Z' }, statistics: { viewCount: '1500', likeCount: '9', commentCount: '3' } }] });
   assert.deepEqual([yv.posts[0].views, yv.posts[0].likes, yv.posts[0].comments, yv.posts[0].title], [1500, 9, 3, 'Hi']);
 
+  // the header names the 7 days counted (Monday to the Sunday just ended), and the window is exactly those days in UTC
+  assert(m.buildMessage({ firstName: 'D', weekOf: '2026-11-02', platforms: { instagram: ok([]) }, followers: {} }).startsWith("D, here's your week on social (Oct 26 to Nov 1)\n"), 'run on Mon 2 Nov: Oct 26 to Nov 1');
+  assert(m.buildMessage({ firstName: 'D', weekOf: '2027-01-04', platforms: { instagram: ok([]) }, followers: {} }).includes('(Dec 28 to Jan 3)'), 'across a year end');
+  const b = m.windowOf('2026-11-02'), nextB = m.windowOf('2026-11-09');
+  assert.equal(b.end, nextB.start, 'consecutive weeks share one boundary: no post counted twice, none missed');
+  const edge = [post('sun-last-ms', 1, 1, 't', '2026-11-01T23:59:59.999Z'), post('mon-start', 1, 1, 't', '2026-11-02T00:00:00.000Z')];
+  assert.deepEqual(m.inWindow(edge, b).map(p => p.url), ['sun-last-ms'], 'Sunday 23:59:59.999 UTC is the last moment of the week ending Nov 1');
+  assert.deepEqual(m.inWindow(edge, nextB).map(p => p.url), ['mon-start'], 'Monday 00:00:00 UTC opens the next week');
+
   // hook
   assert.equal(m.hook('First line\nsecond'), 'First line');
   assert.equal(m.hook('Say "hi" “now”'), "Say 'hi' 'now'");
@@ -58,7 +67,7 @@ const ROOT = path.resolve(__dirname, '..');
   const full = m.buildMessage({ firstName: 'Dana', weekOf: W, platforms: { instagram: ok([post('https://i/1', 1200, 8, 'Best hook\nmore')]), tiktok: ok([post('https://t/1', 3000, 40, 'TikTok one')]), youtube: ok([post('https://y/1', 300, 2)]) },
     followers: { this: { instagram: 110, tiktok: 520, youtube: 70 }, last: { instagram: 100, tiktok: 500, youtube: 75 } } });
   assert.equal(full, [
-    "Dana, here's your week on social (Nov 2 to Nov 9)",
+    "Dana, here's your week on social (Nov 2 to Nov 8)",
     'New followers: +25 (Instagram +10 · TikTok +20 · YouTube -5)',
     'Views: 4,500',
     'Top post: "TikTok one" 3,000 views · 40 comments',
@@ -77,7 +86,7 @@ const ROOT = path.resolve(__dirname, '..');
   assert(one.includes('New followers: +0 (TikTok +0)') && one.includes('1 view · 0 comments'), 'a slow week still shows its real numbers');
   // no posts in the week: Views 0, no top post, no link
   const none = m.buildMessage({ firstName: 'D', weekOf: W, platforms: { instagram: ok([]) }, followers: { this: {}, last: {} } });
-  assert.equal(none, "D, here's your week on social (Nov 2 to Nov 9)\nViews: 0");
+  assert.equal(none, "D, here's your week on social (Nov 2 to Nov 8)\nViews: 0");
   // a failed platform: out of the totals, never mentioned
   const failed = m.buildMessage({ firstName: 'D', weekOf: W, platforms: { instagram: ok([post('https://i/1', 100, 1, 'a')]), tiktok: { status: 'failed', posts: [] } },
     followers: { this: { instagram: 11, tiktok: 99 }, last: { instagram: 10, tiktok: 1 } } });

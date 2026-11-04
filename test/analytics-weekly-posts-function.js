@@ -109,7 +109,7 @@ const call = async (body, key = KEY) => {
 const msg = slug => (globalThis.__DB.analytics_weekly_messages || []).find(r => r.client_slug === slug && r.week_of === WEEK);
 const posts = (slug, pf) => (globalThis.__DB.analytics_weekly_top_posts || []).filter(r => r.client_slug === slug && (!pf || r.platform === pf));
 const queue = slug => globalThis.__DB.analytics_weekly_posts_queue.find(r => r.client_slug === slug);
-const END = monday(), START = monday(7);
+const END = new Date(monday().getTime() - 86400000), START = monday(7); // the 7 days counted: last Monday through the Sunday just ended
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const HEAD = first => `${first}, here's your week on social (${MONTHS[START.getUTCMonth()]} ${START.getUTCDate()} to ${MONTHS[END.getUTCMonth()]} ${END.getUTCDate()})`;
 

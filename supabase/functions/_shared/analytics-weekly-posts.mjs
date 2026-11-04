@@ -138,9 +138,10 @@ export function pickTopPost(posts) {
 export function buildMessage({ firstName, weekOf, platforms, followers }) {
   const ok = PLATFORMS.filter((p) => platforms[p]?.status === "ok");
   if (!ok.length) return null;
-  const end = new Date(`${weekOf}T00:00:00Z`);
-  const start = new Date(end.getTime() - 7 * DAY);
-  const lines = [`${firstName}, here's your week on social (${md(start)} to ${md(end)})`];
+  // The 7 days counted, UTC: the previous Monday through the Sunday just ended (windowOf is [Mon 00:00, next Mon 00:00)).
+  const start = new Date(Date.parse(`${weekOf}T00:00:00Z`) - 7 * DAY);
+  const sunday = new Date(Date.parse(`${weekOf}T00:00:00Z`) - DAY);
+  const lines = [`${firstName}, here's your week on social (${md(start)} to ${md(sunday)})`];
 
   // Followers: this Monday minus last Monday, only where both are real counts.
   const parts = [];

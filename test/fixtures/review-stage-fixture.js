@@ -204,6 +204,9 @@ async function open(browser, origin, opt) {
       if (state.writeDelay) await sleep(state.writeDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
       if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
+      // A save the server itself refuses (a 400 with a refusal code): not a connection failure, so the client queue does
+      // not hold it to send again (state.writeRefuse count). writeFail's 503 reads as the line being down.
+      if (state.writeRefuse > 0) { state.writeRefuse--; return json({ ok: false, error: 'fixture_refused', message: 'The fixture refused this save.' }, 400); }
       const post = body.post || {};
       state.upserts.push(post);
       const row = state.cards.find(c => c.id === post.id);

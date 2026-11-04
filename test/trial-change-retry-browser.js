@@ -130,6 +130,31 @@ async function runEngine(browserType, origin, L) {
     expect(conflictReports.length === 1, '2: the refusal is reported to the refusal log once (' + conflictReports.length + ': ' + conflictReports.map(b => (b.claim || b).code || (b.env && b.env.code) || '').join(',') + ')');
     expect(!JSON.stringify(reports).match(/different change|older change|brighter picture|Version C,/i), '2: with no words in any report');
     await t.ctx.close();
+
+    console.log('--- 3. the same change, a reload mid-save, the re-send refused, Try again with Version A open ---');
+    t = await openTrialClient(browser, origin, L);
+    const before3 = card(t).graphic_status;
+    Object.assign(t.state, { writeDelay: 3000, gatewayDelay: 3000 });
+    await askOnVersionC(t, WORDS);
+    await sleep(700);
+    // Every write after the reload refused by the server (a 400, not a line that is down, which the client queue holds).
+    Object.assign(t.state, { writeRefuse: 50 });
+    await t.page.goto(url(origin), { waitUntil: 'domcontentloaded' });
+    await waitNew(t);
+    await until(async () => { const v = await graphicShows(t); return v.err && v.retry; }, 40000);
+    await inS(t.page, '.trv [data-trv-go="A"]').click().catch(() => {}); await sleep(600);
+    const s3 = await graphicShows(t);
+    expect(s3.err && s3.retry && s3.words, '3: the refused re-send shows the change as made, "' + SENT + '", with Try again (' + JSON.stringify(s3) + ')');
+    expect(s3.open === 'A', '3: (control) Version A is open when Try again is pressed (' + s3.open + ')');
+    Object.assign(t.state, { writeRefuse: 0, writeDelay: 0, gatewayDelay: 0 });
+    await inS(t.page, '[data-retry="graphic"]').first().click({ timeout: 5000 }).catch(() => {});
+    await until(async () => notes(t, 'graphic').some(b => b.includes(WORDS)), 20000);
+    await sleep(5000);
+    const err3 = await t.page.evaluate(() => String(_calReviewState.errors['rs1|graphic'] || '')).catch(() => '');
+    const got3 = notes(t, 'graphic').filter(b => b.includes(WORDS));
+    expect(got3.length === 1 && got3[0] === SENT, '3: Try again lands it once, its text unchanged and on Version C (' + JSON.stringify(got3) + (err3 ? ', page says: ' + err3.slice(0, 90) : '') + ')');
+    expect(card(t).graphic_status === before3, '3: and the thumbnail keeps its status (' + before3 + ' -> ' + card(t).graphic_status + ')');
+    await t.ctx.close();
   } finally {
     await browser.close();
   }

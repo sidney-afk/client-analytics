@@ -62,8 +62,10 @@ const releaseHung = t => { const h = t.state.hung || []; t.state.hung = []; h.fo
 // review-stage-phone and review-stage-player-leaving fixed the cause of the same wording, because there it was a
 // page fault (a request asked again after its page had moved on).
 const pageErrors = t => t.errors.filter(e => !/\/functions\/v1\/(production-write|write-diagnostics) due to access control checks/.test(e));
-async function goKasper(t, origin, afterGoto) {
-  await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+// reload: a real reload of the same tab (what a person's Cmd-R does), not the page opened again by its address.
+async function goKasper(t, origin, afterGoto, reload) {
+  if (reload) await t.page.reload({ waitUntil: 'domcontentloaded' });
+  else await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   if (afterGoto) afterGoto();
   await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
   await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
@@ -125,28 +127,55 @@ async function runEngine(browserType, origin) {
 
     // 3. Kasper's board: the interrupted approve never lands, and he approves again during the watch. His board shows
     //    the approve at once while his own save is still running (and never answered): that is not a landing.
-    console.log('--- 3. Kasper approves again while the lost approve is watched ---');
-    t = await open(browser, origin, KASPER);
-    await watchBeacons(t);
-    await goKasper(t, origin);
-    Object.assign(t.state, { gatewayHang: true, writeHang: true });
-    await inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first().click();
-    await sleep(700);
-    const noteBefore = await t.page.evaluate(() => { try { return !!(sessionStorage.getItem('syncview_rs_inflight_v1') || localStorage.getItem('syncview_rs_inflight_v1')); } catch (e) { return 'err'; } });
-    const heldBefore = (t.state.hung || []).length;
-    await goKasper(t, origin, () => releaseHung(t));
-    const rep3 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
-    // On a miss, what the test saw (fictional fixture data): was the note there before the reload, how many requests
-    // the fixture was holding then and now, and which reports did arrive.
-    if (rep3 < 0) console.log('RELOAD3_TRACE ' + JSON.stringify({ noteBefore, heldBefore, heldNow: (t.state.hung || []).length, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')) }));
-    expect(rep3 >= 0, '3: the reload during his approve is reported');
-    const again = inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first();
-    if (await again.count()) await again.click({ timeout: 3000 }).catch(() => {});
-    await sleep(6000);
-    const saving3 = await t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post && x.post.id === 'rs1'); return !!(i && i._saving && i._saving.video); });
-    expect(card(t).video_status === 'Kasper Approval', '3: (control) nothing reached the server (' + card(t).video_status + ', his save still running: ' + saving3 + ')');
-    expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '3: his board showing the approve while it saves is not taken for a landing');
-    await t.ctx.close();
+    //    Twice: the page opened again by address (goKasper), and a real reload of the same tab (Cmd-R).
+    for (const how of ['goto', 'reload']) {
+      console.log('--- 3 (' + how + '). Kasper approves again while the lost approve is watched ---');
+      t = await open(browser, origin, KASPER);
+      await watchBeacons(t);
+      await goKasper(t, origin);
+      Object.assign(t.state, { gatewayHang: true, writeHang: true });
+      await inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first().click();
+      await sleep(700);
+      const noteBefore = await t.page.evaluate(() => { try { return !!(sessionStorage.getItem('syncview_rs_inflight_v1') || localStorage.getItem('syncview_rs_inflight_v1')); } catch (e) { return 'err'; } });
+      const heldBefore = (t.state.hung || []).length;
+      // What the next page finds (read only; nothing changes): the note in each store when it starts, and when its
+      // review board first mounts (the board reads and clears the note as it mounts), with the time since navigation.
+      await t.ctx.addInitScript(() => {
+        const k = 'syncview_rs_inflight_v1';
+        const has = () => { try { return { s: !!sessionStorage.getItem(k), l: !!localStorage.getItem(k) }; } catch (e) { return 'err'; } };
+        window.__rsNoteAtStart = has();
+        try {
+          const mo = new MutationObserver(() => {
+            const h = document.getElementById('svReviewStage'); const app = h && h.shadowRoot && h.shadowRoot.getElementById('rsApp');
+            if (!app || window.__rsAtMount) return;
+            window.__rsAtMount = Object.assign({ ms: Math.round(performance.now()), mode: app.getAttribute('data-mode'), hidden: !!h.hidden }, has());
+            mo.disconnect();
+          });
+          mo.observe(document, { childList: true, subtree: true });
+        } catch (e) {}
+      });
+      const diagSeen = [];
+      t.page.on('request', r => { if (/\/functions\/v1\/write-diagnostics/.test(r.url())) diagSeen.push(r.method()); });
+      t.page.on('requestfailed', r => { if (/\/functions\/v1\/write-diagnostics/.test(r.url())) diagSeen.push('failed:' + ((r.failure() && r.failure().errorText) || '').slice(0, 60)); });
+      await goKasper(t, origin, () => releaseHung(t), how === 'reload');
+      const rep3 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
+      // On a miss, what the test saw (fictional fixture data): the note before the reload, the requests the fixture held
+      // then and now, the reports that arrived, the note at the next page's start and at its board's mount (with the
+      // time since navigation and the board's mode), the note now, and the diagnostics requests the next page made.
+      if (rep3 < 0) {
+        const after = await t.page.evaluate(() => { const k = 'syncview_rs_inflight_v1'; const h = document.getElementById('svReviewStage'); const app = h && h.shadowRoot && h.shadowRoot.getElementById('rsApp');
+          return { atStart: window.__rsNoteAtStart || null, atMount: window.__rsAtMount || null, nowS: !!sessionStorage.getItem(k), nowL: !!localStorage.getItem(k), stage: !!(h && !h.hidden), mode: app ? app.getAttribute('data-mode') : null, ms: Math.round(performance.now()) }; }).catch(e => ({ err: String(e && e.message).slice(0, 80) }));
+        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), next: after, diag: diagSeen }));
+      }
+      expect(rep3 >= 0, '3 (' + how + '): the reload during his approve is reported');
+      const again = inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first();
+      if (await again.count()) await again.click({ timeout: 3000 }).catch(() => {});
+      await sleep(6000);
+      const saving3 = await t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post && x.post.id === 'rs1'); return !!(i && i._saving && i._saving.video); });
+      expect(card(t).video_status === 'Kasper Approval', '3 (' + how + '): (control) nothing reached the server (' + card(t).video_status + ', his save still running: ' + saving3 + ')');
+      expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '3 (' + how + '): his board showing the approve while it saves is not taken for a landing');
+      await t.ctx.close();
+    }
   } finally {
     await browser.close();
   }

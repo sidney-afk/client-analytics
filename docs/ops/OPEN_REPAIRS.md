@@ -37048,3 +37048,27 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Unchanged and passing (Chromium):** client-review-queue, client-review-queue-behavior, client-review-requests-unchanged (37), review-stage-save, review-stage, review-stage-client-composer, review-board-gauntlet, prod-write-gateway-browser, write-ui-repair-races, samples-write-guard-browser, review-reload-slow-words.
 - **Codex on #2598 (both fixed):** (P1) Try again sends the same Calendar request again, as the client queue does, not through the stage's own send: for a trial reel the draft already names its version, and the stage would name it again, for whichever version is open now; a part sent without moving its status (keepStatus) is sent that way again, read from its delivery record's status at the time. Not covered by a browser test: the fixture has no trial reel. (P2) Only the client link's own requests are put back (role and audience client, principal this link): a team member's internal change request kept in the same browser is never shown to the client. Case 3 seeds one and failed without the check.
 - **Way back:** revert the PR. The gap returns; nothing else changes.
+
+## 700. [2026-11-04 UTC, BUILT, NOT MERGED] A TikTok caption typed just before the page remounted was wiped, photos kept (session Guardcrash)
+
+- **Seen:** `browser-journey` on #2599 (job 126450633528) failed in `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` with `attachThreeImagesAndCaption` timing out at 30 s. The 677 diagnostics showed photos 3/3, but the caption length was 0 in both the state and the box, so Submit stayed disabled. #2599 does not touch the TikTok form.
+- **Cause (a page bug, not a test race):**
+  - The caption box saves the draft only 400 ms after the last key (`_tkSaveDraftSoon`).
+  - `mountTiktokUploadView` reads the draft back into the form (`_tkLoadDraft`), which overwrites `tkState.title`.
+  - A remount inside those 400 ms therefore read the draft as it was before the caption: empty, saved by the client pick and photo steps. The photos live in memory and stayed.
+  - A staff member who switches back to the tab or is re-routed within that window loses what they just typed.
+- **Reproduced on main:** fill the caption, then remount at once through the page's own `navTo('tiktok-upload', false)`. The title goes from 28 characters to 0, with exactly the CI diagnostics (photos 3/3, caption 0 in state and box, Submit disabled).
+- **Where the CI remount came from: not established.**
+  - Every mount of this tab is `navTo('tiktok-upload')`, through `svWithArea`'s draw once the on-demand TikTok code is in.
+  - In 4 instrumented runs of the journey (one CPU, one busy loop, the suite at nice 15), each page mounted once, always before its fill. None showed the late second mount.
+  - The callers that can re-route to the tab are the boot routers in `260`, the shared client pick in `095` and a person's own navigation.
+  - The fix does not depend on which of them it was.
+- **Fix (`src/index/300-tiktok-upload.js.part`):** the mount first writes an edit still waiting for its debounced save (`_tkFlushDraftSave`), then reads the draft. This was chosen over "never overwrite a non-empty title with the stored draft" because:
+  - only an unsaved edit from this tab, younger than 400 ms, is written, and it is the newest edit there is;
+  - with nothing pending, the mount reads storage exactly as before, so a draft another tab saved still loads.
+  - The other choice would have ignored another tab's newer draft for as long as this tab held any title.
+- **Proof:** new case 4b in the journey: three photos, a caption, then a remount at once.
+  - On main it fails 3 checks: the state caption is 0 instead of 28, the box is empty, and Submit is disabled.
+  - With the fix, every check of the journey passes.
+  - The TikTok upload, steps, cancel and Instagram/TikTok switch suites pass unchanged.
+- **Way back:** revert the PR.

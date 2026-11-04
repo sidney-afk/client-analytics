@@ -63,8 +63,10 @@ const releaseHung = t => { const h = t.state.hung || []; t.state.hung = []; h.fo
 // page fault (a request asked again after its page had moved on).
 const pageErrors = t => t.errors.filter(e => !/\/functions\/v1\/(production-write|write-diagnostics) due to access control checks/.test(e));
 // reload: a real reload of the same tab (what a person's Cmd-R does), not the page opened again by its address.
+// On a reload the requests the fixture holds are dropped as the reload starts, as a browser cancels its requests in
+// flight: held through it, WebKit's tab hung and crashed 29 s in (Kasper's reload never came back, 4 Nov).
 async function goKasper(t, origin, afterGoto, reload) {
-  if (reload) await t.page.reload({ waitUntil: 'domcontentloaded' });
+  if (reload) { const r = t.page.reload({ waitUntil: 'domcontentloaded' }); if (afterGoto) afterGoto(); await r; afterGoto = null; }
   else await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
   if (afterGoto) afterGoto();
   await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
@@ -190,6 +192,36 @@ async function runEngine(browserType, origin) {
       expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '3 (' + how + '): his board showing the approve while it saves is not taken for a landing');
       await t.ctx.close();
     }
+
+    // 4. The order WebKit uses when a page with a save in flight goes: the page is leaving, then its unanswered request
+    //    fails back to it, then the next page loads. Seen on case 3 in WebKit (4 Nov): the old page took its save as
+    //    stopped and cleared its note of it on the way out, so the next page had nothing to report. Here the order is
+    //    made by hand, so both engines see it every time.
+    console.log('--- 4. the page leaves, then its unanswered approve fails, then the next page loads ---');
+    t = await open(browser, origin, KASPER);
+    await watchBeacons(t);
+    await goKasper(t, origin);
+    Object.assign(t.state, { gatewayHang: true, writeHang: true });
+    await inS(t.page, '.pn-d[data-pd="video"] [data-ok]').first().click();
+    await sleep(700);
+    // The page is leaving; then its request fails back to it and every retry is refused at once, so the save ends with
+    // an error while the page is still there, as it did on WebKit's way out.
+    await t.page.evaluate(() => { window.dispatchEvent(new Event('beforeunload')); window.dispatchEvent(new Event('pagehide')); });
+    Object.assign(t.state, { gatewayHang: false, writeHang: false, writeFail: 50 });
+    releaseHung(t);
+    // Past the 3 s in which an entry that stopped is dropped, and past the save's own end: the note must still be there
+    // for the next page (without the fix it went within 5 s, in both engines).
+    await sleep(4500);
+    const kept = await t.page.evaluate(() => { const k = 'syncview_rs_inflight_v1'; return { s: !!sessionStorage.getItem(k), l: !!localStorage.getItem(k) }; });
+    const ended = await t.page.evaluate(() => { const i = _kasperState.items.find(x => x.post && x.post.id === 'rs1'); return !(i && i._saving && i._saving.video); });
+    expect(ended, '4: (control) the leaving page\'s save has ended');
+    expect(kept.s && kept.l, '4: the leaving page keeps its note of the save after its request failed (' + JSON.stringify(kept) + ')');
+    t.state.writeFail = 0;
+    await goKasper(t, origin);
+    const rep4 = await until(async () => reloads(t).some(b => b.env && b.env.code === 'approve'), 15000);
+    expect(rep4 >= 0, '4: the next page reports the reload during his approve');
+    expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '4: and never says it landed');
+    await t.ctx.close();
   } finally {
     await browser.close();
   }

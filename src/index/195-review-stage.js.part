@@ -1436,7 +1436,27 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Kept while the save runs, not written as the page goes: WebKit (Safari) did not keep a note written at
        pagehide (CI, 2026-11-02), and a request from a page being unloaded is not reliably delivered either. */
     const RS_INFLIGHT_KEY = 'syncview_rs_inflight_v1';
+    /* A page that is leaving keeps the note as it is. WebKit fails a leaving page's requests back to it before it goes,
+       so its save ended there and the note was cleared on the way out: the next page had nothing to report, and a
+       reload during one of Kasper's approves went unreported on Safari (CI trace, 4 Nov). Back on the page (a cancelled
+       leave, or the back-forward cache), the note is written afresh. */
+    // beforeunload holds it for a second only, since a leave can still be cancelled (the client link asks first when
+    // words are unsent) and no pageshow follows then; pagehide, which comes only as the page really goes, holds it
+    // until the page is shown again.
+    let _rsLeaving = false, _rsLeaveTimer = 0;
+    const _rsMarkLeaving = (soft) => {
+        try {
+            if (!(R.S && R.S.inflight && Object.keys(R.S.inflight).length)) return;
+            _rsLeaving = true;
+            clearTimeout(_rsLeaveTimer);
+            _rsLeaveTimer = soft ? setTimeout(() => { _rsLeaving = false; _rsInflightWrite(); }, 1000) : 0;
+        } catch (e) {}
+    };
+    window.addEventListener('beforeunload', () => _rsMarkLeaving(true));
+    window.addEventListener('pagehide', () => _rsMarkLeaving(false));
+    window.addEventListener('pageshow', () => { if (_rsLeaving) { clearTimeout(_rsLeaveTimer); _rsLeaving = false; _rsInflightWrite(); } });
     function _rsInflightWrite() {
+        if (_rsLeaving) return;
         try {
             const S = R.S, saving = Object.keys((S && S.inflight) || {}).map(k => S.inflight[k]).slice(0, 10)
                 .map(e => ({ card: e.card, component: e.component, client_slug: e.client_slug, board: e.board, act: e.act, sxr: e.sxr }));

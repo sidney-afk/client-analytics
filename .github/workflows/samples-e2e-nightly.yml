@@ -61,6 +61,9 @@ jobs:
           # (truth-sync) and 2026-07-31 (ef-deploy-provenance) while both
           # suites passed on every full clone.
           fetch-depth: 0
+          # Blobless: every commit and tree, old file contents fetched when
+          # read (OPEN_REPAIRS 693). The answers above are unchanged.
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

@@ -175,11 +175,11 @@ export function buildRequest(action, body) {
     case "credits":
       return { ok: true, path: "/v1/account/credit-balance", query: {}, counts: false };
     default:
-      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript, watch or credits.`);
+      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript, watch, frame.cards, frame.video, own.views or credits.`);
   }
 }
 
-export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "watch", "credits"];
+export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "watch", "frame.cards", "frame.video", "own.views", "credits"];
 
 // The monthly cap from the setting (a number, or text of one); a bad value is the default.
 export function capFrom(value) {

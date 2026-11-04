@@ -270,8 +270,15 @@ async function rejectsMessage(work, pattern) {
    * A's marker while the scan reads B. Replace a dead thumbnail with one you
    * forgot to share and a prefix test calls B "already known" and keeps the lane
    * green for a genuinely new unreadable source. */
-  assert.match(SCANNER, /const mark = missingSourceMark\(sourceFileId\);/,
+  assert.match(SCANNER, /const mark = notImage \? notImageSourceMark\(sourceFileId\) : missingSourceMark\(sourceFileId\);/,
     'the marker compared against must be built from the file this scan actually read');
+  /* OPEN_REPAIRS 695: a readable Drive file that is not an image is the only other
+   * kind allowed into the subset, and only through its TYPED error, never by
+   * matching message text. test/thumbnail-revision-scan-deno.ts drives it. */
+  assert.match(SCANNER, /const notImage = !driveGone && isNotImageError\(e\);/,
+    'only the typed not-an-image error may join the known-unusable subset');
+  assert.match(SCANNER, /return NOT_IMAGE_SOURCE_MARKER \+ "\[" \+ clean\(fileId\) \+ "\]: ";/,
+    'the not-an-image mark must carry the file id it describes');
   assert.match(SCANNER, /clean\(row\.error\)\.startsWith\(mark\)/,
     'known-vs-new must compare the FILE-BOUND marker');
   assert.doesNotMatch(SCANNER, /startsWith\(MISSING_SOURCE_MARKER\)/,

@@ -36881,3 +36881,73 @@ Main run 41652850035 (`0320346`), review-gauntlet-three Firefox, two jobs, one c
   - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 696. [2026-11-03 UTC, LIVE in n8n 2026-11-04 (finalizer version f2bf8c50); the first real client is the proof] The new client's kickoff in the creative channel was the form-time template: placeholders, no tags, no filming plan, nothing about the brand (session Chanfix)
+
+Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure that when you put the onboarding message in the [creative] channel, it's done correctly"; asked whether to change the n8n workflow so it posts the full kickoff itself: "Yes, change the n8n workflow"; logins: "Keep posting logins in Slack".
+
+- **What happened.** Tonight's new client got the finalizer's kickoff with `[ assign ]` / `[ Kasper — fill in ]`, no SMM or Kasper tag, no filming plan and no brand, goals, style or scope. The owner deleted both bot messages and posted a hand-written kickoff instead.
+- **Root cause.** The finalizer does not write the kickoff. Provisioning (`t2RP7QNHrbQx52f4`, Build Onboarding Brief) writes it at form time into the queue row, before an SMM, a filming plan or any research exists, and the finalizer posts that snapshot as it is.
+- **Fix (proposed n8n change, `docs/ops/N8N_EDIT_LOG.md`).**
+  - A **Build Kickoff** step in the finalizer writes the kickoff from what exists at finalize time: the profile, the SMM's and Kasper's Slack ids, the filming plan, the Drive folder, the form answers and the sales intake. A **Read Sales Intake** step reads the deliverables.
+  - Logins come word for word from the snapshot.
+  - Anything missing is a bracketed placeholder, never a guess.
+  - The code is `scripts/n8n-finalizer-build-kickoff.js`, and `docs/ops/NEW_CLIENT_ONBOARDING.md` documents the layout and sources.
+- **Owner's review, 3 Nov.** "I think it's good", with one change: "remove the CCS, GD and videographer thing because no one ever signed them". Team is now just the SMM and the lead; there are no videographer lines; and the Canva line is the lead's. The ManyChat condition, the logins and the other placeholders are kept.
+- **Proof.** `test/n8n-finalizer-build-kickoff.js` runs the step's own code on fictional step outputs (33 checks). The finalizer never sends test clients, so no live run.
+- **LIVE (2026-11-04, about 00:02 UTC).** The supervisor published it on the owner's go: before `49a29c76`, after `f2bf8c50`. Chanfix read it back live: Build Kickoff's code is byte for byte this repo's (sha256 `e92e593b…`), and the wiring and settings are as in `docs/ops/N8N_EDIT_LOG.md`. The finalizer never sends test clients, so the next real client's kickoff is the live proof: SMM and Kasper tagged, the filming plan linked, and only the onboarding call and the timeline left as placeholders.
+- **Way back:** restore version `49a29c76` in n8n; revert the PR.
+
+## 691. [2026-11-03 UTC, BUILT, NOT MERGED] A client's change request lost its words after a reload on a slow line: the next page's recovery deadlocked (session Reviewguard)
+
+- **Found while building 685, on the shared review-stage fixture (fictional data):** a client asks for a change on the video, the page reloads while the save is running, and the line stays slow (3 s a request). The card reached Tweaks Needed, but the client's words never reached the server, and the next page stayed saving (`_calSaveInFlight`, `_calPendingEdits`) for good. This also happens on main.
+  - Controls: no reload, the words land; a reload and then a fast line, the next page sends them again and they land.
+  - It is also what turned #2576's Chromium leg red in CI.
+- **Live:** no case of this is known yet. Today's iPhone change request (685) was the second control: its words landed 1 s after the reload report.
+- **Root cause: two locks taken in opposite order on the next page.**
+  - **The journal replay** (`_writeUiReplayJournalGroupOwned`, 290) holds the source-repair flight lock (`syncview-source-repair-flight:<surface|client|card>`). It reconciles the status receipt, then queues its card edits and awaits `_calFlushCardSave`.
+  - **The page's own recovered save of the change** (the card's edits with the words) had started meanwhile. It holds the card's save lock (`_calSaveInFlight`). Its status push (`_writeUiGatewayWithRepair`) asks for the same flight lock.
+  - The replay's flush saw the card owned and awaited that save, and that save awaited the replay's lock. Neither ever ended.
+  - On a fast line the replay finished first, which is why only a slow line lost the words.
+  - The journal scan already skipped a card whose save was in flight when the scan starts. The race is the other order: the save starts after the replay already holds the lock.
+- **Fix (290, page only):**
+  - When another save owns the card, the replay leaves its card edits in the pending bucket and returns without awaiting. The bucket holds the edits, the precommitted flag and the repair refs.
+  - That save sends this bucket as its trailing batch from its `finally`, and completes the refs only when that write lands. The replay completes nothing itself, so the journal keeps its debt until the card write lands, and a later replay finds it if that write fails.
+  - The same applies to a Sample's card (`_sxrSaveInFlight`).
+  - No Section 4 function or Edge Function changes. Every refusal, receipt and repair ref path is unchanged.
+- **Test:** `test/review-reload-slow-words-browser.js`, new, on the shared fixture's client link, Chromium and WebKit (WebKit required in CI):
+  1. a change request on a 3 s line, a reload mid-save, the line staying slow: within 40 s the client's words are on the server once, and the page is no longer saving. **On main this fails:** the words never land and the page stays saving.
+  2. the control, the same with no reload: the words land.
+  3. a reload mid-save with every later write refused: the page stops saving and says the change was not saved, with Try again. Nothing of it is on the server.
+  - After case 1 the journal is empty. The server saw the old page's status write, one reconcile, and two same-value status writes from the next page: its recovered save, and the replay's trailing batch. That trailing batch pushes the status as the replay's own flush already did on main when nothing raced it, so it is the same push, no longer stuck. Card writes: one.
+- **Way back:** revert the PR. The deadlock returns, nothing else changes.
+
+## 693. [2026-11-03 UTC, BUILT, NOT MERGED] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
+
+- **Seen:** from about 17:15 UTC on 3 Nov the full-history checkout took 3 to 12 minutes instead of 40 to 50 s, and jobs hit `timeout-minutes` and came out cancelled: module-check (job 126080092299), the Pages build (126080021235), identity-exposure (126089893903). GitHub's status page was green.
+- **Measured here (a fresh fetch made exactly as actions/checkout does):** a full-history fetch downloads 714 MiB. Of that, 420 MiB is the checked-out tip itself, which a depth-1 checkout downloads too (403 MiB). All commits and trees of every branch are only 9.5 MiB. The other ~295 MiB is old file contents nobody reads.
+- **Fix:** every automatic job that read history keeps `fetch-depth: 0` and adds `filter: blob:none` (a blobless clone): every commit and tree, old file contents fetched only when read. That is 411 MiB, 2% more than depth 1, and every ancestry, merge-base and `git show` answer is the same. Jobs: calendar-unit-tests `changes` and `identity-exposure`; the Pages `build`; linear-exit-preparation-ci; the Samples nightly. module-check is left to #2585.
+  - **`unit` keeps the full checkout.** On the PR, `unit (3)` went red: `qa/native-label-catalog/write-proof.mjs` (run by `test/native-label-writes.js` with the disposable PostgreSQL) reads `892894e1b:supabase/functions/production-write/index.ts` with on-demand fetching switched off on purpose (`-c extensions.partialClone=`, `GIT_NO_LAZY_FETCH=1`). Blobless, that blob is not there and `git show` exits 128; full, it exits 0. Letting the proof fetch over the network would loosen an offline proof, so `unit` stays as it was. My local proof missed it because that lane needs PostgreSQL and lives under `qa/`.
+  - `scripts/pages-retained-bundles.js` reads ~550 old bundles one `git cat-file` at a time, and rebuilds 30 older commits in worktrees. On a blobless clone each of those is its own request: the unchanged script ran 17 minutes without finishing. It now asks for each set in one request first, and only on a partial clone (a full clone makes no request, as before).
+- **Proof (fresh blobless clone against a fresh full clone, same commit):**
+  - Pages: all 653 files the build leaves in `index.html` and `js/` (628 retained bundles) are byte-identical. Download 431 MiB in all versus 714 MiB.
+  - `changes`, identity-exposure and the byte-pinned line-ending check, on four open branches against main: identical output. A local-only commit adding one client slug was caught (exit 1) on both.
+  - Every unit test that shells out to git (24): identical exit codes and identical output. (Not enough: see `unit` above.)
+- **Left alone, on purpose:** module-check (#2585), and every hand-dispatched or deploy lane (the Section 4 lane, the merge lane, single-function, onboarding, PTO, hiring, review-link, crosswalk, F42, review-note backfill, F27 post-contract capture, Graphics F2 evidence). They read history for fingerprints and ancestry, run rarely, and were not proven here.
+- **Way back:** revert the PR.
+
+## 695. [2026-11-03 UTC, ROOT-CAUSED, FIX IN PR] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
+
+- **Symptom:** clean from 1 Nov 23:00 to 3 Nov 17:00 UTC, then 1 to 2 red runs an hour (17h 1, 19h 1, 20h 2, 21h 2, 22h 2). Each red run printed `failed: 3, missing_source: 2, missing_source_new: 0`, so exactly **one** real failure per red run.
+- **Measured live (read-only SQL on `thumbnail_media_revisions`, 22:35 UTC):**
+  - pending rows with an error: 4 carry the known `drive_404[...]` mark (the same dead files as 204);
+  - one row has `Drive file is not an image` and no baseline. It is the continuous watch on one calendar card (an active client, not the test client). The card was last edited and the watch enrolled at 19:41 UTC, during the 19:40 run.
+  - About 975 pending rows and 300 checked per run, so its turn comes round about every third run: the "rising" 2 an hour from 20h onward is that one row on every lap.
+- **Cause:** a person pasted a link to a Drive file that is not an image (a video or a document) into the card's thumbnail field. The scanner reads its metadata and then refuses to archive it (`downloadSnapshot`). That is a property of the record, like a 404, and fails identically on every lap until the link is fixed. But only a Drive 404 counted as a known unusable source, so this was a real failure every time. The backfill re-enrols any active source without a pending row, so the row cannot be retired either. Not caused by #2575 (page-only: a trial version's own Drive thumbnail).
+- **The 17:40 red** came before that card existed: its one real failure was a row that has since scanned clean (error cleared), so the table no longer names it. That run also archived a changed revision of another card at 17:45. Transient, and it did not recur. It is noted here rather than explained away.
+- **Fix (`supabase/functions/_shared/thumbnail-revisions.ts`):**
+  - `downloadSnapshot` throws a TYPED not-an-image error;
+  - the scan's catch puts that kind in the same known-unusable subset as a 404 (`missing_source`, still inside `failed`), with its own file-bound mark `drive_not_image[<file>]: `. The subset was introduced in 204a.
+  - So a non-image source goes red the first time it is seen (`missing_source_new`), then stays green on later laps for the same file. Re-linking to another non-image file is new again. A 404 mark never makes a not-an-image failure read as known, nor the other way round. Every other error kind stays a real failure on every lap. The caller's exit rule is unchanged.
+- **Proof:** `test/thumbnail-revision-scan-deno.ts` (new, rides the Edge Function type ratchet lane) drives `scanPendingThumbnailRevisions` against an in-memory database and a stubbed Drive. **main:** `a non-image source is in the known-unusable subset (got 0, want 1)`; **this branch:** `27 checks passed`. `test/thumbnail-revision-scheduler.js` passes with its marker assertion widened to both kinds. The Deno type ratchet reports no new errors.
+- **Still for a person:** the card's thumbnail link should point at the image. Its team fixes it on the page (it is not the test client, so no session edits it). Until then the row stays pending with the mark and the lane stays green for it.

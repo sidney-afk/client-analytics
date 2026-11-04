@@ -132,29 +132,27 @@ const isCalm = page => page.evaluate(() => !!document.querySelector('.workload-v
       await gate;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([auth, { key: 'workload_calm_staff', value: { all: true } }]) });
     });
-    // The old document is marked so the poll below judges only the new one: a read that lands before the navigation
-    // commits sees the calm page being left, whose .workload-day cells are not the old calendar (OPEN_REPAIRS 697).
-    await p.evaluate(() => { window.__wlCalmAllLeaving = true; });
-    const reload = p.goto('http://127.0.0.1:' + h.server.address().port + '/#workload', { waitUntil: 'domcontentloaded' });
-    // Observed at once (OPEN_REPAIRS 697, session Guardcrash): if a check below throws, the finally closes the browser
-    // under this still-pending navigation, and an unobserved rejection used to kill the run with "page.goto: Target page,
-    // context or browser has been closed" in place of the check that actually failed.
-    const reloadDone = reload.then(() => null, e => e);
+    // The navigation is awaited to its commit before the first read (OPEN_REPAIRS 697, session Guardcrash): the new
+    // document exists and its scripts have not run yet, so every read below is of the new page. The poll used to start
+    // while this goto was still in flight; under CPU load a read landed on the page being left (whose calm .workload-day
+    // cells counted as "the old calendar painted") or in the swap itself ("Execution context was destroyed"), and the
+    // finally then closed the browser under the pending goto, whose unobserved rejection ("page.goto: Target page,
+    // context or browser has been closed") killed the run in place of the real error.
+    await p.goto('http://127.0.0.1:' + h.server.address().port + '/#workload', { waitUntil: 'commit' });
     let held = false, painted = false;
-    for (let i = 0; i < 100 && !held; i++) { // up to 10 s: the switch read is held until release(), so waiting longer loosens nothing
+    for (let i = 0; i < 100 && !held; i++) { // up to 10 s: the switch read is gated until release(), so waiting longer loosens nothing
       await p.waitForTimeout(100);
-      // A read of the page being left (null), or one that lands while the navigation swaps the document ("Execution
-      // context was destroyed"), saw no new page: it is retried at the next tick, never counted. Any other error still fails the run (OPEN_REPAIRS 697).
-      const s = await p.evaluate(() => (window.__wlCalmAllLeaving ? null : { has: !!document.querySelector('.workload-view'), hold: !!document.querySelector('.workload-view.wl-calm-hold'), day: !!document.querySelector('.workload-day') })).catch(e => { if (/Execution context was destroyed/.test(String(e && e.message))) return null; throw e; });
-      if (!s) continue;
+      const s = await p.evaluate(() => ({ has: !!document.querySelector('.workload-view'), hold: !!document.querySelector('.workload-view.wl-calm-hold'), day: !!document.querySelector('.workload-day') }));
       if (s.day) painted = true;
       held = s.hold;
     }
-    expect(held, 'while the read is on its way the loader is held');
+    expect(held, 'while the read is on its way the loader is held (polled 10 s after the reload committed)');
     expect(!painted && await p.evaluate(() => !document.querySelector('.workload-day')), 'the old calendar was not painted meanwhile');
     release();
-    const reloadErr = await reloadDone;
-    if (reloadErr) throw reloadErr;
+    await p.waitForLoadState('domcontentloaded');
+    // Waited for, bounded, never read after a fixed 1.2 s (OPEN_REPAIRS 697): a starved runner can take longer to draw it.
+    const calmed = await p.waitForFunction(() => !!document.querySelector('.workload-view.wl-calm'), null, { timeout: 20000 }).then(() => true, () => false);
+    expect(calmed, 'once answered: calm on within 20 s');
     await p.waitForTimeout(1200);
     expect(await isCalm(p), 'once answered: calm on, with no swap back');
     expect(await p.evaluate(() => !document.querySelector('.workload-view.wl-calm-hold')), 'the loader is gone');

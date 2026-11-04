@@ -15,7 +15,7 @@
  *   - a play button, when there is one, is the player's 44 px round button;
  *   - the "opens in a new tab" fallback never shows for a card the player will play.
  * Fails on main.
- * The end state is read once the player has arrived (up to 20 s), never after a fixed sleep alone (OPEN_REPAIRS 697).
+ * Each run records until the player has arrived (bounded at 20 s) and 30 frames more, never for a fixed time (OPEN_REPAIRS 697).
  */
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -65,12 +65,13 @@ function judge(frames, label) {
         await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
         await waitNew(t);
         if (sw) { await sleep(300); await inS(t.page, '#skList [data-id="rs2"]').click(); }
-        await sleep(sw ? 4200 : 2600);
-        // Then keep recording until the player is there (OPEN_REPAIRS 697, session Guardcrash). The end state used to be
-        // read after the fixed sleep alone, about 1.2 s after the player normally lands; with three suites side by side
-        // on a 4-CPU runner a slow paint ran past that and the end read null. Every frame up to the player's arrival is
-        // still judged by the same rules; a player that never arrives still fails, after 20 s.
-        await t.page.waitForFunction(() => { const f = window.__ff; const e = f && f[f.length - 1]; return !!(e && e.play); }, null, { timeout: 20000 }).catch(() => {});
+        // Recorded until the player has arrived, then 30 frames more, never for a fixed time (OPEN_REPAIRS 697, session
+        // Guardcrash). The end used to be read after a fixed 2.6 s (4.2 s after a switch), about 1.2 s after the player
+        // normally lands; with three suites side by side on a 4-CPU runner a stall ran past that and the end read null.
+        // Every frame recorded is judged by the same rules below; a player that never arrives fails here, by name.
+        const arrived = await t.page.waitForFunction(() => { const f = window.__ff; const e = f && f[f.length - 1]; return !!(e && e.play); }, null, { timeout: 20000 }).then(() => true, () => false);
+        expect(arrived, label + (sw ? ', post switch' : ', first load') + ': the player arrives within 20 s of the stage');
+        if (arrived) await t.page.evaluate(() => new Promise(res => { let n = 0; const step = () => (++n >= 30 ? res() : requestAnimationFrame(step)); requestAnimationFrame(step); }));
         const frames = await t.page.evaluate(() => window.__ff);
         judge(frames, label + (sw ? ', post switch' : ', first load'));
         const end = frames[frames.length - 1] || {};

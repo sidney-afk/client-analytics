@@ -37043,13 +37043,15 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - a read that lands before the commit sees the calm page being left, whose `.workload-day` cells count as "the old calendar painted".
   - Reproduced by polling every 2 ms: 6 of 6 runs crashed, and with the crash fixed, 2 of 8 still failed on the old document.
   - Either throw ran the `finally`, which closed the browser under the goto nobody awaited. That unhandled rejection killed Node with the goto's message, so the log named the wrong cause.
-- **Fix, tests only (no check is loosened, skipped or retried):**
-  - **First frame:** after the same sleep, it keeps recording until the player is there, up to 20 s, then judges every frame by the same rules. A player that never arrives still fails.
-  - **Calm all:** the page being left is marked, so the poll judges only the new document. A read that lands in the swap is taken again on the next tick. The goto is observed at once and awaited after `release()`, so a real failure prints its own check.
-  - The hold is polled for up to 10 s instead of 4 s. The switch read is gated until `release()`, so the longer wait loosens nothing.
-  - **Every lane run (`scripts/ci-lanes.js`)** now ends with a "runner headroom" line: the lowest available memory, the /dev/shm peak, and the peak load against the CPU count. A later "browser died" can then be told apart from an out-of-memory at a glance.
-- **Proof:**
-  - The 2 ms polling probe passes 10 of 10 on the fixed Workload test.
+- **Fix, tests only (no check is loosened, skipped or retried; every fixed sleep that read an end state is now a bounded wait on the condition, with a message that names it):**
+  - **First frame:** records until the player has arrived (bounded at 20 s, failing as "the player arrives within 20 s of the stage") and 30 frames more, never for a fixed time. Every frame is judged by the same rules.
+  - **Calm all:** the reload is awaited to its commit (`waitUntil: 'commit'`) before the first read, so every read is of the new page and no browser is closed under a pending goto. The hold is polled for up to 10 s; the switch read is gated until `release()`, so waiting longer loosens nothing. After release, "calm on" is waited for (bounded at 20 s) instead of read after a fixed 1.2 s, and the no-swap-back check still holds 1.2 s after that.
+  - **Every lane run (`scripts/ci-lanes.js`)** ends with a "runner headroom" line: the lowest available memory, the /dev/shm peak, and the peak load against the CPU count. A later "browser died" can then be told apart from an out-of-memory at a glance.
+- **Proof, failing on main under CPU load first:**
+  - **First frame:** with the first-load switch answer 1.4 s late (what a stall on a loaded runner does), main fails 4 of 8 cases with the CI signature: `the player is there in the end (null)`, no fallback. The fix passes all of them.
+  - **Calm all:** pinned to one CPU with two busy loops and run at nice 15, main died 3 of 3 times with `page.goto: Target page, context or browser has been closed`; the fix passed 7 of 9 at that load.
+    - The two misses were "calm on within 20 s" at about a twentieth of a CPU. That is far below a runner, and the cause is not established.
+    - At one busy loop, main died 1 of 3 and the fix passed 3 of 3.
   - `test/ci-lanes.js` checks the headroom line (15 checks).
-  - The PR's browser-guards jobs are green, with the headroom line in their logs.
+  - The PR's browser-guards jobs print the headroom line.
 - **Not this:** the WebKit tab crash in repair-checkpoint (#2576, `review-reload-landed-browser`, another job and engine) is traced on its own PR.

@@ -113,12 +113,22 @@ async function runEngine(browserType, origin, L) {
       rows.push({ id: 'deferred_calendar_' + id + '_source', kind: 'source_only', payload: {}, attempts: 0, lastError: '', lastAttempt: 0, queuedAt: Date.now(), transport: 'source_only', client_slug: gate.client_slug, source_gate: gate });
       localStorage.setItem('syncview_linear_outbox_v1', JSON.stringify(rows));
     }, [OLDER]).catch(e => console.log('seed failed: ' + String(e && e.message).slice(0, 120)));
+    // The refusal's own report (699): caught where it arrives, so its count and words can be read.
+    const reports = [];
+    await t.ctx.route('**/functions/v1/write-diagnostics', route => {
+      const r = route.request();
+      if (r.method() === 'POST') { try { reports.push(JSON.parse(r.postData() || '{}')); } catch (e) { reports.push({ raw: r.postData() }); } }
+      return route.fulfill({ status: r.method() === 'OPTIONS' ? 204 : 202, headers: Object.assign({ 'access-control-allow-methods': 'POST,OPTIONS' }, CORS), contentType: 'application/json', body: r.method() === 'OPTIONS' ? '' : '{"ok":true}' });
+    });
     const NEWER = 'A different change, please.';
     await askOnVersionC(t, NEWER);
     await sleep(6000);
     const err2 = await t.page.evaluate(() => String(_calReviewState.errors['rs1|graphic'] || '')).catch(() => '');
     expect(/still being confirmed|another change request/i.test(err2), '2: the different change is refused while the other one waits (' + err2.slice(0, 90) + ')');
     expect(!notes(t, 'graphic').some(b => b.includes(NEWER) || b.includes('older change')), '2: and nothing of either reaches the card');
+    const conflictReports = reports.filter(b => /change_request_conflict/.test(JSON.stringify(b)));
+    expect(conflictReports.length === 1, '2: the refusal is reported to the refusal log once (' + conflictReports.length + ': ' + conflictReports.map(b => (b.claim || b).code || (b.env && b.env.code) || '').join(',') + ')');
+    expect(!JSON.stringify(reports).match(/different change|older change|brighter picture|Version C,/i), '2: with no words in any report');
     await t.ctx.close();
   } finally {
     await browser.close();

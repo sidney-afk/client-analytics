@@ -765,6 +765,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           TRIAL_RETRY_REQUIRE_WEBKIT: '1'
+        timeout-minutes: 6
         run: node test/trial-change-retry-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:

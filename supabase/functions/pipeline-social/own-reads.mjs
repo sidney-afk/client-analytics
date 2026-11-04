@@ -10,7 +10,8 @@
 import { parseFrameLink } from "../frameio-view/logic.mjs";
 
 const clean = (v) => String(v == null ? "" : v).trim();
-export const OWN_ACTIONS = ["frame.cards", "frame.video", "own.views"];
+export const OWN_ACTIONS = ["frame.cards", "frame.video", "own.views", "frame.watch"];
+export const MAX_QUESTIONS = 6000;
 export const isOwnAction = (a) => OWN_ACTIONS.includes(a);
 const SAFE_CARD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
 const MAX_CARDS = 300;
@@ -27,9 +28,15 @@ export function ownScope(pass, body) {
 
 export function planOwn(action, body) {
   const b = body && typeof body === "object" ? body : {};
-  if (action === "frame.video") {
+  if (action === "frame.video" || action === "frame.watch") {
     const id = clean(b.card || b.card_id || b.id);
     if (!SAFE_CARD_ID.test(id)) return { ok: false, error: "Give card: the card id from frame.cards." };
+    if (action === "frame.watch") {
+      const q = typeof b.questions === "string" ? b.questions.trim() : "";
+      if (b.questions !== undefined && b.questions !== null && !q) return { ok: false, error: "questions must be text, or leave it out for the standard questions." };
+      if (q.length > MAX_QUESTIONS) return { ok: false, error: `questions is over ${MAX_QUESTIONS} characters.` };
+      return { ok: true, card: id, questions: q };
+    }
     return { ok: true, card: id };
   }
   return { ok: true };
@@ -42,7 +49,7 @@ export function slimCard(r) {
 
 export async function cardsFor(sb, slug) {
   const { data, error } = await sb.from("calendar_posts").select("id,name,caption,post_url,scheduled_date,posted_at,asset_url")
-    .eq("client", slug).neq("asset_url", "").not("asset_url", "is", null).order("scheduled_date", { ascending: false }).limit(MAX_CARDS);
+    .eq("client", slug).or("asset_url.ilike.%frame.io%,asset_url.ilike.%f.io%").order("scheduled_date", { ascending: false }).limit(MAX_CARDS);
   if (error) return { ok: false, status: 503, error: "Could not read the cards." };
   const rows = (data || []).filter((r) => parseFrameLink(clean(r.asset_url)));
   return { ok: true, result: { client: slug, cards: rows.map(slimCard), truncated: (data || []).length >= MAX_CARDS } };

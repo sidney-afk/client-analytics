@@ -6,7 +6,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOv
 import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
-import { svPostNetworksOn, svPostSourcesOn } from './188-review-stage-switch.js';
+import { svPostNetworksOn, svPostSourcesOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialListShared } from './189-trial-reels-card.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
@@ -284,6 +284,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         return !!(tv && tv.state === 'ready' && tv.isTrial);
     }
     const _igTrialTicked = (tv) => tv.versions.filter(v => !tv.off[v.letter]);
+    // 688 part 3: "Version A" on the clients of trial_versions_v2, "Video A" elsewhere.
+    const _igTrialW = () => svTrialVersionsV2On(igState.client) ? 'Version ' : 'Video ';
     const _igTrialCaption = (v) => String((v.effective && v.effective.caption) || igState.title || '').trim();
     function _igTrialVersionsProblem() {
         const tv = igState.trialVersions;
@@ -292,9 +294,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const ticked = _igTrialTicked(tv);
         if (!ticked.length) return 'Tick at least one version to post.';
         const bare = ticked.find(v => !_igTrialCaption(v));
-        if (bare) return 'Video ' + bare.letter + ' has no caption. Add one to the version on the card, or write one in the caption box.';
+        if (bare) return _igTrialW() + bare.letter + ' has no caption. Add one to the version on the card, or write one in the caption box.';
         const long = ticked.find(v => _igTrialCaption(v).length > IG_MAX_CAPTION);
-        if (long) return 'Video ' + long.letter + '\'s caption is over the ' + IG_MAX_CAPTION + '-character limit.';
+        if (long) return _igTrialW() + long.letter + '\'s caption is over the ' + IG_MAX_CAPTION + '-character limit.';
         if (!igState.schedule.postNow) {
             const at = _igAt();
             if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
@@ -319,7 +321,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             return `<label class="ig-trv-row" data-ig-trv-row="${_igEsc(v.letter)}">
                     <input type="checkbox" data-ig-trv="${_igEsc(v.letter)}" ${tv.off[v.letter] && !went ? '' : 'checked'} ${off || went ? 'disabled' : ''}>
                     ${thumb ? `<img class="ig-trv-thumb" src="${_igEsc(thumb)}" alt="" loading="lazy">` : '<span class="ig-trv-thumb" aria-hidden="true"></span>'}
-                    <span class="ig-trv-text"><strong>Video ${_igEsc(v.letter)}</strong><span class="ig-trv-cap">${cap ? _igEsc(cap.split('\n')[0]) : 'No caption'}</span></span>
+                    <span class="ig-trv-text"><strong>${_igTrialW()}${_igEsc(v.letter)}</strong><span class="ig-trv-cap">${cap ? _igEsc(cap.split('\n')[0]) : 'No caption'}</span></span>
                     ${r.state ? `<span class="ig-trv-state${r.state === 'failed' ? ' is-failed' : ''}" title="${_igEsc(r.message || '')}">${label[r.state] || ''}</span>` : ''}
                 </label>${r.state === 'failed' && r.message ? `<div class="tk-queue-error ig-trv-why">${_igEsc(r.message)}</div>` : ''}`;
         }).join('');

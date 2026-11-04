@@ -139,6 +139,15 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(/isOwnAction\(action\)/.test(src) && src.indexOf('isOwnAction(action)') < src.indexOf('buildRequest(action'), 'the read actions run after the pass gate, before any ScrapeCreators plan');
   ok(!/pipeline\.\$|"scrapecreators\." \+ action, client: scope/.test(src), 'the read actions are logged outside the ScrapeCreators cap');
 
+  eq(o.planOwn('frame.watch', { card: 'p_1', questions: '  What is the hook?  ' }), { ok: true, card: 'p_1', questions: 'What is the hook?' }, 'frame.watch takes a card and our questions');
+  eq(o.planOwn('frame.watch', { card: 'p_1' }).questions, '', 'frame.watch without questions uses the standard ones');
+  eq(o.planOwn('frame.watch', { card: 'p_1', questions: 5 }).ok, false, 'frame.watch refuses questions that are not text');
+  eq(o.planOwn('frame.watch', {}).ok, false, 'frame.watch needs a card');
+  const own = r.geminiBody({ base64: 'AA==' }, 'Q?');
+  ok(own.contents[0].parts[1].text === 'Q?' && !own.generationConfig.responseSchema, 'our questions replace the fixed ones and the fixed schema');
+  ok(r.geminiBody({ base64: 'AA==' }).generationConfig.responseSchema, 'the standard watch keeps its schema');
+  ok(src.indexOf('watchFrame(String(found.url') > 0 && /GEMINI_API_KEY/.test(src), 'frame.watch fetches the card video address and uses the Gemini secret');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
   ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');

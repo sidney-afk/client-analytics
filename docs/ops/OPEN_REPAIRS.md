@@ -36526,7 +36526,7 @@ Main's Calendar unit run on `817100f` went red on entry-links-boot (2): `docs/sy
 - **Next:** once the next report says which error it is, the cause is fixed in its own PR, failing-first.
 - **Way back:** revert the PR.
 
-## 682. [2026-11-03 UTC, BUILT, NOT MERGED] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
+## 682. [2026-11-03 UTC, LIVE (merged #2562 as 4e0c3a5; Gauntlet Three all green on main 7c23fce, run 41632766799)] A note deleted in one tab stayed in another tab's open Notes (a real page bug, fixed); and Gauntlet Three's Firefox "two-tabs delete" timeout gets on-miss diagnostics (session Chanfix)
 
 Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six main runs (`e77b492` at 1024, `36e1536` at 1920), each time only on `client <width> Notes dialog two-tabs delete: locator.waitFor: Timeout 15000ms exceeded`. All 336 other checks passed, two-tabs reply and edit included.
 
@@ -36542,6 +36542,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - On main the second tab's data did refresh (its copy of the note reads deleted), but the open Notes still drew the deleted note until Notes was closed and reopened. A background load redraws the cards and the Notes dots, never the open Notes.
 - **Fix** (`_calRefreshOpenNotesAfterLoad`, `190`, called once a load lands in `150`): redraw the open Notes the way a local change already does (`_calCaptureModalDrafts` + `keepFocus`), so the half-written text stays.
 - **Proof:** the case fails on a clean origin/main worktree and passes with the fix at 1024 and 1920, and the second tab keeps "Half typed peer words". All 37 Gauntlet Three Notes dialog cases for the client pass in Chromium at 1024. The other Notes browser suites pass: client-notes-fixes, frame-comments-in-notes, notes-caption-composer, review-client-notes, review-stage-notes and trial-reels-notes. A tab with live updates gets the same redraw after its realtime-triggered load; this harness closes websockets, so only the return-to-tab path is exercised.
+- **LIVE (2026-11-03, supervisor's read; recorded by Chanfix):** merged in #2562 (`4e0c3a5`). The open-tab delete case ran on main in Gauntlet Three for `7c23fce` (Calendar unit tests run 41632766799): all 9 engine and width legs green, Firefox at 1024, 1440 and 1920 included. A later Firefox red on the two-tabs open (the second tab's first Notes click left the dialog shut) is a different defect and is tracked as 689.
 
 ## 651. [2026-11-03 UTC, LIVE 2026-11-03: merged as 7c23fce; the D6 check passed on one of the owner's own clients, Instagram run 41632986793 and TikTok run 41633117059, each scheduled, cancelled at once and read back as cancelled] The Post tab takes a card's video from Frame on the server, on both sides, behind post_sources_v1 (plan row P1, page part P1b; session Pbuild)
 
@@ -36818,6 +36819,67 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
 
+## 690. [2026-11-03 UTC, BUILT, NOT MERGED] A client deleting their own change request on a Production-linked part deleted only the card copy; the Production copy stayed open for staff (session Chanfix)
+
+Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial card, thumbnail part linked to Production, the client asked for a change on the client link, then deleted it (the cross, then Delete). The page sent only calendar-upsert. Read live afterwards, read-only: the card copy in `graphic_tweaks` reads deleted (16:40:11 UTC), but its Production copy (`production_comments`, `native_comment_id` = the card note's id, `transport_role` gateway, `provenance` add/calendar) has neither `deleted_at` nor `resolved_at`. That row is left as it is, as the repro state.
+
+- **Meant to work.** A client may delete its own note: the page says so (`_calCanDeleteComment`, "the client can only delete their own"), and so does the server (`commentLifecycleAllowed`, a client's own client-visible note, edit or delete). So the page offering Delete is right, and the delete not arriving is the bug.
+- **Root cause.** On a client link the Calendar always uses the card's own notes. `_prodCanonicalCommentGate` answers `client_surface_unverifiable` on purpose, because the server never serves a calendar client the Production thread. The ADD still copies the note to Production through the client front door (`_calPostLinearComment`, `client_comment_gateway_enabled`). The DELETE (`_calDeleteComment`; Samples: `_sxrDeleteComment`) had no such door: it tombstoned the card copy and stopped. The server's lifecycle path already admitted a client front-door delete, but only with `expected_version` and `expected_updated_at`, and a client that cannot read the thread never has them.
+- **Live counts, read-only, counts only.**
+  - Client-authored Production notes whose card copy is deleted but which are still open: 2 on real clients (19 to 21 Oct), 2 on the test client.
+  - The 2 real-client rows are left alone; the supervisor is asking the owner about a one-off clean-up.
+  - The same mismatch on staff-authored notes (3 admin, 2 SMM) is a different path and is 692.
+- **Fix, server (`production-write`, Section 4, fingerprint re-pinned).** New `clientFrontDoorDeleteWithoutVersion` (policy.mjs). The version check may come from the row the server has just read for exactly one case, and every condition is required:
+  - a DELETE, by a client principal, through the calendar or unlinked-Samples front door on that client's own binding;
+  - naming the row by the card note id it was added under (never the Production id);
+  - the row being the client's own client-visible note that came from the page.
+  
+  A request that sends either version field is checked as before. A second delete of a note already deleted writes nothing and answers with the note. No SQL change: the lifecycle function still compares the version under its row lock.
+- **Fix, page (140, 190, 280).** `_writeUiClientFrontDoorDelete`:
+  - After the card tombstone (unchanged), on a client link, it asks the front door to delete the note, named by its card note id, with no version.
+  - It runs only where the add could have gone through the front door: the switch on, a verified link, a deliverable, a video or thumbnail note by the client.
+  - A refusal goes to the write-refusal log and never undoes the card delete.
+  - Calendar and Samples both call it.
+- **Proof.**
+  - `test/client-front-door-delete.js` (new, 40 checks) covers the policy and runs the writer's own lifecycle code cut from index.ts.
+    - Works: the client's own delete is written once, checked against the row just read, and a second delete is a no-op.
+    - Refused, nothing written: a staff note, another client's note, an edit through this path, a wrong binding (another client's deliverable, another card), an unknown card note id, and a note named by its Production id.
+    - Unchanged: a delete that sends a version is checked against it, and a staff delete with no version is refused.
+  - `test/client-delete-front-door-browser.js` (new) runs on the client link. The change request goes to the card and through the front door; Delete deletes the card copy and sends one Production delete named by the card note id, with no version.
+  - Both fail on a clean origin/main worktree: the browser test with "one delete went to Production (0)", the unit test because the rule does not exist.
+  - `production-comment-slice` reads a 400-character longer window of the dispatch, because of the new no-op branch.
+  - Codex review: a retry after a lost answer would have failed its own receipt (`idempotency_conflict`), because the fingerprint held the version the server had read, and a committed delete moves it. The fingerprint now leaves the version out for a front-door delete. New case: the committed delete, then the identical retry, replays and writes nothing; it fails without this with `idempotency_conflict`.
+- **CI, not this change's logic.** Touching `test/production-comment-slice.js` triggered the F42 apply rehearsal workflow, which had not run since 17 Sep. It failed before running anything (`initdb_unavailable`): the guard asked for PostgreSQL 16's `initdb` even in external mode, where CI's postgres:16 service is already running, and the runner image no longer ships that binary. The guard now applies only when the script starts its own cluster. The rehearsal passes in external mode against a local PostgreSQL 16 (32 checks).
+- **Way back:** revert the PR. The card delete is unchanged, so a revert only stops the Production copy from following.
+
+## 692. [2026-11-03 UTC, OPEN, read-only look after 690] Staff-authored Production notes whose card copy is deleted but which stay open (session Chanfix)
+
+Found while counting for 690. Five staff-authored `production_comments` rows (3 by an admin, 2 by an SMM; 24 Aug to 30 Oct; 2 of the admin ones open tweaks) have a card copy marked deleted while the Production copy has no `deleted_at`. A client cannot write these, so it is not 690's path. Likely a staff delete taken while the card part was not counted as linked (the crosswalk unresolved, or `legacy_retained`), but that is unread. Next: a read-only look at when and from where each was deleted. Change nothing until the cause is known.
+
+## 689. [2026-11-03 UTC, BUILT, NOT MERGED] Gauntlet Three, Firefox: a second tab's first Notes click left the dialog shut; not reproduced in about 130 local Firefox two-tab tries, so the miss now records the click's whole path (session Chanfix, test only)
+
+Main run 41652850035 (`0320346`), review-gauntlet-three Firefox, two jobs, one case each: `client 1440 Notes dialog two-tabs reply` (job 126002198251) and `client 1920 Notes dialog two-tabs delete` (job 126003393869). 682's step diagnostics named the step both times: "its Notes box shows", 15 s, after "open its Notes" took 128 and 135 ms. The second tab had the card and its notes, was not loading and was visible, but the Notes dialog was never open (no rows drawn, no composer). The first tab was fine. The same cases were green on `7c23fce` and on the other legs of this run.
+
+- **Reading.** The second tab's one click on the card's Notes button (no retry, by design) landed, and nothing opened.
+- **Firefox, locally this time.** Playwright 1.63's own Firefox was fetched into the session scratchpad, a separate folder, so the pre-installed Chromium was left alone. Nothing failed:
+  - the three two-tabs cases at 1440, 16 times, four runs in parallel: 48 of 48;
+  - the full client dialogs set at 1440, three runs in parallel: 111 of 111;
+  - the whole Gauntlet Three in CI order (regressions, matrix, auxiliary, dialogs, refusals; client and reviewer) at 1440 and at 1920 side by side: 338 of 338 each;
+  - a probe of the exact two-tab order (first tab adds a note, then a fresh second tab clicks once), 60 tries in four parallel runs at 1440 and 1920: 60 opened.
+- **Ruled out, with Firefox evidence:**
+  - *The click lost to a redraw.* Pressing the Notes button and holding it while a background refresh lands, or while the whole Sheet body is redrawn, keeps the same button node, and the release still opens the dialog. The existing case "Sheet Notes door click lost to a re-render" also passed in that run.
+  - *The client link's held open.* On a client link, Notes waits for the player's switch read (`openCalComments`, `svFrameFlagWait`). With that read slowed to 3, 6 and 20 s, the first click still opened at about 3.1, 4.0 and 4.1 s, in both Firefox and Chromium. It never waits 15 s.
+- **So no page change in this PR.** Not reproduced, so there is no failing-first case to fix against, and the test still clicks once (no extra wait, no second click).
+- **What the next miss will say.** On a miss, the second tab's state now carries:
+  - a trail from just before its click: press, release and click, each with its target (the Notes button or what else) and whether it was still attached;
+  - any redraw of a Notes button;
+  - "open asked" when the page's `openCalComments` is called;
+  - the dialog opening or closing, with the view at that moment;
+  - its current view, and when it asked for and got the player's switch.
+  
+  That separates a click that never reached the button, a click that reached it with no open asked, an open that was asked and held, and an open that happened and was closed again. Fictional fixture data only.
+- **Next:** the next Firefox red decides the fix, made failing-first in its own change. Way back: revert the PR.
+
 ## 687. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab after the owner tried it: From Content Calendar first in a quieter row, and YouTube and LinkedIn as their own sides (session Pbuild)
 
 - **Asked:** the owner tried the Post tab on 3 Nov and asked for three changes (relayed by the supervisor). All three are behind the existing switches, test client first.
@@ -36926,6 +36988,45 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - So a non-image source goes red the first time it is seen (`missing_source_new`), then stays green on later laps for the same file. Re-linking to another non-image file is new again. A 404 mark never makes a not-an-image failure read as known, nor the other way round. Every other error kind stays a real failure on every lap. The caller's exit rule is unchanged.
 - **Proof:** `test/thumbnail-revision-scan-deno.ts` (new, rides the Edge Function type ratchet lane) drives `scanPendingThumbnailRevisions` against an in-memory database and a stubbed Drive. **main:** `a non-image source is in the known-unusable subset (got 0, want 1)`; **this branch:** `27 checks passed`. `test/thumbnail-revision-scheduler.js` passes with its marker assertion widened to both kinds. The Deno type ratchet reports no new errors.
 - **Still for a person:** the card's thumbnail link should point at the image. Its team fixes it on the page (it is not the test client, so no session edits it). Until then the row stays pending with the mark and the lane stays green for it.
+
+## 688. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: the review boards show a version's own three parts once, as "Version A, B, C" tabs (part 1 of 3: the review boards)
+
+- **Seen:** Sidney picked option B from the three version-tab samples (the realistic ones were built on the real app, read only). He asked for three changes:
+  - "Version A / B / C", never "Video A";
+  - a clear "Trial" label on the review boards;
+  - Kasper should not see the caption twice: "shouldn't he see 3 components for each version?"
+- **Why the caption showed twice:** under the version switch, V4's "Video B's thumbnail and caption" block showed B's own thumbnail and caption. Below it, the stage's Thumbnail and Caption parts still drew the card's, which belong to Version A. The client link and the SMM tab did the same.
+- **Fix, behind `trial_versions_v2` (test client only), on the client link, the SMM's Review tab and Kasper's Review Session:**
+  - The versions are one segmented control, "Version A, B, C", in place of the dots and of Kasper's tiles. Each segment is coloured by where that version stands for this reviewer (approved, change asked, or waiting at this stage). A phone shows the letters only.
+  - The stage's own Video, Thumbnail and Caption parts show the selected version's player, thumbnail and caption (its own, else the card's), each once. The separate block is gone, and no card caption sits beside a version's. The player's still image is the version's thumbnail too.
+  - Each part keeps its own state and actions:
+    - one "Approve Version B" on the video covers the version's parts, as V4 decided;
+    - the Thumbnail and Caption parts each have their own Ask for a change, which goes on that version with its part ("Version C, thumbnail: …");
+    - an answered version reads "Version B approved" or "Change asked on Version C's thumbnail" on each part.
+    - A version has one status in trial-reels, so a per-part approve inside a version would need a migration; it is not built.
+  - Kasper sees the selected version's own Approve, change and drop beside the control, and Approve all.
+  - A trial card carries a quiet "Trial" chip on the client's and SMM's strip and on Kasper's list.
+  - A version that is not the one on the card shows its caption but does not edit it on the stage. The version on the card edits as before.
+  - Change notes are named "Version C: …" with the switch on. Every reader of those names accepts both "Video" and "Version".
+- **Proof:** `test/trial-version-review-parts-browser.js` rewritten for 688, 40 checks. On main, 15 of 37 fail. It covers:
+  - the client link: the control, the parts per version, the caption shown once, the chip, a thumbnail change on its part, a Drive thumbnail, and a broken one that hides;
+  - the SMM tab, Kasper's second layout, and the phone at 390;
+  - the switch off, where the page is today's word for word.
+- **Not in this part:** the Calendar card's tabs (part 2), and the remaining "Version" wording on the card, in Production, in the Post tab and in trial-reels' own notes (part 3).
+- **Way back:** revert the PR, or take the client off `trial_versions_v2`.
+- **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
+- **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.
+
+## 688 (part 3 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions are named "Version A" outside the review boards too, on the clients of trial_versions_v2 (session Vbuild)
+- **Ask:** Sidney's option B names versions "Version A/B/C" everywhere. Part 1 renamed them on the review boards; this part does the rest, on the same switch, so a client off it reads "Video A" exactly as before.
+- **Where:**
+  - the Calendar card's version list, its row names, links, buttons and accessible names, the status menu's title, its toasts and notices (189 `_trlW`, exported as `svTrialWord`);
+  - the Notes view: the version switch, the quiet line under the composer, the post title and the prefix a video note gets ("Version C: ...");
+  - Production's Assets rows ("Deliverable file · Version B", its placeholder and Save);
+  - the Post tab's trial rows and their two caption problems.
+- **Readers take both names:** the two places that read a change request's version from its first words (190 `_calTweakKept`, `svCalResolveVersionTweaks`) and the Notes prefix check accept "Video B:" and "Version B:", so notes written before the switch still count. Part 1 does the same on the review page; merge part 1 (#2590) before this part, so a "Version B:" note is read there too.
+- **Proof:** `trial-version-status-browser` now looks for the status pill by "Version A status" and `trial-versions-import-browser` for "Version C" and "Version B was already answered": **main** fails both; **this branch** 38 and 50 checks pass. `trial-version-fields-browser` (42) finds rows by either name. With the switch off, trial-reels-card, -polish, -round3-card, -journey, -notes, -today, -change-naming, -production and post-trial-versions pass unchanged ("Video A").
+- **Way back:** clear `trial_versions_v2` for the client, or revert.
 
 - **Status (4 Nov 2026):** deployed 4 Nov (e2b9ce8); reload and slow-line path checked live on the test client (caption); the video lock path is proven by test/review-reload-slow-words-browser.js only, and its first real use is the live proof.
 

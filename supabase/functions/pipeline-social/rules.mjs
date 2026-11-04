@@ -175,11 +175,11 @@ export function buildRequest(action, body) {
     case "credits":
       return { ok: true, path: "/v1/account/credit-balance", query: {}, counts: false };
     default:
-      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript, watch, frame.cards, frame.video, own.views or credits.`);
+      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript, watch, frame.cards, frame.video, frame.watch, own.views or credits.`);
   }
 }
 
-export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "watch", "frame.cards", "frame.video", "own.views", "credits"];
+export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "watch", "frame.cards", "frame.video", "frame.watch", "own.views", "credits"];
 
 // The monthly cap from the setting (a number, or text of one); a bad value is the default.
 export function capFrom(value) {
@@ -325,11 +325,15 @@ export const WATCH_SCHEMA = {
   required: ["seconds", "transcript", "on_screen", "hook", "build", "is_ad", "is_repost", "why_people_watch"],
 };
 
-// The Gemini request body: the video as a link (YouTube) or inline bytes (base64).
-export function geminiBody(video) {
+// The Gemini request body: the video as a link (YouTube) or inline bytes (base64). Our own questions (frame.watch) are
+// sent as text and the answer is JSON without the fixed schema.
+export function geminiBody(video, questions) {
   const part = video.fileUri ? { file_data: { file_uri: video.fileUri } } : { inline_data: { mime_type: video.mime || "video/mp4", data: video.base64 } };
+  const own = typeof questions === "string" && questions.trim();
   return {
-    contents: [{ parts: [part, { text: WATCH_PROMPT }] }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: WATCH_SCHEMA, mediaResolution: "MEDIA_RESOLUTION_LOW" },
+    contents: [{ parts: [part, { text: own ? questions.trim() : WATCH_PROMPT }] }],
+    generationConfig: own
+      ? { responseMimeType: "application/json", mediaResolution: "MEDIA_RESOLUTION_LOW" }
+      : { responseMimeType: "application/json", responseSchema: WATCH_SCHEMA, mediaResolution: "MEDIA_RESOLUTION_LOW" },
   };
 }

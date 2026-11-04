@@ -19,7 +19,7 @@ import { _calParseIso } from './132-calendar-dates-ids.js';
 import {
   _calApplyUrgentButtonState, _calPostLinearComment, _calShowKasperUrgent, _calUrgentButtonHtml,
   _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
-  _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
+  _writeUiClientFrontDoorDelete, _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
   _writeUiLegacyCommittedTweak, _writeUiLegacyInspectTargetTweak,
   _writeUiLegacyPinnedSourceTransport, _writeUiLegacyReconcileCommittedTweak,
   _writeUiLegacyRefreshActiveTweak, _writeUiLegacyTargetWithLock,
@@ -49,7 +49,7 @@ import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComme
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
-import { svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
+import { svTrialWord, svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -1866,7 +1866,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     function _calComposeQuietLine() {
         const open = _calComposeComp === 'video' && calState && Array.isArray(calState.posts) ? calState.posts.find(p => p.id === _calOpenCommentsPid) : null;
         const letter = open ? svTrialNotesLetter(open) : '';
-        const comp = letter ? 'Video ' + letter : (COMP_LABELS[_calComposeComp] || 'Video');
+        const comp = letter ? svTrialWord(open) + letter : (COMP_LABELS[_calComposeComp] || 'Video');
         return _calComposeAudience === 'client'
             ? 'The client will see this · ' + comp
             : 'Team only · ' + comp;
@@ -2998,7 +2998,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const resolvedCount = compThreads.filter(e => e.root.done).length;
         const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
         const trialLetter = svTrialNotesLetter(post);
-        const postName = _calEsc(post.name || 'Untitled post') + (trialLetter ? ' · Video ' + _calEsc(trialLetter) : '');
+        const postName = _calEsc(post.name || 'Untitled post') + (trialLetter ? ' · ' + svTrialWord(post) + _calEsc(trialLetter) : '');
         // A trial card says so, in one quiet word (Sidney, 2026-10-27: "it should say that it's a trial video").
         const trialTag = svTrialCardOn(post) ? '<span class="trl-notes-tag">Trial</span>' : '';
 
@@ -3891,6 +3891,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
             if (postId && svRsCalOn()) svRsCalSync();
+            // OPEN_REPAIRS 690: the Production copy the client's add made goes too.
+            _writeUiClientFrontDoorDelete('calendar', post, comp, target);
         };
         if (confirmed === true) run();
         else showConfirm('Delete tweak?', msg, run, 'Delete');
@@ -3933,7 +3935,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        PR 2452). Set only for that one call; _calReviewApprove itself stays as main has it (the client path's guard). */
     let _calKeepTweakLetters = null;
     function _calTweakKept(c) {
-        return !!_calKeepTweakLetters && _calKeepTweakLetters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(c.body || '')));
+        return !!_calKeepTweakLetters && _calKeepTweakLetters.some(l => new RegExp('^\\s*(?:Video|Version) ' + l + ':').test(String(c.body || '')));
     }
     function svCalReviewApproveKeeping(pid, comp, dest, letters) {
         _calKeepTweakLetters = Array.isArray(letters) && letters.length ? letters : null;
@@ -3944,7 +3946,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     function svCalResolveVersionTweaks(pid, comp, letters) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post || !Array.isArray(letters) || !letters.length || _calReviewMode() !== 'smm' || !_calCanResolveComment()) return;
-        const ids = _calOpenTweaksForComp(post, comp).filter(t => letters.some(l => new RegExp('^\\s*Video ' + l + ':').test(String(t.body || '')))).map(t => t.id);
+        const ids = _calOpenTweaksForComp(post, comp).filter(t => letters.some(l => new RegExp('^\\s*(?:Video|Version) ' + l + ':').test(String(t.body || '')))).map(t => t.id);
         if (!ids.length) return;
         // OPEN_REPAIRS 637: as in _calReviewApprove, a card whose link to its work item nothing has looked up yet is
         // looked up first, so these requests are resolved where they are read, not on the legacy copy only.

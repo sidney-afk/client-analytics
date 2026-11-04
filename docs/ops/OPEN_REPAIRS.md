@@ -36819,6 +36819,43 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
 
+## 690. [2026-11-03 UTC, BUILT, NOT MERGED] A client deleting their own change request on a Production-linked part deleted only the card copy; the Production copy stayed open for staff (session Chanfix)
+
+Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial card, thumbnail part linked to Production, the client asked for a change on the client link, then deleted it (the cross, then Delete). The page sent only calendar-upsert. Read live afterwards, read-only: the card copy in `graphic_tweaks` reads deleted (16:40:11 UTC), but its Production copy (`production_comments`, `native_comment_id` = the card note's id, `transport_role` gateway, `provenance` add/calendar) has neither `deleted_at` nor `resolved_at`. That row is left as it is, as the repro state.
+
+- **Meant to work.** A client may delete its own note: the page says so (`_calCanDeleteComment`, "the client can only delete their own"), and so does the server (`commentLifecycleAllowed`, a client's own client-visible note, edit or delete). So the page offering Delete is right, and the delete not arriving is the bug.
+- **Root cause.** On a client link the Calendar always uses the card's own notes. `_prodCanonicalCommentGate` answers `client_surface_unverifiable` on purpose, because the server never serves a calendar client the Production thread. The ADD still copies the note to Production through the client front door (`_calPostLinearComment`, `client_comment_gateway_enabled`). The DELETE (`_calDeleteComment`; Samples: `_sxrDeleteComment`) had no such door: it tombstoned the card copy and stopped. The server's lifecycle path already admitted a client front-door delete, but only with `expected_version` and `expected_updated_at`, and a client that cannot read the thread never has them.
+- **Live counts, read-only, counts only.**
+  - Client-authored Production notes whose card copy is deleted but which are still open: 2 on real clients (19 to 21 Oct), 2 on the test client.
+  - The 2 real-client rows are left alone; the supervisor is asking the owner about a one-off clean-up.
+  - The same mismatch on staff-authored notes (3 admin, 2 SMM) is a different path and is 692.
+- **Fix, server (`production-write`, Section 4, fingerprint re-pinned).** New `clientFrontDoorDeleteWithoutVersion` (policy.mjs). The version check may come from the row the server has just read for exactly one case, and every condition is required:
+  - a DELETE, by a client principal, through the calendar or unlinked-Samples front door on that client's own binding;
+  - naming the row by the card note id it was added under (never the Production id);
+  - the row being the client's own client-visible note that came from the page.
+  
+  A request that sends either version field is checked as before. A second delete of a note already deleted writes nothing and answers with the note. No SQL change: the lifecycle function still compares the version under its row lock.
+- **Fix, page (140, 190, 280).** `_writeUiClientFrontDoorDelete`:
+  - After the card tombstone (unchanged), on a client link, it asks the front door to delete the note, named by its card note id, with no version.
+  - It runs only where the add could have gone through the front door: the switch on, a verified link, a deliverable, a video or thumbnail note by the client.
+  - A refusal goes to the write-refusal log and never undoes the card delete.
+  - Calendar and Samples both call it.
+- **Proof.**
+  - `test/client-front-door-delete.js` (new, 40 checks) covers the policy and runs the writer's own lifecycle code cut from index.ts.
+    - Works: the client's own delete is written once, checked against the row just read, and a second delete is a no-op.
+    - Refused, nothing written: a staff note, another client's note, an edit through this path, a wrong binding (another client's deliverable, another card), an unknown card note id, and a note named by its Production id.
+    - Unchanged: a delete that sends a version is checked against it, and a staff delete with no version is refused.
+  - `test/client-delete-front-door-browser.js` (new) runs on the client link. The change request goes to the card and through the front door; Delete deletes the card copy and sends one Production delete named by the card note id, with no version.
+  - Both fail on a clean origin/main worktree: the browser test with "one delete went to Production (0)", the unit test because the rule does not exist.
+  - `production-comment-slice` reads a 400-character longer window of the dispatch, because of the new no-op branch.
+  - Codex review: a retry after a lost answer would have failed its own receipt (`idempotency_conflict`), because the fingerprint held the version the server had read, and a committed delete moves it. The fingerprint now leaves the version out for a front-door delete. New case: the committed delete, then the identical retry, replays and writes nothing; it fails without this with `idempotency_conflict`.
+- **CI, not this change's logic.** Touching `test/production-comment-slice.js` triggered the F42 apply rehearsal workflow, which had not run since 17 Sep. It failed before running anything (`initdb_unavailable`): the guard asked for PostgreSQL 16's `initdb` even in external mode, where CI's postgres:16 service is already running, and the runner image no longer ships that binary. The guard now applies only when the script starts its own cluster. The rehearsal passes in external mode against a local PostgreSQL 16 (32 checks).
+- **Way back:** revert the PR. The card delete is unchanged, so a revert only stops the Production copy from following.
+
+## 692. [2026-11-03 UTC, OPEN, read-only look after 690] Staff-authored Production notes whose card copy is deleted but which stay open (session Chanfix)
+
+Found while counting for 690. Five staff-authored `production_comments` rows (3 by an admin, 2 by an SMM; 24 Aug to 30 Oct; 2 of the admin ones open tweaks) have a card copy marked deleted while the Production copy has no `deleted_at`. A client cannot write these, so it is not 690's path. Likely a staff delete taken while the card part was not counted as linked (the crosswalk unresolved, or `legacy_retained`), but that is unread. Next: a read-only look at when and from where each was deleted. Change nothing until the cause is known.
+
 ## 689. [2026-11-03 UTC, BUILT, NOT MERGED] Gauntlet Three, Firefox: a second tab's first Notes click left the dialog shut; not reproduced in about 130 local Firefox two-tab tries, so the miss now records the click's whole path (session Chanfix, test only)
 
 Main run 41652850035 (`0320346`), review-gauntlet-three Firefox, two jobs, one case each: `client 1440 Notes dialog two-tabs reply` (job 126002198251) and `client 1920 Notes dialog two-tabs delete` (job 126003393869). 682's step diagnostics named the step both times: "its Notes box shows", 15 s, after "open its Notes" took 128 and 135 ms. The second tab had the card and its notes, was not loading and was visible, but the Notes dialog was never open (no rows drawn, no composer). The first tab was fine. The same cases were green on `7c23fce` and on the other legs of this run.

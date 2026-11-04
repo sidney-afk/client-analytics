@@ -2162,6 +2162,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-reload-landed-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit (REVIEW_RELOAD_REQUIRE_WEBKIT=1 in CI); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js), fictional client and cards, no hosted credentials and no live data. The client link: a reload while a change request saves on a slow line, the save landing on the server, is reported and then reported as landed for the same card and part (failed on main); a save that never lands is never reported as landed; no words in any report.",
+      "reproduce": "node test/review-reload-landed-browser.js (after repository Playwright setup; add WebKit for the Mac engine)",
+      "ci": "representative"
+    },
+    {
       "file": "review-reload-retry-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

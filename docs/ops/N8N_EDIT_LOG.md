@@ -548,9 +548,9 @@ Why: an empty profile email counted as `client_email_mismatch`, which parks the 
 - Not changed: the owner declined the proposal to drop the form answers from "DM Owner Manual Reconcile"; it still carries them.
 - Undo: publish `aedcda8b` again.
 
-## 2026-11-03 OPEN_REPAIRS 696: Slack Creative Channel Finalizer builds the kickoff at finalize time (PROPOSED, not applied)
+## 2026-11-03 OPEN_REPAIRS 696: Slack Creative Channel Finalizer builds the kickoff at finalize time (published by the supervisor on the owner's go)
 Workflow: Client - Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`)
-Version before: `49a29c76-1c2a-4292-b37b-1e1aec21dd38`      Version after: not applied yet (fill in when published)
+Version before: `49a29c76-1c2a-4292-b37b-1e1aec21dd38`      Version after: `f2bf8c50-df81-4e76-aab5-f41a910878b5` (published 2026-11-04, about 00:02 UTC)
 Changed (one change, three steps):
 - New step **Read Sales Intake** (Supabase, credential "Supabase - SyncView Calendar", the one Read Filming Plan uses): get all
   `sales_intakes` rows whose `client_email` matches the queue row's email (case-insensitive); always outputs, continues on error.
@@ -573,4 +573,9 @@ Tested: `node test/n8n-finalizer-build-kickoff.js` runs the step's code on ficti
 review removed the CCS, GD and videographer lines: the full layout,
 every placeholder when a piece is missing, logins word for word, the newest live sales intake, no double asterisks). The
 finalizer never sends test clients, so no live run.
+Read back after publishing (Chanfix, live, read-only): active version `f2bf8c50`; Build Kickoff's code sha256 `e92e593b…`, equal to
+`BUILD_KICKOFF_JS` at the merged commit; Read Sales Intake always outputs, continues on error, uses the Read Filming Plan
+credential; wiring Clients Info Verified? (true) → Read Sales Intake → Build Kickoff → Post Kickoff to Slack, false branch
+unchanged; Post Kickoff's text `{{ $json.kickoff_text }}`. The validator's two warnings (userIds on the two invite steps) were
+there before. Live proof: the next real client's kickoff.
 Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.

@@ -36857,7 +36857,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
   - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
 - **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
 
-## 696. [2026-11-03 UTC, BUILT, n8n NOT APPLIED] The new client's kickoff in the creative channel was the form-time template: placeholders, no tags, no filming plan, nothing about the brand (session Chanfix)
+## 696. [2026-11-03 UTC, LIVE in n8n 2026-11-04 (finalizer version f2bf8c50); the first real client is the proof] The new client's kickoff in the creative channel was the form-time template: placeholders, no tags, no filming plan, nothing about the brand (session Chanfix)
 
 Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure that when you put the onboarding message in the [creative] channel, it's done correctly"; asked whether to change the n8n workflow so it posts the full kickoff itself: "Yes, change the n8n workflow"; logins: "Keep posting logins in Slack".
 
@@ -36870,5 +36870,5 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - The code is `scripts/n8n-finalizer-build-kickoff.js`, and `docs/ops/NEW_CLIENT_ONBOARDING.md` documents the layout and sources.
 - **Owner's review, 3 Nov.** "I think it's good", with one change: "remove the CCS, GD and videographer thing because no one ever signed them". Team is now just the SMM and the lead; there are no videographer lines; and the Canva line is the lead's. The ManyChat condition, the logins and the other placeholders are kept.
 - **Proof.** `test/n8n-finalizer-build-kickoff.js` runs the step's own code on fictional step outputs (33 checks). The finalizer never sends test clients, so no live run.
-- **Not yet applied.** Before version `49a29c76`. The publish waits for the owner's direct go to edit this workflow (house rule: the go-ahead in the same request).
+- **LIVE (2026-11-04, about 00:02 UTC).** The supervisor published it on the owner's go: before `49a29c76`, after `f2bf8c50`. Chanfix read it back live: Build Kickoff's code is byte for byte this repo's (sha256 `e92e593b…`), and the wiring and settings are as in `docs/ops/N8N_EDIT_LOG.md`. The finalizer never sends test clients, so the next real client's kickoff is the live proof: SMM and Kasper tagged, the filming plan linked, and only the onboarding call and the timeline left as placeholders.
 - **Way back:** restore version `49a29c76` in n8n; revert the PR.

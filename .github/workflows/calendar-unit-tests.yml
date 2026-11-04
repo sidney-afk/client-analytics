@@ -761,24 +761,6 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_RETRY_REQUIRE_WEBKIT: '1'
         run: node test/review-reload-retry-browser.js
-      - name: TEMPORARY (to be removed before merge) reproduce the trial-change-retry WebKit hang under CPU load
-        continue-on-error: true
-        timeout-minutes: 25
-        env:
-          NODE_PATH: ${{ runner.temp }}/pw/node_modules
-          TRIAL_RETRY_ENGINES: webkit
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/sidney-afk/client-analytics/452e257ebd0bd237591e2103aa34027b265562a7/test/trial-change-retry-browser.js -o test/zz-trial-retry-main.js
-          for i in $(seq 1 $(( $(nproc) ))); do (timeout 1300 sh -c 'while :; do :; done' &) ; done
-          for f in test/zz-trial-retry-main.js test/trial-change-retry-browser.js; do
-            for r in 1 2 3 4; do
-              s=$(date +%s); timeout 300 node $f > /tmp/tr.out 2>&1; c=$?
-              echo "REPRO $f run $r exit $c in $(( $(date +%s) - s )) s"
-              if [ $c -ne 0 ]; then tail -25 /tmp/tr.out | sed 's/^/    /'; else grep -E '^  · ' /tmp/tr.out | tail -2 | sed 's/^/    /'; fi
-            done
-          done
-          pkill -f 'while :; do :; done' || true
-          rm -f test/zz-trial-retry-main.js
       - name: A trial version's refused change is sent again unchanged and lands once; a different one is still refused (OPEN_REPAIRS 699; Chromium and WebKit)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

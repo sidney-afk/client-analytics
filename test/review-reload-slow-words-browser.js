@@ -14,7 +14,7 @@
  *      client's words are on the card on the server, with no second copy, and the page is no longer saving;
  *   2. (control) the same with no reload: the words land;
  *   3. a reload in the middle of the save and every write after it refused: the page stops saving and says the change
- *      was not saved, with Try again.
+ *      was not saved, with a real Try again button and the client's words (697).
  * On main, 1 fails: the words never reach the server and the page stays saving.
  */
 const { chromium, webkit } = require('playwright');
@@ -82,9 +82,16 @@ async function runEngine(browserType, origin) {
     await waitNew(t);
     // The re-send runs, is refused, and ends: the error is on the part and nothing is still saving.
     const settled = await until(async () => { const s = await pageState(t); return !!s.err && !s.saving && !s.inflight; }, 40000);
-    const shown = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { err: !!String(_calReviewState.errors['rs1|video'] || ''), retry: /try again/i.test((r.getElementById('rsApp') || r).innerText) }; });
+    // A real Try again button on the part, and the client's words offered back, within the 5 s a person would wait.
+    // (This read the text for "try again" before 697, and the refusal's own wording, "Please try again.", passed it
+    // with no button on the page.)
+    const readShown = () => t.page.evaluate(words => { const r = document.getElementById('svReviewStage').shadowRoot; const e = r.querySelector('[data-err="video"]'); const ta = r.getElementById('ta');
+      return { err: !!String(_calReviewState.errors['rs1|video'] || ''), retry: !!r.querySelector('[data-retry="video"]'), words: !!(e && (e.textContent || '').includes(words)) || !!(ta && ta.value.includes(words)) }; }, WORDS);
+    let shown = await readShown();
+    for (let i = 0; i < 20 && !(shown.err && shown.retry && shown.words); i++) { await sleep(250); shown = await readShown(); }
     expect(settled >= 0, '3: the page stops saving (' + JSON.stringify(await pageState(t)) + ')');
-    expect(shown.err && shown.retry, '3: and says the change was not saved, with Try again (' + JSON.stringify(shown) + ')');
+    expect(shown.err && shown.retry, '3: and says the change was not saved, with a real Try again button (' + JSON.stringify(shown) + ')');
+    expect(shown.words, '3: and offers the client\'s words back');
     expect(notesOn(t).length === 0, '3: (control) nothing of the refused re-send is on the server');
     await t.ctx.close();
   } finally {

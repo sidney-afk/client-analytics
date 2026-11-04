@@ -740,7 +740,18 @@ import {
 
     function _tkSaveDraftSoon() {
         clearTimeout(_tkSaveTimer);
-        _tkSaveTimer = setTimeout(_tkSaveDraft, 400);
+        _tkSaveTimer = setTimeout(() => { _tkSaveTimer = null; _tkSaveDraft(); }, 400);
+    }
+    // An edit still waiting for its debounced save is written now (OPEN_REPAIRS 700). The mount reads the draft back
+    // into the form, so a remount inside those 400 ms read the draft as it was BEFORE the edit and wiped a caption
+    // just typed (photos, kept in memory, stayed: CI's "photos 3/3, caption 0, Submit disabled"). Only an unsaved edit
+    // from this tab is written, and it is the newest one there is; with nothing pending the mount reads storage as
+    // before, so a draft another tab saved still loads.
+    function _tkFlushDraftSave() {
+        if (!_tkSaveTimer) return;
+        clearTimeout(_tkSaveTimer);
+        _tkSaveTimer = null;
+        _tkSaveDraft();
     }
 
     function _tkClearDraft() {
@@ -2651,6 +2662,7 @@ import {
     }
 
     function mountTiktokUploadView() {
+        _tkFlushDraftSave();
         _tkLoadDraft();
         // Follow the shared top-bar client, unless a half-filled upload for
         // another client is in the draft: never move a file to a different

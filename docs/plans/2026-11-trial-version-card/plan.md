@@ -1,7 +1,7 @@
 # One card, many versions: the plan (session Trialplan, 4 Nov 2026)
 
 **Plan only. No code, no migration, no deploy, no data change.** Plain English.
-**Status: revision 13, 5 Nov 2026 ~00:10 UTC. Applies the fourth review (Trialreview4: 2 HIGH, 6 MEDIUM, 6 LOW, all text fixes), mapped in section 19.** One new question for Sidney (S-A, section 19) has a default. Next: a quick check of this revision against that list, then the mockups.
+**Status: revision 14, 5 Nov 2026 ~00:25 UTC. Simplifies the client-wait exit (Sidney, S-A: "I don't want to overcomplicate things").** The version's normal status menu stays available to the SMM and Kasper at all times; there is no untick flow, no "Client said OK" button, no rule against staff stamping for the client, and no "Copy client link" button. Nothing is open for Sidney. A full review round 5 follows.
 Counts quoted from earlier measurements are dated; step 1 below re-measures them before anything is built.
 The only live read was one counts-only query on the version table (section 7.1). What was read: STATE_OF_THINGS, OPEN_REPAIRS 688 (parts 1 to 3), 656/657/659/661, ATLAS "Trial reels", `src/index/189`, `194`, `245`, `299`, the `trial-reels` Edge Function (`logic.mjs`, `index.ts`), the three trial migrations, draft plans #2521, #2524 and the design-options PR #2581.
 
@@ -482,9 +482,9 @@ Sidney: "depends, if it's for client approval or not; that depends on the SMM an
 
 **What the client sees when it is on.** The client link shows **only that version**, with **Approve** and the note box, and **nothing else**: no change request, no "Not this one" (S1). The version is counted but not approved while it waits, so the trial waits for the client's approval, and the strip says "Waiting for the client's OK on Version C". When it is off, the client link shows the version read only, with the note box.
 
-**The server rule.** `trial-reels` refuses a client **change** or **pass** on a v2 card that is Scheduled or Posted with `card_scheduled`, as before (a direct-call test, since `answerPatches` has no card check today), **and allows a client Approve only for a version that has a "needs the client's OK again" send-back open** (otherwise `card_scheduled` too). A client's Approve on that version clears the flag and counts as the client's stamp for that part; the held-queue code (`194:643-690`) cannot re-send a stale change, only that Approve, and only with the matching `expected_revision` (16.6). **While a version has an open needs-client send-back, no staff member can stamp `client_ok_at` for it** (review H2: the earlier unscoped wording would have removed the status menu's Approved, `logic.mjs:692`, and contradicted D1; **that menu is unchanged for every other version**). **The sender, the SMM or Kasper can untick it, "Don't wait for the client"** (logged), which makes the route team only. **The waiting strip line has a "Copy client link" button.** **The client sees Approve only after the team has approved the fix** (`stageReady`/`throughTeam`); before that the client link says "Your team is updating Version C". The waiting strip with the untick and both client states are in the mockup list. (S-A, section 19.)
+**The server rule.** `trial-reels` refuses a client **change** or **pass** on a v2 card that is Scheduled or Posted with `card_scheduled`, as before (a direct-call test, since `answerPatches` has no card check today), **and allows a client Approve only for a version that has a "needs the client's OK again" send-back open** (otherwise `card_scheduled` too). A client's Approve on that version clears the flag and counts as the client's stamp for that part; the held-queue code (`194:643-690`) cannot re-send a stale change, only that Approve, and only with the matching `expected_revision` (16.6). **The way out of the wait is the version's normal status menu, as today (Sidney, S-A: "usually if the SMM wants to skip the client, he just clicks on the status and changes it himself on the content calendar").** **The card's own menu (D1) stays available to the SMM and Kasper at all times, including on a version with an open needs-client send-back**, and setting that version to **Approved clears the wait** and is recorded in the history as that person's change, exactly like a status change today. There is **no untick flow, no "Client said OK" button, and no rule against staff stamping for the client**, and no "Copy client link" button. **The client sees Approve only after the team has approved the fix** (`stageReady`/`throughTeam`); before that the client link says "Your team is updating Version C". The waiting strip and both client states are in the mockup list.
 
-**Tests:** (1) schedule, staff send C back with the box off, SMM approves, Kasper approves, C counted again, the trial starts; (2) the same with the box on: the trial waits, the client's Approve starts it, a client change or pass is refused with `card_scheduled`; (3) a client Approve on a version with no open "needs the client's OK" send-back is refused. **Both dialogs, the client's Approve-only view and the waiting strip are in the mockup list.**
+**Tests:** (1) schedule, staff send C back with the box off, SMM approves, Kasper approves, C counted again, the trial starts; (2) the same with the box on: the trial waits, the client's Approve starts it, a client change or pass is refused with `card_scheduled`; (3) a client Approve on a version with no open "needs the client's OK" send-back is refused. **Test (4):** with a needs-client send-back open, the SMM sets the version to Approved from the status menu: the wait clears, the history names the SMM, and the trial can start. **Both dialogs, the client's Approve-only view and the waiting strip are in the mockup list.**
 
 ### 16.3 The swap protocol (review H3, M7, M8)
 
@@ -578,7 +578,7 @@ Verdict: close; 2 HIGH, 6 MEDIUM, 6 LOW, all text fixes.
 | # | Finding | Where it landed |
 |---|---|---|
 | H1 | Clear can be refused forever (losers are locked, switch-off is refused) | One written exception to the loser lock for the version in `swap_record.before`; the Clear dialog offers the paste; test written. 16.3 |
-| H2 | "Needs the client's OK again" has no exit; "no staff can stamp" was unscoped | Scoped to a version with an open send-back; the sender, SMM or Kasper can untick it (logged); "Copy client link" on the waiting strip; the status menu's Approved is unchanged elsewhere. 16.2. **S-A** |
+| H2 | "Needs the client's OK again" has no exit; "no staff can stamp" was unscoped | **Simplified by S-A (section 20)**: the version's normal status menu stays available to the SMM and Kasper at all times; setting it to Approved clears the wait; no untick flow and no rule against staff stamping. 16.2 |
 | M1 | Carry Q1 into 3.6 and steps 1b and 8 | 3.6 (1), step 1b (server rule and client-queue override), step 8 (Approve-only view; "Your team is updating Version C" before the team approves) |
 | M2 | The robot can post an open trial | Skip clause: trial open and (any version On trial or at least two counted); "counted but not approved" wording; test written. 3.4, 16.2, 3.6 |
 | M3 | One status rule | Lifecycle word, else derived from parts; one `approvedByParts(v)` helper including A's inherited parts, named in every reader. 16.1 |
@@ -592,5 +592,13 @@ Verdict: close; 2 HIGH, 6 MEDIUM, 6 LOW, all text fixes.
 | L5 | The Post tab refuses a pending marker | 16.6 |
 | L6 | Name the `readShape` change; "Sidney: yes" for Q3; section 9 preamble | 16.7, 16.4, section 9 |
 
-**One question for Sidney (default applied):**
-- **S-A.** On a send-back that needs the client's OK again, can the sender, the SMM or Kasper untick it ("Don't wait for the client") and make it team only, with a log line? Default: yes, and the waiting strip has a "Copy client link" button.
+**One question for Sidney (answered in revision 14, section 20):**
+- **S-A.** **Answered (section 20):** no untick flow; the normal status menu is the way out. No default is pending.
+
+## 20. Sidney on S-A (4 Nov ~23:45 UTC), revision 14
+
+| # | Sidney's answer | Where it landed |
+|---|---|---|
+| S-A | "I don't want to overcomplicate things. Usually if the SMM wants to skip the client, he just clicks on the status and changes it himself on the content calendar. So that's it." | The version's normal status menu (D1) stays available to the SMM and Kasper at all times, including on a version with an open needs-client send-back; setting it to Approved clears the wait and is logged as that person's change. Dropped: the untick flow, a "Client said OK" button, the rule against staff stamping for the client, and "Copy client link". 16.2 |
+
+**Nothing is open for Sidney.**

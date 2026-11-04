@@ -165,11 +165,16 @@ async function runEngine(browserType, origin) {
       t.page.on('crash', ev('crash')); t.page.on('close', ev('close'));
       t.page.on('domcontentloaded', ev('dcl')); t.page.on('load', ev('load'));
       t.page.on('framenavigated', f => { if (f === t.page.mainFrame()) ev('nav')(); });
+      // Requests after the reload by path (top 6), and console errors: a loop on the next page shows as a storm here.
+      const reqCount = {}; let consoleErrors = 0;
+      t.page.on('request', r => { try { const u = new URL(r.url()); const k = u.pathname.replace(/[0-9a-f]{8,}/g, '#').slice(0, 60); reqCount[k] = (reqCount[k] || 0) + 1; } catch (e) {} });
+      t.page.on('console', m => { if (m.type() === 'error') consoleErrors++; });
+      const topReqs = () => Object.entries(reqCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
       try {
         await goKasper(t, origin, () => releaseHung(t), how === 'reload');
       } catch (e) {
         // The next page never showed his board: say what the tab did, count it as a miss, and go on to the next case.
-        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, boardNeverShown: String(e && e.message || e).split('\n')[0].slice(0, 120), tab: tabEvents, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), diag: diagSeen }));
+        console.log('RELOAD3_TRACE ' + JSON.stringify({ how, noteBefore, heldBefore, heldNow: (t.state.hung || []).length, boardNeverShown: String(e && e.message || e).split('\n')[0].slice(0, 120), tab: tabEvents, requests: topReqs(), consoleErrors, reports: t.beacons.map(b => b.operation + ':' + ((b.env && b.env.code) || '')), diag: diagSeen }));
         expect(false, '3 (' + how + '): the reload during his approve is reported (his board did not come back)');
         await t.ctx.close().catch(() => {});
         continue;
@@ -192,6 +197,22 @@ async function runEngine(browserType, origin) {
       expect(!reloads(t).some(b => b.env && b.env.code === 'landed_after_retry'), '3 (' + how + '): his board showing the approve while it saves is not taken for a landing');
       await t.ctx.close();
     }
+
+    // 3c. Control for the real reload: Kasper's board reloaded with nothing saving and nothing held. It must come back;
+    //     if it does not, the reload itself is at fault, not the save it interrupts.
+    console.log('--- 3c. Kasper reloads his board with nothing saving ---');
+    t = await open(browser, origin, KASPER);
+    await goKasper(t, origin);
+    {
+      const t0c = Date.now(), tabC = []; const evc = name => () => tabC.push(name + '@' + ((Date.now() - t0c) / 1000).toFixed(1));
+      t.page.on('crash', evc('crash')); t.page.on('close', evc('close')); t.page.on('domcontentloaded', evc('dcl')); t.page.on('load', evc('load'));
+      const reqC = {}; t.page.on('request', r => { try { const k = new URL(r.url()).pathname.replace(/[0-9a-f]{8,}/g, '#').slice(0, 60); reqC[k] = (reqC[k] || 0) + 1; } catch (e) {} });
+      let back = true, why = '';
+      try { await goKasper(t, origin, null, true); } catch (e) { back = false; why = String(e && e.message || e).split('\n')[0].slice(0, 120); }
+      if (!back) console.log('RELOAD3C_TRACE ' + JSON.stringify({ why, tab: tabC, requests: Object.entries(reqC).sort((a, b) => b[1] - a[1]).slice(0, 6) }));
+      expect(back, '3c: (control) his board comes back after a reload with nothing saving');
+    }
+    await t.ctx.close().catch(() => {});
 
     // 4. The order WebKit uses when a page with a save in flight goes: the page is leaving, then its unanswered request
     //    fails back to it, then the next page loads. Seen on case 3 in WebKit (4 Nov): the old page took its save as

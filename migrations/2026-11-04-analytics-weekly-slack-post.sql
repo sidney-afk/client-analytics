@@ -27,7 +27,7 @@
 --                                   5 minutes apart. A pending row older than 10 minutes becomes unknown.
 --   analytics_weekly_slack_finish() records the outcome
 --   analytics_weekly_slack_run()    the manual run call (owner/postgres only)
---   pg_cron: analytics-weekly-slack-tick (every minute, 15:00-16:59 UTC, Mondays only: well after the posts
+--   pg_cron: analytics-weekly-slack-tick (every minute, 11:00-12:59 UTC, Mondays only: 6 a.m. US Eastern in winter, after the posts
 --            window 08:00-09:59, so the messages are built) and analytics-weekly-slack-prune (Mondays 04:47 UTC)
 --
 -- Access: RLS on with no policies, every privilege revoked from public, anon, authenticated AND service_role
@@ -205,10 +205,15 @@ begin
 end
 $unschedule$;
 
--- Day-of-week 1 = Monday; 15:00-16:59 UTC (a working hour in the Americas, long after the messages are built at
--- 08:00-09:59). Change the hours here if the owner wants another time. While the switch says off the function
+-- Day-of-week 1 = Monday; 11:00-12:59 UTC, the owner's "6 a.m. for Americans": 6:00 US Eastern STANDARD time
+-- (UTC-5, early Nov to mid Mar). In US daylight saving time (UTC-4, mid Mar to early Nov) the same cron reads 7:00
+-- Eastern; to keep 6:00 Eastern then, move it one hour earlier: '* 10-11 * * 1'. The messages are built at
+-- 08:00-09:59 UTC, so either window is after them. pg_cron runs in UTC and does not follow daylight saving, so the
+-- hour is changed by hand twice a year: re-run just this statement with the new hours, for example
+--   select cron.schedule('analytics-weekly-slack-tick', '* 10-11 * * 1', <the same command as below>);
+-- (cron.schedule with an existing job name replaces that job's schedule). While the switch says off the function
 -- answers every tick with {"mode":"off"} and does nothing else.
-select cron.schedule('analytics-weekly-slack-tick', '* 15-16 * * 1', $job$
+select cron.schedule('analytics-weekly-slack-tick', '* 11-12 * * 1', $job$
   select net.http_post(
     url := 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/analytics-weekly-slack-post',
     headers := jsonb_build_object(

@@ -36800,6 +36800,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
     - a run that opened no trial card anywhere fails, because it proved nothing.
   - A Chromium run of the script itself, read only against live, passed with 0 writes blocked. The client link showed each of the card's 3 versions' blocks with their pictures, at 1440 and 390, with nothing scrolling sideways.
   - SMM and Kasper opened no trial card, because none of the test client's non-archived trial cards waits for them (OPEN_REPAIRS 662).
+  - **WebKit, 3 Nov, run 41672174335 on main 39ae8c1:** passed, 0 writes blocked, 0 failed surfaces. On the client link at 1440 and 390, each of the card's 3 versions showed its block with its picture loaded (0 broken, 0 page errors, no sideways scroll). Every SMM and Kasper surface loaded its stage, with no trial card waiting, as above.
 - **Way back:** delete the workflow. It only runs when dispatched by hand.
 
 ## 662. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: a version's own thumbnail that is a Google Drive link showed broken on the review page (V4) and hidden on the staff card (V3) (session Vbuild)
@@ -37146,3 +37147,23 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - Sending is exactly today's change request (`_rsSendChange`, as Tweaks are on Frame): `_kasperRequestTweakComp` for a post and its `_sxrKasper*` twin for a sample, team only, the part to Tweaks Needed. On a trial card the note is named for the version on stage, as every change there is.
 - **Proof:** `test/review-stage-kasper-redo-browser.js` (new; Chromium and WebKit, CI requires WebKit with `KASPER_REDO_REQUIRE_WEBKIT=1`): a post in the second layout at 1440 and 1920 (Redo on Approve's row, overlapping nothing), a sample, and today's page at 390; from the keyboard, Enter arms it and focus stays on it, so a second Enter sends (Codex on #2588). The first click arms without a write, the second sends exactly one note with the fixed words, as a team-only change request, and the part ends at Tweaks Needed; a Redo left alone disarms after 4 seconds and sends nothing; no Redo on the client page or the SMM Review tab; no sideways scroll at 390. **main:** times out waiting for a Redo button; **this branch:** all passed (Chromium here; `review-stage-kasper-layout2-browser` still 189 of 189, its one-row and centred-Approve checks included; WebKit is not installed in this sandbox, so the CI step is its first WebKit run).
 - **Way back:** revert the PR. Nothing is stored apart from the change requests it sent, which read like any other.
+
+## 686. [2026-11-03 UTC, BUILT, NOT MERGED] A trial version's status pill showed the browser's own tooltip over its menu, and brought a tooltip back after the menu closed (session Vbuild)
+
+- **Seen:** Sidney, 3 Nov, on the test client's Calendar Sheet.
+  - Hovering a version's status pill showed a browser-native tooltip ("SMM: approved · Kasper: approved · Client: approved").
+  - Clicking the pill opened the status menu, and that tooltip sat over it.
+  - Clicking out closed the menu, and a tooltip came back with no pointer over the pill.
+  - "We need to fix the whole hover system."
+- **Why** (the shared tooltip, `345-core-tooltip-date-picker.js.part`, which replaces native titles across the app):
+  1. A press hid the shared tip and put the element's `title` back at once. The pointer was still resting on it, so the browser painted its own native tooltip a moment later, over the menu the press had opened.
+  2. The status menu closes through `svLayerRelease(..., { focus: true })`, which hands focus back to the pill. The shared tip opened on any focus, so it came back after a mouse action.
+  3. Nothing told the tip that the pill's own menu was open.
+- **Fix, for the whole app's tooltips, not only the trial card:**
+  - A press hides the tip and keeps the element's title off until the pointer leaves it. Screen readers get it back from then on.
+  - Focus shows a tip only for keyboard focus (`:focus-visible`). Focus handed back after a mouse action shows nothing. Explainable labels (`data-sv-explain`) keep their touch and keyboard help unchanged.
+  - A trigger marked `aria-expanded="true"` shows no tip. The card's and the versions' status menus now set it on their pill while open and clear it on close, which also tells assistive tech the menu is open.
+  - On the trial card, the version status pills and labels carry their who-approved text as the shared tooltip's `data-tip`, never a native `title`.
+- **Proof:** `test/trial-hover-tooltip-browser.js` (10 checks, offline, real browser). It walks hover, click, a move over the pill while the menu is open, a click outside and a moment later, then a press on another titled control. On main 6 of them fail: the tooltip shows over the open menu and the native title comes back. All 10 pass with the fix.
+- **Way back:** revert the PR.
+- **CI on the merged head 73a8304, two of this PR's own, fixed:** (1) `trial-reels-round3-card-browser` read the pill's hover text from `title`, which this PR moves to `data-tip` on purpose; it now reads `data-tip` first. (2) `trial-hover-tooltip-browser`'s last check read the pencil it had pressed, but the row is redrawn in the meantime (a click on the pencil redraws it too), so it read a node no longer on the page. It now lets go away from the control, so no click fires, and reads the control the page has now, by its name. Both pass here, the second three runs in a row.

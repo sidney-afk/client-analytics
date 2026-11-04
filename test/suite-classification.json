@@ -2522,6 +2522,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-hover-tooltip-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 686: a trial version's status pill has no native title; a hover shows who approved it in the shared tooltip; a click opens its menu with no tooltip over it; a click outside closes it and no tooltip comes back; and a press on any titled control keeps the native title away until the pointer leaves.",
+      "reproduce": "node test/trial-hover-tooltip-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-version-fields-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

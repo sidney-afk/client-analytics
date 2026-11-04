@@ -46,6 +46,25 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
         let touchTapStartedActive = false;
         let touchPinnedTarget = null;
         let lastPointerType = '';
+        /* A press hides the tip and keeps the target's own title off until the pointer leaves it (OPEN_REPAIRS 686,
+           Sidney, 3 Nov: "we need to fix the whole hover system"). Restoring it at once let the browser's native
+           tooltip appear under the still pointer, over the menu the press had just opened. */
+        let pressedTarget = null;
+        let pressedTitle = null;
+        function releasePressed() {
+            if (pressedTarget && pressedTitle !== null && !pressedTarget.hasAttribute('title')) pressedTarget.setAttribute('title', pressedTitle);
+            pressedTarget = null;
+            pressedTitle = null;
+        }
+        // A trigger whose own menu or popup is open shows no tip over it (the status pills mark it aria-expanded).
+        function popupOpen(el) {
+            return !!(el && el.getAttribute && el.getAttribute('aria-expanded') === 'true');
+        }
+        // Focus shows a tip only when it is keyboard focus. Focus a page hands back to a trigger after a mouse action
+        // (a menu closing returns focus to its pill) is not a reason to show it again.
+        function keyboardFocus(el) {
+            try { return !!(el && el.matches && el.matches(':focus-visible')); } catch (e) { return true; }
+        }
 
         function ensureTipEl() {
             if (tipEl) return tipEl;
@@ -154,6 +173,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
 
         function show(target) {
             if (!target || target === activeTarget) return;
+            if (popupOpen(target)) return;
             hide();
             const text = getTipText(target);
             if (!text) return;
@@ -178,11 +198,13 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             position(el, target);
         }
 
-        function hide() {
+        function hide(pressed) {
             if (showTimer) { clearTimeout(showTimer); showTimer = 0; }
             if (!activeTarget) return;
             if (savedTitle !== null) {
-                activeTarget.setAttribute('title', savedTitle);
+                // A press keeps the title off until the pointer leaves (releasePressed); any other hide restores it.
+                if (pressed) { releasePressed(); pressedTarget = activeTarget; pressedTitle = savedTitle; }
+                else activeTarget.setAttribute('title', savedTitle);
                 savedTitle = null;
             }
             if (savedDescribedBy !== undefined) {
@@ -203,6 +225,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             if (!bearer) return;
             if (bearer.hasAttribute('data-sv-explain') && isNoHoverDevice()) return;
             if (bearer === activeTarget) return;
+            if (popupOpen(bearer)) return;
             if (bearer.hasAttribute('data-sv-explain')) {
                 show(bearer);
                 return;
@@ -212,6 +235,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
         }, true);
 
         document.addEventListener('mouseout', function (e) {
+            if (pressedTarget && !(e.relatedTarget && pressedTarget.contains(e.relatedTarget))) releasePressed();
             if (!activeTarget && !showTimer) return;
             if (touchPinnedTarget && activeTarget === touchPinnedTarget) return;
             const next = e.relatedTarget;
@@ -231,7 +255,9 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
         // remains visible in the form; these tips only remove repetitive noise.
         document.addEventListener('focusin', function (e) {
             const bearer = findBearer(e.target);
-            if (bearer) show(bearer);
+            if (!bearer) return;
+            if (!bearer.hasAttribute('data-sv-explain') && !keyboardFocus(e.target)) return;
+            show(bearer);
         }, true);
         document.addEventListener('focusout', function (e) {
             if (!activeTarget) return;
@@ -254,7 +280,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
                 return;
             }
             touchTapStartedActive = false;
-            hide();
+            hide(true);
         }, true);
         document.addEventListener('click', function (e) {
             const touchClick = lastPointerType === 'touch'
@@ -293,7 +319,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
         document.addEventListener('mousedown', function (e) {
             if (activeTarget && activeTarget.hasAttribute('data-sv-explain')
                 && activeTarget.contains(e.target) && lastPointerType === 'touch') return;
-            hide();
+            hide(true);
         }, true);
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
         window.addEventListener('scroll', viewportChange, true);

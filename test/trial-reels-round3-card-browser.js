@@ -112,7 +112,7 @@ const SHOTS = process.env.TRIAL_R3_SHOTS || '';
   const state = page => page.evaluate(() => { const s = [...document.querySelectorAll('.cal-link-post.trl-main')].find(n => n.offsetParent); return s ? s.innerText.replace(/\s+/g, ' ').trim() : ''; });
   const rowsOf = page => page.evaluate(() => [...document.querySelectorAll('.trl-list .trl-v')].filter(n => n.offsetParent).map(n => {
     const lab = n.querySelector('.trl-lab, .sv-dropped-note');
-    return { t: n.innerText.replace(/\s+/g, ' ').trim(), lab: lab ? lab.textContent.trim() : '', title: lab ? lab.getAttribute('title') || '' : '',
+    return { t: n.innerText.replace(/\s+/g, ' ').trim(), lab: lab ? lab.textContent.trim() : '', title: lab ? lab.getAttribute('data-tip') || lab.getAttribute('title') || '' : '',  // the pill's hover text sits in data-tip since OPEN_REPAIRS 686
       radius: lab ? parseFloat(getComputedStyle(lab).borderTopLeftRadius) : 0, add: n.classList.contains('trl-add') };
   }));
   const lists = page => page.evaluate(() => { const c = [...document.querySelectorAll('#calView .cal-card')].find(n => n.offsetParent && n.querySelector('.cal-link-post.trl-main')); return c ? c.querySelectorAll('.trl-list').length : -1; });

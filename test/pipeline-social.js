@@ -120,6 +120,25 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(/GEMINI_API_KEY/.test(src) && /x-goog-api-key/.test(src) && !/json\([^)]*gKey/.test(src), 'the Gemini key comes only from the Supabase secret and only goes in the header to Google');
   ok(src.indexOf('seconds > max') > 0 && src.indexOf('seconds > max') < src.indexOf('generativelanguage'), 'a video over the length limit is refused before Gemini is called');
 
+  // ---- frame.cards, frame.video, own.views: reads for the pass's own client (2026-11-04) -----------------------
+  const o = await import(path.join(dir, 'own-reads.mjs'));
+  ok(o.isOwnAction('frame.cards') && o.isOwnAction('frame.video') && o.isOwnAction('own.views') && !o.isOwnAction('watch'), 'the three read actions are recognised');
+  eq(o.ownScope({ client_slug: 'abc' }, { client: 'ABC' }), { ok: true, slug: 'abc' }, 'the pass client is the client');
+  eq(o.ownScope({ client_slug: 'abc' }, { client: 'other' }).ok, false, 'a request naming another client is refused');
+  eq(o.ownScope({ client_slug: '' }, {}).ok, false, 'a pass with no client reads nothing');
+  eq(o.planOwn('frame.video', {}).ok, false, 'frame.video needs a card id');
+  eq(o.planOwn('frame.video', { card: 'p_1' }), { ok: true, card: 'p_1' }, 'frame.video takes the card id');
+  const fake = (rows, seen) => ({ from: () => { const q = { select: () => q, eq: (k, v) => { seen.push([k, v]); return q; }, neq: () => q, not: () => q, order: () => q, limit: () => Promise.resolve({ data: rows, error: null }) }; return q; } });
+  const seen = [];
+  const vr = await o.videoFor(fake([{ id: 'p_1', asset_url: 'https://f.io/abc' }], seen), 'abc', 'p_1', async (l) => ({ video: { url: 'https://x.frame.io/hq', renditions: { efficient: 'https://x.frame.io/eff' }, expires_at: 'T', duration_seconds: 20 } }));
+  eq([vr.ok, vr.result.url], [true, 'https://x.frame.io/eff'], 'frame.video answers the efficient rendition');
+  ok(seen.some(([k, v]) => k === 'client' && v === 'abc'), 'the card is looked up under the pass client only');
+  eq((await o.videoFor(fake([], []), 'abc', 'p_9', async () => ({}))).status, 404, 'a card of another client answers not found');
+  const vw = await o.viewsFor(fake([{ platform: 'Instagram', video_url: 'u1', caption: 'c', views: '5' }, { platform: 'Instagram', video_url: 'u1' }, { platform: 'TikTok', video_url: 'u2' }], []), 'abc');
+  eq(vw.result.videos.length, 1, 'own.views keeps Instagram videos, once each');
+  ok(/isOwnAction\(action\)/.test(src) && src.indexOf('isOwnAction(action)') < src.indexOf('buildRequest(action'), 'the read actions run after the pass gate, before any ScrapeCreators plan');
+  ok(!/pipeline\.\$|"scrapecreators\." \+ action, client: scope/.test(src), 'the read actions are logged outside the ScrapeCreators cap');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
   ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');

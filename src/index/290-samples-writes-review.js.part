@@ -681,12 +681,22 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 _writeUiPrecommittedNative: true,
                 _writeUiRepairRefs: group.refs.map(ref => ({ key: ref.key, token: ref.token }))
             });
+            /* OPEN_REPAIRS 691: another save of this card started while this replay held the repair flight (the
+               page sending its own recovered save after a reload). That save waits for this flight before its status
+               push, so waiting for it here, inside the flight, waited forever: the client's change request reached
+               Tweaks Needed and its words never reached the card. The bucket above (edits, the precommitted flag and
+               the repair refs) is the trailing batch that save sends from its finally, and it completes the refs only
+               when that write lands. So this replay leaves the flight now, without completing anything: the
+               journal keeps its debt until the card write lands, and a later replay finds it if it does not. */
+            if (typeof _calSaveInFlight !== 'undefined' && _calSaveInFlight[post.id]) return false;
             await _calFlushCardSave(post.id);
         } else {
             _sxrPendingEdits[post.id] = Object.assign({}, edits, _sxrPendingEdits[post.id] || {}, {
                 _writeUiPrecommittedNative: true,
                 _writeUiRepairRefs: group.refs.map(ref => ({ key: ref.key, token: ref.token }))
             });
+            // OPEN_REPAIRS 691, the same for a Sample's card.
+            if (typeof _sxrSaveInFlight !== 'undefined' && _sxrSaveInFlight[post.id]) return false;
             await _sxrFlushCardSave(post.id);
         }
         group._completedPost = post;

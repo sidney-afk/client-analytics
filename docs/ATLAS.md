@@ -415,6 +415,7 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
   - **Approve**, which sends the part to the client;
   - **Approve after tweaks**, which needs a note; after the fix the post goes straight to the client;
   - **Ask for a change**, and **Tweaks are on Frame** (a change with no typing);
+  - **Redo** on each part, for "not there yet, no one thing to fix": the first click arms it ("Send redo?" for 4 seconds), the second sends one fixed team-only note and the part goes to Tweaks Needed;
   - Message (team only);
   - **Finish reviewing**;
   - **Close card**, which only hides the card;

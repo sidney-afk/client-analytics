@@ -2408,6 +2408,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-kasper-redo-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit; every backend call answered locally, no hosted credentials and no live data. OPEN_REPAIRS 694: Kasper's Redo on each part of his Review Session; the first click arms it in place and writes nothing, a second within four seconds sends the fixed team-only note once and the part goes to Tweaks Needed, left alone it disarms; a post in the second layout at 1440 and 1920 (on Approve's row), a sample through the Samples save path, today's page at 390; never on the client page or the SMM Review tab.",
+      "reproduce": "node test/review-stage-kasper-redo-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

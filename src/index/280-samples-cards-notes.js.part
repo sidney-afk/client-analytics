@@ -16,7 +16,7 @@ import { _svClientPhoneActive, _svClientPhoneRegisterSamplesRefresh, _svPhoneNot
 import { _writeUiLegacyWithoutRetired } from './134-calendar-prefs-mount.js';
 import {
   _writeUiApplyOverallStatus, _writeUiApplySupersededTeamDelivery,
-  _writeUiCommentActionFailureHtml, _writeUiCommitCardCommentLifecycle,
+  _writeUiClientFrontDoorDelete, _writeUiCommentActionFailureHtml, _writeUiCommitCardCommentLifecycle,
   _writeUiFlushDeferredLegacyTweak, _writeUiLegacyCommittedTweak, _writeUiLegacyDrainWithLock,
   _writeUiLegacyFinalizeFlush, _writeUiLegacyGateSignature, _writeUiLegacyInspectTargetTweak,
   _writeUiLegacyPinnedSourceTransport, _writeUiLegacyQuarantine,
@@ -2379,6 +2379,8 @@ import {
             _sxrUpdateCardStatusDisplay(pid);
             _sxrCaptureModalDrafts();
             _sxrRenderCommentsModal();
+            // OPEN_REPAIRS 690: the Production copy the client's add made goes too.
+            _writeUiClientFrontDoorDelete('sxr', post, comp, target);
         }, 'Delete');
     }
     function _sxrApplyAutoStatus(pid, trigger, comp, dest) {

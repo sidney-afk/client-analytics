@@ -19,7 +19,7 @@ import { _calParseIso } from './132-calendar-dates-ids.js';
 import {
   _calApplyUrgentButtonState, _calPostLinearComment, _calShowKasperUrgent, _calUrgentButtonHtml,
   _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
-  _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
+  _writeUiClientFrontDoorDelete, _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
   _writeUiLegacyCommittedTweak, _writeUiLegacyInspectTargetTweak,
   _writeUiLegacyPinnedSourceTransport, _writeUiLegacyReconcileCommittedTweak,
   _writeUiLegacyRefreshActiveTweak, _writeUiLegacyTargetWithLock,
@@ -3891,6 +3891,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
             if (postId && svRsCalOn()) svRsCalSync();
+            // OPEN_REPAIRS 690: the Production copy the client's add made goes too.
+            _writeUiClientFrontDoorDelete('calendar', post, comp, target);
         };
         if (confirmed === true) run();
         else showConfirm('Delete tweak?', msg, run, 'Delete');

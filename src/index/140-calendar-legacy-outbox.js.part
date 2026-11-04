@@ -2395,6 +2395,45 @@ import {
             comment: lifecycleComment
         }, null);
     }
+    /* OPEN_REPAIRS 690. A client deleting its own note on a card part linked
+       to Production. The client reads and writes the card's own notes (the
+       canonical thread is never served to a client link), but the add also
+       went through the client front door, which copied the note to Production
+       under the card note's id. Deleting only the card copy left that copy open
+       for staff. So after the card tombstone, the same front door is asked to
+       delete it, named by the card note id. The server admits exactly that
+       (clientFrontDoorDeleteWithoutVersion): a client's own client-visible
+       note, on its own binding, delete only. Nothing is sent where the add
+       could not have gone through the front door (flag off, an unverified
+       link, no deliverable, a caption or title note), and a refusal is
+       reported, never shown as a failed delete: the card copy is already gone. */
+    async function _writeUiClientFrontDoorDelete(surface, post, component, comment) {
+        if (!_isClientLink || !post || !comment || !String(comment.id || '').trim()) return null;
+        if (component !== 'video' && component !== 'graphic') return null;
+        if (String(comment.role || '') !== 'client') return null;
+        const nativeId = _writeUiNativeId(post, component);
+        if (!nativeId) return null;
+        let context = null;
+        try { context = await _prodClientCommentGatewayContext(surface, post, component); } catch (e) { context = null; }
+        if (!context) return null;
+        const noteId = String(comment.id).trim();
+        try {
+            return await _writeUiGatewayWithRepair({
+                surface,
+                operation: 'comment',
+                team: _writeUiTeam(component),
+                nativeId,
+                sourceEditedAt: new Date().toISOString(),
+                requestId: _writeUiIntentId(surface, 'comment-delete-front-door', [nativeId, noteId]),
+                comment: { action: 'delete', native_comment_id: noteId, card_id: context.card_id }
+            }, null);
+        } catch (error) {
+            _writeUiReportFailure(surface, 'comment', error, {
+                card: String(post.id || ''), component, comment: noteId, action: 'delete'
+            });
+            return null;
+        }
+    }
     /* Mark-done is the one lifecycle mutation that may safely rebase itself:
        it sets a root's resolved flag and carries no user-authored body. Read the
        exact canonical row after the destination dialog, bind the result to the
@@ -3491,7 +3530,7 @@ export {
   _calReassertLinearStatus, _calSetLinearMetaHydrated, _calShowKasperUrgent, _calUrgentButtonHtml,
   _calUrgentSlackDispatch, _urgentAdoptStampsAfterSave, _linearOutboxFlush, _urgentKind, _writeUiApplyOverallStatus,
   _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
-  _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
+  _writeUiClientFrontDoorDelete, _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
   _writeUiLegacyCommittedTweak, _writeUiLegacyDrainWithLock, _writeUiLegacyFinalizeFlush,
   _writeUiLegacyGateSignature, _writeUiLegacyHydrateConfirmedCacheAfterAuthority,
   _writeUiLegacyInspectTargetTweak, _writeUiLegacyPinnedSourceTransport, _writeUiLegacyQuarantine,

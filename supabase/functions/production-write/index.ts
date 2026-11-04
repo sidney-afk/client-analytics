@@ -45,6 +45,7 @@ import {
   clean,
   clientCommentFrontDoorTargetAllowed,
   clientCommentTargetAllowed,
+  clientFrontDoorDeleteWithoutVersion,
   clientOperationAllowed,
   clientScopeAllowed,
   commentAddFingerprint,
@@ -5300,6 +5301,7 @@ async function handleEntityOperation(
     let commentDependsOnId: number | null = null;
     let expectedCommentVersion: number | null = null;
     let expectedCommentUpdatedAt = "";
+    let frontDoorDelete = false;
 
     if (action === "add") {
       if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
@@ -5368,8 +5370,17 @@ async function handleEntityOperation(
       if ((action === "resolve" || action === "unresolve") && clean(lifecycleRow.parent_id)) {
         throw new GatewayError(400, "comment_root_required");
       }
-      expectedCommentVersion = Number(commentInput.expected_version);
-      expectedCommentUpdatedAt = clean(commentInput.expected_updated_at);
+      // OPEN_REPAIRS 690: a client deleting its own front-door note by its card
+      // note id never holds the canonical version (it cannot read the thread),
+      // so for that one case the current row supplies the check. A request that
+      // sends either version field, and every other case, is checked as before.
+      frontDoorDelete = commentInput.expected_version == null
+        && commentInput.expected_updated_at == null
+        && clientFrontDoorDeleteWithoutVersion(
+          principal, action, surface, existing, lifecycleRow, commentRef, requestedCardId,
+        );
+      expectedCommentVersion = frontDoorDelete ? Number(lifecycleRow.version) : Number(commentInput.expected_version);
+      expectedCommentUpdatedAt = frontDoorDelete ? clean(lifecycleRow.updated_at) : clean(commentInput.expected_updated_at);
       if (!Number.isInteger(expectedCommentVersion) || Number(expectedCommentVersion) < 1
           || !expectedCommentUpdatedAt) {
         throw new GatewayError(400, "comment_cas_required");
@@ -5455,8 +5466,12 @@ async function handleEntityOperation(
         component: clean(commentInput.component) || null,
         is_tweak: commentInput.is_tweak === true,
         round,
-        expected_version: expectedCommentVersion,
-        expected_updated_at: expectedCommentUpdatedAt || null,
+        // A front-door delete is fingerprinted as it was sent, with no version:
+        // the version it is checked against comes from the row, which a
+        // committed delete advances, so a retry after a lost answer must still
+        // match its first receipt (OPEN_REPAIRS 690).
+        expected_version: frontDoorDelete ? null : expectedCommentVersion,
+        expected_updated_at: frontDoorDelete ? null : expectedCommentUpdatedAt || null,
       },
     });
     if (commentMirrorApplicable && action !== "add") {
@@ -5568,6 +5583,9 @@ async function handleEntityOperation(
       );
       if (lifecycleReplay) {
         result = lifecycleReplay;
+      } else if (frontDoorDelete && clean(currentRow.deleted_at)) {
+        // A second front-door delete of a note already deleted changes nothing.
+        result = currentRow;
       } else {
         if (Number(currentRow.version) !== expectedCommentVersion
             || clean(currentRow.updated_at) !== expectedCommentUpdatedAt) {

@@ -20,7 +20,11 @@
  *   - each command's output is printed as one collapsed group when it finishes (so
  *     the log of a failed one is whole), with a heartbeat while it runs;
  *   - the end of the log is a table of every command with its time and result;
- *   - a cancelled job stops its children.
+ *   - a cancelled job stops its children;
+ *   - the end of the log names the runner's headroom while the commands ran: the
+ *     lowest available memory, the peak use of /dev/shm and the peak load against
+ *     the CPU count (OPEN_REPAIRS 697: two "browser died" reds were CPU timing
+ *     races, not memory, and this line is the measurement that tells them apart).
  */
 const fs = require('fs');
 const os = require('os');
@@ -39,6 +43,37 @@ function parseLines(text) {
   return out;
 }
 
+// Samples the runner every few seconds while the commands run (Linux; elsewhere it reports what it can).
+function readAvailMb() {
+  try {
+    const m = /MemAvailable:\s+(\d+) kB/.exec(fs.readFileSync('/proc/meminfo', 'utf8'));
+    if (m) return Math.round(Number(m[1]) / 1024);
+  } catch (e) { /* not Linux */ }
+  return Math.round(os.freemem() / 1048576);
+}
+function readShmMb() {
+  try { const st = fs.statfsSync('/dev/shm'); return Math.round(((st.blocks - st.bfree) * st.bsize) / 1048576); } catch (e) { return null; }
+}
+function startResourceSampler(everyMs) {
+  const r = { totalMb: Math.round(os.totalmem() / 1048576), minAvailMb: Infinity, peakShmMb: null, peakLoad: 0, cpus: os.cpus().length, samples: 0 };
+  const sample = () => {
+    r.samples++;
+    r.minAvailMb = Math.min(r.minAvailMb, readAvailMb());
+    const shm = readShmMb();
+    if (shm !== null) r.peakShmMb = Math.max(r.peakShmMb || 0, shm);
+    r.peakLoad = Math.max(r.peakLoad, os.loadavg()[0]);
+  };
+  sample();
+  const timer = setInterval(sample, everyMs || 3000);
+  if (timer.unref) timer.unref();
+  return { stop() { clearInterval(timer); sample(); return r; } };
+}
+function resourceLine(r) {
+  return 'runner headroom: lowest available memory ' + r.minAvailMb + ' MB of ' + r.totalMb + ' MB (' + Math.round(100 * r.minAvailMb / r.totalMb) + '% free)'
+    + (r.peakShmMb === null ? '' : ', /dev/shm peak ' + r.peakShmMb + ' MB')
+    + ', peak 1-minute load ' + r.peakLoad.toFixed(2) + ' on ' + r.cpus + ' CPUs (' + r.samples + ' samples)';
+}
+
 function fmt(sec) { return sec >= 60 ? Math.floor(sec / 60) + ' min ' + String(Math.round(sec % 60)).padStart(2, '0') + ' s' : sec.toFixed(1) + ' s'; }
 
 async function runLanes(items, opts) {
@@ -51,6 +86,7 @@ async function runLanes(items, opts) {
   let next = 0;
   let stopping = false;
   const t0 = Date.now();
+  const sampler = startResourceSampler(opts.sampleMs);
 
   const beat = setInterval(() => {
     if (!running.size) return;
@@ -96,6 +132,7 @@ async function runLanes(items, opts) {
 
   await Promise.all(Array.from({ length: lanes }, (_, i) => worker(i + 1)));
   clearInterval(beat);
+  const resources = sampler.stop();
   try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { /* best effort */ }
   const done = results.filter(Boolean);
   const failed = done.filter(r => r.code !== 0);
@@ -108,14 +145,15 @@ async function runLanes(items, opts) {
   log('');
   log(done.length + ' of ' + items.length + ' commands ran in ' + fmt(wall) + ' on ' + lanes + ' lanes (' + fmt(serial) + ' if run one after another); ' + failed.length + ' failed');
   for (const r of done) log((r.code === 0 ? '  pass ' : '  FAIL ') + fmt(r.sec).padStart(9) + '  ' + r.name);
+  log(resourceLine(resources));
   if (stopping) log('stopped early by a signal: ' + (items.length - done.length) + ' command(s) never started');
   if (opts.summaryFile) {
-    try { fs.appendFileSync(opts.summaryFile, '### ' + (opts.title || 'Lanes') + ': ' + done.length + ' checks in ' + fmt(wall) + ' (' + fmt(serial) + ' one after another)\n\n' + table.join('\n') + '\n\n'); } catch (e) { /* summary is optional */ }
+    try { fs.appendFileSync(opts.summaryFile, '### ' + (opts.title || 'Lanes') + ': ' + done.length + ' checks in ' + fmt(wall) + ' (' + fmt(serial) + ' one after another)\n\n' + table.join('\n') + '\n\n' + resourceLine(resources) + '\n\n'); } catch (e) { /* summary is optional */ }
   }
-  return { results: done, failed, wall, serial, stopped: stopping, notStarted: items.length - done.length };
+  return { results: done, failed, wall, serial, stopped: stopping, notStarted: items.length - done.length, resources };
 }
 
-module.exports = { parseLines, runLanes, fmt };
+module.exports = { parseLines, runLanes, fmt, resourceLine };
 
 if (require.main === module) {
   const args = process.argv.slice(2);

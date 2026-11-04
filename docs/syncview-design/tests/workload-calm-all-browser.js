@@ -132,18 +132,29 @@ const isCalm = page => page.evaluate(() => !!document.querySelector('.workload-v
       await gate;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([auth, { key: 'workload_calm_staff', value: { all: true } }]) });
     });
+    // The old document is marked so the poll below judges only the new one: a read that lands before the navigation
+    // commits sees the calm page being left, whose .workload-day cells are not the old calendar (OPEN_REPAIRS 697).
+    await p.evaluate(() => { window.__wlCalmAllLeaving = true; });
     const reload = p.goto('http://127.0.0.1:' + h.server.address().port + '/#workload', { waitUntil: 'domcontentloaded' });
+    // Observed at once (OPEN_REPAIRS 697, session Guardcrash): if a check below throws, the finally closes the browser
+    // under this still-pending navigation, and an unobserved rejection used to kill the run with "page.goto: Target page,
+    // context or browser has been closed" in place of the check that actually failed.
+    const reloadDone = reload.then(() => null, e => e);
     let held = false, painted = false;
-    for (let i = 0; i < 40 && !held; i++) {
+    for (let i = 0; i < 100 && !held; i++) { // up to 10 s: the switch read is held until release(), so waiting longer loosens nothing
       await p.waitForTimeout(100);
-      const s = await p.evaluate(() => ({ has: !!document.querySelector('.workload-view'), hold: !!document.querySelector('.workload-view.wl-calm-hold'), day: !!document.querySelector('.workload-day') }));
+      // A read of the page being left (null), or one that lands while the navigation swaps the document ("Execution
+      // context was destroyed"), saw no new page: it is retried at the next tick, never counted. Any other error still fails the run (OPEN_REPAIRS 697).
+      const s = await p.evaluate(() => (window.__wlCalmAllLeaving ? null : { has: !!document.querySelector('.workload-view'), hold: !!document.querySelector('.workload-view.wl-calm-hold'), day: !!document.querySelector('.workload-day') })).catch(e => { if (/Execution context was destroyed/.test(String(e && e.message))) return null; throw e; });
+      if (!s) continue;
       if (s.day) painted = true;
       held = s.hold;
     }
     expect(held, 'while the read is on its way the loader is held');
     expect(!painted && await p.evaluate(() => !document.querySelector('.workload-day')), 'the old calendar was not painted meanwhile');
     release();
-    await reload;
+    const reloadErr = await reloadDone;
+    if (reloadErr) throw reloadErr;
     await p.waitForTimeout(1200);
     expect(await isCalm(p), 'once answered: calm on, with no swap back');
     expect(await p.evaluate(() => !document.querySelector('.workload-view.wl-calm-hold')), 'the loader is gone');

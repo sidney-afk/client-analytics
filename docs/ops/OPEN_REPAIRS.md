@@ -37016,3 +37016,29 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Way back:** revert the PR, or take the client off `trial_versions_v2`.
 - **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
 - **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.
+
+## 697. [2026-11-04 UTC, BUILT, NOT MERGED] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
+
+- **Seen:** main 555d9fa (run 41768158269), the review stage's first-frame guard: "1440x900 dark: the player is there in the end (null)". PR #2592 (run 41780677570), "Calm Workload for everyone" died with `page.goto: Target page, context or browser has been closed`. main 4ff002e passed the same job.
+- **Measured (session Guardcrash):** all 49 part-2 suites on 3 lanes, on a 4-CPU, 16 GB machine like the runner, sampled every 2 s.
+  - Memory used peaked at 1.7 GB.
+  - /dev/shm stayed at 0 MB.
+  - No suite kills processes or closes another lane's browser.
+  - The CPU was full: load averaged 3.4 and peaked at 4.6 on 4 CPUs.
+  - Memory is not the cause; the cause is two waits that run on the wall clock.
+- **Cause 1, `test/review-stage-first-frame-browser.js`:** the end state was read after a fixed 2.6 s sleep. On an idle machine the player arrives about 1.3 s before that read, and with CPUs busy about 1.2 s before it. A stall longer than that on a loaded runner left the media box empty at the read, which reads as `null`. The recorded frames showed no fallback and no icon, only a player that had not arrived yet.
+- **Cause 2, `docs/syncview-design/tests/workload-calm-all-browser.js`:** the hint case polls the page with `page.evaluate` while the `page.goto` it started is still running. That has two races:
+  - a read that lands while the document swaps throws "Execution context was destroyed";
+  - a read that lands before the commit sees the calm page being left, whose `.workload-day` cells count as "the old calendar painted".
+  - Reproduced by polling every 2 ms: 6 of 6 runs crashed, and with the crash fixed, 2 of 8 still failed on the old document.
+  - Either throw ran the `finally`, which closed the browser under the goto nobody awaited. That unhandled rejection killed Node with the goto's message, so the log named the wrong cause.
+- **Fix, tests only (no check is loosened, skipped or retried):**
+  - **First frame:** after the same sleep, it keeps recording until the player is there, up to 20 s, then judges every frame by the same rules. A player that never arrives still fails.
+  - **Calm all:** the page being left is marked, so the poll judges only the new document. A read that lands in the swap is taken again on the next tick. The goto is observed at once and awaited after `release()`, so a real failure prints its own check.
+  - The hold is polled for up to 10 s instead of 4 s. The switch read is gated until `release()`, so the longer wait loosens nothing.
+  - **Every lane run (`scripts/ci-lanes.js`)** now ends with a "runner headroom" line: the lowest available memory, the /dev/shm peak, and the peak load against the CPU count. A later "browser died" can then be told apart from an out-of-memory at a glance.
+- **Proof:**
+  - The 2 ms polling probe passes 10 of 10 on the fixed Workload test.
+  - `test/ci-lanes.js` checks the headroom line (15 checks).
+  - The PR's browser-guards jobs are green, with the headroom line in their logs.
+- **Not this:** the WebKit tab crash in repair-checkpoint (#2576, `review-reload-landed-browser`, another job and engine) is traced on its own PR.

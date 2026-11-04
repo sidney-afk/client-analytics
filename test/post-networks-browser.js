@@ -1,20 +1,18 @@
 'use strict';
-// YouTube and LinkedIn on the Post tab's Instagram side (plan row P3, page half; decision D5; OPEN_REPAIRS 655),
-// behind post_networks_v1. Opens the real page offline with every backend answer local and proves:
-//   1. switch on: a "Post to" card with Instagram, Facebook, YouTube and LinkedIn; YouTube and LinkedIn start unticked;
-//      ticking YouTube shows its title (the caption's first line, following the caption until typed into), Short by
-//      default, Public and made for kids as the client's profile says; Instagram can be unticked; the button names
-//      the networks; the post sends instagram:false, no Instagram account, YouTube's and LinkedIn's profile ids, the
-//      title and format, and no cover when neither Instagram nor YouTube is ticked;
-//   2. a typed YouTube title stays when the caption changes; an empty title or no network ticked keeps Post off;
-//   3. a card whose copy is landscape cannot go as a Short (the reason shows and Post is off); Regular video can;
-//   4. a carousel or a trial reel posts to Instagram only: YouTube and LinkedIn cannot be ticked, Instagram cannot be
-//      unticked;
-//   5. no YouTube or LinkedIn account: each row says so (YouTube links itself, LinkedIn needs Sidney) with Open Post
-//      for Me; Instagram with no account cannot be ticked, and the post can still go to YouTube;
-//   6. the queue shows every network's own result and link, and a row whose first network is YouTube names it;
-//   7. switch off: today's Facebook card, and the post body carries no YouTube, LinkedIn or instagram key;
-//   8. at 390 wide the card fits with no sideways scroll.
+// YouTube and LinkedIn as their own sides of the Post tab (OPEN_REPAIRS 687, the owner on 3 Nov; plan row P3 page half
+// first built as ticks, OPEN_REPAIRS 655), behind post_networks_v1. Opens the real page offline with every backend
+// answer local and proves:
+//   1. switch on: the platform switch has YouTube and LinkedIn; the Instagram side has no Instagram tick, only
+//      "Also post to Facebook", on by default with a connected Page and hidden with none;
+//   2. the YouTube side: its account, its own card (title from the caption's first line, following it until typed
+//      into; Short by default; Public; made for kids from the profile), no carousel, no trial, no Facebook; the post
+//      sends instagram:false, no Instagram account, and YouTube's profile id, title and format through the same create;
+//   3. a landscape card cannot go as a Short; Regular video can;
+//   4. the LinkedIn side: no cover; the post sends instagram:false and LinkedIn's profile id;
+//   5. no YouTube or LinkedIn account: each side says so with Open Post for Me, and Post stays off;
+//   6. each side's queue lists its own network's posts, under its own heading;
+//   7. switch off: no YouTube or LinkedIn button, the Facebook card as before (also with no Page), today's body;
+//   8. at 390 wide the switch and the YouTube side fit with no sideways scroll.
 // Nothing is ever posted for real: every function is answered here.
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -83,21 +81,24 @@ async function newPage(browser, opts) {
   page.on('pageerror', e => errors.push(e.message));
   return { context, page, log, errors };
 }
-async function openInstagram(page, base) {
+async function openSide(page, base, side) {
   await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.tk-page #tkPlatTiktok', { timeout: 20000 });
   await page.evaluate(({ client, posts }) => { calState.client = client; calState.posts = posts; }, { client: TEST_CLIENT, posts: POSTS });
   await page.fill('#tkClientInput', TEST_CLIENT);
   await page.press('#tkClientInput', 'Enter');
   await page.waitForSelector('[data-tk-picked-client]');
-  await page.click('#tkPlatInstagram');
-  await page.waitForSelector('#igFormCol');
+  const btn = { instagram: '#tkPlatInstagram', youtube: '#tkPlatYoutube', linkedin: '#tkPlatLinkedin' }[side || 'instagram'];
+  await page.waitForSelector(btn + ':not([hidden])');
+  await page.click(btn);
+  await page.waitForSelector('#igFormCol:not([hidden])');
   if (!(await page.locator('#igFormCol .tk-profile-line').count())) {
     await page.click('#igClientBtn');
     await page.click(`#igClientMenu [data-sv-select-option][data-value=${JSON.stringify(TEST_CLIENT)}]`);
   }
   await page.waitForSelector('#igFormCol .tk-profile-line');
 }
+const openInstagram = (page, base) => openSide(page, base, 'instagram');
 const attachVideo = (page) => page.setInputFiles('#igFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not really a video') });
 const textOf = (page, sel) => page.$eval(sel, el => el.textContent.replace(/\s+/g, ' ').trim());
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -109,6 +110,8 @@ async function toggle(page, sel, on) {
   await page.waitForFunction(({ sel, on }) => document.querySelector(sel) && document.querySelector(sel).checked === on, { sel, on });
 }
 
+const sent = (page, re) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector('#igFormCol .tk-submit-bar')?.textContent || ''), re.source);
+
 (async () => {
   const server = await serveStatic();
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -116,177 +119,183 @@ async function toggle(page, sel, on) {
   let checks = 0;
   const ok = (cond, what) => { assert.ok(cond, what); checks++; };
   try {
-    // ---- 1 and 2. the card, YouTube's fields, Instagram unticked, the body
+    // ---- 1. the switch and the Instagram side
     {
       const { context, page, log, errors } = await newPage(browser);
       await openInstagram(page, base);
-      await page.waitForSelector('#igNetworksCard');
-      ok(await page.locator('#igFacebookCard').count() === 0, 'switch on: the "Post to" card replaces the Facebook card');
-      ok(await checked(page, '#igNetInstagram') && await checked(page, '#igFacebook'), 'Instagram and Facebook start ticked');
-      ok(!(await checked(page, '#igNetYoutube')) && !(await checked(page, '#igNetLinkedin')), 'YouTube and LinkedIn start unticked');
+      ok(await page.isVisible('#tkPlatYoutube') && await page.isVisible('#tkPlatLinkedin'), 'switch on: YouTube and LinkedIn are on the platform switch');
+      ok(await page.locator('#igNetInstagram, #igNetworksCard, #igNetYoutube, #igNetLinkedin').count() === 0, 'the Instagram side has no Instagram, YouTube or LinkedIn tick');
+      await page.waitForSelector('#igFacebookCard');
+      ok(await checked(page, '#igFacebook'), 'Also post to Facebook is on by default with a connected Page');
+      await attachVideo(page);
+      await page.fill('#igTitle', 'To Instagram');
+      assert.equal(await textOf(page, '#igSubmit'), 'Post to Instagram'); checks++;
+      await page.click('#igSubmit');
+      await sent(page, /Sent to Instagram and Facebook/);
+      const b = log.creates[0];
+      ok(b.socialAccountId === IDS.instagram && b.alsoFacebook === true && !('instagram' in b) && !b.youtube && !b.linkedin, 'the Instagram side posts to Instagram and Facebook, as before');
+      ok(!errors.length, 'Instagram side: no page errors (' + errors.join(' | ') + ')');
+      await context.close();
+    }
+    // ---- 2. the YouTube side
+    {
+      const { context, page, log, errors } = await newPage(browser);
+      await openSide(page, base, 'youtube');
+      ok(/Posting to the client's YouTube/.test(await textOf(page, '#tkPlatformSub')), 'the header names YouTube');
+      ok(/spc_fixtureYouTube0001/.test(await textOf(page, '#igFormCol .tk-profile-line')), 'the YouTube side shows the YouTube account');
+      ok(await page.locator('input[name="igKind"], #igFacebookCard, #igTrial').count() === 0, 'no carousel, no Facebook, no trial on the YouTube side');
+      ok(/Posts to YouTube as soon as you press Post to YouTube/.test(await textOf(page, '#igFormCol')), 'the scheduling note names YouTube');
       await attachVideo(page);
       await page.fill('#igTitle', '  First line here\nand the rest of the caption');
-      await toggle(page, '#igNetYoutube', true);
-      await page.waitForSelector('#igYtTitle');
+      await page.waitForSelector('#igYoutubeCard #igYtTitle');
       assert.equal(await page.inputValue('#igYtTitle'), 'First line here'); checks++;
-      assert.equal(await textOf(page, '#igYtCount'), '15 / 100'); checks++;
-      ok(await checked(page, 'input[name="igYtFormat"][value="short"]'), 'YouTube: Short by default');
-      ok(/Public\. Made for kids: No \(set on the client's profile\)\./.test(await textOf(page, '#igYtNote')), 'YouTube: Public, and made for kids from the profile');
-      // The title follows the caption until it is typed into.
+      ok(await page.isChecked('input[name="igYtFormat"][value="short"]'), 'Short by default');
+      ok(/Public\. Made for kids: No \(set on the client's profile\)\./.test(await textOf(page, '#igYtNote')), 'Public, and made for kids from the profile');
       await page.fill('#igTitle', 'A new first line <b>\nrest');
       assert.equal(await page.inputValue('#igYtTitle'), 'A new first line b'); checks++;
-      await page.fill('#igYtTitle', 'My own title');
-      await page.fill('#igTitle', 'Changed again\nrest');
-      assert.equal(await page.inputValue('#igYtTitle'), 'My own title'); checks++;
       await page.fill('#igYtTitle', '');
       ok(await disabled(page, '#igSubmit'), 'an empty YouTube title keeps Post off');
       await page.fill('#igYtTitle', 'My own title');
-      ok(!(await disabled(page, '#igSubmit')), 'a title back: Post is on');
-      await toggle(page, '#igNetLinkedin', true);
-      await toggle(page, '#igNetInstagram', false);
-      ok(await page.locator('#igFormCol .tk-card h3', { hasText: 'Trial reel' }).count() === 0, 'Instagram unticked: no Trial reel card');
-      assert.equal(await textOf(page, '#igSubmit'), 'Post to 3 networks'); checks++;
-      // Nothing ticked: Post is off.
-      await toggle(page, '#igFacebook', false); await toggle(page, '#igNetYoutube', false); await toggle(page, '#igNetLinkedin', false);
-      ok(await disabled(page, '#igSubmit'), 'no network ticked: Post is off');
-      await toggle(page, '#igFacebook', true); await toggle(page, '#igNetYoutube', true); await toggle(page, '#igNetLinkedin', true);
-      await page.waitForSelector('#igYtTitle');
+      await page.fill('#igTitle', 'Changed\nrest');
       assert.equal(await page.inputValue('#igYtTitle'), 'My own title'); checks++;
+      assert.equal(await textOf(page, '#igSubmit'), 'Post to YouTube'); checks++;
       await page.click('#igSubmit');
-      await page.waitForFunction(() => /Sent to Facebook, YouTube and LinkedIn\./.test(document.querySelector('#igFormCol .tk-step-note[role="status"]')?.textContent || ''));
-      ok(true, 'the notice names the three networks');
+      await sent(page, /Sent to YouTube\. It will show as Posted here once YouTube confirms\./);
       const body = log.creates[0];
       assert.equal(body.instagram, false); checks++;
       assert.equal(body.socialAccountId, ''); checks++;
       assert.deepEqual(body.youtube, { accountId: IDS.youtube, title: 'My own title', format: 'short' }); checks++;
-      assert.deepEqual(body.linkedin, { accountId: IDS.linkedin }); checks++;
-      ok(body.alsoFacebook === true && body.facebookAccountId === IDS.facebook, 'Facebook rides on the same post');
-      ok(!errors.length, 'section 1: no page errors (' + errors.join(' | ') + ')');
+      ok(!body.alsoFacebook && !body.linkedin, 'nothing for Facebook or LinkedIn');
+      assert.equal(await textOf(page, '#igQueueCol h3'), 'YouTube uploads'); checks++;
+      ok(!errors.length, 'YouTube side: no page errors (' + errors.join(' | ') + ')');
       await context.close();
     }
     // ---- 3. a landscape card cannot go as a Short
     {
       const { context, page, log, errors } = await newPage(browser, { sources: true, card: { width: 1920, height: 1080, duration_seconds: 57 } });
-      await openInstagram(page, base);
+      await openSide(page, base, 'youtube');
       await page.waitForSelector('input[name="igSrcMode"]');
-      await page.click('label:has(input[name="igSrcMode"][value="card"])');
+      ok(await page.isChecked('input[name="igSrcMode"][value="card"]'), 'the YouTube side starts on From Content Calendar');
       await page.click('#igSrcCardBtn');
       await page.click('#igSrcCardMenu [data-sv-select-option][data-value="p_card_a"]');
       await page.waitForSelector('#igSrcReady');
-      await toggle(page, '#igNetYoutube', true);
       await page.waitForSelector('#igYtProblem');
       assert.equal(await textOf(page, '#igYtProblem'), 'A Short is a vertical video; this one is 1920×1080. Post it as a regular video.'); checks++;
       ok(await disabled(page, '#igSubmit'), 'a landscape Short keeps Post off');
       await page.click('label:has(input[name="igYtFormat"][value="regular"])');
       await page.waitForFunction(() => !document.getElementById('igYtProblem'));
-      ok(!(await disabled(page, '#igSubmit')), 'Regular video: Post is on');
       await page.click('#igSubmit');
-      await page.waitForFunction(() => /Sent to Instagram, Facebook and YouTube\./.test(document.querySelector('#igFormCol .tk-step-note[role="status"]')?.textContent || ''));
+      await sent(page, /Sent to YouTube/);
       assert.deepEqual(log.creates[0].youtube, { accountId: IDS.youtube, title: 'Card caption line', format: 'regular', durationSeconds: 57, width: 1920, height: 1080 }); checks++;
-      ok(!('instagram' in log.creates[0]) && log.creates[0].socialAccountId === IDS.instagram, 'Instagram ticked: its account, and no instagram key');
-      ok(!errors.length, 'section 3: no page errors');
+      ok(!errors.length, 'landscape: no page errors');
       await context.close();
     }
-    // ---- 4. carousel and trial: Instagram only
+    // ---- 4. the LinkedIn side
     {
-      const { context, page, errors } = await newPage(browser);
-      await openInstagram(page, base);
-      await page.waitForSelector('#igNetworksCard');
-      await toggle(page, '#igTrial', true);
-      await page.waitForFunction(() => document.getElementById('igNetYoutube')?.disabled);
-      ok(await disabled(page, '#igNetInstagram') && await checked(page, '#igNetInstagram'), 'trial: Instagram ticked and fixed');
-      assert.equal(await textOf(page, '#igNetYoutubeNote'), 'Trial reels are an Instagram feature, so this one posts to Instagram only.'); checks++;
-      ok(await disabled(page, '#igNetLinkedin'), 'trial: LinkedIn cannot be ticked');
-      await toggle(page, '#igTrial', false);
-      await page.click('label:has(input[name="igKind"][value="carousel"])');
-      await page.waitForFunction(() => /carousel goes to Instagram and Facebook only/.test(document.getElementById('igNetYoutubeNote')?.textContent || ''));
-      ok(await disabled(page, '#igNetYoutube') && await disabled(page, '#igNetInstagram'), 'carousel: YouTube off, Instagram fixed');
-      ok(!errors.length, 'section 4: no page errors');
+      const { context, page, log, errors } = await newPage(browser);
+      await openSide(page, base, 'linkedin');
+      ok(await page.locator('#igCoverDrop, #igCoverRemote, #igYoutubeCard, #igFacebookCard').count() === 0, 'LinkedIn: no cover, no YouTube card, no Facebook');
+      await attachVideo(page);
+      await page.fill('#igTitle', 'To LinkedIn');
+      assert.equal(await textOf(page, '#igSubmit'), 'Post to LinkedIn'); checks++;
+      await page.click('#igSubmit');
+      await sent(page, /Sent to LinkedIn/);
+      const body = log.creates[0];
+      ok(body.instagram === false && body.socialAccountId === '' && body.linkedin && body.linkedin.accountId === IDS.linkedin && !body.youtube && !body.alsoFacebook, 'LinkedIn: the body names LinkedIn only');
+      ok(!errors.length, 'LinkedIn side: no page errors');
       await context.close();
     }
     // ---- 5. no accounts
     {
-      const { context, page, log, errors } = await newPage(browser, { ids: { tiktok: IDS.tiktok, youtube: IDS.youtube }, kids: true });
-      await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.tk-page #tkPlatTiktok', { timeout: 20000 });
-      await page.fill('#tkClientInput', TEST_CLIENT);
-      await page.press('#tkClientInput', 'Enter');
-      await page.click('#tkPlatInstagram');
-      await page.waitForSelector('#igFormCol');
-      if (!(await page.locator('#igNetworksCard').count())) {
-        await page.click('#igClientBtn');
-        await page.click(`#igClientMenu [data-sv-select-option][data-value=${JSON.stringify(TEST_CLIENT)}]`);
-      }
-      await page.waitForSelector('#igNetworksCard');
-      ok(await disabled(page, '#igNetInstagram') && !(await checked(page, '#igNetInstagram')), 'no Instagram account: Instagram cannot be ticked');
-      assert.equal(await textOf(page, '#igNetLinkedinNote'), 'No LinkedIn account linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a LinkedIn account does not link itself. Open Post for Me'); checks++;
-      ok(await page.locator('#igNetLinkedinNote a[href="https://www.postforme.dev"][target="_blank"]').count() === 1, 'LinkedIn: Open Post for Me beside it');
-      await attachVideo(page);
-      await page.fill('#igTitle', 'Only to YouTube');
-      await toggle(page, '#igNetYoutube', true);
-      await page.waitForSelector('#igYtNote');
-      ok(/Made for kids: Yes/.test(await textOf(page, '#igYtNote')), 'made for kids reads the profile (Yes)');
-      assert.equal(await textOf(page, '#igSubmit'), 'Post to YouTube'); checks++;
-      await page.click('#igSubmit');
-      await page.waitForFunction(() => /Sent to YouTube\. It will show as Posted here once YouTube confirms\./.test(document.querySelector('#igFormCol .tk-step-note[role="status"]')?.textContent || ''));
-      ok(log.creates[0].instagram === false && !log.creates[0].alsoFacebook && log.creates[0].youtube.accountId === IDS.youtube, 'YouTube only: the body');
-      ok(!errors.length, 'section 5: no page errors');
-      await context.close();
-    }
-    {
       const { context, page, errors } = await newPage(browser, { ids: { tiktok: IDS.tiktok, instagram: IDS.instagram } });
-      await openInstagram(page, base);
-      await page.waitForSelector('#igNetworksCard');
-      assert.equal(await textOf(page, '#igNetYoutubeNote'), 'No YouTube account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney. Open Post for Me'); checks++;
-      ok(await disabled(page, '#igNetYoutube'), 'no YouTube account: YouTube cannot be ticked');
-      ok(!errors.length, 'no YouTube account: no page errors');
+      await openSide(page, base, 'youtube');
+      assert.equal(await textOf(page, '#igFormCol .tk-profile-line'), '⚠ No YouTube account No YouTube account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney. Open Post for Me'); checks++;
+      await attachVideo(page);
+      await page.fill('#igTitle', 'Caption');
+      ok(await disabled(page, '#igSubmit'), 'no YouTube account: Post stays off');
+      await page.click('#tkPlatLinkedin');
+      await page.waitForFunction(() => /No LinkedIn account/.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''));
+      ok(/ask Sidney to link it to the client's profile: a LinkedIn account does not link itself/.test(await textOf(page, '#igFormCol .tk-profile-line')), 'LinkedIn: ask Sidney to link it');
+      ok(await page.locator('#igFormCol .tk-profile-line a[href="https://www.postforme.dev"]').count() === 1, 'LinkedIn: Open Post for Me');
+      // The Instagram side with no Facebook Page: no Facebook card at all.
+      await page.click('#tkPlatInstagram');
+      await page.waitForFunction(() => /spc_fixtureInstagram01/.test(document.querySelector('#igFormCol .tk-profile-line')?.textContent || ''));
+      ok(await page.locator('#igFacebookCard').count() === 0, 'no Facebook Page: the Facebook card is hidden');
+      ok(!errors.length, 'no accounts: no page errors');
       await context.close();
     }
-    // ---- 6. the queue
+    // ---- 6. each side's queue
     {
       const { context, page, errors } = await newPage(browser, { queue: QUEUE });
-      await openInstagram(page, base);
-      // A failure on any network files the row under Failed (LinkedIn failed here), not Upcoming.
-      await page.waitForFunction(() => /Failed\s*1/.test(document.querySelector('#igQueueCol [data-ig-tab="failed"]')?.textContent || ''));
-      ok(true, 'a failed network counts the row as failed');
-      await page.click('#igQueueCol [data-ig-tab="failed"]');
-      await page.waitForSelector('#igQueueCol .tk-queue-item');
-      const first = page.locator('#igQueueCol .tk-queue-item').first();
-      assert.equal((await first.locator('.tk-q-meta').textContent()).replace(/\s+/g, ' ').trim(), 'Reel · Instagram, YouTube and LinkedIn'); checks++;
-      assert.deepEqual(await first.locator('.tk-q-net-name').allTextContents(), ['Instagram', 'YouTube', 'LinkedIn']); checks++;
-      ok(/LinkedIn refused it/.test(await first.textContent()), 'the queue shows LinkedIn\'s own failure');
+      await openSide(page, base, 'youtube');
       await page.click('#igQueueCol [data-ig-tab="done"]');
       await page.waitForSelector('#igQueueCol .tk-queue-item');
-      const done = page.locator('#igQueueCol .tk-queue-item').first();
-      ok(/Reel · YouTube/.test(await done.locator('.tk-q-meta').textContent()), 'a row whose first network is YouTube names it');
-      assert.equal(await done.locator('a.tk-q-btn').textContent(), 'Open'); checks++;
-      ok(!errors.length, 'queue: no page errors');
+      ok(/YouTube only/.test(await textOf(page, '#igQueueCol')), 'the YouTube side lists the YouTube-only post');
+      await page.click('#tkPlatLinkedin');
+      await page.waitForFunction(() => /LinkedIn uploads/.test(document.querySelector('#igQueueCol h3')?.textContent || ''));
+      await page.click('#igQueueCol [data-ig-tab="done"]');
+      await page.waitForTimeout(200);
+      ok(!/YouTube only/.test(await textOf(page, '#igQueueCol')), 'the LinkedIn side does not list the YouTube-only post');
+      await page.click('#igQueueCol [data-ig-tab="failed"]');
+      await page.waitForSelector('#igQueueCol .tk-queue-item');
+      ok(/LinkedIn refused it/.test(await textOf(page, '#igQueueCol')), 'the LinkedIn side lists the post with LinkedIn\'s own result');
+      ok(!errors.length, 'queues: no page errors');
       await context.close();
     }
     // ---- 7. switch off
     {
       const { context, page, log, errors } = await newPage(browser, { flag: false });
-      await openInstagram(page, base);
+      await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('.tk-page #tkPlatTiktok', { timeout: 20000 });
+      await page.waitForTimeout(600);
+      ok(!(await page.isVisible('#tkPlatYoutube')) && !(await page.isVisible('#tkPlatLinkedin')), 'switch off: no YouTube or LinkedIn button');
+      await page.fill('#tkClientInput', TEST_CLIENT);
+      await page.press('#tkClientInput', 'Enter');
+      await page.click('#tkPlatInstagram');
       await page.waitForSelector('#igFacebookCard');
-      ok(await page.locator('#igNetworksCard, #igNetYoutube').count() === 0, 'switch off: no YouTube or LinkedIn');
       await attachVideo(page);
       await page.fill('#igTitle', 'Off');
-      assert.equal(await textOf(page, '#igSubmit'), 'Post to Instagram'); checks++;
       await page.click('#igSubmit');
-      await page.waitForFunction(() => /Sent to Instagram and Facebook/.test(document.querySelector('#igFormCol .tk-step-note[role="status"]')?.textContent || ''));
-      const body = log.creates[0];
-      ok(!('youtube' in body) && !('linkedin' in body) && !('instagram' in body), 'switch off: the body is today\'s');
+      await sent(page, /Sent to Instagram and Facebook/);
+      ok(!('youtube' in log.creates[0]) && !('linkedin' in log.creates[0]) && !('instagram' in log.creates[0]), 'switch off: today\'s body');
       ok(!errors.length, 'switch off: no page errors');
+      await context.close();
+    }
+    // (Codex on PR 2580) a browser that last used YouTube, with the switch now off: the Instagram side, whether the switch
+    // read lands after the tab opens or was already in when the tab is opened again.
+    {
+      const { context, page, errors } = await newPage(browser, { flag: false });
+      await context.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('syncview_uploadPlatform_v1', 'youtube'); sessionStorage.setItem('seeded', '1'); } } catch (e) {} });
+      await page.goto(base + '/post', { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => document.querySelector('.tk-page')?.getAttribute('data-platform') === 'instagram', null, { timeout: 20000 });
+      ok(true, 'switch off: a remembered YouTube side opens as Instagram once the switch read is in');
+      // Away and back after the read is in: still Instagram.
+      await page.evaluate(() => { try { localStorage.setItem('syncview_uploadPlatform_v1', 'youtube'); } catch (e) {} navTo('today'); });
+      await page.waitForFunction(() => !document.querySelector('.tk-page'));
+      await page.evaluate(() => navTo('tiktok-upload'));
+      await page.waitForSelector('.tk-page');
+      assert.equal(await page.getAttribute('.tk-page', 'data-platform'), 'instagram'); checks++;
+      ok(!(await page.isVisible('#tkPlatYoutube')), 'and no YouTube button');
+      ok(!errors.length, 'remembered side: no page errors (' + errors.join(' | ') + ')');
+      await context.close();
+    }
+    {
+      const { context, page, errors } = await newPage(browser, { flag: false, ids: { tiktok: IDS.tiktok, instagram: IDS.instagram } });
+      await openInstagram(page, base);
+      await page.waitForSelector('#igFacebookCard');
+      ok(/No Facebook Page/.test(await textOf(page, '#igFacebookCard')), 'switch off, no Page: the Facebook card still says why, as before');
+      ok(!errors.length, 'switch off, no Page: no page errors');
       await context.close();
     }
     // ---- 8. 390 wide
     {
       const { context, page, errors } = await newPage(browser, { viewport: { width: 390, height: 844 } });
-      await openInstagram(page, base);
-      await page.waitForSelector('#igNetworksCard');
-      await toggle(page, '#igNetYoutube', true);
+      await openSide(page, base, 'youtube');
+      await attachVideo(page);
+      await page.fill('#igTitle', 'Phone');
       await page.waitForSelector('#igYtTitle');
-      ok(await noSideScroll(page), '390: the Post to card and YouTube fields fit with no sideways scroll');
+      ok(await page.evaluate(() => document.querySelector('.tk-platform-switch').scrollWidth <= document.querySelector('.tk-platform-switch').clientWidth + 1), '390: the four platform buttons fit');
+      ok(await noSideScroll(page), '390: the YouTube side fits with no sideways scroll');
       ok(!errors.length, '390: no page errors');
       await context.close();
     }

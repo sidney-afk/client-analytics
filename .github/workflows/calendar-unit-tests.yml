@@ -313,9 +313,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      # A shallow checkout. fetch-depth 0 fetched every branch's full history,
+      # which outgrew this job's 5-minute limit on 3 Nov 2026 (the checkout
+      # alone ran 5 min and the job was cancelled). Only the annotate-only step
+      # needs the base, and it fetches that one commit itself, below.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # --against reads the base commit's index.html
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -342,7 +346,9 @@ jobs:
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'annotate-only')
         env:
           NODE_PATH: ${{ runner.temp }}/c3/node_modules
-        run: node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+          node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
 
   entry-links-boot:
     # Every signed-out special entry link (?intake=1, ?onboarding=1,
@@ -372,7 +378,12 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-entry-{0}', matrix.part) || format('calendar-unit-tests-{0}-entry-links-boot-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 15
+    # 25, not 15 (3 Nov 2026): part 3's suites alone ran about 12.5 minutes, and
+    # an ordinary checkout takes 1 to 3 minutes, so the job was cancelled at 15
+    # with nothing failing (#2579, and 12 to 14.5 minutes on other PRs that day).
+    # The lasting fix is to move suites into a fourth part; until then this
+    # limit is a safety net, not a test budget.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -604,7 +615,8 @@ jobs:
           Refused-write beacon from the built page|node --require ./test/helpers/single-file-index.js test/linear-exit-write-diagnostics-browser.js
           Production rows keep long ids inside the row|node test/prod-row-cell-overflow.js
           TikTok queue, a failed first read is not an empty queue|node test/tiktok-queue-first-read-browser.js
-          Post tab YouTube and LinkedIn ticks behind post_networks_v1 (Instagram untickable, YouTube title and Short check, the body, the queue per network; switch off is today's page)|node test/post-networks-browser.js
+          Post tab YouTube and LinkedIn as their own sides behind post_networks_v1 (the switch, Instagram keeps only Also post to Facebook, the YouTube card and Short check, the body per side, each side's queue; switch off is today's page)|node test/post-networks-browser.js
+          Post tab source choice: From Content Calendar by default, in the house's small two-option row (not the post-type control); switch off is today's page|node test/post-source-choice-browser.js
           LANES
       - name: Browser regression guards, three side by side (part 2 of 2)
         if: ${{ matrix.part == 2 }}
@@ -733,6 +745,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           REVIEW_GAUNTLET_REQUIRE_WEBKIT: '1'
         run: node test/review-board-gauntlet-browser.js
+      - name: A client's change request after a reload on a slow line keeps its words, or says it was not saved (OPEN_REPAIRS 691; Chromium and WebKit)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REVIEW_SLOW_WORDS_REQUIRE_WEBKIT: '1'
+        run: node test/review-reload-slow-words-browser.js
       - name: A reload while a client's change request saves says when that save lands, and never for a lost one (Chromium and WebKit)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

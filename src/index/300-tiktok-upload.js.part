@@ -10,6 +10,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { svPostNetworksAny } from './188-review-stage-switch.js';
 import {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
   svCaptionFillHtml, svDropFoundLine, svDropNoteHtml, svDropPickHtml, svDropPicked, svDropSorted, svDropText, svDroppedFolder,
@@ -118,7 +119,8 @@ import {
     let _tkActivePhotoAbort = null; // AbortController for the photo-carousel mint+PUT loop
     let _tkMounted = false;   // true while the TikTok Upload view is on screen
     // The post_sources_v1 answer may arrive after the form is drawn: draw it again then (registered once, at load).
-    try { window.addEventListener('sv-review-stage-switch', () => { if (_tkMounted && !tkState.submitting) _tkRenderForm(); }); } catch (e) { /* no window: nothing to redraw */ }
+    // The switch read is in (it fires once loaded): redraw, and show or hide the YouTube and LinkedIn buttons.
+    try { window.addEventListener('sv-review-stage-switch', () => { if (_tkMounted && !tkState.submitting) _tkRenderForm(); if (_tkMounted) _tkSyncNetworkButtons(); }); } catch (e) { /* no window: nothing to redraw */ }
     let _tkVisHooked = false; // one-time guard for the visibilitychange listener
 
     /* ---- Which backend: n8n + the Sheet, or the tiktok-upload function --
@@ -230,6 +232,16 @@ import {
         .tk-form-col { grid-column: 1; grid-row: 2; }
         .tk-col[hidden] { display: none; }
         .tk-platform-switch { width: 220px; flex-shrink: 0; margin-bottom: 0; }
+        /* Four sides (YouTube and LinkedIn behind post_networks_v1, OPEN_REPAIRS 687): the switch takes the width its four
+           buttons need, and the header wraps it under the title on a narrower window instead of letting it run under
+           the right column. Two sides stay exactly as before. */
+        /* :where() adds no weight, so the phone's own switch rules (html.fph-on, sv-staff-phone) still win on a phone. */
+        .tk-header:where(:has(#tkPlatYoutube:not([hidden]))) { flex-wrap: wrap; gap: 10px; }
+        .tk-platform-switch:where(:has(#tkPlatYoutube:not([hidden]))) { width: auto; min-width: 0; max-width: 100%; }
+        .tk-platform-switch:where(:has(#tkPlatYoutube:not([hidden]))) .tk-q-tab { flex: 0 0 auto; padding: 0 10px; }
+        /* A side the switch does not list stays hidden: .tk-q-tab (and the staff phone's switch rule) set display, which
+           would otherwise beat the hidden attribute. */
+        .tk-platform-switch > .tk-q-tab[hidden] { display: none !important; }
         .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
         /* Collapse to a single stacked column on narrow screens. This block must
            come AFTER the base column-placement rules above: it has the same
@@ -321,6 +333,12 @@ import {
         .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        /* "Video from": the house's small two-option row (cal-cm-audience, as in the Notes composer), above the media box.
+           The radio stays for the keyboard and screen readers, hidden inside its label. */
+        .tk-src-switch { padding: 0 0 12px; }
+        .tk-src-switch .cal-cm-aud-btn { position: relative; }
+        .tk-src-switch .cal-cm-aud-btn input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+        .tk-src-switch .cal-cm-aud-btn:focus-within { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         /* A trial card's versions on the Instagram side (plan row P4): one row per approved version, ticked by default,
            with its thumbnail, its caption's first line and, once pressed, its own state. Hover lights only the row. */
         .ig-trv { display: grid; gap: 6px; margin-top: 10px; }
@@ -780,25 +798,47 @@ import {
         return Number.isFinite(at) && Date.now() - at > TK_OVERDUE_MS;
     }
 
+    /* The tab's sides (OPEN_REPAIRS 687): TikTok, Instagram and, behind post_networks_v1, YouTube and LinkedIn. YouTube and
+       LinkedIn are the Instagram panel (299) with that network as the only target. Their buttons show once the switch
+       lists any client; each side then says when the picked client is not on it. */
+    const TK_PLATFORMS = ['tiktok', 'instagram', 'youtube', 'linkedin'];
+    const TK_PLATFORM_NAME = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn' };
+    const _tkPlatformOk = (p) => TK_PLATFORMS.includes(p) ? p : 'tiktok';
+    // The side is the Instagram panel (Instagram, YouTube or LinkedIn), not TikTok's own form.
+    const _tkPanelSide = () => tkState.platform !== 'tiktok';
     function _tkPlatformSub(platform) {
-        return platform === 'instagram'
-            ? 'Posting to the client\'s Instagram — uploads through Post For Me.'
-            : 'Posting to the client\'s TikTok — uploads through Post For Me.';
+        return 'Posting to the client\'s ' + TK_PLATFORM_NAME[_tkPlatformOk(platform)] + ' — uploads through Post For Me.';
     }
     function _tkLoadPlatform() {
-        try { return localStorage.getItem(TK_PLATFORM_KEY) === 'instagram' ? 'instagram' : 'tiktok'; } catch { return 'tiktok'; }
+        try { return _tkPlatformOk(localStorage.getItem(TK_PLATFORM_KEY)); } catch { return 'tiktok'; }
+    }
+    // Shows the YouTube and LinkedIn buttons once the switch lists any client; a side left showing without it goes back
+    // to Instagram.
+    function _tkSyncNetworkButtons() {
+        const on = svPostNetworksAny();
+        ['youtube', 'linkedin'].forEach(p => { const b = document.getElementById(p === 'youtube' ? 'tkPlatYoutube' : 'tkPlatLinkedin'); if (b) b.hidden = !on; });
+        if (on === false && _tkMounted && (tkState.platform === 'youtube' || tkState.platform === 'linkedin')) _tkApplyPlatform('instagram', true);
+    }
+    // The side remembered from last time, unless the switch is already known to list nobody: then the Instagram side,
+    // whichever order the page and the switch read came in (Codex on PR 2580). Not yet known: the side as remembered,
+    // and _tkSyncNetworkButtons moves it once the read is in.
+    function _tkStartPlatform() {
+        const p = _tkLoadPlatform();
+        return (p === 'youtube' || p === 'linkedin') && svPostNetworksAny() === false ? 'instagram' : p;
     }
     // Shows one side of the tab and hides the other. Nothing is torn down on the TikTok side: its form, draft and
     // queue stay exactly as they were, so switching back loses nothing.
     function _tkApplyPlatform(platform, persist) {
-        tkState.platform = platform === 'instagram' ? 'instagram' : 'tiktok';
+        tkState.platform = _tkPlatformOk(platform);
         if (persist) { try { localStorage.setItem(TK_PLATFORM_KEY, tkState.platform); } catch {} }
-        const ig = tkState.platform === 'instagram';
+        const ig = _tkPanelSide();
         const $ = (id) => document.getElementById(id);
         if ($('tkFormCol')) $('tkFormCol').hidden = ig;
         if ($('tkRightCol')) $('tkRightCol').hidden = ig;
-        if ($('tkPlatTiktok')) { $('tkPlatTiktok').classList.toggle('on', !ig); $('tkPlatTiktok').setAttribute('aria-selected', String(!ig)); }
-        if ($('tkPlatInstagram')) { $('tkPlatInstagram').classList.toggle('on', ig); $('tkPlatInstagram').setAttribute('aria-selected', String(ig)); }
+        [['tiktok', 'tkPlatTiktok'], ['instagram', 'tkPlatInstagram'], ['youtube', 'tkPlatYoutube'], ['linkedin', 'tkPlatLinkedin']].forEach(([p, id]) => {
+            const b = $(id); if (!b) return;
+            b.classList.toggle('on', tkState.platform === p); b.setAttribute('aria-selected', String(tkState.platform === p));
+        });
         if ($('tkPlatformSub')) $('tkPlatformSub').textContent = _tkPlatformSub(tkState.platform);
         if ($('tkPlatBadge')) $('tkPlatBadge').innerHTML = _tkPlatBadgeInner(tkState.platform);
         document.querySelector('.tk-page')?.setAttribute('data-platform', tkState.platform);
@@ -806,6 +846,7 @@ import {
             _tkStopPolling();
             mountInstagramPanel({
                 maxBytes: TIKTOK_MAX_BYTES, formatBytes: _tkFormatBytes, timezones: TK_TIMEZONES, wallClockToUTC: _tkWallClockToUTC,
+                network: tkState.platform,
             });
         } else {
             teardownInstagramPanel();
@@ -813,12 +854,12 @@ import {
         }
     }
     function _tkSetPlatform(platform) {
-        if ((platform === 'instagram' ? 'instagram' : 'tiktok') === tkState.platform) return;
+        if (_tkPlatformOk(platform) === tkState.platform) return;
         _tkApplyPlatform(platform, true);
     }
 
     function _tkPlatBadgeInner(platform) {
-        return svPlatformLogo(platform) + '<span>' + (platform === 'instagram' ? 'Instagram' : 'TikTok') + '</span>';
+        return svPlatformLogo(platform) + '<span>' + TK_PLATFORM_NAME[_tkPlatformOk(platform)] + '</span>';
     }
     function renderTiktokUploadView() {
         _tkInjectCSSOnce();
@@ -832,10 +873,12 @@ import {
                     <div class="tk-q-tabs tk-platform-switch" role="tablist" aria-label="Platform">
                         <button type="button" class="tk-q-tab${tkState.platform === 'tiktok' ? ' on' : ''}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform === 'tiktok'}" onclick="_tkSetPlatform('tiktok')">${svPlatformLogo('tiktok')}TikTok</button>
                         <button type="button" class="tk-q-tab${tkState.platform === 'instagram' ? ' on' : ''}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform === 'instagram'}" onclick="_tkSetPlatform('instagram')">${svPlatformLogo('instagram')}Instagram</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'youtube' ? ' on' : ''}" id="tkPlatYoutube" role="tab" aria-selected="${tkState.platform === 'youtube'}" onclick="_tkSetPlatform('youtube')" ${svPostNetworksAny() ? '' : 'hidden'}>${svPlatformLogo('youtube')}YouTube</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'linkedin' ? ' on' : ''}" id="tkPlatLinkedin" role="tab" aria-selected="${tkState.platform === 'linkedin'}" onclick="_tkSetPlatform('linkedin')" ${svPostNetworksAny() ? '' : 'hidden'}>${svPlatformLogo('linkedin')}LinkedIn</button>
                     </div>
                 </div>
-                <div class="tk-col tk-form-col" id="tkFormCol"${tkState.platform === 'instagram' ? ' hidden' : ''}></div>
-                <div class="tk-col tk-right-col" id="tkRightCol"${tkState.platform === 'instagram' ? ' hidden' : ''}>
+                <div class="tk-col tk-form-col" id="tkFormCol"${_tkPanelSide() ? ' hidden' : ''}></div>
+                <div class="tk-col tk-right-col" id="tkRightCol"${_tkPanelSide() ? ' hidden' : ''}>
                     <div class="tk-preview-wrap" id="tkPreviewWrap"></div>
                     <div id="tkQueueCol"></div>
                 </div>
@@ -2632,10 +2675,10 @@ import {
         _tkRenderPreview();
         _tkRenderQueue();
         _tkMounted = true;
-        tkState.platform = _tkLoadPlatform();
-        if (tkState.platform === 'instagram') {
-            // The Instagram side has its own queue and its own polling; TikTok's stays quiet until the switch is flipped back.
-            _tkApplyPlatform('instagram', false);
+        tkState.platform = _tkStartPlatform();
+        if (_tkPanelSide()) {
+            // The Instagram panel has its own queue and its own polling; TikTok's stays quiet until the switch is flipped back.
+            _tkApplyPlatform(tkState.platform, false);
         } else {
             // Fetch once on mount, then let the adaptive scheduler decide whether
             // (and how often) to keep polling based on what's in the queue.
@@ -2647,7 +2690,7 @@ import {
             _tkVisHooked = true;
             document.addEventListener('visibilitychange', () => {
                 if (!_tkMounted) return;
-                if (tkState.platform === 'instagram') {
+                if (_tkPanelSide()) {
                     if (document.visibilityState === 'visible') instagramResumePolling();
                 } else if (document.visibilityState === 'visible') {
                     tkState.unchangedPolls = 0;
@@ -2679,7 +2722,7 @@ import {
         teardown: _tkTeardown,
         isMounted: () => _tkMounted,
         // A roster arriving late redraws the form; the Instagram side needs the same refresh when it is the one showing.
-        renderForm: () => { _tkRenderForm(); if (tkState.platform === 'instagram') refreshInstagramForm(); }
+        renderForm: () => { _tkRenderForm(); if (_tkPanelSide()) refreshInstagramForm(); }
     });
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----

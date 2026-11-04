@@ -81,9 +81,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         trial: false,                // post as a trial reel (non-followers first; shared to followers only in the Instagram app)
         facebookOff: false,          // the person unticked "Also post to Facebook" for this client (ticked again on a client change)
-        // post_networks_v1: Instagram unticked, YouTube and LinkedIn ticked (all back to Instagram only on a client
-        // change), and YouTube's title (the caption's first line until typed into) and format.
-        nets: { instagramOff: false, youtube: false, linkedin: false },
+        // Which side this panel is (OPEN_REPAIRS 687): 'instagram', or 'youtube' / 'linkedin' behind post_networks_v1.
+        network: 'instagram',
+        // The YouTube side's title (the caption's first line until typed into) and format.
         yt: { title: '', edited: false, format: 'short' },
         videoDims: null,             // { w, h } of the dropped video, once its metadata is read
         // P4: a trial card picked "From a card" with Trial reel on posts each approved version as its own trial reel.
@@ -159,28 +159,25 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             </div>`;
     }
 
-    /* YouTube and LinkedIn (plan row P3, page half; decision D5), behind post_networks_v1. With the switch on, the
-       Facebook card becomes a "Post to" card: Instagram (untickable for a Reel), Facebook (as before), YouTube and
-       LinkedIn, each with its reason in plain words when it cannot be ticked. The page sends network names and the
-       profile's ids; the server reads every id again from the profile and refuses any other. */
+    /* One side per network (OPEN_REPAIRS 687, the owner on 3 Nov: "I don't understand why there's an Instagram toggle
+       inside of the Instagram"). Behind post_networks_v1 the Post tab's switch has a YouTube side and a LinkedIn side;
+       each is this panel with that network as the only target, sent through the same instagram-upload create (plan row
+       P3). The Instagram side keeps only "Also post to Facebook". The page sends the profile's id; the server reads every
+       id again from the profile and refuses any other. */
+    const _igNet = () => (igState.network === 'youtube' || igState.network === 'linkedin') ? igState.network : 'instagram';
+    const IG_NET_LABEL = { instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn' };
     const _igNetworksOn = () => !!igState.client && svPostNetworksOn(igState.client);
-    function _igInstagramTick() {
-        if (!_igNetworksOn()) return { enabled: false, checked: true, reason: '' };
-        if (igState.kind === 'carousel') return { enabled: false, checked: true, reason: 'A carousel posts to Instagram.' };
-        if (igState.trial) return { enabled: false, checked: true, reason: 'A trial reel posts to Instagram.' };
-        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return { enabled: false, checked: false, noAccount: true, reason: IG_NO_ACCOUNT_MSG };
-        return { enabled: true, checked: !igState.nets.instagramOff, reason: '' };
-    }
-    const _igInstagramOn = () => _igInstagramTick().checked;
+    const _igInstagramOn = () => _igNet() === 'instagram';
+    // The YouTube or LinkedIn side's own account: { checked } when it can post, else the reason in plain words.
     function _igMoreState(name) {
-        if (!_igNetworksOn()) return { enabled: false, checked: false, reason: '', id: '' };
+        if (_igNet() !== name) return { enabled: false, checked: false, reason: '', id: '' };
+        if (!igState.client) return { enabled: false, checked: false, reason: '', id: '' };
+        if (!_igNetworksOn()) return { enabled: false, checked: false, off: true, id: '', reason: IG_NET_LABEL[name] + ' posting is not switched on for this client yet.' };
         const id = _igProfileValue(igState.client, name === 'youtube' ? IG_YOUTUBE_COLUMN : IG_LINKEDIN_COLUMN);
         if (!IG_ACCOUNT_RE.test(id)) return { enabled: false, checked: false, noAccount: true, id: '', reason: name === 'youtube'
             ? 'No YouTube account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn\'t here after that, ask Sidney.'
             : 'No LinkedIn account linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a LinkedIn account does not link itself.' };
-        if (igState.kind === 'carousel') return { enabled: false, checked: false, id, reason: 'A carousel goes to Instagram and Facebook only.' };
-        if (igState.trial) return { enabled: false, checked: false, id, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
-        return { enabled: true, checked: !!igState.nets[name], id, reason: '' };
+        return { enabled: true, checked: true, id, reason: '' };
     }
     // The YouTube title: the caption's first line (no < or >, which YouTube refuses) until the person types one.
     function _igYtTitle() {
@@ -204,19 +201,21 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     }
     // The networks this post goes to, by name, in the order the queue shows them.
     function _igTickedNames() {
-        const names = [];
-        if (_igInstagramOn()) names.push('Instagram');
+        const net = _igNet();
+        if (net !== 'instagram') return _igMoreState(net).checked ? [IG_NET_LABEL[net]] : [];
+        const names = ['Instagram'];
         const fb = _igFacebookState(); if (fb.enabled && fb.checked) names.push('Facebook');
-        if (_igMoreState('youtube').checked) names.push('YouTube');
-        if (_igMoreState('linkedin').checked) names.push('LinkedIn');
         return names;
     }
     const _igAnd = (names) => names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : (names[0] || '');
-    // Problems with the YouTube and LinkedIn part of the form ('' when none, or when the switch is off).
+    // Problems with the YouTube or LinkedIn side ('' on the Instagram side).
     function _igNetworksProblem() {
-        if (!_igNetworksOn()) return '';
-        if (!_igTickedNames().length) return 'Tick at least one network to post to.';
-        if (_igMoreState('youtube').checked) {
+        const net = _igNet();
+        if (net === 'instagram') return '';
+        const st = _igMoreState(net);
+        if (!igState.client) return 'Pick a client first.';
+        if (!st.checked) return st.reason;
+        if (net === 'youtube') {
             const t = _igYtTitle().trim();
             if (!t) return 'Add a YouTube title.';
             if (t.length > IG_YT_TITLE_MAX) return 'The YouTube title is over ' + IG_YT_TITLE_MAX + ' characters.';
@@ -225,17 +224,6 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             if (igState.yt.format === 'short') { const p = _igShortProblem(); if (p) return p; }
         }
         return '';
-    }
-    function _igToggleRowHtml(id, label, st, note) {
-        const dis = !st.enabled || igState.submitting;
-        return `<div class="ig-net-row">
-                    <label class="tk-toggle${st.enabled ? '' : ' is-off'}">
-                        <input type="checkbox" id="${id}" ${st.checked ? 'checked' : ''} ${dis ? 'disabled' : ''} aria-describedby="${id}Note">
-                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
-                        ${label}
-                    </label>
-                    <div class="tk-step-note" id="${id}Note">${_igEsc(note)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
-                </div>`;
     }
     function _igYoutubeFieldsHtml() {
         const t = _igYtTitle();
@@ -254,22 +242,16 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                     ${problem ? `<div class="tk-error" id="igYtProblem" role="alert">${_igEsc(problem)}</div>` : ''}
                 </div>`;
     }
-    function _igNetworksCardHtml() {
-        if (!igState.client) return '';
-        const ig = _igInstagramTick();
-        const fb = _igFacebookState();
-        const yt = _igMoreState('youtube');
-        const li = _igMoreState('linkedin');
-        const fbWhat = igState.kind === 'carousel' ? 'The photos go to the client\'s Facebook Page as one post.' : 'The Reel goes to the client\'s Facebook Page as a Facebook Reel.';
-        return `<div class="tk-card" id="igNetworksCard">
-                <h3>Post to</h3>
-                ${_igToggleRowHtml('igNetInstagram', 'Instagram', ig, ig.reason || (ig.checked ? 'The Reel goes to Instagram.' : 'Not to Instagram.'))}
-                ${_igToggleRowHtml('igFacebook', 'Facebook', fb, fb.enabled ? (fb.checked ? fbWhat : 'Not to Facebook.') : fb.reason)}
-                ${_igToggleRowHtml('igNetYoutube', 'YouTube', yt, yt.reason || (yt.checked ? 'Goes to the client\'s YouTube channel.' : 'Not to YouTube.'))}
-                ${yt.checked ? _igYoutubeFieldsHtml() : ''}
-                ${_igToggleRowHtml('igNetLinkedin', 'LinkedIn', li, li.reason || (li.checked ? 'Goes to the LinkedIn account connected in Post for Me (a page or a person).' : 'Not to LinkedIn.'))}
-                ${_igTickedNames().length > 1 ? '<div class="tk-step-note">One post for every ticked network. Each network\'s result shows on its own in the queue.</div>' : ''}
-            </div>`;
+    // The YouTube side's own card: the title, Short or Regular video, and what is fixed (Public; made for kids).
+    function _igYoutubeCardHtml() {
+        if (_igNet() !== 'youtube' || !_igMoreState('youtube').checked) return '';
+        return `<div class="tk-card" id="igYoutubeCard"><h3>YouTube</h3>${_igYoutubeFieldsHtml()}</div>`;
+    }
+    // The account line of a YouTube or LinkedIn side.
+    function _igSideAccountLine() {
+        const net = _igNet(), st = _igMoreState(net);
+        if (st.checked) return `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(st.id)}</span></div>`;
+        return `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ ${st.off ? 'Not switched on' : 'No ' + IG_NET_LABEL[net] + ' account'}</span> ${_igEsc(st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>`;
     }
 
     /* Posting a trial card's versions (plan row P4, decision D3). The picked card's versions come from trial-reels'
@@ -432,11 +414,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         return svPlatformLogo('instagram') + '<span>' + (igState.schedule.postNow ? 'Post ' : 'Schedule ') + n + ' trial reel' + (n === 1 ? '' : 's') + '</span>';
     }
     function _igButtonLabel() {
-        if (!_igNetworksOn()) return svPostButtonLabel('instagram', igState.schedule.postNow);
-        const names = _igTickedNames();
-        if (names.length === 1 && names[0] === 'Instagram') return svPostButtonLabel('instagram', igState.schedule.postNow);
-        const what = names.length === 1 ? names[0] : names.length + ' networks';
-        return '<span>' + (igState.schedule.postNow ? 'Post to ' : 'Schedule on ') + _igEsc(what) + '</span>';
+        return svPostButtonLabel(_igNet(), igState.schedule.postNow);
     }
 
     function _igRecordFailure(operation, status, network) {
@@ -540,7 +518,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     const SV_POST_SOURCE_TIMEOUT_MS = 150000;
     const SV_POST_SOURCE_RENDITIONS = { original: "Frame's original file", high_quality: "Frame's full-size copy", efficient: "Frame's small copy" };
     function svPostSourceNew() {
-        return { mode: 'files', cardId: '', cardName: '', client: '', state: '', data: null, message: '', previewUrl: '', copiedAt: 0, seq: 0 };
+        // "From Content Calendar" is where a post starts (OPEN_REPAIRS 687); "From files" is the second choice.
+        return { mode: 'card', cardId: '', cardName: '', client: '', state: '', data: null, message: '', previewUrl: '', copiedAt: 0, seq: 0 };
     }
     // Is "From a card" offered here? The switch, a client, and a single video (not a carousel or photos).
     function svPostSourceOffered(client, singleVideo) {
@@ -640,15 +619,18 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         return mb >= 10 ? Math.round(mb) + ' MB' : mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     }
     // "From files" / "From a card", above the video card's body.
+    /* Where the video comes from: the house's small two-option row (the Notes composer's "Who sees this?",
+       cal-cm-audience), so it never reads as a second post-type switch like the big Video / Carousel control above it
+       (the owner, 3 Nov; OPEN_REPAIRS 687). */
     function svPostSourceModeHtml(prefix, src, disabled) {
-        const mode = src.mode === 'card' ? 'card' : 'files';
-        return `<div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Where the video comes from" style="margin-bottom:12px">${[['files', 'From files'], ['card', 'From a card']].map(([v, label]) =>
-            `<label class="tk-radio${mode === v ? ' active' : ''}"><input type="radio" name="${prefix}SrcMode" value="${v}" ${mode === v ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="position:absolute;opacity:0">${label}</label>`).join('')}</div>`;
+        const mode = src.mode === 'files' ? 'files' : 'card';
+        return `<div class="cal-cm-audience tk-src-switch" role="radiogroup" aria-label="Where the video comes from"><span class="cal-cm-audience-cap">Video from</span><div class="cal-cm-aud-seg">${[['card', 'From Content Calendar'], ['files', 'From files']].map(([v, label]) =>
+            `<label class="cal-cm-aud-btn${mode === v ? ' is-active' : ''}"><input type="radio" name="${prefix}SrcMode" value="${v}" ${mode === v ? 'checked' : ''} ${disabled ? 'disabled' : ''}>${label}</label>`).join('')}</div></div>`;
     }
     // The card picker and what the copy has done so far.
     function svPostSourceCardHtml(prefix, src, client, disabled) {
         const cards = _igCalendarCards(client);
-        if (!cards.length) return `<div class="tk-step-note" id="${prefix}SrcEmpty">No Approved or Scheduled cards from today on. Drop the file instead.</div>`;
+        if (!cards.length) return `<div class="tk-step-note" id="${prefix}SrcEmpty">No Approved or Scheduled cards from today on. Choose From files to drop the file instead.</div>`;
         const pick = _svSelectHtml(prefix + 'SrcCard', cards.map(x => ({ value: x.id, label: x.date ? x.label + ' · ' + x.date : x.label })), src.cardId || '', 'Pick a card…', { disabled });
         let body = '';
         if (src.state === 'copying') {
@@ -745,17 +727,17 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     }
     // The platform's name and logo, for the header badge, the switch and the post button.
     function svPlatformLogo(platform) {
-        const p = CAL_PLATFORM_BY_KEY[platform === 'instagram' ? 'instagram' : 'tiktok'];
+        const p = CAL_PLATFORM_BY_KEY[['instagram', 'youtube', 'linkedin'].includes(platform) ? platform : 'tiktok'];
         return `<span class="tk-plat-logo" aria-hidden="true">${p ? p.icon : ''}</span>`;
     }
     function svPostButtonLabel(platform, postNow) {
-        const name = platform === 'instagram' ? 'Instagram' : 'TikTok';
+        const name = ({ instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn' })[platform] || 'TikTok';
         return svPlatformLogo(platform) + '<span>' + (postNow ? 'Post to ' : 'Schedule on ') + name + '</span>';
     }
     async function _igTryCaptionFill(file) {
         if (!file || !igState.client || igState.title.trim()) return;
         const client = igState.client;
-        const hit = await svCalendarCaptionFor(client, file.name, 'instagram');
+        const hit = await svCalendarCaptionFor(client, file.name, _igNet());
         if (!hit || igState.file !== file || igState.client !== client || igState.title.trim() || igState.submitting) return;
         igState.title = hit.caption.slice(0, IG_MAX_CAPTION);
         igState.titleFromCard = igState.title;
@@ -814,7 +796,6 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igLeaveClient() {
         igState.error = null; igState.notice = null;
         igState.facebookOff = false;
-        igState.nets = { instagramOff: false, youtube: false, linkedin: false };
         igState.yt = { title: '', edited: false, format: 'short' };
         if (igState.cover.source === 'calendar') _igCoverClear(true);
         igState.cover.cardId = ''; igState.cover.note = '';
@@ -1130,7 +1111,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const can = trialVersions ? !igState.submitting && !_igTrialVersionsProblem()
             : !!(igState.client && (accountOk || !_igInstagramOn()) && hasMedia && igState.title.trim() && !over && !igState.submitting && !_igNetworksProblem());
         let accountLine = '';
-        if (igState.client) {
+        if (igState.client && !_igInstagramOn()) accountLine = _igSideAccountLine();
+        else if (igState.client) {
             accountLine = accountOk
                 ? `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`
                 : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}${svPostForMeLinkHtml()}</div>`;
@@ -1161,14 +1143,14 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             </div>
             <div class="tk-card">
                 <h3>${isCarousel ? 'Carousel' : 'Video'}</h3>
-                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Instagram post type" style="margin-bottom:12px">
+                ${_igInstagramOn() ? `<div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Instagram post type" style="margin-bottom:12px">
                     <label class="tk-radio${isCarousel ? '' : ' active'}"><input type="radio" name="igKind" value="reel" ${isCarousel ? '' : 'checked'} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Reel</label>
                     <label class="tk-radio${isCarousel ? ' active' : ''}"><input type="radio" name="igKind" value="carousel" ${isCarousel ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">Carousel</label>
-                </div>
+                </div>` : ''}
                 ${isCarousel ? _igCarouselCardHtml() : (svPostSourceOffered(igState.client, true) ? svPostSourceModeHtml('ig', _igSrc(), igState.submitting) : '') + (fromCard ? svPostSourceCardHtml('ig', _igSrc(), igState.client, igState.submitting) : media)}
                 ${fromCard ? '' : svDropPickHtml('ig', igState.drop, igState.submitting) + svDropNoteHtml('ig', igState.dropNote)}
             </div>
-            ${isCarousel || trialVersions ? '' : _igCoverCardHtml()}
+            ${isCarousel || trialVersions || _igNet() === 'linkedin' ? '' : _igCoverCardHtml()}
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
@@ -1187,7 +1169,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                 ${igState.trial ? '<div class="tk-step-note">Shown to non-followers first. It reaches followers only if you share it from the Instagram app. Not every account can post trial reels: if this one cannot, the post shows as Failed with Instagram\'s reason.</div>' : ''}
                 ${igState.trial ? _igTrialVersionsHtml() : ''}
             </div>`}
-            ${_igNetworksOn() ? _igNetworksCardHtml() : _igFacebookCardHtml()}
+            ${_igYoutubeCardHtml()}
+            ${!_igInstagramOn() || (_igNetworksOn() && _igFacebookState().noAccount) ? '' : _igFacebookCardHtml()}
             <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
@@ -1196,7 +1179,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                         Post immediately
                     </label>
                 </div>
-                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts to Instagram as soon as you press Post to Instagram. Switch off to pick a date and time.</div>' : ''}
+                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts to ' + IG_NET_LABEL[_igNet()] + ' as soon as you press Post to ' + IG_NET_LABEL[_igNet()] + '. Switch off to pick a date and time.</div>' : ''}
                 <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
                     ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
                     <div style="display:flex;gap:8px;margin-top:10px">
@@ -1243,9 +1226,6 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             _igRenderForm();
         }));
         $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
-        $('igNetInstagram')?.addEventListener('change', (e) => { igState.nets.instagramOff = !e.target.checked; _igRenderForm(); });
-        $('igNetYoutube')?.addEventListener('change', (e) => { igState.nets.youtube = e.target.checked; _igRenderForm(); });
-        $('igNetLinkedin')?.addEventListener('change', (e) => { igState.nets.linkedin = e.target.checked; _igRenderForm(); });
         document.querySelectorAll('input[name="igYtFormat"]').forEach(r => r.addEventListener('change', (e) => { igState.yt.format = e.target.value === 'regular' ? 'regular' : 'short'; _igRenderForm(); }));
         $('igYtTitle')?.addEventListener('input', (e) => {
             igState.yt.title = e.target.value; igState.yt.edited = true;
@@ -1345,6 +1325,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
        client change, Remove or a finished post retires one still being read (the sequence number). The caption file
        fills only an EMPTY caption box, with Undo; it is read before the video is set, so a Calendar match on the
        video's file name finds the box filled and leaves it. */
+    // LinkedIn takes no cover, so its side never asks for one (the YouTube side takes the cover as Instagram's does).
+    const _igDropSide = () => _igNet() === 'linkedin' ? 'linkedin' : 'instagram';
     function _igDropForget() { igState.dropSeq = (igState.dropSeq || 0) + 1; igState.drop = null; igState.dropNote = ''; }
     async function _igDropFolder(reading) {
         if (igState.submitting) return;
@@ -1352,7 +1334,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const seq = igState.dropSeq, client = igState.client;
         const entries = await reading;
         if (seq !== igState.dropSeq || client !== igState.client || igState.submitting) return;
-        const sorted = svDropSorted(entries, 'instagram');
+        const sorted = svDropSorted(entries, _igDropSide());
         igState.error = sorted.error || null;
         if (sorted.error) { _igRenderForm(); return; }
         if (sorted.ask === 'video') { igState.drop = { sorted, seq }; igState.dropNote = ''; _igRenderForm(); return; }
@@ -1362,9 +1344,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const pick = igState.drop;
         if (!pick || igState.submitting) return;
         const wasCover = pick.sorted.ask === 'cover';
-        const sorted = svDropPicked(pick.sorted, i, 'instagram');
+        const sorted = svDropPicked(pick.sorted, i, _igDropSide());
         if (wasCover) {
-            igState.drop = null; igState.dropNote = svDropFoundLine(sorted, 'instagram');
+            igState.drop = null; igState.dropNote = svDropFoundLine(sorted, _igDropSide());
             if (sorted.cover) _igSetCoverImage(sorted.cover.file, sorted.cover.file.name, 'upload'); else _igRenderForm();
             return;
         }
@@ -1395,7 +1377,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             igState.captionFill = { name: sorted.caption.path.split('/').pop(), text: igState.title, from: 'the folder' };
         }
         igState.drop = sorted.ask === 'cover' ? { sorted, seq } : null;
-        igState.dropNote = svDropFoundLine(sorted, 'instagram');
+        igState.dropNote = svDropFoundLine(sorted, _igDropSide());
         _igRenderForm(); _igRenderPreview();
         if (sorted.video && sorted.cover && !sorted.ask) _igSetCoverImage(sorted.cover.file, sorted.cover.file.name, 'upload');
     }
@@ -1403,7 +1385,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     // A card's copy is in: its caption fills an EMPTY caption box (with Undo), and its thumbnail, already in Post for
     // Me storage, becomes the cover unless one is already chosen.
     function _igCardCopied(card, data) {
-        const text = svPostSourceCaption(card, 'instagram');
+        const text = svPostSourceCaption(card, _igNet());
         if (text && !igState.title.trim()) {
             igState.title = text.slice(0, IG_MAX_CAPTION);
             igState.titleFromCard = igState.title;
@@ -1439,7 +1421,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : (cv.remoteUrl ? 'card-thumb:' + src.cardId : '')) : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
         const trial = igState.trial ? 'manual' : '';
         const fbState = _igFacebookState();
-        const facebookAccountId = fbState.enabled && fbState.checked ? _igResolveFacebook(igState.client) : '';
+        const facebookAccountId = _igInstagramOn() && fbState.enabled && fbState.checked ? _igResolveFacebook(igState.client) : '';
         // post_networks_v1: Instagram may be unticked; YouTube and LinkedIn ride on the same one post. A cover goes
         // only where it can (Instagram or YouTube).
         const instagramOn = _igInstagramOn();
@@ -1685,7 +1667,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const col = document.getElementById('igQueueCol');
         if (!col) return;
         const t = (r) => { const d = new Date(r.scheduled_for || r.posted_at || r.created_at || 0); return d.getTime() || 0; };
-        const all = igState.uploads;
+        // Each side lists the posts that went to its own network (the Instagram side: Instagram and Facebook).
+        const side = { instagram: ['Instagram', 'Facebook'], youtube: ['YouTube'], linkedin: ['LinkedIn'] }[_igNet()];
+        const all = igState.uploads.filter(r => _igRowNets(r).some(n => side.includes(n.name)));
         const groups = {
             upcoming: all.filter(r => IG_UPCOMING.includes(_igEffective(r))).sort((x, y) => t(x) - t(y)),
             failed: all.filter(r => _igEffective(r) === 'failed').sort((x, y) => t(y) - t(x)),
@@ -1723,10 +1707,10 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" data-ig-tab="${key}">${label}<b>${groups[key].length}</b></button>`;
         const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
         const notice = igState.queueReadState === 'loading' ? '<div class="tk-queue-empty" role="status">Loading uploads…</div>'
-            : igState.queueReadState === 'error' ? `<div class="tk-queue-empty" role="alert">Couldn't load your Instagram uploads. ${all.length ? 'Showing what we have. ' : ''}Trying again shortly.</div>` : '';
+            : igState.queueReadState === 'error' ? `<div class="tk-queue-empty" role="alert">Couldn't load your ${IG_NET_LABEL[_igNet()]} uploads. ${all.length ? 'Showing what we have. ' : ''}Trying again shortly.</div>` : '';
         col.innerHTML = `
             <div class="tk-card">
-                <h3>Instagram uploads</h3>
+                <h3>${IG_NET_LABEL[_igNet()]} uploads</h3>
                 <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
                 ${notice}
                 ${shown.length ? shown.map(item).join('') : igState.queueReadState === 'ready' ? `<div class="tk-queue-empty">${empty}</div>` : ''}
@@ -1781,6 +1765,16 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     // Called by the TikTok module when the person switches to Instagram (or lands on it after a reload).
     function mountInstagramPanel(deps) {
         _igDeps = deps;
+        // The side this panel is now (OPEN_REPAIRS 687). YouTube and LinkedIn post one video: no carousel, no trial.
+        const net = deps && (deps.network === 'youtube' || deps.network === 'linkedin') ? deps.network : 'instagram';
+        if (net !== (igState.network || 'instagram')) {
+            igState.network = net;
+            igState.error = null; igState.notice = null;
+            if (net !== 'instagram') { igState.kind = 'reel'; igState.trial = false; }
+            // A folder still being read is retired (as _igDropForget, written out: the assurance suites lift this
+            // function on its own).
+            igState.dropSeq = (igState.dropSeq || 0) + 1; igState.drop = null; igState.dropNote = '';
+        }
         const shared = svSharedClientFor('tiktok-upload');
         /* Follow the client in the top bar unless a post is already being put
            together, as the TikTok side does. This only took the top-bar client
@@ -1885,7 +1879,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     // The folder sorted for one side. TikTok takes its cover from the video, so it never asks for one.
     function svDropSorted(entries, side) {
         const s = svSortDroppedFiles(entries);
-        if (side === 'tiktok' && s.ask === 'cover') { s.ask = ''; s.askText = ''; }
+        if (side !== 'instagram' && s.ask === 'cover') { s.ask = ''; s.askText = ''; }
         return s;
     }
     // A pick from the folder's list: a video first, then (Instagram) a cover when the images still need one.

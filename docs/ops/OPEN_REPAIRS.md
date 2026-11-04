@@ -36818,6 +36818,69 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
 
+## 687. [2026-11-03 UTC, BUILT, NOT MERGED] The Post tab after the owner tried it: From Content Calendar first in a quieter row, and YouTube and LinkedIn as their own sides (session Pbuild)
+
+- **Asked:** the owner tried the Post tab on 3 Nov and asked for three changes (relayed by the supervisor). All three are behind the existing switches, test client first.
+- **1. The source:** "From a card" is now **From Content Calendar**, and it is the default. **From files** is the second choice. With no Approved or Scheduled card, the note says to choose From files. (`svPostSourceNew` starts on the card; switch `post_sources_v1`.)
+- **2. A different control:** the owner: "so it doesn't seem like the same option".
+  - The source choice is no longer the big segmented control the post type uses (Video / Photo carousel, Reel / Carousel, unchanged). It is the house's small two-option row, the Notes composer's "Who sees this?" (`cal-cm-audience` / `cal-cm-aud-seg`): a "Video from" caption and a compact bordered pair above the media box.
+  - The radio stays inside each label, for the keyboard and screen readers.
+- **3. One side per network.** The owner: "I don't understand why there's an Instagram toggle inside of the Instagram". Behind `post_networks_v1`:
+  - **The platform switch** reads TikTok, Instagram, YouTube and LinkedIn. The YouTube and LinkedIn buttons show once the switch lists any client (`svPostNetworksAny`, 188), because the switch sits above the client picker. A side says so when the picked client is not listed.
+  - **The YouTube and LinkedIn sides** are the Instagram panel (299) with that network as the only target (`igState.network`, set by `mountInstagramPanel`). Each has its own account line, the same video source, caption and schedule, and no carousel or trial. The **YouTube card** keeps P3's title, Short or Regular video, and made-for-kids note. LinkedIn takes no cover. Each side's queue lists its own network's posts, under its own heading.
+  - **The Instagram side** has no Instagram, YouTube or LinkedIn tick (P3b's "Post to" card is gone). It keeps only **Also post to Facebook**, on by default with a connected Page and not shown when there is none. With the switch off, the Facebook card is exactly as before, including its no-Page reason.
+  - **Server unchanged.** Each side sends the body instagram-upload already takes (P3, 652): `instagram: false` with YouTube's `{ accountId, title, format, … }` or LinkedIn's `{ accountId }`, and the Instagram side's body as before.
+- **Codex on PR 2580, fixed with a case:** a browser that last used YouTube or LinkedIn, with the switch later cleared, reopened that hidden side when the switch read was already in before the tab opened. `svPostNetworksAny` now answers null while unknown, and the tab starts on Instagram when the answer is already a clear no, whichever order the two came in.
+- **Layout:**
+  - with four sides the switch takes the width its buttons need, and the header wraps it under the title on a narrower window. Two sides stay at today's 220px;
+  - the rules use `:where()` so the phone's own switch rules still win;
+  - a hidden side stays hidden on the staff phone too (`display: none !important` on `[hidden]`, which the switch rules would otherwise beat).
+- **Proof:**
+  - `test/post-source-choice-browser.js` (new, isolated browser, 22 checks): **main** `AssertionError` (the default and the labels); **this branch** `22 checks passed`.
+  - `test/post-networks-browser.js` (rewritten for the sides, 54 checks): **main** `AssertionError: switch on: YouTube and LinkedIn are on the platform switch`; **this branch** `54 checks passed`.
+  - `post-from-card-browser` now expects From Content Calendar as the default (51 checks). `post-folder-drop-browser` chooses From files before dropping, as a person now does (55).
+  - Also passing:
+    - post-trial-versions (43)
+    - post-tab (58)
+    - instagram-facebook (38)
+    - instagram-platform-switch (59)
+    - instagram-cover (38)
+    - instagram-cover-client-switch (8)
+    - instagram-carousel (51)
+    - tiktok-upload (35)
+    - tiktok-upload-steps (14)
+    - tiktok-press-key-reload (21)
+    - `qa/staff-phone-responsiveness.js --only=Upload` (0 failures)
+    - `qa/staff-phone-tabs-grid.js` (0 failures)
+    - the lifted-function suites
+  - `postforme-link-browser` stops at its popup check in this sandbox, as on main.
+  - Checked at 1440, 1024, 768, 600, 430, 390 and 360: no sideways scroll; the switch fits its buttons.
+- **Way back:** clear `post_networks_v1` (the switch and the Instagram side go back to TikTok | Instagram as before) and `post_sources_v1` (no source choice), or revert the PR.
+
+## 691. [2026-11-03 UTC, BUILT, NOT MERGED] A client's change request lost its words after a reload on a slow line: the next page's recovery deadlocked (session Reviewguard)
+
+- **Found while building 685, on the shared review-stage fixture (fictional data):** a client asks for a change on the video, the page reloads while the save is running, and the line stays slow (3 s a request). The card reached Tweaks Needed, but the client's words never reached the server, and the next page stayed saving (`_calSaveInFlight`, `_calPendingEdits`) for good. This also happens on main.
+  - Controls: no reload, the words land; a reload and then a fast line, the next page sends them again and they land.
+  - It is also what turned #2576's Chromium leg red in CI.
+- **Live:** no case of this is known yet. Today's iPhone change request (685) was the second control: its words landed 1 s after the reload report.
+- **Root cause: two locks taken in opposite order on the next page.**
+  - **The journal replay** (`_writeUiReplayJournalGroupOwned`, 290) holds the source-repair flight lock (`syncview-source-repair-flight:<surface|client|card>`). It reconciles the status receipt, then queues its card edits and awaits `_calFlushCardSave`.
+  - **The page's own recovered save of the change** (the card's edits with the words) had started meanwhile. It holds the card's save lock (`_calSaveInFlight`). Its status push (`_writeUiGatewayWithRepair`) asks for the same flight lock.
+  - The replay's flush saw the card owned and awaited that save, and that save awaited the replay's lock. Neither ever ended.
+  - On a fast line the replay finished first, which is why only a slow line lost the words.
+  - The journal scan already skipped a card whose save was in flight when the scan starts. The race is the other order: the save starts after the replay already holds the lock.
+- **Fix (290, page only):**
+  - When another save owns the card, the replay leaves its card edits in the pending bucket and returns without awaiting. The bucket holds the edits, the precommitted flag and the repair refs.
+  - That save sends this bucket as its trailing batch from its `finally`, and completes the refs only when that write lands. The replay completes nothing itself, so the journal keeps its debt until the card write lands, and a later replay finds it if that write fails.
+  - The same applies to a Sample's card (`_sxrSaveInFlight`).
+  - No Section 4 function or Edge Function changes. Every refusal, receipt and repair ref path is unchanged.
+- **Test:** `test/review-reload-slow-words-browser.js`, new, on the shared fixture's client link, Chromium and WebKit (WebKit required in CI):
+  1. a change request on a 3 s line, a reload mid-save, the line staying slow: within 40 s the client's words are on the server once, and the page is no longer saving. **On main this fails:** the words never land and the page stays saving.
+  2. the control, the same with no reload: the words land.
+  3. a reload mid-save with every later write refused: the page stops saving and says the change was not saved, with Try again. Nothing of it is on the server.
+  - After case 1 the journal is empty. The server saw the old page's status write, one reconcile, and two same-value status writes from the next page: its recovered save, and the replay's trailing batch. That trailing batch pushes the status as the replay's own flush already did on main when nothing raced it, so it is the same push, no longer stuck. Card writes: one.
+- **Way back:** revert the PR. The deadlock returns, nothing else changes.
+
 ## 685. [2026-11-03 UTC, BUILT, NOT MERGED] A client's reload during a change request read as a blocked client although the change had landed (session Reviewguard)
 
 - **Seen (read-only, live):** the review-board watcher (15:50 UTC) found a new person signature, `client|reload_mid_save|tweak|safari|ios|0-49|no_retry_landed`. It is one report, at 14:34:05 UTC, from a real client on iPhone Safari (build 14:04), card id p_native_…_14 (not the test client; read, never written).

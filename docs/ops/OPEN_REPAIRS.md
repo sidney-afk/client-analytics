@@ -37138,7 +37138,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Month and Week (from the samples):** the same trial card carries a small dot per live version in its status colour (189 `svTrialMonthMarkHtml`, in 180's Month pill and Week card); the Week card also says each letter. The words are its accessible name and tooltip. The first list read on Month or Week draws them again.
 - **Way back:** clear `trial_versions_v2` for the client (today's card), or revert.
 
-## 694. [2026-11-03 UTC, BUILT, NOT MERGED] Kasper's Redo: one button on each part sends it back when there is no one thing to fix (owner's go; session Vbuild)
+## 694. [2026-11-03 UTC, MERGED 2026-11-04: #2588 as 20cf72b, on Kasper's review board for everyone] Kasper's Redo: one button on each part sends it back when there is no one thing to fix (owner's go; session Vbuild)
 - **Ask (owner, 3 Nov, about 22:05 UTC, through the supervisor):** after the sample, "let's call it redo", with the shorter note. The note is fixed: "Not there yet, and there's no one thing to fix. Take a fresh look, find what's holding it back, and bring back a stronger cut."
 - **What it does (195, `_rsRedoHtml`, `RS_REDO_NOTE`):**
   - Kasper's Review Session only, on each part (Video, Thumbnail, Caption), after Ask for a change and, on the video, Tweaks are on Frame. In his second layout it stays on the part's one row (that layout's rule): Tweaks are on Frame and Redo share the left of Approve, which stays centred, and in the narrowest parts both show as icons with their names as tooltips. On a trial card's video there, where the tiles carry the version's own buttons, it sits beside Tweaks are on Frame. The client's and the SMM's pages never show it.

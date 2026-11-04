@@ -29,7 +29,8 @@ line is older than a week, re-check it before relying on it.
 - **Trial versions (688), behind `trial_versions_v2`:** all three parts merged: review boards (#2590), "Version A" naming elsewhere (#2592), and A/B/C tabs on the Calendar card with a dot per version in Month and Week (#2591).
 - **Post tab:** pipeline-social's watch builds its video base64 natively (#2601), the suspect for the 502 bursts; no function 5xx in the 09:31 to 12:31 window.
 - **Test-only:** 690's test waits for the card's own save (#2602, the cause of main's one red at 10:21); 699's test has a 4-minute watchdog and bounded waits (#2603).
-- **Still open on this track:** Kasper's Redo (694, #2588) and tooltips (686, #2579) next in the queue, then 685 (#2576).
+- **Kasper's Redo (694, #2588):** merged. Each part on Kasper's review board has a Redo button: the first click arms it ("Send redo?"), a second within 4 s sends one fixed team-only note and sets Tweaks Needed. Not yet used live.
+- **Still open on this track:** tooltips (686, #2579), then 685 (#2576).
 
 ## Latest (SyncView supervisor, 2026-11-03 daytime): posting from a card, trial version import and fields, Post for Me accounts link themselves
 

@@ -146,7 +146,7 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   const own = r.geminiBody({ base64: 'AA==' }, 'Q?');
   ok(own.contents[0].parts[1].text === 'Q?' && !own.generationConfig.responseSchema, 'our questions replace the fixed ones and the fixed schema');
   ok(r.geminiBody({ base64: 'AA==' }).generationConfig.responseSchema, 'the standard watch keeps its schema');
-  ok(src.indexOf('watchFrame(out.result.url') > 0 && /GEMINI_API_KEY/.test(src), 'frame.watch fetches the card video address and uses the Gemini secret');
+  ok(src.indexOf('watchFrame(String(found.url') > 0 && /GEMINI_API_KEY/.test(src), 'frame.watch fetches the card video address and uses the Gemini secret');
 
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');

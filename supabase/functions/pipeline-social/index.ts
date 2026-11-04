@@ -252,7 +252,8 @@ async function ownRead(sb: Db, pass: any, action: string, b: Record<string, any>
     }
   }
   if (action === "frame.watch" && out.ok) {
-    const w = await watchFrame(out.result.url, String(p.questions ?? ""));
+    const found = (out.result ?? {}) as { url?: string };
+    const w = await watchFrame(String(found.url ?? ""), String(p.questions ?? ""));
     if (!w.ok) { await sb.from("hf_activity").update({ ok: false, error: String(w.error).slice(0, 200) }).eq("id", entry.data.id); return refused(String(w.error), Number(w.status)); }
     await sb.from("hf_activity").update({ summary: `frame.watch: ${p.card} - $${w.cost.toFixed(4)}` }).eq("id", entry.data.id);
     return json({ ok: true, action, result: { card: p.card, read: w.read, model: WATCH_MODEL, usage: w.usage, cost_usd: w.cost } });

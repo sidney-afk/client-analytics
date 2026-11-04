@@ -261,8 +261,10 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 | 13 LOW | Refusal log and read-back on every new write | 7.3 |
 | 14 LOW | Client link never shows dropped tabs; 390 px; 44 px targets; the mockup shows every dead end | Section 8 and step 0 |
 
-**Questions A to D, with defaults** (the review sent A to F to the supervisor; the text of E and F did not reach this session, so only the four named in the findings are listed. If E or F change anything, the supervisor forwards them):
+**Questions A to D, with defaults** (the review's A to F; E and F were relayed by the supervisor and both match the plan as written):
 - **Q-A. Where do Posted and Scheduled live?** Default: a Post control in the trial strip, separate from the version pills.
 - **Q-B. Does the winner show on Month and Week and get posted?** Default: yes, through the helper, as an ordinary post.
 - **Q-C. Notes with no version prefix?** Default: Whole post, not Version A's.
 - **Q-D. A card with A approved and B waiting on the client: does it stay in the client's queue?** Default: yes, listed per version, for as long as any version waits at the client.
+- **Q-E. Approving.** Confirm that "Approve Version B" approves all three parts, and that each part can also be approved alone. Default: yes, as in section 6 and step 8.
+- **Q-F. The cap.** Confirm it is A to E (he wrote "ABCDF"). Existing F and G rows stay readable (all three are dropped) and are simply not shown as tabs. Default: A to E. Same as Q17.

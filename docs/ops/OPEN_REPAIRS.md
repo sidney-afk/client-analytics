@@ -37017,6 +37017,17 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
 - **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.
 
+## 688 (part 3 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions are named "Version A" outside the review boards too, on the clients of trial_versions_v2 (session Vbuild)
+- **Ask:** Sidney's option B names versions "Version A/B/C" everywhere. Part 1 renamed them on the review boards; this part does the rest, on the same switch, so a client off it reads "Video A" exactly as before.
+- **Where:**
+  - the Calendar card's version list, its row names, links, buttons and accessible names, the status menu's title, its toasts and notices (189 `_trlW`, exported as `svTrialWord`);
+  - the Notes view: the version switch, the quiet line under the composer, the post title and the prefix a video note gets ("Version C: ...");
+  - Production's Assets rows ("Deliverable file · Version B", its placeholder and Save);
+  - the Post tab's trial rows and their two caption problems.
+- **Readers take both names:** the two places that read a change request's version from its first words (190 `_calTweakKept`, `svCalResolveVersionTweaks`) and the Notes prefix check accept "Video B:" and "Version B:", so notes written before the switch still count. Part 1 does the same on the review page; merge part 1 (#2590) before this part, so a "Version B:" note is read there too.
+- **Proof:** `trial-version-status-browser` now looks for the status pill by "Version A status" and `trial-versions-import-browser` for "Version C" and "Version B was already answered": **main** fails both; **this branch** 38 and 50 checks pass. `trial-version-fields-browser` (42) finds rows by either name. With the switch off, trial-reels-card, -polish, -round3-card, -journey, -notes, -today, -change-naming, -production and post-trial-versions pass unchanged ("Video A").
+- **Way back:** clear `trial_versions_v2` for the client, or revert.
+
 ## 697. [2026-11-04 UTC, BUILT, NOT MERGED] A client's change request refused after a reload: no Try again, no words, and nothing ever sent it (session Reviewguard)
 
 - **Found:** while checking why 691's case 3 missed "Try again" in WebKit on #2592 (run 41780677570). It was not a race. That check read the page's text for "try again", and the refusal's own wording ("Please try again.") passed it in Chromium with no button on the page. In WebKit the wording differed, so it missed.

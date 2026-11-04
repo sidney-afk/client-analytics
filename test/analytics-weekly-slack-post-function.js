@@ -143,6 +143,9 @@ const bySlug = slug => sent.filter(s => s.channel === 'C0' + slug.toUpperCase() 
   const bb = bySlug('bbb')[0].blocks[0].text.text;
   assert(bb.includes('&lt;!channel&gt;') && bb.includes('&lt;@U0EVIL12345&gt;') && !bb.includes('<!channel>') && !bb.includes('<@U0EVIL'), 'caption mentions are escaped');
   assert(bb.includes('&amp; friends'));
+  const topText = bySlug('bbb')[0].text;
+  assert(topText.includes('&lt;!channel&gt;') && topText.includes('&lt;@U0EVIL12345&gt;') && !topText.includes('<!channel>') && !topText.includes('<@U0EVIL'), 'the top-level notification text is escaped too');
+  for (const s of sent) for (const f of [s.text, s.blocks[0].text.text]) assert((f.match(/<[^>]*>/g) || []).every(t => /^<@U0(TESTPERSON|AAAPERSON)>$/.test(t)), 'no raw angle-bracket token but our own tag in either field');
   // skipped rows are retried at most 3 times, 5 minutes apart; then they stop
   const n = sent.length;
   assert.deepEqual((await call({ action: 'tick' })).body.results, {}, 'inside the 5 minutes nothing is retried');

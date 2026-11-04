@@ -29,6 +29,9 @@ const ROOT = path.resolve(__dirname, '..');
   // escaping: caption-derived text cannot notify anyone; only the tag we add is raw
   const evil = m.buildSlackMessage('Top post: "<!channel> <@U0EVIL1234> a&b"', 'U0ABCDEFG');
   assert.equal(evil.blocks[0].text.text, '<@U0ABCDEFG> Top post: "&lt;!channel&gt; &lt;@U0EVIL1234&gt; a&amp;b"');
+  assert.equal(evil.text, '<@U0ABCDEFG> Top post: "&lt;!channel&gt; &lt;@U0EVIL1234&gt; a&amp;b"', 'the notification fallback is escaped too');
+  for (const f of [evil.text, evil.blocks[0].text.text]) assert.deepEqual(f.match(/<[^>]*>/g), ['<@U0ABCDEFG>'], 'the only raw < > in either field is our own tag');
+  assert.equal(m.buildSlackMessage('a<!here>b').text, 'a&lt;!here&gt;b', 'untagged: escaped as well');
   assert.equal(m.escapeSlack('a&b<c>'), 'a&amp;b&lt;c&gt;');
 
   // the migration's promises

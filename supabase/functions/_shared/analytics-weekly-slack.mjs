@@ -23,7 +23,7 @@ export function buildSlackMessage(text, mentionUserId) {
   const id = mentionIdOf(mentionUserId);
   const tag = id ? `<@${id}> ` : "";
   return {
-    text: tag + String(text),
+    text: tag + escapeSlack(text), // the notification fallback is escaped like the block: caption mentions stay plain characters
     blocks: [{ type: "section", text: { type: "mrkdwn", text: tag + escapeSlack(text) } }],
   };
 }

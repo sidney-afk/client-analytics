@@ -1,7 +1,7 @@
 # One card, many versions: the plan (session Trialplan, 4 Nov 2026)
 
 **Plan only. No code, no migration, no deploy, no data change.** Plain English.
-**Status: revision 5, 4 Nov 2026 ~21:50 UTC, ready for Sidney's approval.** Revision 5 folds in his last answers: the trial also starts **by itself on the card's date** (as well as by a button), only when every version is approved or dropped; **Trial is shown clearly** on the strip, the tabs and Month and Week; **no nudge and no Instagram reminder**. Replaces revision 4's 3.4. After a winner the card shows Posted only: no "Winner" label, no trophy. Open: Q-M to Q-O (3.4), each with a default.
+**Status: revision 6, FINAL, 4 Nov 2026 ~21:55 UTC, for the Opus review.** All questions are answered (Q-M label: yes; Q-N: the trial starts on the **morning** of the scheduled date; Q-O: a version sent back **holds** the trial). After a winner the card shows Posted only: no "Winner" label, no trophy. Nothing is open for Sidney; any change from the review is a new revision.
 Counts quoted from earlier measurements are dated; step 1 below re-measures them before anything is built.
 The only live read was one counts-only query on the version table (section 7.1). What was read: STATE_OF_THINGS, OPEN_REPAIRS 688 (parts 1 to 3), 656/657/659/661, ATLAS "Trial reels", `src/index/189`, `194`, `245`, `299`, the `trial-reels` Edge Function (`logic.mjs`, `index.ts`), the three trial migrations, draft plans #2521, #2524 and the design-options PR #2581.
 
@@ -132,7 +132,7 @@ Until step 5 lands, the list stays and the tabs remain as they are, so nothing b
 1. **Each version is approved** on its own (or dropped). A version needs all three of its parts approved to count as approved.
 2. **A person schedules the card** (Scheduled) with its one date, shared by every version. **Scheduling a trial card needs every live version approved** (dropped ones don't count), and at least two live versions (a trial of one is a plain post; turn the trial off instead).
 3. **The trial starts** in either of two ways, with the same write and the same gate:
-   - **By itself when the date arrives:** the robot that today turns a Scheduled card into Posted (`calendar-auto-posted`, every 15 minutes, once the scheduled day has ended in US Eastern time) puts every approved version of a trial card **On trial** instead of Posted. Q-N asks whether he wants the start of the day instead.
+   - **By itself on the morning of the scheduled date (Sidney, Q-N: "if it was scheduled for the 5th, it's because on the 5th it's going to be posted in the morning"):** a check that runs every 15 minutes starts the trial of every v2 trial card scheduled for today from **06:00 US Eastern** (a proposed hour; it is one setting), when the gate passes. It reuses the robot's every-15-minutes pattern. **The existing Posted robot is not touched for any other card:** `calendar-auto-posted` keeps turning an ordinary Scheduled card into Posted once its scheduled day has ended, exactly as today. Step 1a decides whether the morning check is a new small function or a second branch of `calendar-auto-posted` (a new function is the default, so the existing robot stays byte for byte as it is). A v2 trial card is skipped by the end-of-day Posted robot, since it is either already on trial or waiting for approval.
    - **By the button Start trial** in the trial strip (SMM and admin), any time the gate passes, even before the date. This is the existing manual `trial_start` action.
 4. **Trial is shown clearly** (below). **No countdown, no hours.**
 5. **Pick the winner**, any time while the trial runs (Q-K: yes, with a one-line confirm). The winner becomes the card by the swap in 3.3 and takes **Posted**; it is the default tab. **The others end as "Not chosen"** (today's `lost`, relabelled). A dropped version stays dropped.
@@ -154,8 +154,8 @@ The stored card status stays **Scheduled** while the trial runs, and becomes **P
 
 | | Today | New (on `trial_versions_v2` clients) |
 |---|---|---|
-| What starts the trial | Once the card is **Posted** (the robot turns Scheduled into Posted after the day), any read of the card puts every approved version on trial (`autoTrialPatches`, OPEN_REPAIRS 570) | The same robot, **at the same moment**, starts the trial instead of Posting (when the gate passes), or a person presses Start trial. `autoTrialPatches` does not run for these clients |
-| What the card reads | Scheduled, then Posted at the date | Scheduled, then the Trial label at the date, then Posted with the winner |
+| What starts the trial | Once the card is **Posted** (the robot turns Scheduled into Posted at the **end** of the scheduled day), any read of the card puts every approved version on trial (`autoTrialPatches`, OPEN_REPAIRS 570) | **The morning of the scheduled date, from 06:00 US Eastern** (a check every 15 minutes, when the gate passes), or a person presses Start trial. `autoTrialPatches` does not run for these clients. Non-trial cards still turn Posted at the end of the day, unchanged |
+| What the card reads | Scheduled, then Posted at the end of the date | Scheduled, then the Trial label on the morning of the date, then Posted with the winner |
 | The clock | `trial_ends_at` = start + 24 h; "On trial · 17 h left"; the winner is refused until then (`trial_not_over`) | No clock on screen. The winner can be picked any time. `trial_ends_at` left empty for new trials; old rows keep theirs |
 | Unapproved versions | Whatever was approved at that moment goes on trial; the rest are left out | Cannot schedule or start with one unapproved; the date start waits |
 | Losers | "lost" | "Not chosen" |
@@ -167,17 +167,17 @@ The stored card status stays **Scheduled** while the trial runs, and becomes **P
 
 **Risks:**
 - **Two ways to start for a while:** clients on the switch use the new rules, others the old automatic start. The function and the robot branch on `trial_versions_v2` and a test covers both.
-- **`calendar-auto-posted` changes** (a function that writes card status; not one of the three Section 4 functions). Step 1a reads it and settles how a v2 trial card is skipped for Posting and picked up for the trial start, and that the 15-minute check is idempotent (a card already on trial is not started twice). Whether it needs a fingerprint re-pin is checked there.
+- **The morning start (3.4)** is a new check (default: a small new function; the Posted robot stays untouched for other cards). Step 1a settles it, that it is idempotent (a card already on trial is not started twice), that it respects the gate, whether it needs a fingerprint re-pin, and the hour (06:00 US Eastern proposed, one setting). Because the trial now starts about a day-part before the Posted robot would have run, a v2 trial card must never also reach the end-of-day Posted robot.
 - **A card can become Posted another way** (a Production work item set to Posted, SyncLinear). For a v2 trial card that Posted must not start or end a trial or hide versions; it is ignored and warned about. Step 1a lists every way in.
 - **A trial that waits for an unapproved version** needs a clear strip message, or it looks stuck. It is in the mockup.
 - **Every reader of the 24 h** (the card's countdown, the Production line, the nightreel check, `trial_not_over`, the journey tests) must stop expecting it; step 5 owns this with its tests.
 - **A version that is the only live one** after drops: trial cannot start (needs two). The strip says so.
 - **Winner shown as Posted on SyncView while the reel is still trial-only on Instagram** is accepted by Sidney's description of the SMM's job; no reminder is built.
 
-**Questions for Sidney (defaults given):** Q-I, Q-J, Q-K, Q-L are answered. Q-G and Q-H are dropped.
-- **Q-M.** Trial as a label on the strip, tabs and Month and Week with the stored card status staying Scheduled until the winner (default), or a real card status "Trial" (costlier, touches Section 4)?
-- **Q-N.** The date start fires when the scheduled day has ended, as Posted does today (default), or at the start of the scheduled day?
-- **Q-O.** A version that comes back for changes after scheduling stops the trial from starting until it is approved or dropped (default), or should the trial start without it?
+**Questions for Sidney: all answered** (Q-G and Q-H were dropped; Q-I to Q-O are recorded below).
+- **Q-M.** **Answered:** yes, Trial is a label on the strip, tabs and Month and Week; the stored card status stays Scheduled until the winner.
+- **Q-N.** **Answered:** the trial starts on the **morning** of the scheduled date, not at the end of the day. Built as above (06:00 US Eastern proposed; Posted for ordinary cards stays as it is, at the end of the day).
+- **Q-O.** **Answered:** hold. A version sent back after scheduling (for example the client asks for changes on an approved version) holds the trial until it is approved or dropped; the strip says so.
 
 ## 4. Seeing every version's status without switching
 
@@ -280,7 +280,7 @@ Everything stays behind `trial_versions_v2`, on for the test client only. The ca
 | 2 | **Migration and function** | CTA and thumbnail and caption status columns on the version rows; `trial-reels` reads and writes them; the cap moves to A to E for **adding** (in `logic.mjs:7`, `higgsfield-mcp/trialreels.mjs:45`, and the `189`/`194` regexes); the route writer and `effectiveCardFields` as tested functions. Migration held until Lighthouse applies it; no `calendar_posts` column | Nothing visible (flag off to the page) |
 | 3 | **Tabs edit the selected version** | The card's Video, Thumbnail, Caption and CTA follow the tab and save to it; the old list still present | Type a caption on B, reload, see it on B, A unchanged |
 | 4 | **Part statuses, pips, status grid, Start trial** | Each part's pill on the selected tab; the route writer runs; **Start trial** in the trial strip with its gate (every live version approved, at least two live); the Trial label on the strip, tabs, and Month and Week; "Trial" on versions without a countdown; version menus stop at Approved; the card shows no status pill | Set B's thumbnail to Approved; see the grid without switching; approve three versions, press Start trial and see Trial on all of them at once; try with one unapproved and see why it will not start (test client, nothing posts) |
-| 5 | **The old list goes; the date start; Pick the winner; the winner becomes the card** | Drop, bring back, add, Import from Frame move to the tab menu; **Pick the winner** during the trial (no `trial_not_over`); the others end as Not chosen; `trial-reels`: `winnerPatches` does the two-way swap (fields, call to action, part statuses) in place of `attach_first`, and sets the winner Posted; undo becomes the reverse swap; `mainLetter`/`on_card`/`healMainPatch` follow the winner; the card opens on the winner and a reload returns to it; End trial without a winner; the 24 h readers and their tests retired; **`calendar-auto-posted` starts the trial for v2 trial cards at the date instead of Posting them, with its idempotence and the waiting-for-approval rule tested; first, step 1a's list of every way a card can become Posted is settled** | Run a whole trial: add, approve, Start trial, pick a winner, see the card become it and read Posted, clear the winner and see A back |
+| 5 | **The old list goes; the date start; Pick the winner; the winner becomes the card** | Drop, bring back, add, Import from Frame move to the tab menu; **Pick the winner** during the trial (no `trial_not_over`); the others end as Not chosen; `trial-reels`: `winnerPatches` does the two-way swap (fields, call to action, part statuses) in place of `attach_first`, and sets the winner Posted; undo becomes the reverse swap; `mainLetter`/`on_card`/`healMainPatch` follow the winner; the card opens on the winner and a reload returns to it; End trial without a winner; the 24 h readers and their tests retired; **the **morning start check** (06:00 US Eastern, every 15 minutes) starts the trial of v2 trial cards scheduled for today, with its idempotence and the waiting-for-approval rule tested, and `calendar-auto-posted` is left as it is for every other card; first, step 1a's list of every way a card can become Posted is settled** | Run a whole trial: add, approve, Start trial, pick a winner, see the card become it and read Posted, clear the winner and see A back |
 | 6 | **Notes per version** | Notes switch follows the tab; unprefixed notes are Whole post | Write a note on C, see it only under C |
 | 7 | **Month, Week and phone** | Trial dots; popover; phone layout; after a winner an ordinary Posted card | Look at the Calendar at 390 and 1440 |
 | 8 | **Review boards per part** (Q4) | Each part approves by itself; one "Approve Version B" stays | Approve B's caption as the client link, see the grid change |
@@ -290,7 +290,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 
 ### Process before any build (Sidney, 4 Nov)
 
-1. Sidney approves this plan (after Q-M to Q-O are answered).
+1. Sidney approves this plan (all questions are answered).
 2. **A strong model reviews the plan once more**, after his approval.
 3. **Only when the plan is final are the mockups made** (step 0). No mockup and no build starts before that.
 
@@ -311,7 +311,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 | # | Finding | What the plan does now |
 |---|---|---|
 | 1 HIGH | The card's video status is the routing key for every queue and for `trial-reels` | "No status of its own" is a visual rule; a hidden system-written route value stays; queues move onto version rows first (step 1b). 2.2 |
-| 2 HIGH | Posted and Scheduled live in A's video status and start every version's 24 h trial | Revision 5: the date (through `calendar-auto-posted`) or a button starts the trial; Trial is a label and a version status, the stored card status stays Scheduled until the winner makes it Posted; version menus stop at Approved (3.4) |
+| 2 HIGH | Posted and Scheduled live in A's video status and start every version's 24 h trial | Revision 6: the morning of the scheduled date (a new check, 06:00 US Eastern proposed) or a button starts the trial; Trial is a label and a version status, the stored card status stays Scheduled until the winner makes it Posted; version menus stop at Approved (3.4) |
 | 3 HIGH | A winner needs `trial-reels` changes and every reader of the card's picture to agree | Revision 3: the winner becomes the card by a two-way swap (3.3), so server readers need no change; the `trial-reels` changes are listed (`attach_first`, undo, `mainLetter`/`on_card`/`healMainPatch`, `svTrialPick`). Supersedes the first helper-based answer. **Q-B** |
 | 4 HIGH | 2.2 said "nothing is copied" and 3.3 said previews read the winner | Revision 3 removes the contradiction: the winner is copied (swapped) onto the card, A's data goes to A's row |
 | 5 MED | The cap of five is in more places | Named in 2.2 and step 2; the table's check stays |

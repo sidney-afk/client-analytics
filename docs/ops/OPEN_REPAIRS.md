@@ -36819,7 +36819,7 @@ Main's Calendar unit "review-gauntlet-three (firefox, …)" failed twice in six 
 - **V2 import:** none of the 57 Posted links on Sidney's two clients is a folder; each lists one video. The multi-video import proof still waits on his folder.
 - **Way back:** revert the PR.
 
-## 690. [2026-11-03 UTC, BUILT, NOT MERGED] A client deleting their own change request on a Production-linked part deleted only the card copy; the Production copy stayed open for staff (session Chanfix)
+## 690. [2026-11-03 UTC, LIVE, CLEANUP PENDING (merged #2584 as 802ace3; Section 4 run 41774993913 attested production-write 99f5a4b1…, 10 files; live-checked on the test client 2026-11-04 04:51 UTC: a client comment on a linked card deleted by the client reads deleted in Production; the cleanup of 2 real-client and 2 test-client orphan client rows waits on the owner's approval in the fix session, blocked by its permission check)] A client deleting their own change request on a Production-linked part deleted only the card copy; the Production copy stayed open for staff (session Chanfix)
 
 Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial card, thumbnail part linked to Production, the client asked for a change on the client link, then deleted it (the cross, then Delete). The page sent only calendar-upsert. Read live afterwards, read-only: the card copy in `graphic_tweaks` reads deleted (16:40:11 UTC), but its Production copy (`production_comments`, `native_comment_id` = the card note's id, `transport_role` gateway, `provenance` add/calendar) has neither `deleted_at` nor `resolved_at`. That row is left as it is, as the repro state.
 
@@ -36851,6 +36851,7 @@ Found by Vbuild's live walk on the test client, 3 Nov. On one test-client trial 
   - Codex review: a retry after a lost answer would have failed its own receipt (`idempotency_conflict`), because the fingerprint held the version the server had read, and a committed delete moves it. The fingerprint now leaves the version out for a front-door delete. New case: the committed delete, then the identical retry, replays and writes nothing; it fails without this with `idempotency_conflict`.
 - **CI, not this change's logic.** Touching `test/production-comment-slice.js` triggered the F42 apply rehearsal workflow, which had not run since 17 Sep. It failed before running anything (`initdb_unavailable`): the guard asked for PostgreSQL 16's `initdb` even in external mode, where CI's postgres:16 service is already running, and the runner image no longer ships that binary. The guard now applies only when the script starts its own cluster. The rehearsal passes in external mode against a local PostgreSQL 16 (32 checks).
 - **Way back:** revert the PR. The card delete is unchanged, so a revert only stops the Production copy from following.
+- **4 Nov 2026, test fix (#2602, dbb67f9):** this entry's browser test turned main red once (browser-guards (1), 10:21 UTC, commit 452e257). It read the card right after the front-door comment arrived, but the card's own save is a separate request that can land later on a loaded runner; the delete step had the same gap. Reproduced by slowing the fixture's card save by 1.5 s. Both waits now poll for both halves; passes at 1.5 s, 3 s and normal speed. No page change. Main green again 12:02 UTC.
 
 ## 692. [2026-11-03 UTC, OPEN, read-only look after 690] Staff-authored Production notes whose card copy is deleted but which stay open (session Chanfix)
 
@@ -36935,7 +36936,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **LIVE (2026-11-04, about 00:02 UTC).** The supervisor published it on the owner's go: before `49a29c76`, after `f2bf8c50`. Chanfix read it back live: Build Kickoff's code is byte for byte this repo's (sha256 `e92e593b…`), and the wiring and settings are as in `docs/ops/N8N_EDIT_LOG.md`. The finalizer never sends test clients, so the next real client's kickoff is the live proof: SMM and Kasper tagged, the filming plan linked, and only the onboarding call and the timeline left as placeholders.
 - **Way back:** restore version `49a29c76` in n8n; revert the PR.
 
-## 691. [2026-11-03 UTC, BUILT, NOT MERGED] A client's change request lost its words after a reload on a slow line: the next page's recovery deadlocked (session Reviewguard)
+## 691. [2026-11-03 UTC, LIVE 2026-11-04: merged #2583 as e2b9ce8; live-checked on the test client 00:07 UTC, 4 runs, each landed once] A client's change request lost its words after a reload on a slow line: the next page's recovery deadlocked (session Reviewguard)
 
 - **Found while building 685, on the shared review-stage fixture (fictional data):** a client asks for a change on the video, the page reloads while the save is running, and the line stays slow (3 s a request). The card reached Tweaks Needed, but the client's words never reached the server, and the next page stayed saving (`_calSaveInFlight`, `_calPendingEdits`) for good. This also happens on main.
   - Controls: no reload, the words land; a reload and then a fast line, the next page sends them again and they land.
@@ -36958,8 +36959,9 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   3. a reload mid-save with every later write refused: the page stops saving and says the change was not saved, with Try again. Nothing of it is on the server.
   - After case 1 the journal is empty. The server saw the old page's status write, one reconcile, and two same-value status writes from the next page: its recovered save, and the replay's trailing batch. That trailing batch pushes the status as the replay's own flush already did on main when nothing raced it, so it is the same push, no longer stuck. Card writes: one.
 - **Way back:** revert the PR. The deadlock returns, nothing else changes.
+- **4 Nov 2026 — LIVE (691).** Live check on the deployed site, test client only, 00:07 UTC: four reloads mid-save on a slowed line, each change request landed once with its words. The case that still lost words (a reload, then the re-send refused) was a separate gap, fixed as 697.
 
-## 693. [2026-11-03 UTC, BUILT, NOT MERGED] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
+## 693. [2026-11-03 UTC, LIVE 2026-11-04: merged as 4e9b296; the first main runs after the merge were green, Pages published] CI checkouts with `fetch-depth: 0` took minutes and jobs were cancelled before a test ran (session Fetchfix)
 
 - **Seen:** from about 17:15 UTC on 3 Nov the full-history checkout took 3 to 12 minutes instead of 40 to 50 s, and jobs hit `timeout-minutes` and came out cancelled: module-check (job 126080092299), the Pages build (126080021235), identity-exposure (126089893903). GitHub's status page was green.
 - **Measured here (a fresh fetch made exactly as actions/checkout does):** a full-history fetch downloads 714 MiB. Of that, 420 MiB is the checked-out tip itself, which a depth-1 checkout downloads too (403 MiB). All commits and trees of every branch are only 9.5 MiB. The other ~295 MiB is old file contents nobody reads.
@@ -36972,8 +36974,15 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - Every unit test that shells out to git (24): identical exit codes and identical output. (Not enough: see `unit` above.)
 - **Left alone, on purpose:** module-check (#2585), and every hand-dispatched or deploy lane (the Section 4 lane, the merge lane, single-function, onboarding, PTO, hiring, review-link, crosswalk, F42, review-note backfill, F27 post-contract capture, Graphics F2 evidence). They read history for fingerprints and ancestry, run rarely, and were not proven here.
 - **Way back:** revert the PR.
+- **Live (4 Nov, main runs for 4e9b296):** both main runs passed: Calendar unit tests (28 jobs green, 3 skipped by design), and the Pages build and deploy. Checkout step, against the 3 Nov slow window:
+  - Pages build: 11m45s (job cancelled at 15 min) → 12s; job 4m20s; deploy succeeded.
+  - `changes`: cancelled at 4m59s mid-checkout → 13s; job 19s.
+  - identity-exposure (pull requests only): 3m36s to 4m50s → 12s; job 24s.
+  - The retained-bundles step took 2m08s with the one-request fetch, against 2m00s on a full clone. That was the first real publish from main.
+  - **Read it honestly:** by then GitHub's throughput had recovered. In the same run, depth-1 jobs checked out in 9 to 22 s, and `unit` (still full history, by design) in 23 to 32 s, against 5m53s to 7m19s on 3 Nov. Blobless now matches depth 1 and takes about half the time of the full checkout. At 3 Nov's speed that is roughly 2.5 to 3.5 min instead of 5 to 7, and no longer past a 5-minute limit on its own.
+  - The checkout comparison in the PR was measured in a sandbox at f031c01: 714 MiB full, 411 MiB blobless, 403 MiB depth 1.
 
-## 695. [2026-11-03 UTC, ROOT-CAUSED, FIX IN PR] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
+## 695. [2026-11-03 UTC, LIVE 2026-11-04: merged as 555d9fa, deployed 03:37 UTC; every scan since 03:40 green] The thumbnail revision scan went red about twice an hour from 19:40 UTC: one card's thumbnail link is a Drive file that is not an image (session Thumbscan)
 
 - **Symptom:** clean from 1 Nov 23:00 to 3 Nov 17:00 UTC, then 1 to 2 red runs an hour (17h 1, 19h 1, 20h 2, 21h 2, 22h 2). Each red run printed `failed: 3, missing_source: 2, missing_source_new: 0`, so exactly **one** real failure per red run.
 - **Measured live (read-only SQL on `thumbnail_media_revisions`, 22:35 UTC):**
@@ -36988,8 +36997,9 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - So a non-image source goes red the first time it is seen (`missing_source_new`), then stays green on later laps for the same file. Re-linking to another non-image file is new again. A 404 mark never makes a not-an-image failure read as known, nor the other way round. Every other error kind stays a real failure on every lap. The caller's exit rule is unchanged.
 - **Proof:** `test/thumbnail-revision-scan-deno.ts` (new, rides the Edge Function type ratchet lane) drives `scanPendingThumbnailRevisions` against an in-memory database and a stubbed Drive. **main:** `a non-image source is in the known-unusable subset (got 0, want 1)`; **this branch:** `27 checks passed`. `test/thumbnail-revision-scheduler.js` passes with its marker assertion widened to both kinds. The Deno type ratchet reports no new errors.
 - **Still for a person:** the card's thumbnail link should point at the image. Its team fixes it on the page (it is not the test client, so no session edits it). Until then the row stays pending with the mark and the lane stays green for it.
+- **4 Nov 2026 — LIVE (695).** Merged as 555d9fa, deployed 03:37 UTC (merge lane 41768158133). The one predicted red at 03:40 (the stored row seen as new once); every scan since has been green, including 04:10, which reached the not-an-image row and counted it as known (missing_source 1, missing_source_new 0). Still open for people: that card needs a real image link from its team; a save-time warning for a non-image thumbnail file is written up in the PR description as a follow-up.
 
-## 688. [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions: the review boards show a version's own three parts once, as "Version A, B, C" tabs (part 1 of 3: the review boards)
+## 688. [2026-11-03 UTC, MERGED 2026-11-04: #2590 as d339b15, behind trial_versions_v2] Trial versions: the review boards show a version's own three parts once, as "Version A, B, C" tabs (part 1 of 3: the review boards)
 
 - **Seen:** Sidney picked option B from the three version-tab samples (the realistic ones were built on the real app, read only). He asked for three changes:
   - "Version A / B / C", never "Video A";
@@ -37017,7 +37027,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Look (Sidney, 3 Nov, about 22:10 UTC: "let's go with 1, the quiet one"):** Quiet. Text tabs on a hairline, a small status dot each (the version's answer at this stage, also in each tab's accessible name), the selected one underlined; the Trial label in plain small caps. One Approve per version, as in the samples.
 - **Codex on #2590, both fixed with a case:** (1) a Thumbnail or Caption change now keeps the version its box was opened on, as a video change does; in Kasper's second layout, picking another tab before sending used to record it on the new tab. (2) The card caption's Edit is not offered when the version on the card has its own caption, since Edit writes the card's caption, which that caption hides. Both new checks fail without the fix; the suite now passes 44 of 44.
 
-## 688 (part 3 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions are named "Version A" outside the review boards too, on the clients of trial_versions_v2 (session Vbuild)
+## 688 (part 3 of 3). [2026-11-03 UTC, MERGED 2026-11-04: #2592 as b8c50d9, behind trial_versions_v2] Trial versions are named "Version A" outside the review boards too, on the clients of trial_versions_v2 (session Vbuild)
 - **Ask:** Sidney's option B names versions "Version A/B/C" everywhere. Part 1 renamed them on the review boards; this part does the rest, on the same switch, so a client off it reads "Video A" exactly as before.
 - **Where:**
   - the Calendar card's version list, its row names, links, buttons and accessible names, the status menu's title, its toasts and notices (189 `_trlW`, exported as `svTrialWord`);
@@ -37028,7 +37038,7 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Proof:** `trial-version-status-browser` now looks for the status pill by "Version A status" and `trial-versions-import-browser` for "Version C" and "Version B was already answered": **main** fails both; **this branch** 38 and 50 checks pass. `trial-version-fields-browser` (42) finds rows by either name. With the switch off, trial-reels-card, -polish, -round3-card, -journey, -notes, -today, -change-naming, -production and post-trial-versions pass unchanged ("Video A").
 - **Way back:** clear `trial_versions_v2` for the client, or revert.
 
-## 697. [2026-11-04 UTC, BUILT, NOT MERGED] A client's change request refused after a reload: no Try again, no words, and nothing ever sent it (session Reviewguard)
+## 697. [2026-11-04 UTC, LIVE: merged #2598 as f6c969b; live-checked on the test client 08:44 UTC] A client's change request refused after a reload: no Try again, no words, and nothing ever sent it (session Reviewguard)
 
 - **Found:** while checking why 691's case 3 missed "Try again" in WebKit on #2592 (run 41780677570). It was not a race. That check read the page's text for "try again", and the refusal's own wording ("Please try again.") passed it in Chromium with no button on the page. In WebKit the wording differed, so it missed.
 - **Measured on main (fixture, Chromium):** a client asks for a change on the video, the page reloads mid-save, and the next page's re-send is refused.
@@ -37048,8 +37058,9 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **Unchanged and passing (Chromium):** client-review-queue, client-review-queue-behavior, client-review-requests-unchanged (37), review-stage-save, review-stage, review-stage-client-composer, review-board-gauntlet, prod-write-gateway-browser, write-ui-repair-races, samples-write-guard-browser, review-reload-slow-words.
 - **Codex on #2598 (both fixed):** (P1) Try again sends the same Calendar request again, as the client queue does, not through the stage's own send: for a trial reel the draft already names its version, and the stage would name it again, for whichever version is open now; a part sent without moving its status (keepStatus) is sent that way again, read from its delivery record's status at the time. Not covered by a browser test: the fixture has no trial reel. (P2) Only the client link's own requests are put back (role and audience client, principal this link): a team member's internal change request kept in the same browser is never shown to the client. Case 3 seeds one and failed without the check.
 - **Way back:** revert the PR. The gap returns; nothing else changes.
+- **4 Nov 2026 — LIVE (697).** Live check on the deployed site, test client only (throwaway caption card in Client Approval, not linked to Production, archived after). Client asked for a caption change, page reloaded 0.7 s into a save slowed to 3 s, card writes blocked after the reload (one refused write). 3.1 s after the reload the page showed the error, Try again and the client's words, with no copy on the server; once writes were unblocked, Try again landed in 2.7 s, exactly one copy after a reload, status Tweaks Needed. Covers the Calendar's recovered-save path; the stale source-gate path is covered by the browser tests only.
 
-## 699. [2026-11-04 UTC, BUILT, NOT MERGED] A trial version's refused change could never be sent again: its own record read as another change still being confirmed (session Reviewguard)
+## 699. [2026-11-04 UTC, LIVE: merged #2599 as 452e257; live-checked on the test client 10:28 UTC] A trial version's refused change could never be sent again: its own record read as another change still being confirmed (session Reviewguard)
 
 - **Found:** by 697's trial case (Codex P1 on #2598). A client's change on a trial version's thumbnail, refused once, then Try again: "Another change request for this item is still being confirmed. Your draft is preserved; retry after it finishes." Nothing ever landed. It happens without any reload too.
 - **Cause (140):** a trial change on a part that keeps its status while other versions wait (keepStatus, 587) leaves a source-only delivery record whose intended status is the part's status at the time, not Tweaks Needed. The record check (`_writeUiLegacyTargetPair`) accepted only Tweaks Needed, so the same change sent again under its own action id (Try again, the client queue's re-send, a reload's re-send) read as a different one and was refused, for good, from that browser.
@@ -37060,8 +37071,10 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
 - **`test/trial-reels-round2-review-browser.js`, its refused-change case:** it refused the save with the fixture's 503 (`writeFail`), which the client queue reads as the line being down and sends again. On main that re-send met this bug and ended as a refusal with Try again, which the case expected; with the fix the re-send is accepted and the page says "Still waiting… Nothing is lost", as it should for a 503. The case now refuses with a 400 and a code (`writeRefuse`, new in the shared fixture), a refusal the queue does not send again, and still expects no "Change sent" and Try again. It passes 230 of 230 on main and with the fix.
 - **Unchanged and passing (Chromium):** trial-version-review-parts (44), trial-reels-review (75), trial-reels-change-naming, trial-reels-race, client-review-requests-unchanged (37), client-review-queue, client-review-queue-behavior, client-request-linked-status-push (19), client-comment-lane-routing, client-entry-legacy-resume-lease, calendar-pinned-gate-migration, legacy-route-deferred-source-checkpoint, linear-project-source-gate, samples-legacy-save-order, write-ui-writer-durability, write-ui-repair-races, prod-write-gateway-browser, samples-write-guard-browser.
 - **Way back:** revert the PR. A trial change refused once is again stuck; nothing else changes.
+- **4 Nov 2026 — LIVE (699).** Live check on the deployed site, test client only (throwaway card not linked to Production, trial versions A, B and C, trial switch turned off and card archived after). Client asked for a Thumbnail change on Version C (status kept), page reloaded 0.7 s into a save slowed to 3 s, card writes blocked after the reload (two refused writes). 1.0 s after the reload the page showed "Not saved", Try again and the client's words under Version C; once writes were unblocked, Try again landed in 2.5 s, exactly one copy after a reload, text unchanged, both statuses kept at Client Approval, A and B still waiting, no page errors.
+- **4 Nov 2026, test fix (#2603, b518f97):** the new browser test hung once on #2597 (WebKit, repair-checkpoint cancelled at 40 min; the same step passed on main in 1 min 37 s). It now has a 4-minute watchdog that names the last step, bounded waits, and a 6-minute step limit. The hang did not reproduce in 8 WebKit runs under full CPU load; the likeliest cause, an unbounded page read during navigation in the trial-reels stub, is gone.
 
-## 698. [2026-11-04 UTC, BUILT, NOT MERGED] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
+## 698. [2026-11-04 UTC, MERGED: #2597 as 6c8fd75; main's browser-guards runs since are the proof] browser-guards (2) went red on different tests, looking like the browser died. Cause: CPU timing races, not memory
 
 - **Seen:** main 555d9fa (run 41768158269), the review stage's first-frame guard: "1440x900 dark: the player is there in the end (null)". PR #2592 (run 41780677570), "Calm Workload for everyone" died with `page.goto: Target page, context or browser has been closed`. main 4ff002e passed the same job.
 - **Measured (session Guardcrash):** all 49 part-2 suites on 3 lanes, on a 4-CPU, 16 GB machine like the runner, sampled every 2 s.
@@ -37088,8 +37101,9 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - `test/ci-lanes.js` checks the headroom line (15 checks).
   - The PR's browser-guards jobs print the headroom line.
 - **Not this:** the WebKit tab crash in repair-checkpoint (#2576, `review-reload-landed-browser`, another job and engine) is traced on its own PR.
+- **4 Nov 2026 — MERGED (698), #2597 at 6c8fd75.** Both browser-guards parts green on the PR with the runner headroom line printed: memory 87 to 88% free, /dev/shm unused, peak 1-minute load 5.7 on 4 CPUs, which confirms CPU oversubscription, not memory, as the cause. Main's next browser-guards runs are the proof that the two races are gone.
 
-## 700. [2026-11-04 UTC, BUILT, NOT MERGED] A TikTok caption typed just before the page remounted was wiped, photos kept (session Guardcrash)
+## 700. [2026-11-04 UTC, MERGED AND DEPLOYED: #2600 as 8d16614; not driven on the live site (the form needs a staff session)] A TikTok caption typed just before the page remounted was wiped, photos kept (session Guardcrash)
 
 - **Seen:** `browser-journey` on #2599 (job 126450633528) failed in `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` with `attachThreeImagesAndCaption` timing out at 30 s. The 677 diagnostics showed photos 3/3, but the caption length was 0 in both the state and the box, so Submit stayed disabled. #2599 does not touch the TikTok form.
 - **Cause (a page bug, not a test race):**
@@ -37112,8 +37126,9 @@ Owner, 3 Nov about 23:45 UTC: "fix the onboarding documents so that we make sure
   - With the fix, every check of the journey passes.
   - The TikTok upload, steps, cancel and Instagram/TikTok switch suites pass unchanged.
 - **Way back:** revert the PR.
+- **4 Nov 2026 — MERGED and deployed (700), #2600 at 8d16614.** The live TikTok bundle changed at 12:56 UTC and carries the fix (the pending draft save is written before the page re-reads the draft). Not driven on the live site: the TikTok upload form needs a signed-in staff session, which an automated session does not have. Proof is the browser journey's case 4b on the built page (photos, a caption, a remount inside the 400 ms window: caption kept, Submit enabled; fails without the fix). A person can confirm in 30 s on the test client: type a caption, switch tab and back within half a second, the caption is still there.
 
-## 688 (part 2 of 3). [2026-11-03 UTC, BUILT, NOT MERGED] Trial versions on the Calendar card: Version A/B/C tabs on the picture, in the Quiet look (session Vbuild)
+## 688 (part 2 of 3). [2026-11-03 UTC, MERGED 2026-11-04: #2591 as 339e19c, behind trial_versions_v2] Trial versions on the Calendar card: Version A/B/C tabs on the picture, in the Quiet look (session Vbuild)
 - **Ask:** Sidney's option B, revised, in the Quiet look he picked on 3 Nov ("let's go with 1, the quiet one"). Part 1 is the review boards; part 3 the remaining wording.
 - **What it does (189 `_trlTabsHtml`, `_trlDress`, `svTrialTab`; CSS in 020):** on the staff Calendar card of a client on `trial_versions_v2`, a trial card with two or more live versions and no winner carries Version A/B/C tabs on its picture. They are text tabs, each with its status dot (also in its accessible name and tooltip), and the selected one is underlined. On the staff phone, where the picture is a tool strip, they are their own row above the Video field.
   - The version on the card is picked first. Picking another one shows that version on the card in place: the Video row says "Version B" with its state and opens B's link, B's own picture is drawn over the card's, and B's caption (its own, else the card's) shows read only where the card's caption box was.

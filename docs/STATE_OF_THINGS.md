@@ -18,6 +18,19 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView supervisor, 2026-11-04): client and trial change requests can always be sent again, CI timing races fixed, trial version tabs on the card
+
+- **Live and checked on the test client:**
+  - A client's change request after a reload keeps its words: a refused re-send shows a real Try again with the words, and lands once (697, #2598).
+  - A refused change on a trial version (status kept) can be sent again and lands once (699, #2599); before, it was stuck as "still being confirmed".
+  - The reload during a save lands with its words (691, #2583); a client deleting their own change request on a linked part deletes the Production copy too (690, #2584; cleanup of 4 orphan rows waits on the owner).
+  - The thumbnail revision scan stays green with a non-image thumbnail row (695, #2589); CI checkouts take about 12 s instead of minutes (693, #2587).
+- **Merged, not driven live:** a TikTok caption typed just before the page remounts is kept (700, #2600; the live bundle carries it since 12:56 UTC, the form needs a staff session). Two CPU-load timing races in browser-guards are fixed with bounded waits (698, #2597; runner headroom 87% memory free, load 5.7 on 4 CPUs).
+- **Trial versions (688), behind `trial_versions_v2`:** all three parts merged: review boards (#2590), "Version A" naming elsewhere (#2592), and A/B/C tabs on the Calendar card with a dot per version in Month and Week (#2591).
+- **Post tab:** pipeline-social's watch builds its video base64 natively (#2601), the suspect for the 502 bursts; no function 5xx in the 09:31 to 12:31 window.
+- **Test-only:** 690's test waits for the card's own save (#2602, the cause of main's one red at 10:21); 699's test has a 4-minute watchdog and bounded waits (#2603).
+- **Still open on this track:** Kasper's Redo (694, #2588) and tooltips (686, #2579) next in the queue, then 685 (#2576).
+
 ## Latest (SyncView supervisor, 2026-11-03 daytime): posting from a card, trial version import and fields, Post for Me accounts link themselves
 
 - **Live and checked:**

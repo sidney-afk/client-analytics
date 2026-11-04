@@ -272,3 +272,7 @@ verify_jwt = false
 # checked in code, behind the trial_reels_pages switch.
 [functions.trial-reels]
 verify_jwt = false
+
+# Weekly followers snapshot (step 1): x-analytics-collect-key checked in code (same key as the daily collectors); pg_cron on Mondays.
+[functions.analytics-weekly-followers]
+verify_jwt = false

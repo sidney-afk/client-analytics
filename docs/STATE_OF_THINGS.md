@@ -31,6 +31,7 @@ line is older than a week, re-check it before relying on it.
 - **Test-only:** 690's test waits for the card's own save (#2602, the cause of main's one red at 10:21); 699's test has a 4-minute watchdog and bounded waits (#2603).
 - **Kasper's Redo (694, #2588):** merged. Each part on Kasper's review board has a Redo button: the first click arms it ("Send redo?"), a second within 4 s sends one fixed team-only note and sets Tweaks Needed. Not yet used live.
 - **Still open on this track:** tooltips (686, #2579), then 685 (#2576).
+- **Weekly analytics snapshot, step 1 (701, built, not yet merged or applied):** `analytics-weekly-followers` reads followers per client and platform every Monday UTC into `analytics_weekly_snapshot` (migration `2026-11-04-analytics-weekly-followers.sql`; run and read it as the migration header says). Step 2 (top posts) is not started.
 
 ## Latest (SyncView supervisor, 2026-11-03 daytime): posting from a card, trial version import and fields, Post for Me accounts link themselves
 

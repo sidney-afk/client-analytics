@@ -1,6 +1,7 @@
 import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
+import { loadCalendarPosts } from './150-calendar-hydration-import.js';
 import { _calApplyAutoStatus, svCalReviewApproveKeeping, svCalResolveVersionTweaks } from './190-calendar-approval-comments.js';
 import { _calCommentsFor, _calCommentsForView, _calPendingEdits, _calSaveInFlight, _calSaveTimers, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
@@ -1455,7 +1456,27 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Kept while the save runs, not written as the page goes: WebKit (Safari) did not keep a note written at
        pagehide (CI, 2026-11-02), and a request from a page being unloaded is not reliably delivered either. */
     const RS_INFLIGHT_KEY = 'syncview_rs_inflight_v1';
+    /* A page that is leaving keeps the note as it is. WebKit fails a leaving page's requests back to it before it goes,
+       so its save ended there and the note was cleared on the way out: the next page had nothing to report, and a
+       reload during one of Kasper's approves went unreported on Safari (CI trace, 4 Nov). Back on the page (a cancelled
+       leave, or the back-forward cache), the note is written afresh. */
+    // beforeunload holds it for a second only, since a leave can still be cancelled (the client link asks first when
+    // words are unsent) and no pageshow follows then; pagehide, which comes only as the page really goes, holds it
+    // until the page is shown again.
+    let _rsLeaving = false, _rsLeaveTimer = 0;
+    const _rsMarkLeaving = (soft) => {
+        try {
+            if (!(R.S && R.S.inflight && Object.keys(R.S.inflight).length)) return;
+            _rsLeaving = true;
+            clearTimeout(_rsLeaveTimer);
+            _rsLeaveTimer = soft ? setTimeout(() => { _rsLeaving = false; _rsInflightWrite(); }, 1000) : 0;
+        } catch (e) {}
+    };
+    window.addEventListener('beforeunload', () => _rsMarkLeaving(true));
+    window.addEventListener('pagehide', () => _rsMarkLeaving(false));
+    window.addEventListener('pageshow', () => { if (_rsLeaving) { clearTimeout(_rsLeaveTimer); _rsLeaving = false; _rsInflightWrite(); } });
     function _rsInflightWrite() {
+        if (_rsLeaving) return;
         try {
             const S = R.S, saving = Object.keys((S && S.inflight) || {}).map(k => S.inflight[k]).slice(0, 10)
                 .map(e => ({ card: e.card, component: e.component, client_slug: e.client_slug, board: e.board, act: e.act, sxr: e.sxr }));
@@ -1494,6 +1515,75 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsInflightTimer = setTimeout(tick, 400);
         } catch (e) {}
     }
+    /* A save the reload cut off usually lands anyway: the server finishes a request it has received, and this page
+       sends a change or a note again from its recovery copy and outbox. Seen live (3 Nov): a client's change request
+       on iPhone Safari landed (one status change, one note) while the report said only that the page had reloaded,
+       which the watcher reads as a blocked client. So this page watches each save it reported, on the cards it reads,
+       for up to two minutes, and says once when that card shows it: `landed_after_retry`, with the same card, part and
+       action, which the watcher's signature read already joins (it then reads retry_landed). A save that never shows
+       is never said to have landed. Calendar cards only (a Sample's save is not followed here). */
+    const RS_RELOAD_WATCH_MS = 120000;
+    function _rsReloadPost(card) {
+        if (R.mode === 'kasper') {
+            if (!_kasperState.lastLoaded || _kasperState.loading) return undefined;   // not read yet
+            const it = (_kasperState.items || []).find(i => i && !i._sxr && i.post && String(i.post.id) === card);
+            return it ? { post: it.post, item: it } : null;
+        }
+        if (calState.loading || !(calState.posts || []).length) return undefined;
+        const post = (calState.posts || []).find(p => p && String(p.id) === card);
+        return post ? { post, item: null } : null;
+    }
+    // Whether the card as this page read it shows the save: the part's status for an approve or a change, and no note
+    // of this card's still waiting in the outbox (a change request's words, or a note).
+    function _rsReloadLanded(x, hadNote) {
+        const card = String(x.card || ''), comp = String(x.component || ''), act = String(x.act || '');
+        const found = _rsReloadPost(card);
+        if (found === undefined) return false;
+        if (_calReviewState.saving[card + '|' + comp] || _calReviewState.errors[card + '|' + comp] || _calSaveInFlight[card] || _calPendingEdits[card]) return false;
+        // Kasper's board shows his approve at once and keeps its own save on the item until it ends: a press during the
+        // watch is not a landing until that save is done and refused nothing (Codex on #2576).
+        const it = found && found.item;
+        if (it && ((it._saving && it._saving[comp]) || (it._errors && it._errors[comp]))) return false;
+        let pending = 0;
+        try { pending = _noteOutboxFor(card, e => e.state !== 'sent').length; } catch (e) { pending = 0; }
+        if (pending) return false;
+        if (act === 'comment') return !!hadNote;
+        // On Kasper's board an approved card can leave his list, so "gone" counts as landed there, as for a retry.
+        if (!found) return R.mode === 'kasper' && act === 'approve';
+        const ps = _rsPartState(found.post, comp, R.mode, found.item);
+        if (act === 'approve') return R.mode === 'kasper' ? !ps || ps.st !== 'wait' : !!ps && ps.st === 'ok';
+        if (act === 'tweak') return !!ps && (ps.st === 'chg' || ps.st === 'tweak');
+        return false;
+    }
+    function _rsReloadLandedWatch(saving) {
+        try {
+            const left = (saving || []).filter(x => x && !x.sxr && x.card && x.component && /^(approve|tweak|comment)$/.test(String(x.act || '')));
+            if (!left.length) return;
+            const t0 = Date.now();
+            const notes = {};
+            left.forEach(x => { try { notes[x.card] = _noteOutboxFor(String(x.card)).length > 0; } catch (e) { notes[x.card] = false; } });
+            // The cards this page read can be older than the save: a request the reload cut off can still finish on
+            // the server after this page read them. So the Calendar's cards are read again, quietly, the way a tab
+            // coming back reads them (Kasper's board already reads his again after a reload, above).
+            const rereadAt = [6000, 20000, 60000];
+            const tick = () => {
+                try {
+                    for (let i = left.length - 1; i >= 0; i--) {
+                        const x = left[i];
+                        if (!_rsReloadLanded(x, notes[x.card])) continue;
+                        left.splice(i, 1);
+                        _writeUiReviewEvent('calendar', 'review_reload_mid_save', 'landed_after_retry', { card: String(x.card), component: String(x.component), client_slug: String(x.client_slug || ''), board: x.board });
+                    }
+                    if (left.length && R.mode !== 'kasper' && rereadAt.length && Date.now() - t0 >= rereadAt[0]) {
+                        rereadAt.shift();
+                        if (!calState.loading) loadCalendarPosts({ background: true, quiet: true });
+                    }
+                } catch (e) {}
+                if (left.length && Date.now() - t0 < RS_RELOAD_WATCH_MS) setTimeout(tick, 500);
+            };
+            setTimeout(tick, 500);
+        } catch (e) {}
+    }
     let _rsInflightChecked = false;
     function _rsAfterReload() {
         if (_rsInflightChecked) return;
@@ -1507,6 +1597,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         note.saving.forEach(x => {
             try { _writeUiReviewEvent(x.sxr ? 'sxr' : 'calendar', 'review_reload_mid_save', String(x.act || 'save'), { card: String(x.card || ''), component: String(x.component || ''), client_slug: String(x.client_slug || ''), board: x.board }); } catch (e) {}
         });
+        _rsReloadLandedWatch(note.saving);
         if (note.mode !== 'kasper' || R.mode !== 'kasper' || !(Date.now() - Number(note.at) < 60000)) return;
         /* Never while a save on his board is running: a re-read replaces the cards and would drop that save's
            "saving" guard and its place in the card's chain of writes (Codex on PR 2485). It waits for the board to be

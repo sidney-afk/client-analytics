@@ -1,7 +1,7 @@
 # One card, many versions: the plan (session Trialplan, 4 Nov 2026)
 
 **Plan only. No code, no migration, no deploy, no data change.** Plain English.
-**Status: revision 3, 4 Nov 2026 ~21:30 UTC, final for review.** All of Sidney's answers (section 9, Q1 to Q17, and A to D in section 12) and the first adversarial review's findings are in. **Revision 3 reverses one earlier reading:** after a winner the card now *becomes* the winner (section 3.3), so the earlier "nothing is copied" is gone. Open for him: E and F, and the two questions in 3.4. Where an answer changed the plan, the text below is already rewritten; section 9 lists each answer and where it landed.
+**Status: revision 3, 4 Nov 2026 ~21:30 UTC, final for review.** All of Sidney's answers (section 9, Q1 to Q17, and A to D in section 12) and the first adversarial review's findings are in. **Revision 3 reverses one earlier reading:** after a winner the card now *becomes* the winner (section 3.3), so the earlier "nothing is copied" is gone. Only Q-G and Q-H (3.4) are open with him. Where an answer changed the plan, the text below is already rewritten; section 9 lists each answer and where it landed.
 Counts quoted from earlier measurements are dated; step 1 below re-measures them before anything is built.
 The only live read was one counts-only query on the version table (section 7.1). What was read: STATE_OF_THINGS, OPEN_REPAIRS 688 (parts 1 to 3), 656/657/659/661, ATLAS "Trial reels", `src/index/189`, `194`, `245`, `299`, the `trial-reels` Edge Function (`logic.mjs`, `index.ts`), the three trial migrations, draft plans #2521, #2524 and the design-options PR #2581.
 
@@ -248,7 +248,7 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 
 ### Process before any build (Sidney, 4 Nov)
 
-1. Sidney approves this plan (after Q-A to Q-F are answered).
+1. Sidney approves this plan (after Q-G and Q-H are answered).
 2. **A strong model reviews the plan once more**, after his approval.
 3. **Only when the plan is final are the mockups made** (step 0). No mockup and no build starts before that.
 
@@ -286,5 +286,5 @@ Each step ships with a browser test at 1440 and 390 that fails on `main` and pas
 - **Q-B. Does the winner show on Month and Week and get posted?** **Answered (~21:15):** yes, the card behaves as the winner everywhere. Built as the swap in 3.3.
 - **Q-C. Notes with no version prefix?** **Answered:** they sit under Whole post.
 - **Q-D. A card with A approved and B waiting on the client: does it stay in the client's queue?** **Answered:** yes, any version waiting for approval shows on that board.
-- **Q-E. Approving.** Confirm that "Approve Version B" approves all three parts, and that each part can also be approved alone. Default: yes, as in section 6 and step 8.
-- **Q-F. The cap.** Confirm it is A to E (he wrote "ABCDF"). Existing F and G rows stay readable (all three are dropped) and are simply not shown as tabs. Default: A to E. Same as Q17.
+- **Q-E. Approving.** **Answered:** one "Approve Version B" approves all three parts, and each part can also be approved alone.
+- **Q-F. The cap.** **Answered:** A to E; existing F and G rows stay readable (all three are dropped) and are not shown as tabs.

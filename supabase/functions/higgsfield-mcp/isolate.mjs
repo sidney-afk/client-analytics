@@ -10,7 +10,7 @@
 // The docs do NOT say what format comes back, so the result is stored under the type the answer names
 // (usually MP3) and the card says so. The first live call must confirm it (HIGGSFIELD_CONNECTOR_LESSONS rule 1).
 import { elevenKey } from "./transcribe.mjs";
-import { readWavHead, MAX_VOICE_SECONDS, LINK_SECONDS, VOICE_MODEL, money } from "./voice.mjs";
+import { readWavHead, parseWavHeader, MAX_VOICE_SECONDS, LINK_SECONDS, VOICE_MODEL, money } from "./voice.mjs";
 
 export const ISOLATE_URL = "https://api.elevenlabs.io/v1/audio-isolation";
 export const DEFAULT_USD_PER_MIN = 0.12;
@@ -28,6 +28,10 @@ export function usdPerMinute(raw) {
 // Billed by the audio's length, a started minute counts (rounded up to the cent, never low).
 export function isolatePrice(seconds, rate) {
   return Math.ceil(Math.ceil((Number(seconds) || 0) / 60) * rate * 100 - 1e-9) / 100;
+}
+// The content type stored with the file: always one the private bucket accepts.
+export function typeFor(ext) {
+  return { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg", flac: "audio/flac", m4a: "audio/mp4" }[ext] || "audio/mpeg";
 }
 export function extFor(type) {
   const t = String(type || "").toLowerCase();
@@ -84,17 +88,31 @@ export async function isolateCleanup(args, d) {
     await d.update(rowId, { status: "failed", est_cost_usd: 0, error: "could not record the job", updated_at: nowIso(d) }).catch(() => {});
     return "Could not record the job, so nothing was started or spent. Try again.";
   }
-  d.background(runIsolate(d, key, rowId, jobId, link));
+  d.background(runIsolate(d, key, rowId, jobId, link, wav.seconds));
   return `Started: voice isolator, about ${money(usd)}.\njob_id: ${jobId}\nNow call wait_for_job with this job_id. It usually takes about a minute.`;
 }
 
-async function runIsolate(d, key, rowId, jobId, link) {
+async function runIsolate(d, key, rowId, jobId, link, reservedSeconds) {
   const fail = (status, error) => d.update(rowId, { status, error, updated_at: nowIso(d) }).catch(() => {});
   try {
-    const src = await d.fetch(link, { redirect: "follow" });
+    // Every hop is checked as a public address, like the header read.
+    let url;
+    try { url = new URL(link); } catch { return await fail("failed", "the link is not valid"); }
+    let src = null;
+    for (let hop = 0; hop < 6 && !src; hop++) {
+      if (!(await d.publicHost(url))) return await fail("failed", "the link points somewhere that is not a public https address");
+      const r = await d.fetch(url.toString(), { redirect: "manual" });
+      if (r.status >= 300 && r.status < 400 && r.headers.get("location")) { await r.body?.cancel?.(); url = new URL(r.headers.get("location"), url); continue; }
+      src = r;
+    }
+    if (!src) return await fail("failed", "the link redirects too many times");
     if (!src.ok) return await fail("failed", `could not download the recording (${src.status})`);
+    if (Number(src.headers.get("content-length") || 0) > MAX_ISOLATE_BYTES) return await fail("failed", "the recording is over 100 MB");
     const bytes = new Uint8Array(await src.arrayBuffer());
     if (bytes.length > MAX_ISOLATE_BYTES) return await fail("failed", "the recording is over 100 MB");
+    // The file actually downloaded must be the one that was priced (it can differ from the header read earlier).
+    const got = parseWavHeader(bytes, bytes.length);
+    if (got.error || !(got.seconds <= MAX_VOICE_SECONDS) || got.seconds > reservedSeconds + 2) return await fail("failed", "the recording changed after it was priced (or is not a plain WAV), so it was not sent");
     const form = new FormData();
     form.append("audio", new Blob([bytes], { type: "audio/wav" }), "voice.wav");
     let res;
@@ -113,7 +131,7 @@ async function runIsolate(d, key, rowId, jobId, link) {
     const type = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
     if (type.includes("json") || type === "text/html") return await fail("failed_charged", "ElevenLabs answered with text instead of audio");
     const path = `${jobId}.${extFor(type)}`;
-    await d.upload(path, res.body, type.startsWith("audio/") ? type : "audio/mpeg");
+    await d.upload(path, res.body, typeFor(extFor(type)));
     await d.update(rowId, { status: "completed", video_url: path, error: null, updated_at: nowIso(d) });
   } catch (e) {
     await fail("failed_charged", "could not finish: " + String(e?.message || e).replace(/https?:\/\/\S+/g, "(link)").slice(0, 200));

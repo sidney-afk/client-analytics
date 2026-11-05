@@ -34,7 +34,7 @@ function harness({ env = { ELEVENLABS_KEY: 'k-not-real' }, seconds = 120, iso } 
     fetch: async (url, init = {}) => {
       calls.fetch.push({ url, init });
       if (url === FILE && init.headers && init.headers.Range) return new Response(stream(f.bytes), { status: 206, headers: { 'content-type': 'audio/wav', 'content-range': `bytes 0-${f.bytes.length - 1}/${f.total}` } });
-      if (url === FILE) return new Response(Buffer.alloc(1000), { status: 200 });
+      if (url === FILE) return new Response(f.bytes, { status: 200 });
       if (url === 'https://api.elevenlabs.io/v1/audio-isolation') return iso ? iso(init) : new Response(stream(new Uint8Array([1, 2, 3])), { status: 200, headers: { 'content-type': 'audio/mpeg' } });
       return new Response(null, { status: 404 });
     },
@@ -86,6 +86,17 @@ function harness({ env = { ELEVENLABS_KEY: 'k-not-real' }, seconds = 120, iso } 
   // Stale running job.
   { const h = harness(); const row = { id: 1, status: 'in_progress', est_cost_usd: 0.24, updated_at: '2026-11-05T09:00:00Z', params: { engine: 'elevenlabs' } }; h.rows.set(1, row);
     assert.ok((await iso.isolateCheck(row, h.d)).includes('never finished')); assert.strictEqual(row.status, 'failed_charged'); }
+
+  // The download is checked again: a longer file than the one priced is not sent, and redirects are public-checked.
+  { const longer = wav(280); const h2 = harness({ seconds: 120 }); const base = h2.d.fetch;
+    h2.d.fetch = async (u, i = {}) => (u === FILE && !(i.headers && i.headers.Range) ? new Response(Buffer.concat([Buffer.from(longer.bytes), Buffer.alloc(280 * 96000 - 16)]), { status: 200 }) : base(u, i));
+    await v.voiceCleanup({ file: FILE, engine: 'elevenlabs', go: true }, h2.d); await Promise.all(h2.calls.bg);
+    assert.strictEqual(h2.rows.get(1).status, 'failed'); assert.ok(/changed after it was priced/.test(h2.rows.get(1).error));
+    assert.ok(!h2.calls.fetch.some((c) => c.url.includes('audio-isolation')), 'nothing paid was sent'); }
+  { const h = harness(); const base = h.d.fetch; h.d.publicHost = async (u) => !/internal/.test(u.hostname);
+    h.d.fetch = async (u, i = {}) => (u === FILE && !(i.headers && i.headers.Range) ? new Response(null, { status: 302, headers: { location: 'https://internal.test/x.wav' } }) : base(u, i));
+    await v.voiceCleanup({ file: FILE, engine: 'elevenlabs', go: true }, h.d); await Promise.all(h.calls.bg);
+    assert.strictEqual(h.rows.get(1).status, 'failed'); assert.ok(/not a public/.test(h.rows.get(1).error)); }
 
   // Auphonic stays the default.
   assert.deepStrictEqual(v.VOICE_TOOL.inputSchema.properties.engine.enum, ['auphonic', 'elevenlabs']);

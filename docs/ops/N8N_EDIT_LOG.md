@@ -579,3 +579,12 @@ credential; wiring Clients Info Verified? (true) → Read Sales Intake → Build
 unchanged; Post Kickoff's text `{{ $json.kickoff_text }}`. The validator's two warnings (userIds on the two invite steps) were
 there before. Live proof: the next real client's kickoff.
 Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.
+
+## 2026-11-05 Recovery and booking-link emails: nurture footer, no broken lines, capital subject (owner's go in the thread, Ads lane)
+Why: a test lead's "you didn't get to finish" email had a lowercase subject, lines cut in the middle of sentences and no footer. Cause: the plain-text send of the Gmail step wraps text at about 76 characters with real line breaks, and the plain-text wording ended with a bare "Kasper".
+- Sales, Doctors Instant Booking Link (`cM3G9REliKpwicnR`): before `310de0e9-a128-4aba-96a5-bd88e2fd5683`, after `871657b2-1d03-4938-a14f-d155522914d9` (published). "Build Email HTML" now adds "Warmly," before the nurture footer; "Send Instant Email" is HTML again and sends that HTML; its subject gets a capital first letter.
+- Sales, Booking Recovery Dispatch (`nQ4vnZ8bmG3E3Lor`): before `8310a497-fdee-4db5-a77d-51a13ea8bd4a`, after `24ae0b2b-07c5-49d3-9417-05f1f4c82f0d` (published). Same change in "Build Email HTML" and "Send Recovery Email (Human)". This covers the 30 minute reminder and the left-before-Submit email, doctors and doctors who teach. The older non-human recovery email is unchanged.
+Words are unchanged. Only layout, sign-off and the subject's first letter changed. Reply-to and sender name are unchanged.
+Risk: on 23 Oct the HTML version with the logo landed in Gmail's Promotions tab. The owner asked for the nurture footer anyway; check the inbox tab on the first real send.
+Tested: owner approved the six samples in his inbox. Live end to end test with a test address pending (the next test submit).
+Undo: restore the "before" version of each workflow in n8n's workflow history and publish.

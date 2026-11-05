@@ -14,6 +14,8 @@
 // bucket "voice" and hand back a signed link. Auphonic's own download link is
 // never shown: it only works with the account's key attached.
 
+import { isolateCleanup, isolateCheck } from "./isolate.mjs";
+
 export const VOICE_MODEL = "auphonic/voice-cleanup";
 export const VOICE_BUCKET = "voice";
 export const AUPHONIC_API = "https://auphonic.com/api";
@@ -272,11 +274,12 @@ export const VOICE_TOOL = {
   description: "Clean up a recorded voice with Auphonic: background noise removed and nothing else changed (no levelling, no loudness change, room sound kept, nothing cut, same sample rate). Takes a WAV of up to 5 minutes and about 200 MB. strength: gentle (noise down by up to 12 dB), strong (noise removed fully), studio (gentle plus Auphonic's Studio Voice filter). First call it WITHOUT go: it only shows the price card, which you show the person exactly as returned, ending with \"Say go, or tell me what to change.\" Only after they say go, call it again with the same file and strength and go: true. That returns a job_id: call wait_for_job with it until it is done; the result is a private WAV download link that works for 1 hour (check_job with the same job_id gives a fresh one).",
   inputSchema: {
     type: "object",
-    required: ["file", "strength"],
+    required: ["file"],
     additionalProperties: false,
     properties: {
       file: { type: "string", description: "Link to the WAV itself: the public_url from get_upload_link (content_type audio/wav) for a file on the computer, the link import_file returned, or a Drive or Dropbox link shared as anyone with the link." },
-      strength: { type: "string", enum: STRENGTHS, description: "gentle, strong or studio." },
+      strength: { type: "string", enum: STRENGTHS, description: "gentle, strong or studio (Auphonic only; leave it out for engine elevenlabs)." },
+      engine: { type: "string", enum: ["auphonic", "elevenlabs"], description: "auphonic (default) or elevenlabs (ElevenLabs Voice Isolator: strips everything but the voice, flat price per minute). Use elevenlabs when Auphonic is out of hours or the person asks for the isolator." },
       go: { type: "boolean", description: "true only after the person said go to this file's price card." },
     },
   },
@@ -285,7 +288,7 @@ export const VOICE_TOOL = {
 // Reads the first bytes of the file (a range request), following redirects
 // by hand so every hop passes the public-address check. Returns the WAV
 // facts, or a sentence for the person.
-async function readWavHead(link, d) {
+export async function readWavHead(link, d) {
   let url;
   try { url = new URL(link); } catch { return "The link must start with https://"; }
   for (let hop = 0; hop < 6; hop++) {
@@ -365,6 +368,7 @@ const BAD_RATE = "Could not price it: the Auphonic price setting (AUPHONIC_USD_P
 //      idemKey(member, model, input), reserve(p), update(id, fields, only),
 //      byRequest(jobId), upload(path, body, type), sign(path, seconds) }
 export async function voiceCleanup(args, d) {
+  if (String(args.engine || "auphonic").trim().toLowerCase() === "elevenlabs") return await isolateCleanup(args, d);
   const key = String(d.env("AUPHONIC_KEY") || "").trim();
   if (!key) return NO_KEY_TEXT;
   const strength = String(args.strength || "").trim().toLowerCase();
@@ -437,6 +441,7 @@ const STILL_SAVING = "Still working (saving the cleaned file). Check again in ab
 export async function voiceCheck(jobId, d) {
   const row = await d.byRequest(jobId);
   if (!row) return "That job_id does not look right.";
+  if (row.params?.engine === "elevenlabs") return await isolateCheck(row, d);
   const cost = money(Number(row.est_cost_usd || 0));
   const path = `${jobId}.wav`;
   if (row.status === "completed" && row.video_url) {

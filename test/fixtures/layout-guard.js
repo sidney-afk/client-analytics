@@ -106,6 +106,8 @@ function layoutScan(opts) {
     let own = '';
     for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent;
     if (!own.trim() || !inScope(el) || ignored(el) || !isVisible(el)) continue;
+    // A label a click passes through (pointer-events: none) takes nothing away from the control under it.
+    if (getComputedStyle(el).pointerEvents === 'none') continue;
     const range = document.createRange();
     for (const n of el.childNodes) {
       if (n.nodeType !== 3 || !n.textContent.trim()) continue;

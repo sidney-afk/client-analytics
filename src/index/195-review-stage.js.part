@@ -255,6 +255,8 @@ svg{display:block;flex-shrink:0}
 .player{container-type:inline-size}
 .player img.poster,.bigthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none}
 .bigthumb img#bigthumbImg:not([hidden]){cursor:zoom-in}
+/* The "Thumbnail" label on the picture lets a click through to it, so pressing the label zooms too (Layoutpass, 714). */
+.bigthumb>.mpill{pointer-events:none}
 .bigthumb img#bigthumbImg:focus-visible{outline:3px solid var(--accent,#3737f2);outline-offset:-3px}
 .player .vignette{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.72) 0,rgba(0,0,0,.28) 22%,rgba(0,0,0,0) 48%)}
 .player .subs{position:absolute;left:10%;right:10%;bottom:24%;text-align:center;color:#fff;font-size:clamp(14px,6.4cqw,26px);font-weight:800;line-height:1.22;text-shadow:0 1px 2px rgba(0,0,0,.7),0 0 14px rgba(0,0,0,.4);pointer-events:none}

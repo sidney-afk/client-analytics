@@ -14,7 +14,9 @@
  * Surfaces: Kasper's Review Session in his second layout (a vertical and a wide video, the Approve menu open, the
  * conversation with notes, a trial card with its version tiles), his one-at-a-time page below 1360, Messages and the
  * More menu; the client link's Review, Sheet, Month and Week, the card view with Notes and About this post (a reel and
- * a carousel), and a phone. LAYOUT_GUARD_ENGINES=chromium,webkit picks the engines (both by default); CI requires WebKit
+ * a carousel), and a phone. The thumbnail zoom (#2623) at every width and zoom: the picture is pressable where it shows,
+ * has the zoom-in cursor, opens a viewer that fits the window with its X (and a carousel's "Open in Drive") clear of
+ * each other, and Esc closes it. LAYOUT_GUARD_ENGINES=chromium,webkit picks the engines (both by default); CI requires WebKit
  * with LAYOUT_GUARD_REQUIRE_WEBKIT=1 (Kasper reviews on a Mac in Safari). LAYOUT_GUARD_FULL=1 runs every width at every
  * zoom in both themes (the pass the guard was built from); the default is a smaller grid that still crosses every
  * step of the decision row and the player's bar. LAYOUT_GUARD_SHOTS=<dir> saves a screenshot per surface and width.
@@ -32,7 +34,7 @@ const SHOTS = process.env.LAYOUT_GUARD_SHOTS || '';
 const WIDTHS = FULL ? [1280, 1366, 1440, 1536, 1600, 1920, 2560] : [1280, 1366, 1440, 1536, 1600, 1920, 2560];
 const ZOOMS = FULL ? [1, 1.1, 1.25, 1.5] : [1, 1.25, 1.5];
 const THEMES = FULL ? [false, true] : [false];
-const POPUPS = ['.apmenu', '.kasper-more-menu', '.sv-tip', '#globalTooltip', '.cal-comments-overlay'];
+const POPUPS = ['.apmenu', '.kasper-more-menu', '.sv-tip', '#globalTooltip', '.cal-comments-overlay', '#svThumbZoom'];
 const failures = [];
 let engine = '';
 let checks = 0;
@@ -49,6 +51,55 @@ function judge(where, r) {
   expect(r.count > 3, where + ': the page drew its controls (' + r.count + ')');
 }
 const shadow = (page, fn, arg) => page.evaluate(([src, a]) => (0, eval)('(' + src + ')')(document.getElementById('svReviewStage').shadowRoot, a), [fn.toString(), arg]);
+
+/* Thumbnail zoom (#2623): the picture is pressable where it shows (nothing lies over its middle), it says so with the
+   zoom-in cursor, a click opens the full-screen viewer, the viewer's picture fits the window, its X (and a carousel's
+   "Open in Drive") sit inside the window clear of each other, and Esc closes it. `sel` is looked up in the review
+   page's shadow root when `inShadow`, else in the document. */
+async function zoomCheck(t, where, sel, inShadow) {
+  // Reaching the picture may scroll the page; put it back after, so the next scan sees the page as it opened.
+  const scrollY = await t.page.evaluate(() => scrollY);
+  try { await zoomCheckAt(t, where, sel, inShadow); } finally { await t.page.evaluate(y => scrollTo(0, y), scrollY); await sleep(150); }
+}
+async function zoomCheckAt(t, where, sel, inShadow) {
+  const target = await t.page.evaluate(([q, sh]) => {
+    const root = sh ? document.getElementById('svReviewStage').shadowRoot : document;
+    const img = [...root.querySelectorAll(q)].find(i => !i.hidden && i.getAttribute('src') && i.getBoundingClientRect().width > 4);
+    if (!img) return null;
+    img.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const r = img.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const top = root.elementFromPoint(x, y);
+    return { x, y, cursor: getComputedStyle(img).cursor, onTop: top === img, top: top ? top.tagName.toLowerCase() + '.' + String(top.className || '') : 'nothing' };
+  }, [sel, !!inShadow]);
+  expect(!!target, where + ': the thumbnail is on screen to zoom');
+  if (!target) return;
+  expect(target.onTop, where + ': nothing lies over the thumbnail\'s middle, so a click reaches it (' + target.top + ')');
+  expect(target.cursor === 'zoom-in', where + ': the thumbnail shows the zoom-in cursor (' + target.cursor + ')');
+  await t.page.mouse.click(target.x, target.y);
+  const opened = await t.page.waitForFunction(() => { const o = document.getElementById('svThumbZoom'); return !!(o && o.classList.contains('open')); }, null, { timeout: 5000 }).then(() => true).catch(() => false);
+  expect(opened, where + ': a click on the thumbnail opens the full-screen viewer');
+  if (!opened) return;
+  await t.page.waitForFunction(() => { const i = document.querySelector('#svThumbZoom .sv-tz-img'); return !!(i && i.complete && i.naturalWidth); }, null, { timeout: 5000 }).catch(() => null);
+  await sleep(200);
+  const v = await t.page.evaluate(() => {
+    const o = document.getElementById('svThumbZoom'), W = innerWidth, H = innerHeight;
+    const box = el => { if (!el || el.hidden) return null; const r = el.getBoundingClientRect(); return r.width ? { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height } : null; };
+    const img = box(o.querySelector('.sv-tz-img')), x = box(o.querySelector('.sv-tz-x')), link = box(o.querySelector('.sv-tz-open'));
+    const inside = b => !b || (b.l >= -0.5 && b.t >= -0.5 && b.r <= W + 0.5 && b.b <= H + 0.5);
+    const cross = (a, b) => !!(a && b && Math.min(a.r, b.r) - Math.max(a.l, b.l) > 1 && Math.min(a.b, b.b) - Math.max(a.t, b.t) > 1);
+    const ob = o.getBoundingClientRect();
+    return { W, H, img, x, link, imgIn: inside(img), xIn: inside(x), linkIn: inside(link), xLink: cross(x, link), covers: ob.left <= 0 && ob.top <= 0 && ob.right >= W && ob.bottom >= H, sx: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth };
+  });
+  const B = b => b ? Math.round(b.l) + ',' + Math.round(b.t) + '-' + Math.round(b.r) + ',' + Math.round(b.b) : 'none';
+  expect(v.covers, where + ', viewer: it covers the whole window');
+  expect(v.img && v.imgIn, where + ', viewer: the picture fits the window (' + B(v.img) + ' in ' + v.W + 'x' + v.H + ')');
+  expect(v.x && v.xIn && v.x.w >= 24 && v.x.h >= 24, where + ', viewer: the X is inside the window and big enough to press (' + B(v.x) + ')');
+  expect(v.linkIn && !v.xLink, where + ', viewer: "Open in Drive" (when shown) is inside the window and clear of the X (' + B(v.link) + ')');
+  expect(v.sx <= 1, where + ', viewer: the page does not scroll sideways under it (' + v.sx + ' px)');
+  await t.page.keyboard.press('Escape'); await sleep(250);
+  const closed = await t.page.evaluate(() => { const o = document.getElementById('svThumbZoom'); return !(o && o.classList.contains('open')); });
+  expect(closed, where + ': Esc closes the viewer');
+}
 
 async function kasper(type, origin, z, opt) {
   const browser = await type.launch();
@@ -85,6 +136,15 @@ async function runKasper(type, origin) {
         const where = 'Kasper ' + (orient === 'l' ? 'wide video' : 'vertical video') + (dark ? ' dark' : '') + ' ' + W + ' at ' + Math.round(z * 100) + '% (' + s.width + ' CSS px)';
         judge(where, await scan(t.page));
         if (z === 1) await shot(t.page, 'kasper-' + orient + (dark ? '-dark' : '') + '-' + W);
+        // The thumbnail zoom on every width and zoom: in his second layout and on the one-at-a-time page (open its
+        // Thumbnail step first there).
+        if (!dark) {
+          await shadow(t.page, r => { const b = r.querySelector('[data-step="graphic"]'); if (b && b.offsetParent) b.click(); });
+          await sleep(350);
+          await zoomCheck(t, where + ', thumbnail zoom', '#bigthumbImg', true);
+          await shadow(t.page, r => { const b = r.querySelector('[data-step="video"]'); if (b && b.offsetParent) b.click(); });
+          await sleep(250);
+        }
         // The Approve menu open on the video (its items cover the page under them, never each other).
         const opened = await shadow(t.page, r => { const b = r.querySelector('.pn-d[data-pd="video"] [data-menu], .dec [data-menu]'); if (b && b.offsetParent) { b.click(); return true; } return false; });
         if (opened) {
@@ -178,6 +238,13 @@ async function runClient(type, origin) {
           const where = 'client ' + (v === 'organizer' ? 'Sheet' : v[0].toUpperCase() + v.slice(1)) + (dark ? ' dark' : '') + ' ' + W + ' at ' + Math.round(z * 100) + '% (' + s.width + ' CSS px)';
           judge(where, await scan(t.page));
           if (z === 1) await shot(t.page, 'client-' + v + (dark ? '-dark' : '') + '-' + W);
+          if (v === 'review' && !dark) {
+            await shadow(t.page, r => { const b = r.querySelector('[data-step="graphic"]'); if (b && b.offsetParent) b.click(); });
+            await sleep(350);
+            await zoomCheck(t, where + ', thumbnail zoom', '#bigthumbImg', true);
+            await shadow(t.page, r => { const b = r.querySelector('[data-step="video"]'); if (b && b.offsetParent) b.click(); });
+            await sleep(250);
+          }
         }
       }
       expect(!t.errors.length, 'client at ' + z + ': no page errors (' + t.errors.join(' | ') + ')');
@@ -201,6 +268,7 @@ async function runClient(type, origin) {
         expect(about === 1, 'client card view ' + W + ', ' + name + ': About this post shows (' + about + ')');
         judge('client card view ' + (phone ? 'phone' : W) + ', ' + name, await scan(t.page));
         await shot(t.page, 'client-card-' + (phone ? 'phone' : W) + '-' + (name.startsWith('A carousel') ? 'carousel' : 'reel'));
+        if (name.startsWith('A carousel')) await zoomCheck(t, 'client card view ' + (phone ? 'phone' : W) + ', carousel, thumbnail zoom', '#calNotesStage .sv-car-frame img', false);
         const more = t.page.locator('.sv-car-more');
         if (await more.count() && await more.first().isVisible()) { await more.first().click(); await sleep(300); judge('client card view ' + (phone ? 'phone' : W) + ', ' + name + ', Show more', await scan(t.page)); }
         await closeCard(t);

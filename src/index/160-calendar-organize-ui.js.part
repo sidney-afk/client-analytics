@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerRelease, svLayerTouches } from './041-core-layers.js';
-import { svCarouselBadgeHtml, svCarouselImageUrl, svCarouselLook, svCarouselMiniNote, svCarouselShareNoteHtml } from './191-carousel-preview.js';
+import { svCarouselOverImageHtml, svCarouselImageUrl, svCarouselLook, svCarouselMiniNote, svCarouselShareNoteHtml } from './191-carousel-preview.js';
 import { clientMap, showConfirm, showNotify, showToast, svArea, svBusyHtml } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
@@ -2928,7 +2928,7 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
        derivable, the Frame.io click-to-open card for Frame.io links, else the
        placeholder icon. */
     function _calThumbMediaHtml(info, onerror) {
-        if (info.url) return _calThumbImgTag(info, onerror) + (info.carousel && info.carousel.state === 'ok' ? svCarouselBadgeHtml(info.carousel) : '');
+        if (info.url) return info.carousel && info.carousel.state === 'ok' ? svCarouselOverImageHtml(_calThumbImgTag(info, onerror), info.carousel) : _calThumbImgTag(info, onerror);
         if (info.frame) {
             const card = _calThumbFrameHtml(info.frame, info.frameKind);
             const note = svCarouselShareNoteHtml(info);

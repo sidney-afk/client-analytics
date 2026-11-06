@@ -6,7 +6,8 @@
 // row first and refuses stale writes when the stored thumbnail_url differs.
 //
 // A second action, folder_preview (carousel preview, OPEN_REPAIRS 710): given a Drive FOLDER link on a card
-// of a client listed in the runtime flag carousel_preview_clients, it lists the folder with the API key only (so a
+// of a client listed in the runtime flag carousel_preview_clients (or any client, for a listed staff "viewers" member
+// holding a real staff role key), it lists the folder with the API key only (so a
 // folder that is not shared "Anyone with the link" reads as not_shared, never through the service account), picks
 // the first IMAGE by name, and answers { state, count, has_video, first_file_id }. Cached in
 // carousel_folder_preview_cache. No token or signed address ever leaves the function: the page draws the image from
@@ -24,6 +25,7 @@
 //   or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -296,17 +298,33 @@ async function listFolderPublic(folderId: string): Promise<PreviewAnswer> {
   return judgeListing(files);
 }
 
-async function previewAllowed(supabase: SupabaseClient, client: string): Promise<boolean> {
-  const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", PREVIEW_FLAG_KEY).maybeSingle();
-  if (error || !data || !data.value || typeof data.value !== "object") return false;
-  const v = data.value as JsonMap;
-  // Only a listed client: { "all": true } is deliberately not honoured here (this switch is for the test client).
-  const list = Array.isArray(v.clients) ? v.clients : [];
+// Pure: the flag value { "clients": [...], "viewers": [...] }. A listed client is allowed for anyone; a listed VIEWER
+// (a staff member, by roster name or id) is allowed for every client. { "all": true } is deliberately not honoured.
+export function clientListed(value: unknown, client: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  const list = Array.isArray((value as JsonMap).clients) ? (value as JsonMap).clients as unknown[] : [];
   const slug = slugOf(client);
   return !!slug && list.some(x => typeof x === "string" && slugOf(x) === slug);
 }
+export function viewerListed(value: unknown, actor: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  const list = Array.isArray((value as JsonMap).viewers) ? (value as JsonMap).viewers as unknown[] : [];
+  const who = clean(actor).toLowerCase();
+  return !!who && list.some(x => typeof x === "string" && clean(x) !== "*" && clean(x).toLowerCase() === who);
+}
 
-async function folderPreview(body: JsonMap): Promise<Response> {
+async function previewAllowed(supabase: SupabaseClient, client: string, req: Request): Promise<boolean> {
+  const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", PREVIEW_FLAG_KEY).maybeSingle();
+  if (error || !data || !data.value || typeof data.value !== "object") return false;
+  if (clientListed(data.value, client)) return true;
+  // A listed staff viewer previewing any client: the role key must be a real one (the secret decides, as everywhere);
+  // the actor header only says WHICH staff member, it never grants anything by itself.
+  const key = clean(req.headers.get("x-syncview-key"));
+  if (!key || !viewerListed(data.value, clean(req.headers.get("x-syncview-actor")))) return false;
+  return authorizeStaffKey(key, ["admin", "smm", "creative"]).ok;
+}
+
+async function folderPreview(body: JsonMap, req: Request): Promise<Response> {
   const client = clean(body.client);
   const folderId = driveFolderId(clean(body.folder_url) || clean(body.folder_id));
   if (!client || !folderId) return json({ ok: false, error: "client and folder required" }, 400);
@@ -315,7 +333,7 @@ async function folderPreview(body: JsonMap): Promise<Response> {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  if (!await previewAllowed(supabase, client)) return json({ ok: true, enabled: false });
+  if (!await previewAllowed(supabase, client, req)) return json({ ok: true, enabled: false });
 
   const cached = await supabase.from("carousel_folder_preview_cache")
     .select("state,image_count,has_video,first_file_id,checked_at").eq("folder_id", folderId).maybeSingle();
@@ -349,7 +367,7 @@ Deno.serve(async (req: Request) => {
   catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
 
   if (clean(body.action) === "folder_preview") {
-    try { return await folderPreview(body); }
+    try { return await folderPreview(body, req); }
     catch (_e) { return json({ ok: false, error: "preview failed" }, 500); }
   }
 

@@ -2,7 +2,7 @@ import { THUMBNAIL_FOLDER_RESOLVE_EF_URL } from './100-onboarding-staff-controls
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { svCarouselPreviewOn } from './188-review-stage-switch.js';
+import { svCarouselPreviewOn, svCarouselViewerHeaders } from './188-review-stage-switch.js';
 import { _calIsFolderLink, _calRenderBody, _calThumbFolderIconSvg } from './160-calendar-organize-ui.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* CAROUSEL PREVIEW (session Carouselbuild, 2026-11-06, OPEN_REPAIRS 710; Sidney: "I need a real sample. I need to see
@@ -58,7 +58,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const settle = (rec) => { SV_CAR.set(folderId, Object.assign({ at: Date.now() }, rec)); _svCarSchedule(); };
         fetch(THUMBNAIL_FOLDER_RESOLVE_EF_URL, {
             method: 'POST',
-            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, THUMBNAIL_FOLDER_RESOLVE_EF_URL),
+            headers: _syncviewEfHeaders(Object.assign({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, svCarouselViewerHeaders() || {}), THUMBNAIL_FOLDER_RESOLVE_EF_URL),
             body: JSON.stringify({ action: 'folder_preview', client: slug || client, folder_url: folderUrl })
         }).then(resp => resp.ok ? resp.json() : null).then(json => {
             if (!json || !json.ok || json.enabled === false) { settle({ state: 'error', count: 0, hasVideo: false, fileId: '' }); return; }

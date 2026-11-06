@@ -12,10 +12,11 @@ const code = [
   pick('function clean(', 'function hostOf('), pick('function isDriveFolderLink(', 'function extractDriveFileId('),
   pick('function addScheme(', 'function hostOf('),
   pick('const IMAGE_NAME_RE', 'async function listFolderPublic'),
+  pick('export function clientListed', 'async function previewAllowed'),
 ].join('\n').replace(/export (function|type)/g, '$1');
 const js = stripTypeScriptTypes(code);
-const ctx = { URL }; vm.createContext(ctx); vm.runInContext(js + '\nthis.driveFolderId=driveFolderId;this.sortByName=sortByName;this.judgeListing=judgeListing;this.slugOf=slugOf;', ctx);
-const { driveFolderId, sortByName, judgeListing, slugOf } = ctx;
+const ctx = { URL }; vm.createContext(ctx); vm.runInContext(js + '\nthis.driveFolderId=driveFolderId;this.sortByName=sortByName;this.judgeListing=judgeListing;this.slugOf=slugOf;this.clientListed=clientListed;this.viewerListed=viewerListed;', ctx);
+const { driveFolderId, sortByName, judgeListing, slugOf, clientListed, viewerListed } = ctx;
 const ID = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0';
 assert.strictEqual(driveFolderId('https://drive.google.com/drive/folders/' + ID + '?usp=sharing'), ID);
 assert.strictEqual(driveFolderId('drive.google.com/drive/u/0/folders/' + ID), ID);
@@ -31,6 +32,14 @@ const v = judgeListing([f('v', '00.mp4', 'video/mp4'), f('z', '09.jpg', 'image/j
 assert.deepStrictEqual({ ...v }, { state: 'ok', count: 2, has_video: true, first_file_id: 'y' }, 'a video is noted, never previewed');
 assert.strictEqual(judgeListing([f('d', 'notes.pdf', 'application/pdf')]).state, 'no_images');
 assert.strictEqual(slugOf('Sidney Test-Client'), 'sidneytestclient');
+// who may ask: a listed client, or a listed staff viewer (name, any case); never "*", never "all"
+const flag = { clients: ['Test-Client'], viewers: ['Sidney Boss', '*'] };
+assert(clientListed(flag, 'testclient') && !clientListed(flag, 'other'), 'listed clients only');
+assert(viewerListed(flag, 'sidney boss') && viewerListed(flag, 'SIDNEY BOSS'), 'a listed viewer, whatever the case');
+assert(!viewerListed(flag, 'someone else') && !viewerListed(flag, '*') && !viewerListed(flag, ''), 'not listed, no wildcard, no empty name');
+assert(!viewerListed({ clients: ['x'] }, 'sidney boss') && !clientListed({ all: true }, 'anyone') && !viewerListed(null, 'x'), 'no viewers, "all" and a missing row grant nothing');
+const allow = pick('async function previewAllowed', 'async function folderPreview');
+assert(/authorizeStaffKey\(key, \["admin", "smm", "creative"\]\)\.ok/.test(allow) && /x-syncview-key/.test(allow), 'a viewer needs a real staff role key; the actor header alone grants nothing');
 // the function refuses without the flag and never reads Drive through the service account for a folder
 assert(/previewAllowed/.test(src) && /clients/.test(src) && !/all === true/.test(pick('async function previewAllowed', 'async function folderPreview')), 'only listed clients; "all" is not honoured');
 const listFn = pick('async function listFolderPublic', 'async function previewAllowed');

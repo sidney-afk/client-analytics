@@ -15,7 +15,7 @@ const http = require('http');
 const path = require('path');
 const assert = require('assert');
 const { chromium } = require('playwright');
-const { seedStaffGate } = require('../qa/staff-gate-seed.js');
+const { seedStaffGate, seedStaffIdentity } = require('../qa/staff-gate-seed.js');
 
 const root = path.resolve(__dirname, '..');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
@@ -59,7 +59,9 @@ function rows(slug) {
   ];
 }
 
+// flagOn: true = { clients: [SLUG] }; false = no row; an object = that flag value (e.g. { clients: [], viewers: [...] }).
 async function install(ctx, origin, flagOn, calls) {
+  const flagValue = flagOn === true ? { clients: [SLUG] } : (flagOn || null);
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -78,7 +80,12 @@ async function install(ctx, origin, flagOn, calls) {
     if (u.pathname === '/functions/v1/thumbnail-folder-resolve') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       calls.preview.push({ body, headers: r.headers() });
-      if (!flagOn) return json({ ok: true, enabled: false });
+      if (!flagValue) return json({ ok: true, enabled: false });
+      // The server's rule, mirrored: a listed client, or a listed viewer's real staff key (test key = the seed's).
+      const h = r.headers();
+      const viaClient = (flagValue.clients || []).includes(SLUG);
+      const viaViewer = !!h['x-syncview-key'] && (flagValue.viewers || []).map(v => String(v).toLowerCase()).includes(String(h['x-syncview-actor'] || '').toLowerCase());
+      if (!viaClient && !viaViewer) return json({ ok: true, enabled: false });
       if (folderIdOf(String(body.folder_url || '')) === folderIdOf(SHARED_URL)) return json({ ok: true, enabled: true, state: 'ok', count: FILE_IDS.length, has_video: false, first_file_id: FILE_IDS[0] });
       return json({ ok: true, enabled: true, state: 'not_shared', count: 0, has_video: false, first_file_id: '' });
     }
@@ -89,7 +96,7 @@ async function install(ctx, origin, flagOn, calls) {
       const q = decodeURIComponent(u.search);
       const out = [];
       if (/prod_authority/.test(q)) out.push({ key: 'prod_authority', value: { video: 'linear', graphics: 'linear' } });
-      if (/carousel_preview_clients/.test(q) && flagOn) out.push({ key: 'carousel_preview_clients', value: { clients: [SLUG] } });
+      if (/carousel_preview_clients/.test(q) && flagValue) out.push({ key: 'carousel_preview_clients', value: flagValue });
       if (/frame_viewer_clients/.test(q)) out.push({ key: 'frame_viewer_clients', value: { clients: [SLUG] } });
       return json(out);
     }
@@ -241,6 +248,86 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
       await shot(page, 'staff-card-dialog');
       ok(errors.length === 0, 'staff: page errors ' + errors.join(' | '));
       await ctx.close();
+    }
+
+    // ---- 4. Staff VIEWERS: a listed staff member sees any client; a client's own browser never does ----
+    {
+      const viewerFlag = { clients: [], viewers: ['qa staff'] };
+      // 4a. staff app, listed viewer, a client the switch does not list
+      {
+        const calls = { preview: [], images: [], writes: [] };
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+        await install(ctx, origin, viewerFlag, calls);
+        await seedStaffGate(ctx);
+        const page = await ctx.newPage();
+        const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
+        await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => typeof navTo === 'function');
+        await page.evaluate(() => navTo('calendar'));
+        await page.locator('#calView').waitFor();
+        await page.evaluate(({ posts, client }) => {
+          _calInvalidateActiveLoad(); calState.loading = false; calState.error = ''; calState.client = client; calState.posts = posts;
+          calState.view = 'month'; calState.monthFilter = 'all'; calState.statusFilter = 'all'; _calSavePins([client]); _calRenderShell(); _calRenderBody();
+        }, { posts: rows(SLUG).filter(r => r.name), client: CLIENT });
+        await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
+        ok(calls.preview.length >= 1 && calls.preview.every(c => c.headers['x-syncview-key'] && c.headers['x-syncview-actor'] === 'QA Staff'), 'viewer (staff app): the read carries the staff key and name');
+        ok(errors.length === 0, 'viewer (staff app): page errors ' + errors.join(' | '));
+        await ctx.close();
+      }
+      // 4b. staff app, signed in but NOT listed: today's page, no request
+      {
+        const calls = { preview: [], images: [], writes: [] };
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
+        await install(ctx, origin, { clients: [], viewers: ['someone else'] }, calls);
+        await seedStaffGate(ctx);
+        const page = await ctx.newPage();
+        await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => typeof navTo === 'function');
+        await page.evaluate(() => navTo('calendar'));
+        await page.locator('#calView').waitFor();
+        await page.evaluate(({ posts, client }) => {
+          _calInvalidateActiveLoad(); calState.loading = false; calState.error = ''; calState.client = client; calState.posts = posts;
+          calState.view = 'month'; calState.monthFilter = 'all'; calState.statusFilter = 'all'; _calSavePins([client]); _calRenderShell(); _calRenderBody();
+        }, { posts: rows(SLUG).filter(r => r.name), client: CLIENT });
+        await page.waitForSelector('.cal-month-pill', { timeout: 15000 });
+        await page.waitForTimeout(1200);
+        ok(calls.preview.length === 0 && await page.locator('.sv-car-mini').count() === 0, 'viewer: a signed-in staff member who is not listed sees today\'s page');
+        await ctx.close();
+      }
+      // 4c. client link in a browser that holds a listed staff session, key-verify agrees: new behaviour, staff headers ride
+      // 4d. the same, key-verify refuses: today's page. 4e. no saved staff session: today's page and no key-verify call at all.
+      for (const mode of ['agrees', 'refuses', 'none']) {
+        const calls = { preview: [], images: [], writes: [] };
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
+        await install(ctx, origin, viewerFlag, calls);
+        let verifyCalls = 0;
+        if (mode !== 'none') await seedStaffIdentity(ctx);
+        await ctx.route('**/functions/v1/key-verify', route => {
+          verifyCalls++;
+          if (mode === 'refuses') return route.fulfill({ status: 401, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
+          return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null } }) });
+        });
+        const page = await ctx.newPage();
+        const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
+        await page.goto(`${origin}/index.html?${new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' })}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('[data-cal-view=month]', { timeout: 20000 });
+        await page.locator('[data-cal-view=month]').click();
+        await page.waitForSelector('.cal-month-pill', { timeout: 20000 });
+        if (mode === 'agrees') {
+          await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
+          ok(verifyCalls >= 1, 'viewer (client link): the saved staff session was verified by key-verify');
+          ok(calls.preview.length >= 1 && calls.preview.every(c => c.headers['x-syncview-key'] && c.headers['x-syncview-actor'] === 'QA Staff'), 'viewer (client link): the read carries the verified staff key and name');
+          await page.locator('.cal-month-pill', { hasText: 'Carousel shared' }).locator('.cal-month-pill-thumb').click();
+          await page.waitForSelector('#calNotesStage .sv-car-frame img', { timeout: 10000 });
+          ok(await page.locator('.sv-car-about').count() === 1, 'viewer (client link): the card view opens with About this post');
+        } else {
+          await page.waitForTimeout(1500);
+          ok(calls.preview.length === 0 && await page.locator('.sv-car-mini').count() === 0, 'viewer (client link, ' + mode + '): today\'s page, no folder read');
+          if (mode === 'none') ok(verifyCalls === 0, 'viewer (client link): a browser with no staff session makes no key-verify request');
+        }
+        ok(errors.length === 0, 'viewer (client link, ' + mode + '): page errors ' + errors.join(' | '));
+        await ctx.close();
+      }
     }
     console.log(`carousel-preview-browser: ${checks} checks passed`);
   } finally { await browser.close(); server.close(); }

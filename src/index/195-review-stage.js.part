@@ -616,6 +616,18 @@ svg{display:block;flex-shrink:0}
 .rs-fv>.mpill{z-index:4}
 .rs-fv{container-type:inline-size}
 @container (max-width:250px){.rs-fv>.mpill{display:none}}
+/* The player's bar is the same three-column grid as the decision row, and had the same fault (Layoutpass, OPEN_REPAIRS
+   714): at about 265 px the side column holding Mute and Full screen shrank below them and Mute slid under Forward 5
+   seconds. The sides never shrink below their buttons now, and a player narrower than the bar needs gives way in steps
+   on a desktop screen too (a phone already drops the skips at 320): the skips, then the speed, then Full screen (a
+   double click still opens it), and on the very smallest (about 96 px, a 1280 screen at 125%) Mute. A player that narrow is Kasper's one-at-a-time page at 125% or 150%. */
+.rs-fv .fv-bar{grid-template-columns:minmax(max-content,1fr) auto minmax(max-content,1fr)}
+@container (max-width:180px){.rs-fv .fv-player .fv-rate{display:none!important}}
+@container (max-width:136px){.rs-fv .fv-player .fv-full{display:none!important}}
+@container (max-width:112px){.rs-fv .fv-player .fv-mute{display:none!important}}
+@media (min-width:1024px){@container (max-width:180px){.rs-fv .fv-player .fv-rate{display:none!important}}}
+.card.sd-stack>.sdate{position:static;height:auto;align-self:flex-start;padding:0 4px;margin-bottom:-4px}
+@container (max-width:250px){.rs-fv .fv-player .fv-skip{display:none!important}}
 .view.k-video .mbox{height:100%}
 .mbox .rs-fv{display:none}
 .view.k-video .rs-fv{display:block}
@@ -1041,7 +1053,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .pn-d .dst{white-space:normal}
 .pn-d{container-type:inline-size}
 /* One compact row per part: Tweaks are on Frame left, Approve centred (with its caret), Ask for a change right. */
-.pn-d .dec:has(>.b-ask){display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;justify-content:normal;column-gap:8px;flex-wrap:nowrap}
+.pn-d .dec:has(>.b-ask){display:grid;grid-template-columns:minmax(max-content,1fr) auto minmax(max-content,1fr);align-items:center;justify-content:normal;column-gap:8px;flex-wrap:nowrap}
 .pn-d .dec:has(>.b-ask)>.b-frame,.pn-d .dec:has(>.b-ask)>.dl{grid-column:1;grid-row:1;justify-self:start}
 .pn-d .dec:has(>.b-ask)>.split{grid-column:2;grid-row:1;justify-self:center}
 .pn-d .dec:has(>.b-ask)>.b-ask{grid-column:3;grid-row:1;justify-self:end}
@@ -1054,6 +1066,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
    is always the button's accessible name (aria-label) and its tooltip. */
 @container (max-width:460px){.pn-d .lf{display:none}.pn-d .ls{display:inline}.pn-d .dec:has(>.b-ask){column-gap:5px}.pn-d .b-ask svg,.pn-d .b-frame svg,.pn-d .b-redo svg{display:none}.pn-d .split>.b-ok{padding:4px 34px 4px 10px;font-size:.78rem}.pn-d .split>.sarr{width:28px}.pn-d .b-ask,.pn-d .b-frame,.pn-d .b-redo{padding:4px 5px;font-size:.72rem}.pn-d .split>.b-ok svg{display:none}}
 @container (max-width:300px){.pn-d .dec:has(>.b-ask){grid-template-columns:34px minmax(0,1fr) 34px}.pn-d .b-ask,.pn-d .b-frame{width:34px;padding:0}.pn-d .b-ask .ls,.pn-d .b-frame .ls{display:none}.pn-d .b-ask svg,.pn-d .b-frame svg{display:block;width:15px;height:15px}.pn-d .split{justify-self:stretch}.pn-d .split>.b-ok{width:100%}.pn-d .dec:has(>.dl>.b-frame){grid-template-columns:72px minmax(0,1fr) 72px}.pn-d .b-redo{width:34px;padding:0}.pn-d .b-redo .ls{display:none}.pn-d .b-redo svg{display:block;width:15px;height:15px}}
+/* The video's row carries TWO buttons on its left (Tweaks are on Frame and Redo, since #2588), so it needs its compact
+   steps earlier than the other parts' rows (Layoutpass, OPEN_REPAIRS 714): Sidney saw "RedApprove" at 1920 with 125%
+   Windows scaling (1536 CSS px), where the side column shrank below its two buttons and Redo slid under Approve. The
+   side columns above never shrink below their buttons (minmax(max-content,1fr)), so a row that cannot fit pushes
+   Approve off centre instead of overlapping it; these steps keep it fitting at every width the layout is offered. */
+@container (max-width:600px){.pn-d .dec:has(>.dl>.b-frame) .lf{display:none}.pn-d .dec:has(>.dl>.b-frame) .ls{display:inline}.pn-d .dec:has(>.dl>.b-frame){column-gap:5px}.pn-d .dec:has(>.dl>.b-frame) :is(.b-ask,.b-frame,.b-redo)>svg{display:none}.pn-d .dec:has(>.dl>.b-frame) :is(.b-ask,.b-frame,.b-redo){padding:4px 5px;font-size:.72rem}.pn-d .dec:has(>.dl>.b-frame) .split>.b-ok{padding:4px 34px 4px 10px;font-size:.78rem}.pn-d .dec:has(>.dl>.b-frame) .split>.b-ok svg{display:none}.pn-d .dec:has(>.dl>.b-frame) .split>.sarr{width:28px}}
+@container (max-width:380px){.pn-d .dec:has(>.dl>.b-frame){grid-template-columns:72px minmax(0,1fr) 72px}.pn-d .dec:has(>.dl>.b-frame) :is(.b-ask,.b-frame,.b-redo){width:34px;padding:0}.pn-d .dec:has(>.dl>.b-frame) :is(.b-ask,.b-frame,.b-redo) .ls{display:none}.pn-d .dec:has(>.dl>.b-frame) :is(.b-ask,.b-frame,.b-redo)>svg{display:block;width:15px;height:15px}.pn-d .dec:has(>.dl>.b-frame) .split{justify-self:stretch}.pn-d .dec:has(>.dl>.b-frame) .split>.b-ok{width:100%}}
 .pn-d .b-ok:not(.split>.b-ok){white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:38px;font-size:.8rem}
 .pn-d .dwrap .compose{width:100%}
 .pn-d .cmp-foot{flex-wrap:wrap}
@@ -2172,6 +2191,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!v || !h) return;
         const fv = Math.max(160, v.clientHeight - 2) + 'px';
         if (h.style.getPropertyValue('--fv-h') !== fv) h.style.setProperty('--fv-h', fv);
+        _rsDateFit();
+    }
+    /* The date sits at the card's top left and the step pills are centred across the whole card, so on a narrow card
+       (Kasper's one-at-a-time page at 125% or 150% zoom) "1 Video" landed on "First review" (Layoutpass, OPEN_REPAIRS
+       714). Where the two cannot share the line, the date takes its own line above the pills. Desktop only: a phone
+       already stacks them. Measured from the drawn pills and date, so any round, ping or label length is covered. */
+    function _rsDateFit() {
+        const sd = _rsQ('sdate'), st = _rsQ('stepper'), card = sd && sd.closest('.card');
+        if (!card || !st || !st.firstElementChild || R.l2) return;
+        let stack = false;
+        if (!sd.hidden && sd.textContent.trim() && window.matchMedia && window.matchMedia('(min-width:861px)').matches) {
+            const a = st.firstElementChild.getBoundingClientRect(), b = st.lastElementChild.getBoundingClientRect();
+            const c = card.getBoundingClientRect(), pills = b.right - a.left;
+            stack = 18 + sd.getBoundingClientRect().width + 12 > (c.width - pills) / 2;
+        }
+        if (card.classList.contains('sd-stack') !== stack) card.classList.toggle('sd-stack', stack);
     }
     function _rsFitSoon() {
         if (R.fitRaf) return;
@@ -2541,6 +2576,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }).join('');
         if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) { _rsStepInView(m); return; }
         _rsQ('stepper').querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => _rsSetStep(b.dataset.step)));
+        _rsFitSoon();
         _rsStepInView(m);
     }
     // The open step comes into view where the step bar scrolls sideways (a phone): at 320 wide "Caption" opened cut

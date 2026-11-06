@@ -780,6 +780,12 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
           KASPER_REDO_REQUIRE_WEBKIT: '1'
         run: node test/review-stage-kasper-redo-browser.js
+      - name: The review boards' layout guard (Chromium and WebKit; Kasper's Review Session and the client link at 1280 to 2560 wide and 125 and 150% zoom, light; no two controls overlap, none cut off, nothing cut short without a tooltip, no sideways scroll; OPEN_REPAIRS 714)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          LAYOUT_GUARD_REQUIRE_WEBKIT: '1'
+        timeout-minutes: 15
+        run: node test/review-layout-guard-browser.js
       - name: The Workload calendar reports what goes wrong, like the review boards (Chromium and WebKit; a dropped second move, a refused move that later lands, a reload during a save, an uncaught error, no words)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

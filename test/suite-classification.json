@@ -2426,6 +2426,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-layout-guard-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright with Chromium and WebKit; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js plus a local trial-versions answer and a carousel folder), no hosted credentials and no live data. OPEN_REPAIRS 714: Kasper's Review Session (second layout, vertical and wide video, Approve menu open, Messages, More, a trial card; his one-at-a-time page below 1360) and the client link (Review, Sheet, Month, Week, the card view with About this post for a reel and a carousel, a phone) at 1280 to 2560 wide and at 125 and 150 percent zoom: no two controls overlap, none is cut off by its box or the window, nothing is cut short without a tooltip, the page never scrolls sideways (test/fixtures/layout-guard.js). LAYOUT_GUARD_FULL=1 adds 110 percent and dark.",
+      "reproduce": "node test/review-layout-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-kasper-redo-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

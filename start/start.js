@@ -148,6 +148,7 @@
       players.forEach(function (o) { if (!o.paused) o.pause(); });
       hero.setAttribute('data-path', path);
     }
+    document.body.setAttribute('data-path', path);
     whos.forEach(function (w) { w.setAttribute('aria-pressed', w.getAttribute('data-who') === path ? 'true' : 'false'); });
     tabs.forEach(function (t) {
       var on = t.getAttribute('data-path') === path;

@@ -567,7 +567,8 @@ async function mergePeople(db: SupabaseClient, body: Record<string, unknown>, ac
   if (!error && dropRow) {
     for (let attempt = 0; attempt < 4; attempt++) {
       const kept = must(await db.from("crm_people").select("id,email,state_version,external_ids").eq("id", keep).maybeSingle());
-      const alt = kept ? mergeAltEmails(kept, kept.external_ids || {}, dropRow, dropRow.external_ids || {}) : null;
+      if (!kept) break;
+      const alt = mergeAltEmails(kept, kept.external_ids || {}, dropRow, dropRow.external_ids || {});
       if (!alt) break;
       // Same contact-style compare-and-swap as the ingest fill; apply() does not take external_ids.
       const res = await db.from("crm_people")

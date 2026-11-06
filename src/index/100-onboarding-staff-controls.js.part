@@ -2468,7 +2468,7 @@ export {
   _syncviewOpenStaffAccount, _syncviewOpenStaffGate, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
   _syncviewStaffCan, _syncviewStaffEligible, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffRoster,
-  _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
+  _syncviewStaffIdentityLoad, _syncviewVerifyStaffIdentity, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
   _syncviewStaffRoleLabel, _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch,
   mountOnboardingView, renderOnboardingView
 };

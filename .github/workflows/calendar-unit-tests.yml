@@ -411,6 +411,7 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)|node test/frameio-viewer-browser.js
+          Carousel preview (first image, About this post, a carousel opening the card; client link and staff; mocked)|node test/carousel-preview-browser.js
           Frame.io comments in a card's Notes without the player, kept five minutes (every signed-in staff member, whatever the old row says; mocked)|node test/frame-comments-in-notes-browser.js
           Client review link works on phones (approve + request change)|node docs/syncview-design/tests/client-phone-review-browser.js
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js

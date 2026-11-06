@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carousel folder preview (sample)</title>
+<style>
+:root{--bg:#f6f3ef;--card:#fff;--ink:#1d1a17;--mute:#6f675f;--line:#e4ded6;--accent:#c2410c;--dark:#16130f;--warn-bg:#fffbeb;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#161412;--card:#201d1a;--ink:#f3eee8;--mute:#a49b91;--line:#38332e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,sans-serif;padding:24px 16px 60px}
+.wrap{max-width:1100px;margin:0 auto}h1{font-size:1.4rem;margin:0 0 4px}h2{font-size:1.05rem;margin:34px 0 10px}
+.lede{color:var(--mute);max-width:70ch;margin:0 0 6px}.tag{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:700px){.ba{grid-template-columns:1fr}}
+.col{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.col>h3{margin:0 0 10px;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+.col.after>h3{color:var(--accent)}
+/* fake slides (no real images) */
+.sl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.1em;background:linear-gradient(145deg,#d97706,#7c2d12)}
+.sl::after{content:"";position:absolute;width:46%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.18);top:16%;right:10%}
+.sl span{position:relative;text-shadow:0 1px 6px rgba(0,0,0,.35);font-size:.8em;letter-spacing:.04em}
+/* today's folder card */
+.fold{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:radial-gradient(120% 120% at 50% 32%,#262220,#0e0d0c 74%);color:#fff;text-align:center;padding:10px}
+.fold .b{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
+.fold svg{width:22px;height:22px}.fold .c{font-weight:700;font-size:.82rem}.fold .h{font-size:.56rem;letter-spacing:.06em;text-transform:uppercase;opacity:.5}
+/* the new badge */
+.bdg{position:absolute;left:8px;bottom:8px;right:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;pointer-events:none}
+.pill{display:inline-flex;align-items:center;gap:5px;background:rgba(18,15,12,.82);color:#fff;border-radius:999px;padding:3px 9px 3px 7px;font-size:.7rem;font-weight:700;backdrop-filter:blur(3px)}
+.pill svg{width:13px;height:13px}.pill.open{background:#fff;color:#1d1a17;margin-left:auto}
+.stack{position:absolute;inset:0}.stack::before,.stack::after{content:"";position:absolute;inset:0;border-radius:inherit;background:#8a4b20;transform:translate(5px,-5px);z-index:-1}
+.stack::after{background:#5b2f12;transform:translate(10px,-10px);z-index:-2}
+.dots{position:absolute;top:8px;right:8px;display:flex;gap:3px}.dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.55)}.dots i:first-child{background:#fff}
+.mini-ic{position:absolute;right:3px;bottom:3px;width:15px;height:15px;border-radius:5px;background:rgba(18,15,12,.82);color:#fff;display:flex;align-items:center;justify-content:center}.mini-ic svg{width:10px;height:10px}
+.mini-n{position:absolute;right:3px;bottom:3px;min-width:16px;height:15px;padding:0 4px;border-radius:8px;background:rgba(18,15,12,.82);color:#fff;font-size:.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:2px}
+.mini-n svg{width:9px;height:9px}
+/* month */
+.month{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.day{border:1px solid var(--line);border-radius:10px;padding:6px;min-height:92px;background:var(--bg)}.day small{color:var(--mute);font-size:.68rem}
+.pillc{display:flex;gap:6px;align-items:center;margin-top:5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px}
+.pillc .t{position:relative;width:34px;height:42px;border-radius:6px;overflow:hidden;flex:none;background:#16130f}
+.pillc .sl span{display:none}
+.pillc b{font-size:.68rem;line-height:1.2;font-weight:600}
+/* week */
+.week{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.wc{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.wc .t{position:relative;aspect-ratio:4/5;background:#16130f;overflow:hidden}.wc .m{padding:7px 9px;font-size:.74rem}.wc .m b{display:block}
+/* dialog */
+.dlg{display:grid;grid-template-columns:200px 1fr;gap:14px}.dlg .t{position:relative;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:#16130f}
+.fld{border:1px solid var(--line);border-radius:8px;padding:6px 9px;margin-top:6px;font-size:.78rem;color:var(--mute);word-break:break-all}.fld b{display:block;color:var(--ink);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase}
+.btn{display:inline-block;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-weight:700;font-size:.76rem;background:var(--card)}
+/* client review */
+.rev{max-width:340px;margin:0 auto}.rev .t{position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:#16130f}
+.rev .cap{margin:10px 2px;font-size:.84rem}.rev .row{display:flex;gap:8px}.rev .row span{flex:1;text-align:center;padding:9px;border-radius:10px;font-weight:700;font-size:.82rem;border:1px solid var(--line)}.rev .row .go{background:#15803d;color:#fff;border-color:#15803d}
+.note{font-size:.72rem;color:var(--mute);margin-top:8px}
+/* phone */
+.phone{width:300px;margin:0 auto;border:8px solid #111;border-radius:30px;background:var(--bg);padding:12px 10px;overflow:hidden}
+/* edge cases */
+.edge{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.edge figure{margin:0}.edge .t{position:relative;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:#16130f}
+.edge figcaption{margin-top:7px;font-size:.74rem;color:var(--mute)}.edge figcaption b{color:var(--ink);display:block}
+.skel{position:absolute;inset:0;background:linear-gradient(100deg,#2a2622 30%,#3a342e 50%,#2a2622 70%);background-size:200% 100%;animation:sh 1.3s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}@media(prefers-reduced-motion:reduce){.skel{animation:none}}
+.warn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center;background:var(--warn-bg);color:var(--warn);font-size:.7rem;font-weight:600}.warn strong{font-size:.78rem}.warn svg{width:24px;height:24px}
+</style></head><body><div class="wrap">
+<span class="tag">Sample only · not wired to anything</span>
+<h1>Carousel card: first-slide preview + "Carousel" badge</h1>
+<p class="lede">Test client look (sidneylaruel). Every slide below is a drawn placeholder; no real images or client names. "Before" is what ships today for a Drive folder link (the dark "Open folder" card). "After" shows the first image with a small marker.</p>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="ic-f" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.42.59l1 1a2 2 0 0 0 1.42.59H19a2 2 0 0 1 2 2v6.32a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="ic-s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/></symbol>
+<symbol id="ic-o" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13 3L7.5 8.5"/></symbol>
+<symbol id="ic-w" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+</defs></svg>
+
+<!-- reusable markup is repeated by a tiny script below to keep the file short -->
+<h2>1 · Month</h2>
+<div class="ba"><div class="col"><h3>Before</h3><div class="month" data-kind="month" data-mode="before"></div></div>
+<div class="col after"><h3>After</h3><div class="month" data-kind="month" data-mode="after"></div><p class="note">Compact: the folder glyph is replaced by the real first image and a small "stack + 6" count chip.</p></div></div>
+
+<h2>2 · Week</h2>
+<div class="ba"><div class="col"><h3>Before</h3><div class="week" data-kind="week" data-mode="before"></div></div>
+<div class="col after"><h3>After</h3><div class="week" data-kind="week" data-mode="after"></div></div></div>
+
+<h2>3 · Card dialog (thumbnail stage)</h2>
+<div class="ba"><div class="col"><h3>Before</h3><div class="dlg" data-kind="dlg" data-mode="before"></div></div>
+<div class="col after"><h3>After</h3><div class="dlg" data-kind="dlg" data-mode="after"></div></div></div>
+
+<h2>4 · Client review link</h2>
+<div class="ba"><div class="col"><h3>Before</h3><div class="rev" data-kind="rev" data-mode="before"></div></div>
+<div class="col after"><h3>After</h3><div class="rev" data-kind="rev" data-mode="after"></div></div></div>
+
+<h2>5 · Phone width (client review, 300 px)</h2>
+<div class="ba"><div class="col"><h3>Before</h3><div class="phone"><div class="rev" data-kind="rev" data-mode="before"></div></div></div>
+<div class="col after"><h3>After</h3><div class="phone"><div class="rev" data-kind="rev" data-mode="after"></div></div></div></div>
+
+<h2>6 · Edge cases (all shown "after")</h2>
+<div class="edge" id="edge"></div>
+</div>
+<script>
+const I=n=>`<svg><use href="#ic-${n}"/></svg>`;
+const slide=(n)=>`<div class="sl"><span>Slide ${n}</span></div>`;
+const foldCard=()=>`<div class="fold"><span class="b">${I('f')}</span><span class="c">Open folder</span><span class="h">drive.google.com · new tab</span></div>`;
+const bigBadge=(n,txt)=>`<div class="bdg"><span class="pill">${I('s')}${txt||('Carousel · '+n+' images')}</span><span class="pill open">${I('o')}Open in Drive</span></div>`;
+const dots=n=>`<div class="dots">${'<i></i>'.repeat(Math.min(n,5))}</div>`;
+const afterBig=(n=6)=>`${slide(1)}${dots(n)}${bigBadge(n)}`;
+const miniAfter=(n=6)=>`${slide(1)}<span class="mini-n">${I('s')}${n}</span>`;
+const miniBefore=()=>`<div class="fold" style="padding:0">${I('f')}</div>`;
+function build(el){const k=el.dataset.kind,a=el.dataset.mode==='after';let h='';
+ if(k==='month'){for(let d=3;d<=5;d++)h+=`<div class="day"><small>${d} Nov</small><div class="pillc"><div class="t">${a?miniAfter(5+d%3):miniBefore()}</div><b>Carousel ${d}</b></div></div>`}
+ if(k==='week'){for(let d=0;d<3;d++)h+=`<div class="wc"><div class="t">${a?afterBig(5+d).replace(/<div class="bdg">[\s\S]*$/,`<div class="bdg"><span class="pill">${I('s')}${5+d}</span></div>`):foldCard()}</div><div class="m"><b>Carousel ${d+1}</b>Wed ${4+d} Nov</div></div>`}
+ if(k==='dlg')h=`<div class="t">${a?afterBig(7):foldCard()}</div><div><b>Carousel post</b><div class="fld"><b>Thumbnail</b>drive.google.com/drive/folders/…</div>${a?'<div class="fld"><b>Carousel</b>7 images · first slide shown · updated just now</div>':''}<span class="btn">${a?'Open folder in Drive':'Open folder'}</span></div>`;
+ if(k==='rev')h=`<div class="t">${a?afterBig(7):foldCard()}</div><div class="cap">Five tips for a calmer morning. Swipe through all slides in Drive.</div><div class="row"><span>Ask for a change</span><span class="go">Approve</span></div>`;
+ el.innerHTML=h}
+document.querySelectorAll('[data-kind]').forEach(build);
+const edge=[
+ ['Normal',afterBig(6),'Folder shared "anyone with the link", 6 images. First image by name.'],
+ ['Video first',`${slide(1)}${dots(4)}${bigBadge(4,'Carousel · 4 images + 1 video')}`,'Videos are skipped: preview is the first IMAGE; the badge says a video is also inside.'],
+ ['Still loading','<div class="skel"></div>'+`<div class="bdg"><span class="pill">${I('s')}Carousel · loading…</span><span class="pill open">${I('o')}Open in Drive</span></div>`,'Shown the moment a link is pasted, until the server has read the folder (a second or two).'],
+ ['Private folder',`<div class="warn">${I('w')}<strong>Folder is private</strong><span>Share it with "Anyone with the link" so clients can see the preview.</span></div><div class="bdg"><span class="pill open" style="margin-left:0">${I('o')}Open in Drive</span></div>`,'Staff see the same amber hint as a private thumbnail today. Clients see today\'s plain "Open folder" card.'],
+ ['Empty folder',foldCard().replace('Open folder','Folder is empty')+`<div class="bdg"><span class="pill open" style="margin-left:0">${I('o')}Open in Drive</span></div>`,'No images found: falls back to the existing card; staff badge reads "Folder is empty".'],
+ ['Only video / PDF',foldCard()+`<div class="bdg"><span class="pill">${I('s')}Carousel · no images</span></div>`,'Nothing previewable: falls back to the existing "Open folder" card.']];
+document.getElementById('edge').innerHTML=edge.map(e=>`<figure><div class="t">${e[1]}</div><figcaption><b>${e[0]}</b>${e[2]}</figcaption></figure>`).join('');
+</script></body></html>

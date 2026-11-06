@@ -79,7 +79,7 @@ async function board(browser, origin, label, mode, extra) {
   await img.click();
   let z = await zoomState(t.page);
   ok(z.open && /poster-[lp]\.png/.test(z.src), label + ': a click opens the viewer with the picture (' + z.src.slice(-14) + ')');
-  ok(/rgba\(0, 0, 0, 0\.9/.test(z.bg), label + ': dark backdrop (' + z.bg + ')');
+  ok(/rgba\(0, 0, 0, 0\.(8[5-9]|9)/.test(z.bg), label + ': dark backdrop (' + z.bg + ')');
   ok(z.top && Number(z.z) > 9000, label + ': the viewer sits above the page (z ' + z.z + ')');
   ok(z.imgW <= z.vw && z.imgH <= z.vh && (z.imgW === z.vw || z.imgH === z.vh || z.imgW > 100), label + ': the picture fits the screen (' + z.imgW + 'x' + z.imgH + ' in ' + z.vw + 'x' + z.vh + ')');
   ok(z.xW >= 44 && z.xH >= 44 && z.xIn, label + ': the X is ' + z.xW + 'px and inside the screen');

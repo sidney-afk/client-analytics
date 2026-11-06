@@ -3731,19 +3731,19 @@
 
         /* Thumbnail zoom (192): one full-screen viewer for the three review boards. Pinch-zoom stays allowed (no touch-action
            lock); the close button sits inside the safe area and is 44px, so a phone can always reach it. */
-        .sv-tz { position: fixed; inset: 0; z-index: 10050; display: none; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); overscroll-behavior: contain; }
+        .sv-tz { position: fixed; inset: 0; z-index: 10050; display: none; align-items: center; justify-content: center; background: var(--sv-bg-rgba-0-0-0-0_88); overscroll-behavior: contain; }
         .sv-tz.open { display: flex; }
         .sv-tz-img { max-width: 100vw; max-height: 100vh; max-height: 100dvh; width: auto; height: auto; object-fit: contain; cursor: default; touch-action: pinch-zoom; -webkit-user-select: none; user-select: none; }
-        .sv-tz-x { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .16); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .sv-tz-x:hover { background: rgba(255, 255, 255, .28); }
-        .sv-tz-x:focus-visible, .sv-tz-open:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        .sv-tz-x { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .sv-tz-x:hover { background: var(--sv-bg-rgba-255-255-255-0_28); }
+        .sv-tz-x:focus-visible, .sv-tz-open:focus-visible { outline: 2px solid var(--sv-fg-fff); outline-offset: 2px; }
         .sv-tz-x svg { width: 16px; height: 16px; }
-        .sv-tz-open { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(18px, env(safe-area-inset-bottom)); padding: 10px 16px; border-radius: 999px; background: rgba(255, 255, 255, .16); color: #fff; font: 600 14px/1 inherit; text-decoration: none; }
-        .sv-tz-open:hover { background: rgba(255, 255, 255, .28); }
+        .sv-tz-open { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(18px, env(safe-area-inset-bottom)); padding: 10px 16px; border-radius: 999px; background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); font: 600 14px/1 inherit; text-decoration: none; }
+        .sv-tz-open:hover { background: var(--sv-bg-rgba-255-255-255-0_28); }
         .sv-tz-open[hidden], .sv-tz[hidden] { display: none; }
         html.sv-tz-lock, html.sv-tz-lock body { overflow: hidden; }
         .kcard-thumb:has(.kcard-thumb-zoom) img, .kcard-thumb[data-tz], .kcard-thumb[data-tz] img, .cal-review-preview-thumb img, .sv-car-frame img { cursor: zoom-in; }
-        .kcard-thumb[data-tz]:focus-visible { outline: 2px solid var(--accent, #3737f2); outline-offset: 2px; }
+        .kcard-thumb[data-tz]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         /* Kasper lightbox (reuses calendar's overlay pattern, scoped under .kasper-wrap) */
         .kasper-lightbox { position: fixed; inset: 0; background: var(--sv-bg-rgba-0-0-0-0_86); z-index: 9000; display: none; align-items: center; justify-content: center; padding: 40px; cursor: zoom-out; }
         .kasper-lightbox.open { display: flex; }

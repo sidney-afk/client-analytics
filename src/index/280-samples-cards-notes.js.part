@@ -949,7 +949,7 @@ import {
         const body = expanded ? _sxrReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
-                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-thumb"${info.url ? ' data-tz role="button" tabindex="0" aria-label="View thumbnail full screen"' : ''}>${thumbHtml}</div>
                 <div class="kcard-main">
                     <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
                     ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}

@@ -327,7 +327,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
-                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-thumb"${info.url ? ` data-tz role="button" tabindex="0" aria-label="View thumbnail full screen"` : ''}${info.url && info.carousel && info.carousel.state === 'ok' && info.carousel.folderUrl ? ` data-tz-open="${_calEscAttr(info.carousel.folderUrl)}"` : ''}>${thumbHtml}</div>
                 <div class="kcard-main">
                     <div class="kcard-title">${_calEsc(p.name || 'Untitled')}</div>
                     ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}

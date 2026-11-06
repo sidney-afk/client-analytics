@@ -9422,10 +9422,16 @@ html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; 
 .cal-month-pill-thumb:has(.sv-car-mini), .cal-week-card-thumb:has(.sv-car-mini) { position: relative; }
 .has-share-note { position: relative; }
 .has-share-note::after { content: "!"; position: absolute; right: -3px; top: -3px; width: 12px; height: 12px; border-radius: 50%; background: #b45309; color: #fff; font: 800 .5rem/12px 'Plus Jakarta Sans', sans-serif; text-align: center; }
-.sv-car-bdg { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; z-index: 2; }
-.sv-car-pill { display: inline-flex; align-items: center; gap: 5px; background: rgba(18,15,12,.82); color: #fff; border-radius: 999px; padding: 3px 9px 3px 7px; font: 700 .7rem/1.3 'Plus Jakarta Sans', sans-serif; text-decoration: none; backdrop-filter: blur(3px); }
+.sv-car-bdg { position: absolute; left: 6px; right: 6px; bottom: 6px; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 4px; z-index: 2; overflow: hidden; container-type: inline-size; line-height: 1; }
+.sv-car-pill { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; background: rgba(18,15,12,.82); color: #fff; border-radius: 999px; padding: 3px 9px 3px 7px; font: 700 .7rem/1.3 'Plus Jakarta Sans', sans-serif; text-decoration: none; backdrop-filter: blur(3px); }
 .sv-car-pill svg { width: 13px; height: 13px; flex: none; }
-.sv-car-pill.is-open { background: #fff; color: #1d1a17; margin-left: auto; }
+.sv-car-pill.is-open { flex: none; background: #fff; color: #1d1a17; margin-left: 0; }
+.sv-car-short, .sv-car-num { display: none; }
+@container (max-width: 250px) { .sv-car-long { display: none; } .sv-car-short { display: inline; } }
+@container (max-width: 190px) { .sv-car-lbl { display: none; } .sv-car-pill.is-open { padding: 3px 6px; } }
+@container (max-width: 120px) { .sv-car-short { display: none; } .sv-car-num { display: inline; } .sv-car-pill { gap: 3px; padding: 3px 6px 3px 5px; } }
+.sv-car-wrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; vertical-align: top; }
+.sv-car-wrap > img { max-width: 100%; }
 .cal-card-thumb:has(.sv-car-bdg), .cal-review-preview-thumb:has(.sv-car-bdg) { position: relative; }
 .cal-card-thumb > .sv-car-bdg { pointer-events: none; }
 .cal-card-thumb > .sv-car-bdg a { pointer-events: auto; }
@@ -9468,8 +9474,5 @@ html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; 
  .sv-car-about-sub { display: none; }
  .sv-car-about-cap { -webkit-line-clamp: 3; font-size: .76rem; }
  .sv-car-about + .cal-comments-feed { min-height: 84px; }
- .sv-car-bdg { left: 6px; right: 6px; bottom: 6px; gap: 4px; }
- .sv-car-pill { padding: 3px 8px 3px 6px; font-size: .66rem; }
- .sv-car-pill.is-open { margin-left: 0; }
 }
 /* no-hardcoded-colors: allow-end */

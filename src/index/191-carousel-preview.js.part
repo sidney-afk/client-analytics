@@ -94,8 +94,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return c && c.state === 'ok' ? `<span class="sv-car-mini" title="${_calEscAttr(svCarouselBadgeText(c))}" aria-label="${_calEscAttr(svCarouselBadgeText(c))}">${SV_CAR_STACK_ICO}${c.count}</span>` : '';
     }
     // The badge row over a big first image: the count on the left, "Open in Drive" on the right.
+    /* Always INSIDE the image, however narrow it is (OPEN_REPAIRS 711): the row is a size container (020), so the words
+       follow the room the image gives it: "Carousel · 5 images" + "Open in Drive", then "Carousel · 5", then the button
+       as an icon only (its words stay as the tooltip and the label for a screen reader), then just the count. */
     function svCarouselBadgeHtml(look) {
-        return `<span class="sv-car-bdg"><span class="sv-car-pill">${SV_CAR_STACK_ICO}${_calEsc(svCarouselBadgeText(look))}</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${SV_CAR_OPEN_ICO}Open in Drive</a></span>`;
+        const n = look.count;
+        const full = svCarouselBadgeText(look);
+        return `<span class="sv-car-bdg"><span class="sv-car-pill is-count" title="${_calEscAttr(full)}">${SV_CAR_STACK_ICO}<span class="sv-car-long">${_calEsc(full)}</span><span class="sv-car-short">Carousel \u00b7 ${n}</span><span class="sv-car-num">${n}</span></span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer" title="Open in Drive" aria-label="Open in Drive" onclick="event.stopPropagation()">${SV_CAR_OPEN_ICO}<span class="sv-car-lbl">Open in Drive</span></a></span>`;
+    }
+    // A picture with its badge row: the wrapper is exactly the picture's box (the Sheet card letterboxes its picture inside a
+    // taller tile, so the row cannot be placed against the tile).
+    function svCarouselOverImageHtml(imgTag, look) {
+        return `<span class="sv-car-wrap">${imgTag}${svCarouselBadgeHtml(look)}</span>`;
     }
     /* The small note beside the folder glyph of a folder that is not shared "Anyone with the link" (Sidney, 6 Nov: "folders
        that aren't [shared] should have a small thing next to the folder icon saying it needs to be shared"). Staff only:
@@ -128,7 +138,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         } else if (look.state === 'ok') {
             inner = svCarouselBigHtml(look, 1000);
         } else if (look.state === 'loading' || look.state === 'error') {
-            inner = `<div class="sv-car-frame is-loading" role="status" aria-busy="true"><span class="sv-car-skel"></span><span class="sv-car-bdg"><span class="sv-car-pill">${SV_CAR_STACK_ICO}Carousel · loading…</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer">${SV_CAR_OPEN_ICO}Open in Drive</a></span></div>`;
+            inner = `<div class="sv-car-frame is-loading" role="status" aria-busy="true"><span class="sv-car-skel"></span><span class="sv-car-bdg"><span class="sv-car-pill is-count">${SV_CAR_STACK_ICO}Carousel · loading…</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer" title="Open in Drive" aria-label="Open in Drive">${SV_CAR_OPEN_ICO}<span class="sv-car-lbl">Open in Drive</span></a></span></div>`;
         } else {
             const msg = look.state === 'not_shared' ? (_isClientLink ? '' : SV_CAR_SHARE_NOTE) : look.state === 'empty' ? 'This folder is empty' : 'No images in this folder';
             inner = `<div class="sv-car-frame is-folder"><a class="sv-car-folder" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer"><span class="sv-car-folder-ico">${_calThumbFolderIconSvg()}</span><span class="sv-car-folder-cta">Open folder</span>${msg ? `<span class="sv-car-share-note is-stage" role="note">${_calEsc(msg)}</span>` : ''}</a></div>`;
@@ -189,4 +199,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     Object.assign(window, {
         svAboutToggle
     });
-export { svAboutThisPostHtml, svCarouselBadgeHtml, svCarouselImageUrl, svCarouselLook, svCarouselBigHtml, svCarouselMiniChipHtml, svCarouselMiniNote, svCarouselShareNoteHtml, svCarouselStageMount, svCarouselStageUnmount };
+export { svAboutThisPostHtml, svCarouselOverImageHtml, svCarouselImageUrl, svCarouselLook, svCarouselBigHtml, svCarouselMiniChipHtml, svCarouselMiniNote, svCarouselShareNoteHtml, svCarouselStageMount, svCarouselStageUnmount };

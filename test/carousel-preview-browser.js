@@ -52,8 +52,8 @@ const monthDay = d => `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad
 function rows(slug) {
   const base = { client: slug, status: 'In Progress', order_index: 1, updated_at: new Date().toISOString(), video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', caption: CAPTION, comments: [], graphic_comments: [], caption_comments: [], asset_url: '' };
   return [
-    Object.assign({}, base, { id: 'p_car_shared', name: 'Carousel shared', scheduled_date: monthDay(10), thumbnail_url: SHARED_URL }),
-    Object.assign({}, base, { id: 'p_car_private', name: 'Carousel private', scheduled_date: monthDay(11), thumbnail_url: PRIVATE_URL }),
+    Object.assign({}, base, { id: 'p_car_shared', name: 'Carousel shared', scheduled_date: monthDay(10), thumbnail_url: SHARED_URL, asset_url: 'https://example.invalid/video.mp4' }),
+    Object.assign({}, base, { id: 'p_car_private', name: 'Carousel private', scheduled_date: monthDay(11), thumbnail_url: PRIVATE_URL, asset_url: 'https://example.invalid/video.mp4' }),
     { id: 'p_cal_settings', client: slug, caption: JSON.stringify({ collab_mode: true }) },
     Object.assign({}, base, { id: 'p_car_reel', name: 'Reel with video', scheduled_date: monthDay(12), asset_url: FRAME, thumbnail_url: '' }),
   ];
@@ -326,6 +326,69 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
           if (mode === 'none') ok(verifyCalls === 0, 'viewer (client link): a browser with no staff session makes no key-verify request');
         }
         ok(errors.length === 0, 'viewer (client link, ' + mode + '): page errors ' + errors.join(' | '));
+        await ctx.close();
+      }
+    }
+
+    // ---- 5. NARROW images (OPEN_REPAIRS 711): the badge and "Open in Drive" always sit inside the picture, never overlap ----
+    {
+      const boxesOk = async (page, wrapSel, label) => {
+        const r = await page.evaluate(sel => {
+          const out = [];
+          document.querySelectorAll(sel).forEach(w => {
+            const img = w.querySelector('img'); const bdg = w.querySelector('.sv-car-bdg');
+            if (!img || !bdg) return;
+            const ib = img.getBoundingClientRect();
+            const pills = [...bdg.querySelectorAll(':scope > .sv-car-pill')].filter(p => p.getBoundingClientRect().width > 0);
+            const bx = pills.map(p => p.getBoundingClientRect());
+            const inside = bx.every(b => b.left >= ib.left - 0.5 && b.right <= ib.right + 0.5 && b.top >= ib.top - 0.5 && b.bottom <= ib.bottom + 0.5);
+            const apart = bx.length < 2 || bx[0].right <= bx[1].left + 0.5;
+            const clipped = pills.some(p => p.scrollWidth > p.clientWidth + 1);
+            out.push({ w: Math.round(ib.width), inside, apart, clipped, n: bx.length, text: pills.map(p => p.textContent.trim()).join(' | '), openLabel: (bdg.querySelector('.is-open') || {}).title });
+          });
+          return out;
+        }, wrapSel);
+        ok(r.length > 0, label + ': a badge was drawn');
+        r.forEach(x => ok(x.inside && x.apart && !x.clipped && x.n === 2 && x.openLabel === 'Open in Drive', label + ' at ' + x.w + ' px: both parts inside the picture, apart, not cut (' + JSON.stringify(x) + ')'));
+        return r;
+      };
+      for (const theme of ['light', 'dark']) {
+        const calls = { preview: [], images: [], writes: [] };
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce' });
+        await install(ctx, origin, true, calls);
+        await seedStaffGate(ctx);
+        await ctx.addInitScript(t => localStorage.setItem('syncview_theme', t), theme);
+        const page = await ctx.newPage();
+        await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => typeof navTo === 'function');
+        await page.evaluate(() => navTo('calendar'));
+        await page.locator('#calView').waitFor();
+        await page.evaluate(({ posts, client }) => {
+          _calInvalidateActiveLoad(); calState.loading = false; calState.error = ''; calState.client = client; calState.posts = posts;
+          calState.view = 'organizer'; calState.monthFilter = 'all'; calState.statusFilter = 'all'; _calSavePins([client]); _calRenderShell(); _calRenderBody();
+        }, { posts: rows(SLUG).filter(r => r.name), client: CLIENT });
+        await page.waitForSelector('.cal-card-thumb .sv-car-wrap .sv-car-bdg', { timeout: 15000 });
+        await boxesOk(page, '.cal-card-thumb .sv-car-wrap', 'staff Sheet card (' + theme + ')');
+        await shot(page, 'narrow-staff-card-' + theme);
+        for (const w of [260, 190, 150, 110, 80]) {
+          await page.addStyleTag({ content: `.sv-car-wrap > img { width: ${w}px !important; max-height: none !important; height: auto !important; }` });
+          await page.waitForTimeout(120);
+          await boxesOk(page, '.cal-card-thumb .sv-car-wrap', 'staff Sheet card forced (' + theme + ')');
+          if (w === 110 || w === 190) await shot(page, `narrow-staff-card-${theme}-${w}`);
+        }
+        await ctx.close();
+      }
+      // client link: the card view's stage and the expanded thumbnail, at narrow widths, on a phone and on a desktop
+      for (const [label, width, height] of [['desktop', 1280, 860], ['phone', 360, 780]]) {
+        const { ctx, page } = await openClientMonth(browser, origin, { flagOn: true, width, height });
+        await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
+        await page.locator('.cal-month-pill', { hasText: 'Carousel shared' }).locator('.cal-month-pill-thumb').click();
+        await page.waitForSelector('#calNotesStage .sv-car-frame img', { timeout: 10000 });
+        for (const w of [260, 190, 150, 110, 80]) {
+          await page.addStyleTag({ content: `.sv-car-frame > img { width: ${w}px !important; max-width: none !important; max-height: none !important; height: auto !important; }` });
+          await page.waitForTimeout(120);
+          await boxesOk(page, '#calNotesStage .sv-car-frame', 'client card view ' + label + ' forced');
+        }
         await ctx.close();
       }
     }

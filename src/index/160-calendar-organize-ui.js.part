@@ -1,4 +1,5 @@
 import { svLayerOpen, svLayerRelease, svLayerTouches } from './041-core-layers.js';
+import { svCarouselBadgeHtml, svCarouselImageUrl, svCarouselLook, svCarouselMiniNote, svCarouselShareNoteHtml } from './191-carousel-preview.js';
 import { clientMap, showConfirm, showNotify, showToast, svArea, svBusyHtml } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
@@ -2859,7 +2860,15 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
             if (_calIsFrameLink(thumbRaw)) { frame = _calFrameOpenUrl(thumbRaw); frameKind = 'frame'; }
             else if (_calIsFolderLink(thumbRaw)) { frame = _calFolderOpenUrl(thumbRaw); frameKind = 'folder'; }
         }
-        return { url, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame, frameKind };
+        // A Google Drive folder of images on a client the carousel switch lists (191): its first image stands in for the
+        // folder card, and the answer rides along (info.carousel) for the badge and the "not shared" note.
+        let carousel = null;
+        let outUrl = url;
+        if (!url) {
+            carousel = svCarouselLook(p);
+            if (carousel && carousel.state === 'ok' && carousel.fileId) outUrl = svCarouselImageUrl(carousel.fileId, 480);
+        }
+        return { url: outUrl, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame, frameKind, carousel };
     }
     function _calFrameMarkSvg() {
         // Picture/thumbnail glyph — signals "this opens the image in Frame.io".
@@ -2881,9 +2890,10 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
        for the COMPACT surfaces (month pill, week card, collapsed review/Kasper
        strip). The surrounding control already opens the card/post, so this is a
        hint glyph — its own click-through card lives on the expanded previews. */
-    function _calMiniLinkBadgeHtml(cls, kind) {
+    function _calMiniLinkBadgeHtml(cls, kind, info) {
         const meta = _calOpenCardMeta(kind);
-        return `<span class="${cls} is-frame" title="${_calEscAttr(meta.tip)}">${meta.badge}</span>`;
+        const note = svCarouselMiniNote(info);
+        return `<span class="${cls} is-frame${note ? ' has-share-note' : ''}" title="${_calEscAttr(note || meta.tip)}">${meta.badge}</span>`;
     }
     function _calThumbFrameHtml(openUrl, kind) {
         const meta = _calOpenCardMeta(kind);
@@ -2918,8 +2928,12 @@ import { svTrialClientTagHtml, svTrialSwitchHtml, svTrialVideoRowHtml } from './
        derivable, the Frame.io click-to-open card for Frame.io links, else the
        placeholder icon. */
     function _calThumbMediaHtml(info, onerror) {
-        if (info.url) return _calThumbImgTag(info, onerror);
-        if (info.frame) return _calThumbFrameHtml(info.frame, info.frameKind);
+        if (info.url) return _calThumbImgTag(info, onerror) + (info.carousel && info.carousel.state === 'ok' ? svCarouselBadgeHtml(info.carousel) : '');
+        if (info.frame) {
+            const card = _calThumbFrameHtml(info.frame, info.frameKind);
+            const note = svCarouselShareNoteHtml(info);
+            return note ? card.replace(/<\/a>\s*$/, note + '</a>') : card;
+        }
         return _calThumbIconHtml();
     }
     function _calThumbImgTag(info, onerror) {

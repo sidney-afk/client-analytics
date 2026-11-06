@@ -5,6 +5,13 @@
 // the surface/client/id/thumbnail_url they just saved; this function rereads the
 // row first and refuses stale writes when the stored thumbnail_url differs.
 //
+// A second action, folder_preview (carousel preview, OPEN_REPAIRS 710): given a Drive FOLDER link on a card
+// of a client listed in the runtime flag carousel_preview_clients, it lists the folder with the API key only (so a
+// folder that is not shared "Anyone with the link" reads as not_shared, never through the service account), picks
+// the first IMAGE by name, and answers { state, count, has_video, first_file_id }. Cached in
+// carousel_folder_preview_cache. No token or signed address ever leaves the function: the page draws the image from
+// Drive's public thumbnail address for that file id, which works only for a shared file.
+//
 // Required env:
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
@@ -223,6 +230,115 @@ async function writePatch(
   if (error) throw new Error("folder update failed");
 }
 
+/* ---- folder_preview (carousel preview) ---------------------------------------------------------------------- */
+const PREVIEW_FLAG_KEY = "carousel_preview_clients";
+const PREVIEW_TTL_MS: Record<string, number> = { ok: 15 * 60_000, empty: 60_000, no_images: 5 * 60_000, not_shared: 30_000, error: 15_000 };
+const IMAGE_NAME_RE = /\.(png|jpe?g|webp|gif|heic|avif)$/i;
+
+function slugOf(v: unknown): string {
+  return clean(v).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+export function driveFolderId(input: string): string {
+  const raw = clean(input);
+  if (/^[A-Za-z0-9_-]{15,}$/.test(raw)) return raw;
+  if (!isDriveFolderLink(raw)) return "";
+  let url: URL;
+  try { url = new URL(addScheme(raw)); } catch (_e) { return ""; }
+  const m = url.pathname.match(/\/folders\/([A-Za-z0-9_-]+)/i);
+  if (m) return m[1];
+  const id = url.searchParams.get("id");
+  return id && /^[A-Za-z0-9_-]{15,}$/.test(id) ? id : "";
+}
+
+// Names the way a person reads them: 2.png before 10.png, 01.png before 02.png.
+export function sortByName<T extends { name: string }>(files: T[]): T[] {
+  return files.slice().sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true, sensitivity: "base" }));
+}
+
+export type PreviewAnswer = { state: string; count: number; has_video: boolean; first_file_id: string };
+
+// Pure: what a folder listing means. Images are image/* files (or an image file name); videos are noted, never previewed.
+export function judgeListing(files: Array<{ id: string; name: string; mimeType: string }>): PreviewAnswer {
+  if (!files.length) return { state: "empty", count: 0, has_video: false, first_file_id: "" };
+  const images = sortByName(files.filter(f => /^image\//i.test(f.mimeType) || IMAGE_NAME_RE.test(f.name)));
+  const hasVideo = files.some(f => /^video\//i.test(f.mimeType));
+  if (!images.length) return { state: "no_images", count: 0, has_video: hasVideo, first_file_id: "" };
+  return { state: "ok", count: images.length, has_video: hasVideo, first_file_id: images[0].id };
+}
+
+async function listFolderPublic(folderId: string): Promise<PreviewAnswer> {
+  const apiKey = clean(Deno.env.get("GOOGLE_DRIVE_API_KEY"));
+  if (!apiKey) throw new Error("Drive key not configured");
+  const files: Array<{ id: string; name: string; mimeType: string }> = [];
+  let pageToken = "";
+  for (let page = 0; page < 5; page++) {
+    const qs = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: "nextPageToken,files(id,name,mimeType)",
+      pageSize: "200",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      key: apiKey,
+    });
+    if (pageToken) qs.set("pageToken", pageToken);
+    const resp = await fetch("https://www.googleapis.com/drive/v3/files?" + qs.toString(), { headers: { Accept: "application/json" } });
+    const body = await resp.json().catch(() => ({}));
+    // The API key alone reads only what is shared with anyone who has the link: a private folder answers 404 or 403.
+    if (resp.status === 404 || resp.status === 403 || resp.status === 401) return { state: "not_shared", count: 0, has_video: false, first_file_id: "" };
+    if (!resp.ok) throw new Error("Drive HTTP " + resp.status);
+    for (const f of (Array.isArray(body.files) ? body.files : []) as JsonMap[]) {
+      files.push({ id: clean(f.id), name: clean(f.name), mimeType: clean(f.mimeType) });
+    }
+    pageToken = clean(body.nextPageToken);
+    if (!pageToken) break;
+  }
+  return judgeListing(files);
+}
+
+async function previewAllowed(supabase: SupabaseClient, client: string): Promise<boolean> {
+  const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", PREVIEW_FLAG_KEY).maybeSingle();
+  if (error || !data || !data.value || typeof data.value !== "object") return false;
+  const v = data.value as JsonMap;
+  // Only a listed client: { "all": true } is deliberately not honoured here (this switch is for the test client).
+  const list = Array.isArray(v.clients) ? v.clients : [];
+  const slug = slugOf(client);
+  return !!slug && list.some(x => typeof x === "string" && slugOf(x) === slug);
+}
+
+async function folderPreview(body: JsonMap): Promise<Response> {
+  const client = clean(body.client);
+  const folderId = driveFolderId(clean(body.folder_url) || clean(body.folder_id));
+  if (!client || !folderId) return json({ ok: false, error: "client and folder required" }, 400);
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  if (!await previewAllowed(supabase, client)) return json({ ok: true, enabled: false });
+
+  const cached = await supabase.from("carousel_folder_preview_cache")
+    .select("state,image_count,has_video,first_file_id,checked_at").eq("folder_id", folderId).maybeSingle();
+  const row = cached.data as JsonMap | null;
+  if (row && !body.refresh) {
+    const age = Date.now() - Date.parse(clean(row.checked_at));
+    if (isFinite(age) && age < (PREVIEW_TTL_MS[clean(row.state)] ?? 60_000)) {
+      return json({ ok: true, enabled: true, cached: true, state: clean(row.state), count: Number(row.image_count) || 0, has_video: !!row.has_video, first_file_id: clean(row.first_file_id) });
+    }
+  }
+  let answer: PreviewAnswer;
+  try { answer = await listFolderPublic(folderId); }
+  catch (_e) {
+    // A failed read is not cached as an answer about the folder; the page keeps today's folder card.
+    return json({ ok: true, enabled: true, state: "error", count: 0, has_video: false, first_file_id: "" });
+  }
+  await supabase.from("carousel_folder_preview_cache").upsert({
+    folder_id: folderId, client: slugOf(client), state: answer.state, image_count: answer.count,
+    has_video: answer.has_video, first_file_id: answer.first_file_id, checked_at: new Date().toISOString(),
+  }, { onConflict: "folder_id" });
+  return json({ ok: true, enabled: true, state: answer.state, count: answer.count, has_video: answer.has_video, first_file_id: answer.first_file_id });
+}
+
 Deno.serve(async (req: Request) => {
   const started = Date.now();
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -231,6 +347,11 @@ Deno.serve(async (req: Request) => {
   let body: JsonMap;
   try { body = JSON.parse(await req.text()) as JsonMap; }
   catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
+
+  if (clean(body.action) === "folder_preview") {
+    try { return await folderPreview(body); }
+    catch (_e) { return json({ ok: false, error: "preview failed" }, 500); }
+  }
 
   const surface = clean(body.surface).toLowerCase();
   const table = SURFACES[surface];

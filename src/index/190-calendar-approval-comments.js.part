@@ -1,4 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
+import { svAboutThisPostHtml, svCarouselBigHtml, svCarouselStageMount, svCarouselStageUnmount } from './191-carousel-preview.js';
 import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageFor, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
@@ -48,7 +49,7 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { svCarouselPreviewOn, svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { svTrialWord, svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
@@ -605,6 +606,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             // can't render as an <img> the way a Drive file link can. Surface the
             // same branded click-to-open card used on the calendar thumbnails so
             // the client can open it in a new tab.
+            if (info.carousel && info.carousel.state === 'ok' && info.carousel.fileId) return `<div class="cal-review-preview-thumb">${svCarouselBigHtml(info.carousel, 800)}</div>`;
             if (!imgUrl) {
                 const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
                 if (linkKind) {
@@ -2814,8 +2816,12 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // Trial reels (189): the version on screen plays, and its switch sits under the player.
         const vp = post ? svTrialNotesPost(post) : post;
         const on = !!post && svFrameStageMount(stage, vp, _calDeriveThumb(post));
-        if (!on) { svFrameStageUnmount(); stage.hidden = true; }
-        shell.toggleAttribute('data-video', on);
+        // No playable video: on a client the carousel switch lists (191), the stage shows the carousel's first image
+        // (or the post's own picture) beside the notes, the same shape as a video's.
+        const car = !on && !!post && svCarouselStageMount(stage, post, _calDeriveThumbInfo(post).url);
+        if (!on && !car) { svFrameStageUnmount(); svCarouselStageUnmount(stage); stage.hidden = true; }
+        else if (on) svCarouselStageUnmount(stage);
+        shell.toggleAttribute('data-video', on || car);
         shell.querySelectorAll('.trl-notes-sw').forEach(n => (n.parentNode && n.parentNode.classList.contains('trl-notes-bar') ? n.parentNode : n).remove());
         // A version whose link cannot play here (a Google Drive or Dropbox link) keeps the switch, in the slim bar with
         // a link to open it, so another version can always be picked again (Codex on PR 2364). Only where the card's
@@ -2864,6 +2870,19 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });
     });
+    // The carousel preview (191): the switch came in, or a folder's first image was read, or "Show more" was pressed:
+    // the open card's stage and "About this post" follow, keeping whatever is being typed.
+    function _calCarouselRefresh() {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !svCarouselPreviewOn(post.client || calState.client)) return;
+        _calNotesStageSync(post);
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    }
+    window.addEventListener('sv-carousel-preview', _calCarouselRefresh);
+    window.addEventListener('sv-review-stage-switch', _calCarouselRefresh);
     window.addEventListener('sv-frame-switch', () => {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
@@ -3158,6 +3177,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
             ${actionFailure}
+            ${svAboutThisPostHtml(post, _calDeriveThumbInfo(post))}
             <div class="cal-comments-feed" id="calCommentsFeed">
                 <div class="cal-comments-feed-inner">${feedHtml}${fioTail}</div>
             </div>

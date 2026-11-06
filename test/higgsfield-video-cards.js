@@ -294,7 +294,7 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
   const index = read('index.ts');
   assert.ok(/name: "studio_action"/.test(index), 'tool listed');
   assert.ok(!/name: "video_cards"/.test(index), 'no separate video_cards tool');
-  assert.ok(/if \(name === "studio_action"\) return await studioAction\(\{ reviewNotes: videoCardDeps, tools: \(\) => sharedToolDeps\(author\), trials: \(\) => trialDeps\(author\), watch: \(\) => watchDeps\(author\) \}, args\.action, args\.args\)/.test(index), 'tool routed');
+  assert.ok(/if \(name === "studio_action"\) return await studioAction\(\{ reviewNotes: videoCardDeps, tools: \(\) => sharedToolDeps\(author\), trials: \(\) => trialDeps\(author\), watch: \(\) => watchDeps\(author\), music: \(\) => musicDeps\(author\) \}, args\.action, args\.args\)/.test(index), 'tool routed');
   assert.ok(/from "\.\.\/frameio-view\/logic\.mjs"/.test(index), 'reuses the Watch here Frame.io lookup');
   const depsSrc = index.slice(index.indexOf('function videoCardDeps()'), index.indexOf('// One fp_settings value'));
   assert.ok(depsSrc.length > 100);

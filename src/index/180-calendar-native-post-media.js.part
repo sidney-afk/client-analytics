@@ -3439,7 +3439,7 @@ import { svTrialClientTagHtml, svTrialMonthMarkHtml } from './189-trial-reels-ca
         // knows what its own batch colours mean, so it's client-only.
         const colorTitle = (_isClientLink && color) ? ' title="Color tag. Shows which batch this card is in."' : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_isClientLink ? svTrialClientTagHtml(p, true) : svTrialMonthMarkHtml(p, false)}${_calPillBadgeHtml(p)}</span>${warn}</button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name" title="${_calEscAttr(p.name || 'Untitled')}">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_isClientLink ? svTrialClientTagHtml(p, true) : svTrialMonthMarkHtml(p, false)}${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
 
     function renderCalMonth() {

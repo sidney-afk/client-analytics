@@ -9489,5 +9489,10 @@ html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; 
  .sv-car-about-sub { display: none; }
  .sv-car-about-cap { -webkit-line-clamp: 3; font-size: .76rem; }
  .sv-car-about + .cal-comments-feed { min-height: 84px; }
+ /* Show more on a phone: the opened caption scrolls inside a shorter box, and About this post itself gives way (it
+    shrinks and scrolls) before the Notes box and Send are pushed off the sheet: at 30vh they sat 15 px below a 390x844
+    phone's edge (Layoutpass, OPEN_REPAIRS 714). */
+ .sv-car-about-cap.is-open { max-height: 18vh; }
+ .sv-car-about { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }
 /* no-hardcoded-colors: allow-end */

@@ -268,7 +268,7 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
 
   // studio_action: one tool, "review_notes" is its first action and answers what videoCards answers.
   const sa = await import(path.join(dir, 'studioaction.mjs'));
-  assert.deepStrictEqual(sa.ACTION_NAMES, ['review_notes', 'tool_save', 'tool_list', 'tool_get', 'trial_reels', 'watch_video']);
+  assert.deepStrictEqual(sa.ACTION_NAMES, ['review_notes', 'tool_save', 'tool_list', 'tool_get', 'trial_reels', 'make_music', 'watch_video']);
   const saDeps = { reviewNotes: () => deps() };
   const direct = await v.videoCards(deps(), { client: 'Test', videos: [7, 8] });
   assert.strictEqual(await sa.studioAction(saDeps, 'review_notes', { client: 'Test', videos: [7, 8] }), direct);

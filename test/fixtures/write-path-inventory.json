@@ -234,6 +234,10 @@
       ],
       "note": "Calendar drag order (calendar-reorder). Recorded as calendar_reorder."
     },
+    "191-carousel-preview.js.part|settle|THUMBNAIL_FOLDER_RESOLVE_EF_URL|POST": {
+      "status": "read",
+      "note": "Asks the server for the first image of a Drive folder (carousel preview, folder_preview). A read: it saves nothing."
+    },
     "200-intake-data-startup.js.part|_linearIntakeLogSubmissionRequest|LOG_SUBMISSION_WEBHOOK|POST": {
       "status": "telemetry",
       "note": "Same submission log."

@@ -63,10 +63,10 @@ export const STUDIO_ACTIONS = {
     run: (deps, args) => trialReels(deps.trials(), args),
   },
   make_music: {
-    does: "Make a music track with ElevenLabs Music. Only when the person says yes (Music Bank stays the default). First call shows the card and changes nothing; call again with go: true after they say go. Tracks are 3 to 60 seconds, with daily limits per person and for the team and a monthly music budget. Returns a job_id: wait_for_job gives the MP3 link.",
+    does: "Make a music track with ElevenLabs Music. Only when the person says yes (Music Bank stays the default). First call shows the card and changes nothing; call again with go: true after they say go. Tracks run 3 seconds to 5 minutes; a daily and monthly money guard for the whole team stops anyone using up a batch of credits. Returns a job_id: wait_for_job gives the MP3 link.",
     args: {
       prompt: "what the music should feel like: style, mood, instruments (required)",
-      seconds: "length, 3 to 60 (optional, default 30)",
+      seconds: "length in seconds, 3 to 300 (optional, default 30)",
       instrumental: "false to allow vocals (optional, default true: no singing)",
       go: "true only after the person said go (optional)",
     },

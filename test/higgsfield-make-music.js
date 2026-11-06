@@ -32,8 +32,8 @@ function harness({ env = { ELEVENLABS_KEY: 'k-not-real' }, outcome = 'reserved',
   // No key, no prompt, bad length: nothing reserved.
   { const h = harness({ env: {} }); assert.strictEqual(await m.makeMusic(h.d, { prompt: 'calm', go: true }), m.NO_KEY_TEXT); }
   { const h = harness(); assert.ok((await m.makeMusic(h.d, {})).startsWith('Give a prompt')); }
-  for (const s of [2, 61, 600, 'abc']) { const h = harness(); const t = await m.makeMusic(h.d, { prompt: 'calm', seconds: s, go: true }); assert.ok(t.includes('3 to 60'), t); assert.strictEqual(h.calls.reserve.length, 0); }
-  { const h = harness({ env: { ELEVENLABS_KEY: 'k', ELEVENLABS_MUSIC_PER_DAY: 'lots' } }); assert.ok((await m.makeMusic(h.d, { prompt: 'calm', go: true })).includes('not a valid number')); }
+  for (const s of [2, 301, 600, 'abc']) { const h = harness(); const t = await m.makeMusic(h.d, { prompt: 'calm', seconds: s, go: true }); assert.ok(t.includes('5 minutes'), t); assert.strictEqual(h.calls.reserve.length, 0); }
+  { const h = harness({ env: { ELEVENLABS_KEY: 'k', ELEVENLABS_MUSIC_DAY_USD: 'lots' } }); assert.ok((await m.makeMusic(h.d, { prompt: 'calm', go: true })).includes('not a valid number')); }
 
   // Card first, nothing reserved or sent.
   { const h = harness(); const t = await m.makeMusic(h.d, { prompt: 'calm piano', seconds: 20 });
@@ -41,16 +41,18 @@ function harness({ env = { ELEVENLABS_KEY: 'k-not-real' }, outcome = 'reserved',
     assert.strictEqual(h.calls.reserve.length, 0); assert.strictEqual(h.calls.fetch.length, 0); }
 
   // Hard limits are decided inside the one serialized reserve step; each refusal starts nothing.
-  { const h = harness({ outcome: 'person_limit', used: 5 }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', go: true })).startsWith('Refused: you already made 5')); await Promise.all(h.calls.bg); assert.strictEqual(h.calls.fetch.length, 0); }
-  { const h = harness({ outcome: 'team_limit', used: 20 }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', go: true })).includes('the team has made 20')); assert.strictEqual(h.calls.fetch.length, 0); }
-  { const h = harness({ outcome: 'month_budget', used: 19.9 }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', seconds: 60, go: true })).includes('monthly music budget')); assert.strictEqual(h.calls.fetch.length, 0); }
+  { const h = harness({ outcome: 'day_budget', used: 29 }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', seconds: 300, go: true })).includes("music limit for today")); assert.strictEqual(h.calls.fetch.length, 0); }
+  { const h = harness({ outcome: 'month_budget', used: 149 }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', seconds: 300, go: true })).includes('monthly music budget')); assert.strictEqual(h.calls.fetch.length, 0); }
   { const h = harness({ rpcFails: true }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', go: true })).includes('nothing was started')); assert.strictEqual(h.calls.bg.length, 0); assert.strictEqual(h.calls.fetch.length, 0); }
   { const h = harness({ outcome: 'something_new' }); assert.ok((await m.makeMusic(h.d, { prompt: 'x', go: true })).includes('nothing was started')); assert.strictEqual(h.calls.fetch.length, 0); }
   // The limits sent to the database come from the owner's settings, never from arguments.
-  { const h = harness(); await m.makeMusic(h.d, { prompt: 'x', go: true, limit: 99, person: 99, day: 99 });
-    assert.deepStrictEqual([h.calls.reserve[0].person, h.calls.reserve[0].day, h.calls.reserve[0].month], [5, 20, 20]); }
-  { const h = harness({ env: { ELEVENLABS_KEY: 'k', ELEVENLABS_MUSIC_PER_PERSON_DAY: '2', ELEVENLABS_MUSIC_PER_DAY: '7', ELEVENLABS_MUSIC_MONTH_USD: '9' } }); await m.makeMusic(h.d, { prompt: 'x', go: true });
-    assert.deepStrictEqual([h.calls.reserve[0].person, h.calls.reserve[0].day, h.calls.reserve[0].month], [2, 7, 9]); }
+  { const h = harness(); await m.makeMusic(h.d, { prompt: 'x', go: true, day: 9999, month: 9999 });
+    assert.deepStrictEqual([h.calls.reserve[0].day, h.calls.reserve[0].month], [30, 150]); }
+  { const h = harness({ env: { ELEVENLABS_KEY: 'k', ELEVENLABS_MUSIC_DAY_USD: '7', ELEVENLABS_MUSIC_MONTH_USD: '9' } }); await m.makeMusic(h.d, { prompt: 'x', go: true });
+    assert.deepStrictEqual([h.calls.reserve[0].day, h.calls.reserve[0].month], [7, 9]); }
+  // A 5 minute track reserves a 5 dollar ceiling; a 61 second one counts as 2 minutes.
+  { const h = harness(); await m.makeMusic(h.d, { prompt: 'x', seconds: 300, go: true }); assert.strictEqual(h.calls.reserve[0].cost, 5); }
+  { const h = harness(); await m.makeMusic(h.d, { prompt: 'x', seconds: 61, go: true }); assert.strictEqual(h.calls.reserve[0].cost, 2); }
 
   // Go: reserved at the ceiling price, started in the background, stored as mp3, signed link.
   { const h = harness(); const t = await m.makeMusic(h.d, { prompt: 'calm piano', seconds: 30, go: true });

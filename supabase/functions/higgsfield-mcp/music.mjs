@@ -2,11 +2,12 @@
 // (nobody keeps a key on their own computer). Music Bank stays the default; this runs only when the
 // person says yes. First call shows a card and changes nothing; go: true reserves and starts.
 //
-// HARD LIMITS (Sidney 2026-11-06: nobody may use up a batch of credits, price itself does not matter):
-//   - one track is 3 to 60 seconds (ElevenLabs allows up to 10 minutes, we never ask for more than 60 s);
-//   - at most ELEVENLABS_MUSIC_PER_PERSON_DAY tracks per person per UTC day, ELEVENLABS_MUSIC_PER_DAY for the
-//     whole team and an ELEVENLABS_MUSIC_MONTH_USD monthly music budget, counted and reserved in one serialized
-//     database step (migration 20261106180000_hf_music_reserve.sql) so concurrent requests cannot both pass;
+// HARD LIMITS (Sidney 2026-11-06: nobody may burn a batch of credits at once; no per-person or per-track
+// count limits, editors make many tracks):
+//   - one track is 3 seconds to 5 minutes (ElevenLabs allows up to 10 minutes);
+//   - music started per UTC day (ELEVENLABS_MUSIC_DAY_USD) and per month (ELEVENLABS_MUSIC_MONTH_USD) is capped in
+//     reserved dollars, counted and reserved in one serialized database step
+//     (migration 20261106180000_hf_music_reserve.sql) so concurrent requests cannot both pass;
 //   - the price reserved is a ceiling, set high on purpose, against the team's monthly cap too;
 //   - a double click never starts two tracks (idempotency key).
 // Every limit has a built-in default and can only be tightened or loosened by the account owner in the
@@ -25,13 +26,12 @@ export const MUSIC_URL = "https://api.elevenlabs.io/v1/music";
 export const MUSIC_MODEL = "elevenlabs/music";
 export const MUSIC_MODEL_ID = "music_v2_5";
 export const MIN_SECONDS = 3;
-export const MAX_SECONDS = 60;
+export const MAX_SECONDS = 300;
 export const DEFAULT_SECONDS = 30;
 // A ceiling, not a measurement: ElevenLabs publishes no price. Reserved per started minute.
 export const DEFAULT_USD_PER_MIN = 1;
-export const DEFAULT_PER_PERSON_DAY = 5;
-export const DEFAULT_PER_DAY = 20;
-export const DEFAULT_MONTH_USD = 20;
+export const DEFAULT_DAY_USD = 30;
+export const DEFAULT_MONTH_USD = 150;
 export const MAX_PROMPT_CHARS = 1500;
 export const STALE_RUNNING_MS = 10 * 60 * 1000;
 export const NO_KEY_TEXT = "Music is not switched on yet: the account owner needs to add the ElevenLabs key.";
@@ -46,8 +46,7 @@ function num(raw, dflt, whole) {
 export function limits(env) {
   const l = {
     rate: num(env("ELEVENLABS_MUSIC_USD_PER_MIN"), DEFAULT_USD_PER_MIN, false),
-    person: num(env("ELEVENLABS_MUSIC_PER_PERSON_DAY"), DEFAULT_PER_PERSON_DAY, true),
-    day: num(env("ELEVENLABS_MUSIC_PER_DAY"), DEFAULT_PER_DAY, true),
+    day: num(env("ELEVENLABS_MUSIC_DAY_USD"), DEFAULT_DAY_USD, false),
     month: num(env("ELEVENLABS_MUSIC_MONTH_USD"), DEFAULT_MONTH_USD, false),
   };
   return Object.values(l).some((v) => v === null) ? null : l;
@@ -64,11 +63,11 @@ export function musicCard(prompt, secs, instrumental, usd, l) {
   return [
     "Plan: make a music track (ElevenLabs Music)",
     `- Idea: ${prompt.length > 200 ? prompt.slice(0, 200) + "..." : prompt}`,
-    `- Length: ${secs} seconds (3 to ${MAX_SECONDS} seconds allowed)`,
+    `- Length: ${secs} seconds (3 seconds to 5 minutes allowed)`,
     `- ${instrumental ? "Instrumental, no singing" : "May include vocals"}`,
     "- Output: an MP3 you can download",
     `- Price: up to ${money(usd)} (a safe ceiling; ElevenLabs does not publish a price)`,
-    `- Limits: ${l.person} tracks per person per day, ${l.day} per day for the whole team`,
+    `- Guard: music for the whole team is capped at ${money(l.day)} a day and ${money(l.month)} a month, so nothing can use up a batch of credits`,
   ].join("\n");
 }
 const nowIso = (d) => (d.now ? d.now() : new Date()).toISOString();
@@ -82,7 +81,7 @@ export async function makeMusic(d, args) {
   if (!prompt) return "Give a prompt: what the music should feel like (style, mood, instruments).";
   if (prompt.length > MAX_PROMPT_CHARS) return `That description is ${prompt.length} characters; keep it under ${MAX_PROMPT_CHARS}.`;
   const secs = seconds(args.seconds);
-  if (!(secs >= MIN_SECONDS && secs <= MAX_SECONDS)) return `Music tracks here run from ${MIN_SECONDS} to ${MAX_SECONDS} seconds. Pick a length in that range.`;
+  if (!(secs >= MIN_SECONDS && secs <= MAX_SECONDS)) return `Music tracks here run from ${MIN_SECONDS} seconds to 5 minutes (${MAX_SECONDS} seconds). Pick a length in that range.`;
   const instrumental = args.instrumental !== false;
   const usd = musicPrice(secs, l.rate);
   if (args.go !== true) {
@@ -92,10 +91,9 @@ export async function makeMusic(d, args) {
   // The hard limits are counted and the row is reserved in ONE serialized database step (hf_music_reserve),
   // so two requests at the same moment cannot both pass a limit. If that step is missing or fails, nothing starts.
   const params = { prompt, seconds: secs, instrumental, engine: "elevenlabs-music" };
-  const rsv = await d.reserveMusic({ member: d.author, prompt: "Music: " + prompt.slice(0, 200), params, cost: usd, cap: d.cap, idemKey: await d.idemKey(d.author, MUSIC_MODEL, { prompt, secs, instrumental }), person: l.person, day: l.day, month: l.month });
+  const rsv = await d.reserveMusic({ member: d.author, prompt: "Music: " + prompt.slice(0, 200), params, cost: usd, cap: d.cap, idemKey: await d.idemKey(d.author, MUSIC_MODEL, { prompt, secs, instrumental }), day: l.day, month: l.month });
   if (!rsv) return "Could not check the music limits, so nothing was started or spent. Try again in a minute.";
-  if (rsv.outcome === "person_limit") return `Refused: you already made ${rsv.used} music tracks today (the limit is ${l.person} a day). Try again tomorrow, or use Music Bank.`;
-  if (rsv.outcome === "team_limit") return `Refused: the team has made ${rsv.used} music tracks today (the limit is ${l.day} a day). Try again tomorrow, or use Music Bank.`;
+  if (rsv.outcome === "day_budget") return `Refused: this would pass the team's music limit for today of ${money(l.day)} (${money(Number(rsv.used))} already started today). Try again tomorrow, use Music Bank, or ask the account owner.`;
   if (rsv.outcome === "month_budget") return `Refused: this would pass the monthly music budget of ${money(l.month)} (${money(Number(rsv.used))} used). Use Music Bank, or ask the account owner.`;
   if (rsv.outcome !== "reserved" && rsv.outcome !== "over_cap" && rsv.outcome !== "duplicate") return "Could not check the music limits, so nothing was started or spent. Try again in a minute.";
   if (rsv.outcome === "over_cap") return `Refused: this (${money(usd)}) would pass the team's monthly budget of ${money(d.cap)} (${money(Number(rsv.spent))} already used). Ask the account owner.`;
@@ -124,7 +122,7 @@ async function runMusic(d, key, rowId, jobId, prompt, secs, instrumental) {
         method: "POST",
         headers: { "xi-api-key": key, "content-type": "application/json" },
         body: JSON.stringify({ prompt, music_length_ms: secs * 1000, model_id: MUSIC_MODEL_ID, force_instrumental: instrumental }),
-        signal: d.timeout ? d.timeout(240000) : undefined,
+        signal: d.timeout ? d.timeout(280000) : undefined,
       });
     } catch (e) {
       // The request may have been accepted and billed: counted until someone looks.

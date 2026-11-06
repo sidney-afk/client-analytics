@@ -1138,7 +1138,7 @@ function musicDeps(author: string) {
       if (CAP_USD === null) return null;
       const { data, error } = await db().rpc("hf_music_reserve", {
         p_member: p.member, p_prompt: p.prompt, p_params: p.params, p_cost: p.cost, p_cap: CAP_USD, p_idem_key: p.idemKey,
-        p_person_day: p.person, p_team_day: p.day, p_month_usd: p.month,
+        p_day_usd: p.day, p_month_usd: p.month,
       });
       return error || !data ? null : data as JsonMap;
     },

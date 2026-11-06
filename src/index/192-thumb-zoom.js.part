@@ -1,0 +1,126 @@
+import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
+    /* THUMBNAIL ZOOM (session Thumbzoom, 2026-11-06; Sidney: "when [Kasper] clicks on the thumbnails it opens up in full
+       screen ... and the same for the client's review board and the SMM review board"). One full-screen viewer for the
+       three review boards: Kasper's Review Session, the client link and the SMM's Review tab, on the new review page (195)
+       and on the older card lists (190, 280, 330). A dark backdrop, the picture fitted to the screen, closed with Esc, a
+       click outside, or the X. It is read-only UI, so it has no switch.
+
+       Only the picture itself opens it. A carousel passes its Drive folder, and the viewer shows the first image with
+       "Open in Drive". The viewer lives on <body>, outside the review page's shadow root, so it covers everything. */
+    const TZ_ID = 'svThumbZoom';
+    let _tzOpener = null;
+    // A small Drive thumbnail (sz=w640 and the like) is asked again at screen size; any other address is used as given.
+    function svThumbZoomUrl(u) {
+        const s = String(u || '').trim();
+        if (!s) return '';
+        try {
+            const x = new URL(s, location.href);
+            if (/(^|\.)drive\.google\.com$/i.test(x.hostname) && /\/thumbnail$/i.test(x.pathname) && x.searchParams.get('id')) {
+                x.searchParams.set('sz', 'w2400');
+                return x.toString();
+            }
+        } catch (e) { /* not a URL: used as given */ }
+        return s;
+    }
+    function _tzEl() {
+        let o = document.getElementById(TZ_ID);
+        if (o) return o;
+        o = document.createElement('div');
+        o.id = TZ_ID;
+        o.className = 'sv-tz';
+        o.setAttribute('role', 'dialog');
+        o.setAttribute('aria-modal', 'true');
+        o.setAttribute('aria-label', 'Thumbnail, full screen');
+        o.innerHTML = '<img class="sv-tz-img" alt="">'
+            + '<a class="sv-tz-open" target="_blank" rel="noopener noreferrer" hidden>Open in Drive</a>'
+            + '<button class="sv-tz-x" type="button" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>';
+        // A click anywhere but the picture and the link closes it (the picture takes taps for pinch-zoom).
+        o.addEventListener('click', e => {
+            if (e.target.closest('.sv-tz-img') || e.target.closest('.sv-tz-open')) return;
+            svThumbZoomClose();
+        });
+        document.body.appendChild(o);
+        return o;
+    }
+    /* opts: { openUrl } a Drive folder (a carousel) for "Open in Drive"; { opener } the element focus returns to. */
+    function svThumbZoomOpen(url, opts) {
+        const src = svThumbZoomUrl(url);
+        if (!src) return false;
+        const o = _tzEl();
+        const img = o.querySelector('.sv-tz-img');
+        const open = o.querySelector('.sv-tz-open');
+        const folder = opts && /^https?:\/\//i.test(String((opts && opts.openUrl) || '')) ? String(opts.openUrl) : '';
+        img.onerror = () => {
+            // The full-size address failed: the small picture that was already on screen is better than nothing.
+            const small = String(url || '');
+            if (small && img.getAttribute('src') !== small) img.src = small;
+        };
+        img.src = src;
+        if (folder) { open.href = folder; open.hidden = false; } else { open.removeAttribute('href'); open.hidden = true; }
+        _tzOpener = (opts && opts.opener) || document.activeElement || null;
+        o.classList.add('open');
+        document.documentElement.classList.add('sv-tz-lock');
+        svLayerOverlay('sv-thumb-zoom', '#' + TZ_ID, '#' + TZ_ID, () => svThumbZoomClose(), { focusOnClose: false });
+        try { o.querySelector('.sv-tz-x').focus({ preventScroll: true }); } catch (e) { /* focus is a courtesy */ }
+        return true;
+    }
+    function svThumbZoomClose() {
+        const o = document.getElementById(TZ_ID);
+        if (!o || !o.classList.contains('open')) return;
+        svLayerRelease('sv-thumb-zoom');
+        o.classList.remove('open');
+        document.documentElement.classList.remove('sv-tz-lock');
+        const img = o.querySelector('.sv-tz-img');
+        if (img) { img.onerror = null; img.removeAttribute('src'); }
+        const back = _tzOpener; _tzOpener = null;
+        try { if (back && back.isConnected && typeof back.focus === 'function') back.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    }
+    function svThumbZoomIsOpen() { const o = document.getElementById(TZ_ID); return !!(o && o.classList.contains('open')); }
+    // Esc closes it before anything under it sees the key (the review page and the notes box also listen for Esc).
+    document.addEventListener('keydown', e => {
+        if (!svThumbZoomIsOpen()) return;
+        if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); svThumbZoomClose(); return; }
+        // Tab stays inside the viewer (its X and, for a carousel, "Open in Drive") until it closes.
+        if (e.key === 'Tab') {
+            const o = document.getElementById(TZ_ID);
+            const set = Array.from(o.querySelectorAll('.sv-tz-x, .sv-tz-open')).filter(n => !n.hidden);
+            if (!set.length) return;
+            const i = set.indexOf(document.activeElement);
+            const next = e.shiftKey ? (i <= 0 ? set.length - 1 : i - 1) : (i < 0 || i === set.length - 1 ? 0 : i + 1);
+            e.preventDefault();
+            set[next].focus({ preventScroll: true });
+        }
+    }, true);
+
+    /* The older card lists (Calendar's Review tab, Kasper's list, a Samples card): the small picture in a card's strip, the
+       expanded preview and the carousel's first image. One handler for the page; a card's own zoom button (Kasper's list)
+       still does its work. */
+    const TZ_DOC_SEL = '.kcard-thumb img, .cal-review-preview-thumb img, .sv-car-frame img';
+    function _tzDocOpen(img) {
+        const holder = img.closest('.kcard-thumb') || img.closest('.cal-review-preview-thumb') || img.closest('.sv-car-frame');
+        const btn = holder && holder.querySelector('button.kcard-thumb-zoom');
+        if (btn) { btn.click(); return true; }
+        const a = (img.closest('.sv-car-frame') && img.closest('.sv-car-frame').querySelector('a.is-open')) || null;
+        const folder = (a && a.getAttribute('href')) || (holder && holder.getAttribute('data-tz-open')) || (img.closest('[data-tz-open]') && img.closest('[data-tz-open]').getAttribute('data-tz-open')) || '';
+        return svThumbZoomOpen(img.currentSrc || img.getAttribute('src'), { openUrl: folder, opener: holder || img });
+    }
+    document.addEventListener('click', e => {
+        const t = e.target;
+        if (!t || t.nodeType !== 1 || svThumbZoomIsOpen()) return;
+        const img = t.closest && t.closest(TZ_DOC_SEL);
+        // A picture inside its own button or link keeps that control's job (the expanded preview's button opens the surface's own lightbox).
+        if (!img || img.closest('a, button') || !(img.getAttribute('src') || '')) return;
+        if (_tzDocOpen(img)) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+    // Keyboard: Enter or Space on a focused strip thumbnail (the card lists mark it role=button, tabindex=0).
+    document.addEventListener('keydown', e => {
+        if ((e.key !== 'Enter' && e.key !== ' ') || svThumbZoomIsOpen()) return;
+        const h = e.target && e.target.matches && e.target.matches('.kcard-thumb[data-tz]') ? e.target : null;
+        if (!h) return;
+        const img = h.querySelector('img');
+        if (img && img.getAttribute('src') && _tzDocOpen(img)) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+
+    window.svThumbZoomOpen = svThumbZoomOpen;
+    window.svThumbZoomClose = svThumbZoomClose;
+export { svThumbZoomOpen };

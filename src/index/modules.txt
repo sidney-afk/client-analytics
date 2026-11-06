@@ -72,3 +72,4 @@
 245-production-trial-versions.js.part
 194-review-trial-versions.js.part
 191-carousel-preview.js.part
+192-thumb-zoom.js.part

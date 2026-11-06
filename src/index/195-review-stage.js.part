@@ -2,6 +2,8 @@ import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHt
 import { _calClearStaleApprovals, _calComponentsFor, _calIsYouTubeCard, _calNormStatus, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { loadCalendarPosts } from './150-calendar-hydration-import.js';
+import { svThumbZoomOpen } from './192-thumb-zoom.js';
+import { svCarouselImageUrl, svCarouselLook } from './191-carousel-preview.js';
 import { _calApplyAutoStatus, svCalReviewApproveKeeping, svCalResolveVersionTweaks } from './190-calendar-approval-comments.js';
 import { _calCommentsFor, _calCommentsForView, _calPendingEdits, _calSaveInFlight, _calSaveTimers, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
@@ -252,6 +254,8 @@ svg{display:block;flex-shrink:0}
 .player.land,.bigthumb.land{--aw:16;--ah:9}
 .player{container-type:inline-size}
 .player img.poster,.bigthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-width:none}
+.bigthumb img#bigthumbImg:not([hidden]){cursor:zoom-in}
+.bigthumb img#bigthumbImg:focus-visible{outline:3px solid var(--accent,#3737f2);outline-offset:-3px}
 .player .vignette{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.72) 0,rgba(0,0,0,.28) 22%,rgba(0,0,0,0) 48%)}
 .player .subs{position:absolute;left:10%;right:10%;bottom:24%;text-align:center;color:#fff;font-size:clamp(14px,6.4cqw,26px);font-weight:800;line-height:1.22;text-shadow:0 1px 2px rgba(0,0,0,.7),0 0 14px rgba(0,0,0,.4);pointer-events:none}
 .player.land .subs{font-size:clamp(14px,3.2cqw,26px);bottom:22%}
@@ -1266,6 +1270,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     // Trial reels (194): a versions read landing, or an answer saved, redraws the page that is open.
     svTrialReviewOnChange(() => { if (R.root && R.S && R.host && !R.host.hidden) _rsRender(); });
+    // A carousel's first image was read (191): the thumbnail part draws it.
+    window.addEventListener('sv-carousel-preview', () => { if (R.root && R.S && R.host && !R.host.hidden) _rsRender(); });
     // Kasper's second layout needs room for the list, three parts and the conversation (below this: today's page).
     const RS_L2_MIN = 1360;
     /* Unsent change-request words survive a reload (session Rail, 2026-10-18). Client link only. Kept in this browser
@@ -1783,10 +1789,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         try { thumb = _calDeriveThumb(post) || ''; } catch (e) { thumb = ''; }
         let tinfo = null;
         try { tinfo = _calDeriveThumbInfo(post); } catch (e) { tinfo = null; }
+        // A carousel (a Drive folder of images, behind carousel_preview_v1): its first image is the thumbnail on stage (Thumbzoom).
+        if (!thumb && tinfo && tinfo.carousel && tinfo.carousel.state === 'ok' && tinfo.carousel.fileId) thumb = svCarouselImageUrl(tinfo.carousel.fileId, 1000);
         const thread = _rsThread(post, comps, mode, item);
         return {
             id: post.id, post, item: item || null, title: post.name || 'Untitled', date: _rsDate(post.scheduled_date),
-            land: yt, thumb, tframe: tinfo && tinfo.frame ? tinfo.frame : '', parts,
+            land: yt, thumb, tframe: !thumb && tinfo && tinfo.frame ? tinfo.frame : '', parts,
             caption: String(post.caption || ''), ytitle: String(post.name || ''),
             client: item ? (item.client || post.client || '') : (post.client || ''),
             sample: !!(item && item._sxr), sec: item ? item._rsSec : '',
@@ -2098,6 +2106,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!R.edgeRaf) R.edgeRaf = requestAnimationFrame(() => { R.edgeRaf = 0; _rsStripEdge(); });
         }).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
+        // Thumbzoom (192): the thumbnail picture (a trial version's own, a carousel's first image) opens full screen.
+        const zoom = (e) => {
+            const img = e.target && e.target.closest ? e.target.closest('#bigthumbImg') : null;
+            if (!img || img.hidden || !img.getAttribute('src')) return false;
+            const m = _rsCur();
+            let folder = '';
+            try { const look = m && m.post ? svCarouselLook(m.post) : null; if (look && look.state === 'ok') folder = look.folderUrl || ''; } catch (err) { folder = ''; }
+            e.stopPropagation();
+            return svThumbZoomOpen(img.currentSrc || img.getAttribute('src'), { openUrl: folder, opener: img });
+        };
+        R.root.addEventListener('click', (e) => { zoom(e); });
+        R.root.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.id === 'bigthumbImg' && zoom(e)) e.preventDefault(); });
         const settle = () => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } };
         R.root.addEventListener('pointerdown', () => { R.pressing = true; R.pressSeq = (R.pressSeq || 0) + 1; }, true);
         R.root.addEventListener('focusout', (e) => {
@@ -2733,6 +2753,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.l2 && m.thumb && img.complete && img.naturalWidth && img.getAttribute('src') === m.thumb) bt.classList.toggle('land', img.naturalWidth > img.naturalHeight * 1.05);
         if (m.thumb) {
             tf.hidden = true; img.hidden = false;
+            // Thumbzoom (192): the picture itself opens full screen; a keyboard reaches it too.
+            img.setAttribute('role', 'button'); img.setAttribute('tabindex', '0'); img.setAttribute('aria-label', 'View thumbnail full screen');
             if (img.getAttribute('src') !== m.thumb) {
                 img.onload = () => { if (img.naturalWidth) bt.classList.toggle('land', img.naturalWidth > img.naturalHeight * 1.05); };
                 // A version's own thumbnail that does not load leaves the part empty, never a broken image (688).
@@ -2740,7 +2762,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 img.src = m.thumb;
             }
         } else {
-            img.hidden = true; img.removeAttribute('src');
+            img.hidden = true; img.removeAttribute('src'); img.removeAttribute('role'); img.removeAttribute('tabindex'); img.removeAttribute('aria-label');
             tf.hidden = false;
             tf.innerHTML = m.tframe ? '<span>The thumbnail is in Frame.io.</span><a href="' + _re(m.tframe) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Open the thumbnail</a>' : '<span>No thumbnail yet.</span>';
         }

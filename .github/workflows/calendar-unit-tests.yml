@@ -510,6 +510,7 @@ jobs:
           Trial reels on the staff card behind its switch: today's height, versions, trophy, winner through today's attach, Undo|node test/trial-reels-card-browser.js
           Trial reels in Production's Assets: one Deliverable file row per version, its state and its Edit|node test/trial-reels-production-browser.js
           Trial reels on the review page: Video B of 5, one version at a time, today's saves once a stage is done|node test/trial-reels-review-browser.js
+          Thumbnail zoom: a click on the thumbnail opens it full screen on the client link, the SMM Review tab and Kasper's Review Session (Esc, outside, X; carousel Open in Drive; phone)|node test/thumbzoom-browser.js
           Trial reels in the Notes view: a version switch under the player, its Frame.io comments, notes that name it|node test/trial-reels-notes-browser.js
           Trial reels: two staff picking a winner at once never leave the card on another version's link|node test/trial-reels-race-browser.js
           Trial reels: a change is about the version it was asked on, and Approve after tweaks names it|node test/trial-reels-change-naming-browser.js
@@ -625,6 +626,7 @@ jobs:
           Production rows keep long ids inside the row|node test/prod-row-cell-overflow.js
           TikTok queue, a failed first read is not an empty queue|node test/tiktok-queue-first-read-browser.js
           Post tab YouTube and LinkedIn as their own sides behind post_networks_v1 (the switch, Instagram keeps only Also post to Facebook, the YouTube card and Short check, the body per side, each side's queue; switch off is today's page)|node test/post-networks-browser.js
+          Post tab names the account each network posts to and lets staff pick one behind post_account_pick_v1 (name beside the toggle, second account saved by the button only, none saved, switch off is today's page)|node test/post-account-pick-browser.js
           Post tab source choice: From Content Calendar by default, in the house's small two-option row (not the post-type control); switch off is today's page|node test/post-source-choice-browser.js
           LANES
       - name: Browser regression guards, three side by side (part 2 of 2)

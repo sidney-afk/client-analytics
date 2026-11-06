@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { svAboutThisPostHtml, svCarouselBigHtml, svCarouselStageMount, svCarouselStageUnmount } from './191-carousel-preview.js';
+import { svAboutThisPostHtml, svCarouselBigHtml, svCarouselLook, svCarouselStageMount, svCarouselStageUnmount } from './191-carousel-preview.js';
 import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageFor, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
@@ -49,7 +49,7 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svCarouselPreviewOn, svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { svTrialWord, svTrialCardOn, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml, svTrialWaitsWith } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
@@ -76,7 +76,11 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // the warning on the card, and the post in Today's "Missing links",
         // with no way to clear either short of adding a link.
         const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
-        const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
+        // A carousel (a Drive folder of images, read as such by 191) has no video by design: the video gap is not flagged
+        // on it (OPEN_REPAIRS 711). Any other card without a video is flagged as before.
+        const car = svCarouselLook(p);
+        const isCarousel = !!car && (car.state === 'ok' || car.state === 'empty' || car.state === 'no_images' || car.state === 'not_shared');
+        const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim() && !isCarousel;
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
         return { video, thumb };
@@ -2818,7 +2822,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const on = !!post && svFrameStageMount(stage, vp, _calDeriveThumb(post));
         // No playable video: on a client the carousel switch lists (191), the stage shows the carousel's first image
         // (or the post's own picture) beside the notes, the same shape as a video's.
-        const car = !on && !!post && svCarouselStageMount(stage, post, _calDeriveThumbInfo(post).url);
+        const car = !on && !!post && svCarouselStageMount(stage, post);
         if (!on && !car) { svFrameStageUnmount(); svCarouselStageUnmount(stage); stage.hidden = true; }
         else if (on) svCarouselStageUnmount(stage);
         shell.toggleAttribute('data-video', on || car);
@@ -2876,7 +2880,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
-        if (!post || !svCarouselPreviewOn(post.client || calState.client)) return;
+        if (!post) return;
         _calNotesStageSync(post);
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });

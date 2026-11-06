@@ -2,7 +2,7 @@ import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity 
 import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { svCarouselPreviewOn } from './188-review-stage-switch.js';
+import { svCarouselFolderOf } from './191-carousel-preview.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* WATCH HERE: a card's Frame.io video, inside SyncView, behind the frame_viewer_clients switch.
 
@@ -278,7 +278,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fvCarouselDoor(ev, el) {
         const pid = el.getAttribute('data-fv-card') || '';
         const who = el.getAttribute('data-fv-client') || '';
-        if (!pid || !svCarouselPreviewOn(who) || typeof window.svOpenCardNotes !== 'function') return false;
+        // Only a carousel (a Google Drive folder of images) opens the card view; any other post with no video keeps
+        // opening nothing (owner, 2026-10-18).
+        const post = pid && calState && Array.isArray(calState.posts) ? calState.posts.find(p => p.id === pid) : null;
+        if (!pid || !svCarouselFolderOf(post) || typeof window.svOpenCardNotes !== 'function') return false;
         if (ev && ev.preventDefault) ev.preventDefault();
         if (ev && ev.stopPropagation) ev.stopPropagation();
         window.svOpenCardNotes(who, pid);

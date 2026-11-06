@@ -203,6 +203,15 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
     ok(c.altEmails({ alt_emails: ['A@x.test', 3, ''] }).join() === 'a@x.test', 'readers tolerate odd stored values');
   }
 
+  {
+    const m = c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['b@x.test'] }, { email: 'c@x.test' }, { alt_emails: ['d@x.test'] });
+    ok(m && m.alt_emails.join() === 'd@x.test,c@x.test,b@x.test', 'a merge keeps both people\'s alternates and the dropped primary');
+    ok(c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['b@x.test'] }, { email: 'b@x.test' }, {}) === null, 'nothing to save when it is already kept');
+    const own = c.mergeAltEmails({ email: 'a@x.test' }, {}, { email: 'A@x.test' }, { alt_emails: ['a@x.test'] });
+    ok(own === null, 'the kept person\'s own email is never listed as an alternate');
+    const cap = c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['1@x.test', '2@x.test', '3@x.test'] }, { email: 'c@x.test' }, { alt_emails: ['4@x.test', '5@x.test', '6@x.test'] });
+    ok(cap.alt_emails.length === c.ALT_EMAIL_MAX, 'a merge still caps at five');
+  }
   // ── ingest (n8n, server key) ──
   {
     const base = { event: 'booked', idempotency_key: 'k1', call_at: '2026-11-02T15:00:00Z',

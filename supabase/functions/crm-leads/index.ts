@@ -38,7 +38,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, matchingRoleForKey, staffAuthFailureStatus, timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import {
-  altEmailPatch, altEmails, cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowedAsync, LIST_MAX, mergeForImport,
+  altEmailPatch, altEmails, cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowedAsync, LIST_MAX, mergeAltEmails, mergeForImport,
   normalizeEmail, normalizeHandle, normalizePhone, parseListFilters, validateIngest, validateNote, validatePatch,
 } from "../_shared/crm-leads-core.mjs";
 import {
@@ -560,18 +560,21 @@ async function duplicatesView(db: SupabaseClient) {
 async function mergePeople(db: SupabaseClient, body: Record<string, unknown>, actor: string) {
   const keep = String(body.keep || ""), drop = String(body.drop || "");
   if (!isUuid(keep) || !isUuid(drop) || keep === drop) return json({ ok: false, error: "bad_id" }, 400);
-  // The merge frees the duplicate's email; remember it on the kept person so an
-  // email-only fact still finds them afterwards.
-  const dropRow = must(await db.from("crm_people").select("email").eq("id", drop).maybeSingle());
+  // The merge frees the duplicate's email and its alternates are overwritten by
+  // the kept person's; read both first, then save the union on the kept person.
+  const dropRow = must(await db.from("crm_people").select("email,external_ids").eq("id", drop).maybeSingle());
   const { data, error } = await db.rpc("crm_merge_people", { p_keep: keep, p_drop: drop, p_actor: actor });
-  if (!error && dropRow && dropRow.email) {
-    const kept = must(await db.from("crm_people").select("id,email,state_version,external_ids").eq("id", keep).maybeSingle());
-    const alt = kept ? altEmailPatch(kept, kept.external_ids || {}, dropRow.email, null) : null;
-    // Same contact-style compare-and-swap as the ingest fill; apply() does not take external_ids.
-    if (alt) {
-      await db.from("crm_people")
+  if (!error && dropRow) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const kept = must(await db.from("crm_people").select("id,email,state_version,external_ids").eq("id", keep).maybeSingle());
+      const alt = kept ? mergeAltEmails(kept, kept.external_ids || {}, dropRow, dropRow.external_ids || {}) : null;
+      if (!alt) break;
+      // Same contact-style compare-and-swap as the ingest fill; apply() does not take external_ids.
+      const res = await db.from("crm_people")
         .update({ external_ids: alt, state_version: kept.state_version + 1, updated_at: new Date().toISOString() })
-        .eq("id", keep).eq("state_version", kept.state_version);
+        .eq("id", keep).eq("state_version", kept.state_version).select("id");
+      if (!res.error && res.data && res.data.length) break;
+      if (attempt === 3) console.log(JSON.stringify({ fn: "crm-leads", action: "merge", alt_emails: "not_saved" }));
     }
   }
   if (error) return json({ ok: false, error: /not found/i.test(error.message || "") ? "not_found" : "merge_failed" }, error.message && /not found/i.test(error.message) ? 404 : 500);

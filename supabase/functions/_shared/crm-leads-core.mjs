@@ -355,6 +355,22 @@ export function altEmailPatch(person, externalIds, incomingEmail, emailOwnerId) 
   return Object.assign({}, externalIds || {}, { alt_emails: next });
 }
 
+/** The external_ids to save on the kept person after a merge: every other
+ *  email either person used (their alternates and the dropped primary), minus
+ *  the kept person's own, newest last, capped. `keptExternalIds` is what the
+ *  kept person holds now; null when nothing needs saving. */
+export function mergeAltEmails(kept, keptExternalIds, dropped, droppedExternalIds) {
+  const own = normalizeEmail(kept && kept.email);
+  const want = [];
+  for (const e of [...altEmails(droppedExternalIds), normalizeEmail(dropped && dropped.email), ...altEmails(keptExternalIds)]) {
+    if (e && e !== own && !want.includes(e)) want.push(e);
+  }
+  const next = want.slice(-ALT_EMAIL_MAX);
+  const have = altEmails(keptExternalIds);
+  if (next.length === have.length && next.every((e, i) => e === have[i])) return null;
+  return Object.assign({}, keptExternalIds || {}, { alt_emails: next });
+}
+
 // ── Ingest (n8n, server key only; crm-leads `ingest`) ───────────────────
 // n8n logs what happened to a lead outside SyncView. One request = one fact.
 // No migration: each event maps onto a crm_events kind the table already

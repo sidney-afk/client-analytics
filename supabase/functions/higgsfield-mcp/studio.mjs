@@ -57,6 +57,15 @@ export const TOOLKITS = {
     pattern: "synchro-filming-plan-<version>.zip",
     noVersion: "No filming-plan toolkit version uploaded yet. Ask the account owner to upload the toolkit zip and latest.json to the filming-plan/ folder of the studio bucket.",
   },
+  // Jeremy AI, the live sales-call coach (Mac and Windows). The app itself asks for this to
+  // update, so latest.json is what decides when a new version reaches the team.
+  "jeremy-ai": {
+    prefix: "jeremy-ai/",
+    fileRe: /^jeremy-ai-[0-9A-Za-z._-]{1,40}\.zip$/,
+    fileFor: (version) => `jeremy-ai-${version}.zip`,
+    pattern: "jeremy-ai-<version>.zip",
+    noVersion: "Jeremy AI is not uploaded yet. Ask the account owner to run the jeremy-ai-release workflow in synchro-pipelines.",
+  },
   // The team's Whisper dictation app (Windows). One fixed zip, no latest.json:
   // `fixed` is what latest.json would say.
   whisper: {

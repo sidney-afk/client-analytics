@@ -1,12 +1,12 @@
 import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
-import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
-import { svPostNetworksOn, svPostSourcesOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
+import { svPostAccountPickOn, svPostNetworksOn, svPostSourcesOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialListShared } from './189-trial-reels-card.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
@@ -132,12 +132,108 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igResolveAccount(client) { return _igProfileValue(client, IG_ACCOUNT_COLUMN); }
     function _igResolveFacebook(client) { return _igProfileValue(client, IG_FACEBOOK_COLUMN); }
 
+    /* WHICH ACCOUNT, ON EVERY NETWORK (post_account_pick_v1, OPEN_REPAIRS 712; staff listed on the switch only).
+       Next to each network's toggle the Post tab names the account the post goes to, as Post for Me reports it (the
+       display name; for YouTube the channel name, since one Google login can hold several channels), not just an spc_ id.
+       The names and the choice come from client-profile-write's pfm_account_choices: the account saved on the client,
+       plus unlinked connected accounts of that network whose external_id is the client's slug or full name or whose display name contains the client's full display name.
+       When more than one belongs to the client there is a picker; choosing one saves it as the client's default, which is the account this post and the next ones go to (pfm_account_pick, the same save path as the Clients tab). Nothing is ever attached
+       without a pick. Off, or unreadable: every line exactly as it was. Shared by the Instagram, YouTube, LinkedIn, Facebook (this
+       file) and TikTok (300) sides, which hand in their own redraw. */
+    const SV_ACCT_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
+    const SV_ACCT_LABEL = { tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn' };
+    const SV_ACCT_NOUN = { tiktok: 'account', instagram: 'account', facebook: 'Page', youtube: 'channel', linkedin: 'account' };
+    const SV_ACCT_FIELD = { tiktok: 'postforme_account_id', instagram: 'postforme_instagram_account_id', facebook: 'postforme_facebook_account_id', youtube: 'postforme_youtube_account_id', linkedin: 'postforme_linkedin_account_id' };
+    const _svAcct = {};   // 'slug|network' -> { status: 'loading'|'ready'|'error', accounts, savedId, updatedAt, choice, saving, msg, err }
+    function _svAcctKey(net, client) { let slug = ''; try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; } return slug ? slug + '|' + net : ''; }
+    function _svAcctLabel(a) { return a.name ? a.name + (a.handle ? ' · @' + a.handle.replace(/^@/, '') : '') : ''; }
+    async function _svAcctPost(action, body) {
+        const who = _syncviewStaffIdentityForHeaders();
+        if (!who || !who.key) return { status: 0, json: {} };
+        try {
+            const resp = await fetch(SV_ACCT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': who.key },
+                body: JSON.stringify(Object.assign({ action, member_id: who.member && who.member.id }, body)) });
+            let j = null; try { j = await resp.json(); } catch (e) { j = null; }
+            if (action === 'pfm_account_pick' && !(resp.status === 200 && j && j.ok)) _igRecordFailure('post_account_pick', resp.status || 0, !resp.status);
+            return { status: resp.status, json: j || {} };
+        } catch (e) { if (action === 'pfm_account_pick') _igRecordFailure('post_account_pick', 0, true); return { status: 0, json: {} }; }
+    }
+    function _svAcctLoad(net, client, rerender, force) {
+        const key = _svAcctKey(net, client);
+        if (!key) return;
+        const cur = _svAcct[key];
+        if (cur && !force) return;
+        const keep = force && cur ? { msg: cur.msg, err: cur.err } : { msg: '', err: '' };
+        const st = _svAcct[key] = { status: 'loading', accounts: [], savedId: '', updatedAt: '', choice: '', saving: false, msg: keep.msg, err: keep.err };
+        _svAcctPost('pfm_account_choices', { slug: key.split('|')[0], network: net }).then(r => {
+            if (_svAcct[key] !== st) return;
+            if (r.status === 200 && r.json.ok && Array.isArray(r.json.accounts)) {
+                st.status = 'ready'; st.accounts = r.json.accounts; st.savedId = String(r.json.saved_id || ''); st.updatedAt = String(r.json.updated_at || '');
+            } else { st.status = 'error'; st.err = 'Could not read the accounts from Post for Me.'; st.msg = ''; }
+            try { rerender(); } catch (e) {}
+        });
+    }
+    async function _svAcctSave(net, client, rerender) {
+        const key = _svAcctKey(net, client), st = _svAcct[key];
+        if (!st || st.saving || !st.choice) return;
+        const acct = st.accounts.find(p => p.id === st.choice);
+        if (!acct) return;
+        st.saving = true; st.msg = ''; st.err = ''; rerender();
+        const r = await _svAcctPost('pfm_account_pick', { slug: key.split('|')[0], network: net, account_id: acct.id, expected_updated_at: st.updatedAt });
+        st.saving = false;
+        if (r.status === 200 && r.json.ok) {
+            const row = clientMap[client];
+            if (row) {
+                const f = SV_ACCT_FIELD[net];
+                if (String(row[f] || '').trim() || net === 'tiktok') row[f] = acct.id;
+                if (!(row.extra && typeof row.extra === 'object')) row.extra = {};
+                if (net !== 'tiktok') row.extra[f] = acct.id;
+            }
+            st.msg = 'Saved. ' + SV_ACCT_LABEL[net] + ' posts for this client now go to ' + (_svAcctLabel(acct) || 'that ' + SV_ACCT_NOUN[net]) + '.';
+            _svAcctLoad(net, client, rerender, true);
+        } else {
+            const e = r.json && r.json.error;
+            st.err = e === 'client_profile_version_conflict' ? 'The client changed while you were choosing. Nothing was saved; the list has been read again.'
+                : e === 'postforme_account_taken' ? 'That ' + SV_ACCT_NOUN[net] + ' is already saved on another client. Nothing was saved.'
+                : e === 'account_not_offered' ? 'That ' + SV_ACCT_NOUN[net] + ' is no longer on the list. Nothing was saved.'
+                : 'Could not save. Nothing was changed.';
+            if (e === 'client_profile_version_conflict' || e === 'account_not_offered') _svAcctLoad(net, client, rerender, true);
+        }
+        rerender();
+    }
+    // What a network's account line shows: { line, picker, hasOthers }. line is the "Posts to ..." text (null = keep the
+    // caller's own line: switch off, still loading, nothing saved); picker is the extra HTML under it ('' for none).
+    function svAcctView(net, client, prefix, rerender, busy) {
+        const none = { line: null, picker: '', hasOthers: false };
+        if (!client || !svPostAccountPickOn()) return none;
+        _svAcctLoad(net, client, rerender, false);
+        const st = _svAcct[_svAcctKey(net, client)];
+        if (!st || st.status === 'loading') return none;
+        if (st.status === 'error') return { line: null, hasOthers: false, picker: `<div class="tk-step-note" id="${prefix}Note">${_igEsc(st.err)} <button type="button" class="tk-mini-btn" id="${prefix}Retry">Try again</button></div>` };
+        const label = SV_ACCT_LABEL[net], noun = SV_ACCT_NOUN[net], off = busy || st.saving;
+        const saved = st.accounts.find(x => x.saved && x.id === st.savedId);
+        const done = st.err ? `<div class="tk-step-note" id="${prefix}Err" role="alert">${_igEsc(st.err)}</div>` : st.msg ? `<div class="tk-step-note" id="${prefix}Msg" role="status">${_igEsc(st.msg)}</div>` : '';
+        const line = saved && _svAcctLabel(saved)
+            ? `Posts to ${label} ${noun} <span class="tk-profile-chip">${_igEsc(_svAcctLabel(saved))}</span>${saved.connected ? '' : ' (not connected in Post for Me right now)'}` : null;
+        let picker = '';
+        if (st.accounts.length > 1 || (!saved && st.accounts.length)) {
+            const head = saved ? `More than one ${label} ${noun} belongs to this client. Choose the one this post goes to; it becomes the default for next time:` : `No ${label} ${noun} is saved for this client. These ${noun}s in Post for Me belong to this client. Nothing is attached until you pick one:`;
+            picker = `<div class="tk-step-note" id="${prefix}Note">${head}</div>
+                <div class="tk-sched-row" style="margin-top:8px">${_svSelectHtml(prefix + 'Page', st.accounts.map(x => ({ value: x.id, label: _svAcctLabel(x) || 'Unnamed ' + noun })), st.savedId || '', 'Pick a ' + label + ' ' + noun + '…', { disabled: off })}</div>`;
+        }
+        return { line, picker: picker + done, hasOthers: st.accounts.some(x => !(x.saved && x.id === st.savedId)) };
+    }
+    function svAcctBind(net, client, prefix, rerender) {
+        const key = _svAcctKey(net, client);
+        document.getElementById(prefix + 'Page')?.addEventListener('change', (e) => { const p = _svAcct[key]; if (p && e.target.value && e.target.value !== p.savedId) { p.choice = e.target.value; _svAcctSave(net, client, rerender); } });
+        document.getElementById(prefix + 'Retry')?.addEventListener('click', () => { _svAcctLoad(net, client, rerender, true); rerender(); });
+    }
     // "Also post to Facebook": { enabled, checked, reason }. Ticked by default when the client's Facebook Page
     // is on file; off, with the reason in plain words, when it cannot go to Facebook.
     function _igFacebookState() {
         if (!igState.client) return { enabled: false, checked: false, reason: '' };
         const fb = _igResolveFacebook(igState.client);
-        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: svPostAccountPickOn() ? 'No Facebook Page is saved for this client yet.' : 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
         if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
         if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
         return { enabled: true, checked: !igState.facebookOff, reason: '' };
@@ -145,6 +241,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igFacebookCardHtml() {
         if (!igState.client) return '';
         const st = _igFacebookState();
+        const v = svAcctView('facebook', igState.client, 'igFb', _igRenderForm, igState.submitting);
         const dis = !st.enabled || igState.submitting;
         const what = igState.kind === 'carousel' ? 'The photos also go to the client\'s Facebook Page as one post.' : 'The Reel also goes to the client\'s Facebook Page as a Facebook Reel.';
         return `<div class="tk-card" id="igFacebookCard">
@@ -155,7 +252,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                         Also post to Facebook
                     </label>
                 </div>
-                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
+                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount && !v.hasOthers ? svPostForMeLinkHtml() : ''}</div>${v.line ? `<div class="tk-step-note" id="igFbPickNote">${v.line}</div>` : ''}${v.picker}
             </div>`;
     }
 
@@ -250,8 +347,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     // The account line of a YouTube or LinkedIn side.
     function _igSideAccountLine() {
         const net = _igNet(), st = _igMoreState(net);
-        if (st.checked) return `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(st.id)}</span></div>`;
-        return `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ ${st.off ? 'Not switched on' : 'No ' + IG_NET_LABEL[net] + ' account'}</span> ${_igEsc(st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>`;
+        const av = st.off ? { line: null, picker: '', hasOthers: false } : svAcctView(net, igState.client, 'igAcct', _igRenderForm, igState.submitting);
+        if (st.checked) return `<div class="tk-profile-line">${av.line || `Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(st.id)}</span>`}</div>${av.picker}`;
+        return `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ ${st.off ? 'Not switched on' : 'No ' + IG_NET_LABEL[net] + ' account'}</span> ${_igEsc(st.reason)}${st.noAccount && !av.hasOthers ? svPostForMeLinkHtml() : ''}</div>${av.picker}`;
     }
 
     /* Posting a trial card's versions (plan row P4, decision D3). The picked card's versions come from trial-reels'
@@ -1115,9 +1213,10 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         let accountLine = '';
         if (igState.client && !_igInstagramOn()) accountLine = _igSideAccountLine();
         else if (igState.client) {
-            accountLine = accountOk
-                ? `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`
-                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}${svPostForMeLinkHtml()}</div>`;
+            const av = svAcctView('instagram', igState.client, 'igAcct', _igRenderForm, igState.submitting);
+            accountLine = (accountOk
+                ? (av.line ? `<div class="tk-profile-line">${av.line}</div>` : `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`)
+                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> ${_igEsc(IG_NO_ACCOUNT_MSG)}${av.hasOthers ? '' : svPostForMeLinkHtml()}</div>`) + av.picker;
         }
         const media = igState.file
             ? `<div class="tk-file-card">
@@ -1172,7 +1271,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                 ${igState.trial ? _igTrialVersionsHtml() : ''}
             </div>`}
             ${_igYoutubeCardHtml()}
-            ${!_igInstagramOn() || (_igNetworksOn() && _igFacebookState().noAccount) ? '' : _igFacebookCardHtml()}
+            ${!_igInstagramOn() || (_igNetworksOn() && _igFacebookState().noAccount && !svPostAccountPickOn()) ? '' : _igFacebookCardHtml()}
             <div class="tk-card">
                 <div class="tk-sched-head"><h3>Scheduling</h3>
                     <label class="tk-toggle">
@@ -1228,6 +1327,10 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             _igRenderForm();
         }));
         $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
+        if (igState.client) {
+            svAcctBind('facebook', igState.client, 'igFb', _igRenderForm);
+            svAcctBind(_igNet(), igState.client, 'igAcct', _igRenderForm);
+        }
         document.querySelectorAll('input[name="igYtFormat"]').forEach(r => r.addEventListener('change', (e) => { igState.yt.format = e.target.value === 'regular' ? 'regular' : 'short'; _igRenderForm(); }));
         $('igYtTitle')?.addEventListener('input', (e) => {
             igState.yt.title = e.target.value; igState.yt.edited = true;
@@ -1927,7 +2030,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
 
 export {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
-  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, teardownInstagramPanel,
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svAcctBind, svAcctView, teardownInstagramPanel,
   svPostSourceActive, svPostSourceBind, svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh,
   svPostSourceModeHtml, svPostSourceNew, svPostSourceOffered, svPostSourceReady, svPostSourceYoung,
   svDropFoundLine, svDropNoteHtml, svDropPickHtml, svDropPicked, svDropSorted, svDropText, svDroppedFolder

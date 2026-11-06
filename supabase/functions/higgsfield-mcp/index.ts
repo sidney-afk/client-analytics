@@ -373,12 +373,12 @@ const TOOLS = [
   },
   {
     name: "toolkit_latest",
-    description: "The newest version of one of the team's toolkits: \"studio\" (the Synchro video studio, same as studio_latest) \"filming-plan\" (the filming plan pipeline toolkit) or \"whisper\" (the team's Whisper dictation app for Windows). Answers its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update a toolkit, or asks which version is current. Read only.",
+    description: "The newest version of one of the team's toolkits: \"studio\" (the Synchro video studio, same as studio_latest) \"filming-plan\" (the filming plan pipeline toolkit) \"whisper\" (the team's Whisper dictation app for Windows) or \"jeremy-ai\" (Jeremy AI, the live sales-call coach for Mac and Windows). Answers its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update a toolkit, or asks which version is current. Read only.",
     inputSchema: {
       type: "object",
       required: ["name"],
       additionalProperties: false,
-      properties: { name: { type: "string", enum: TOOLKIT_NAMES, description: "Which toolkit: studio, filming-plan or whisper." } },
+      properties: { name: { type: "string", enum: TOOLKIT_NAMES, description: "Which toolkit: studio, filming-plan, whisper or jeremy-ai." } },
     },
   },
   {

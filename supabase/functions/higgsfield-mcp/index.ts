@@ -33,13 +33,14 @@ import type { Asker } from "./clientinfo.ts";
 import { savedProfileText, studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
 import { GEMINI_ROW_MODEL } from "./watchvideo.mjs";
-import { STT_MODEL, STT_TOOL, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
+import { STT_MODEL, STT_TOOL, elevenErrorText, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
 import { transcribeStore } from "./transcribe.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS, withSavedLook } from "./profile.mjs";
 import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
+import { MUSIC_MODEL, musicCheck } from "./music.mjs";
 import { voiceStore } from "./voice.ts";
 import { isOAuthToken, makeOAuth } from "./oauth.mjs";
 
@@ -1127,6 +1128,28 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 // studio_transcribe (ElevenLabs): the logic is in transcribe.mjs, the
 // database and storage parts in transcribe.ts. The key is read from
 // ELEVENLABS_KEY, then ELEVENLABS_API_KEY.
+// studio_action "make_music" (music.mjs): voice storage and reserve, plus the counts behind its hard limits.
+function musicDeps(author: string) {
+  const live = (q: any) => q.not("status", "in", "(failed,nsfw,canceled,submit_failed)");
+  return {
+    ...voiceDeps(author),
+    errorText: (status: number, text: string) => { let body: unknown = null; try { body = JSON.parse(text); } catch (_e) { body = { raw: text }; } return elevenErrorText(status, body); },
+    timeout: (ms: number) => AbortSignal.timeout(ms),
+    count: async (q: { member?: string; since: string }) => {
+      let s = db().from("hf_generations").select("id", { count: "exact", head: true }).eq("model", MUSIC_MODEL).gte("created_at", q.since);
+      if (q.member) s = s.eq("member_name", q.member);
+      const { count, error } = await live(s);
+      if (error || count === null) throw new Error("count failed");
+      return count;
+    },
+    spent: async (q: { since: string }) => {
+      const { data, error } = await live(db().from("hf_generations").select("est_cost_usd").eq("model", MUSIC_MODEL).gte("created_at", q.since));
+      if (error) throw new Error("spend failed");
+      return (data || []).reduce((t: number, r: JsonMap) => t + Number(r.est_cost_usd || 0), 0);
+    },
+  };
+}
+
 function transcribeDeps(author: string) {
   return {
     ...transcribeStore(db()), env: (k: string) => Deno.env.get(k), fetch, publicHost, directLink, background, author, cap: CAP_USD,
@@ -1140,6 +1163,10 @@ async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
   if (row && row.model === VOICE_MODEL) return await voiceCheck(jobId, voiceDeps(""));
+  if (row && row.model === MUSIC_MODEL) {
+    const { data: full } = await db().from("hf_generations").select("id,status,video_url,error,est_cost_usd,updated_at").eq("request_id", jobId).maybeSingle();
+    return await musicCheck(full || row, voiceDeps(""));
+  }
   if (row && answeredFromLog(String(row.model))) {
     if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
     if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". The provider did not make an image, so it was not charged; try again or adjust the prompt.";
@@ -1442,7 +1469,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author), watch: () => watchDeps(author) }, args.action, args.args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author), watch: () => watchDeps(author), music: () => musicDeps(author) }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 

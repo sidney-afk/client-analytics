@@ -14,6 +14,7 @@ import { videoCards } from "./videocards.mjs";
 import { toolGet, toolList, toolSave } from "./sharedtools.mjs";
 import { trialReels } from "./trialreels.mjs";
 import { watchVideo } from "./watchvideo.mjs";
+import { makeMusic } from "./music.mjs";
 
 export const STUDIO_ACTIONS = {
   review_notes: {
@@ -60,6 +61,16 @@ export const STUDIO_ACTIONS = {
       views: "update: 24 hour numbers, also watch_time_s, shares, saves, follows (optional)",
     },
     run: (deps, args) => trialReels(deps.trials(), args),
+  },
+  make_music: {
+    does: "Make a music track with ElevenLabs Music. Only when the person says yes (Music Bank stays the default). First call shows the card and changes nothing; call again with go: true after they say go. Tracks are 3 to 60 seconds, with daily limits per person and for the team and a monthly music budget. Returns a job_id: wait_for_job gives the MP3 link.",
+    args: {
+      prompt: "what the music should feel like: style, mood, instruments (required)",
+      seconds: "length, 3 to 60 (optional, default 30)",
+      instrumental: "false to allow vocals (optional, default true: no singing)",
+      go: "true only after the person said go (optional)",
+    },
+    run: (deps, args) => makeMusic(deps.music(), args),
   },
   watch_video: {
     does: "Google's Gemini Flash-Lite watches and hears a video and answers about it: feedback on an edit, what is said and shown, timings. Costs about 2 cents per 10 minutes of video, logged and inside a monthly Gemini cap. Use it to check your own edits too.",

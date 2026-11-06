@@ -73,7 +73,7 @@ import {
   accountChecks, accountPlatformProblem, EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange, splitChanges,
 } from "../_shared/client-profile-edit.mjs";
 import { makeStore } from "../_shared/roster-handlers.mjs";
-import { runAccountSync } from "../_shared/postforme-accounts.mjs";
+import { accountChoices, MAX_PAGES, NETWORK_SLOTS, PAGE_SIZE, runAccountSync, safeAccount } from "../_shared/postforme-accounts.mjs";
 import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
 
 const CORS: Record<string, string> = {
@@ -450,6 +450,83 @@ async function history(supabase: SupabaseClient, body: JsonMap): Promise<Respons
   return json({ ok: true, edits: edits.data || [], manager_moves: moves.data || [] });
 }
 
+// The account pick for every network on the Post tab (OPEN_REPAIRS 712, behind the page's post_account_pick_v1 switch).
+// pfm_account_choices { slug, network } answers { saved_id, accounts: [{ id, name, handle, connected, saved }], updated_at }:
+// safe fields only, never a token. pfm_account_pick { slug, network, account_id, expected_updated_at } saves ONE of those
+// accounts through the same client_profile_admin_edit path the Clients tab uses, and refuses any id the list did not
+// offer. The list is the saved account plus unlinked connected accounts of that network whose display name contains the
+// client's full display name. Nothing here ever links an account by itself.
+const PICK_COLUMNS = LINK_PROFILE_COLUMNS + ",display_name";
+async function accountChoicesFor(supabase: SupabaseClient, slug: string, network: string): Promise<{ error?: string; choices?: JsonMap; row?: JsonMap }> {
+  if (!Object.prototype.hasOwnProperty.call(NETWORK_SLOTS, network)) return { error: "unknown_network" };
+  const accounts: JsonMap[] = [];
+  let complete = false;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const raw = await fetchAccountPage(page * PAGE_SIZE, PAGE_SIZE);
+    if (raw === null) return { error: "postforme_unreachable" };
+    for (const a of raw) { const s = safeAccount(a); if (s) accounts.push(s as JsonMap); }
+    if (raw.length < PAGE_SIZE) { complete = true; break; }
+  }
+  if (!complete) return { error: "postforme_list_incomplete" };
+  const { data, error } = await supabase.from("client_profiles").select(PICK_COLUMNS);
+  if (error) throw error;
+  const rows = (data || []) as unknown as JsonMap[];
+  const row = rows.find(r => r.slug === slug);
+  if (!row) return { error: "client_profile_missing" };
+  if (row.archived_at) return { error: "client_profile_archived" };
+  return { choices: accountChoices(accounts, rows, slug, network) as JsonMap, row };
+}
+const choiceStatus = (e: string) => e === "client_profile_missing" ? 404 : e === "client_profile_archived" ? 409 : e === "unknown_network" ? 400 : 502;
+
+async function pfmAccountChoices(supabase: SupabaseClient, body: JsonMap): Promise<Response> {
+  const slug = clientSlug(body.slug);
+  if (!slug) return json({ ok: false, error: "missing_client" }, 400);
+  if (!clean(Deno.env.get("POST_FOR_ME_API_KEY"))) return json({ ok: false, error: "postforme_not_configured" }, 503);
+  const r = await accountChoicesFor(supabase, slug, clean(body.network));
+  if (r.error) return json({ ok: false, error: r.error }, choiceStatus(r.error));
+  return json({ ok: true, ...(r.choices as JsonMap), updated_at: clean((r.row as JsonMap).updated_at) });
+}
+
+async function pfmAccountPick(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string }): Promise<Response> {
+  if (await authority(supabase) !== "syncview") return json({ ok: false, error: "authority_not_syncview" }, 409);
+  const slug = clientSlug(body.slug);
+  const network = clean(body.network);
+  const accountId = clean(body.account_id);
+  if (!slug) return json({ ok: false, error: "missing_client" }, 400);
+  if (!clean(Deno.env.get("POST_FOR_ME_API_KEY"))) return json({ ok: false, error: "postforme_not_configured" }, 503);
+  const r = await accountChoicesFor(supabase, slug, network);
+  if (r.error) return json({ ok: false, error: r.error }, choiceStatus(r.error));
+  const offered = ((r.choices as JsonMap).accounts || []) as JsonMap[];
+  if (!offered.some(p => p.id === accountId && p.connected === true)) return json({ ok: false, error: "account_not_offered" }, 400);
+  const field = (NETWORK_SLOTS as Record<string, { field: string }>)[network].field;
+  const current = r.row as JsonMap;
+  if (clean(body.expected_updated_at) && Date.parse(clean(body.expected_updated_at)) !== Date.parse(clean(current.updated_at))) {
+    return json({ ok: false, error: "client_profile_version_conflict" }, 409);
+  }
+  const check = await checkAccounts({ [field]: accountId });
+  if (check.error) return json({ ok: false, error: check.error }, check.error === "postforme_unreachable" ? 502 : 400);
+  const { error } = await supabase.rpc("client_profile_admin_edit", {
+    p_slug: slug,
+    p_changes: { [field]: accountId },
+    p_expected_updated_at: clean(current.updated_at),
+    p_actor: member.name,
+    p_role: "admin",
+    p_member_id: member.id,
+    p_sheet_row: null,
+    p_request_id: crypto.randomUUID(),
+  });
+  if (error) {
+    const msg = String(error.message);
+    if (msg.includes("client_profile_version_conflict")) return json({ ok: false, error: "client_profile_version_conflict" }, 409);
+    if ((error as { code?: string }).code === "23505") return json({ ok: false, error: "postforme_account_taken" }, 409);
+    console.error("client-profile-write: account pick failed", msg);
+    return json({ ok: false, error: "write_failed" }, 500);
+  }
+  // Best effort, as every save here: the Sheet copy is sent after the save and never fails it.
+  const sheetCopy = await copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch });
+  return json({ ok: true, saved_id: accountId, sheet_copy: sheetCopy });
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -480,7 +557,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "status") {
       return json({ ok: true, sheet_configured: !!(sa && sheetId), service_account: sa ? sa.email : null, sheet_id_secret: SHEET_ID_SECRET });
     }
-    const PICKER_ACTIONS = ["list_managers", "assign_manager", "history", "pfm_accounts_sync"];
+    const PICKER_ACTIONS = ["list_managers", "assign_manager", "history", "pfm_accounts_sync", "pfm_account_choices", "pfm_account_pick"];
     if (action !== "update_client_profile" && action !== "refresh_from_sheet" && !PICKER_ACTIONS.includes(action)) return json({ ok: false, error: "unknown_action" }, 400);
 
     const member = await adminMember(supabase, clean(body.member_id));
@@ -489,6 +566,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "assign_manager") return await assignManager(supabase, body, member);
     if (action === "history") return await history(supabase, body);
     if (action === "pfm_accounts_sync") return await pfmAccountsSync(supabase, body, member);
+    if (action === "pfm_account_choices") return await pfmAccountChoices(supabase, body);
+    if (action === "pfm_account_pick") return await pfmAccountPick(supabase, body, member);
     const mode = await authority(supabase);
     if (mode === "syncview" && action === "update_client_profile") return await nativeUpdate(supabase, body, member);
     if (mode !== "sheet") return json({ ok: false, error: "authority_not_sheet" }, 409);

@@ -24,7 +24,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   // --- safe fields: a whitelist, never a blacklist ---
   const s = m.safeAccount(raw('spc_FixtureIg0001', 'instagram', '@Fixture.One'));
-  ok(same(Object.keys(s).sort(), ['display_name', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
+  ok(same(Object.keys(s).sort(), ['display_name', 'external_id', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
   const walk = (v, out = []) => { if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { out.push(k); walk(x, out); } return out; };
   const tokenish = k => /token|secret|refresh|password|expires/i.test(k);
   ok(!walk(s).some(tokenish) && !JSON.stringify(s).includes('tok-') && !JSON.stringify(s).includes('nested-secret'), 'no token field or value at any depth');
@@ -186,6 +186,57 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/AUTO_LINK_ACTOR = "Post for Me auto-link"/.test(fn), 'the history names the automatic link');
   ok(/rpc\("pfm_account_link_run_record"/.test(sync) && /trigger: member \? "admin" : "timer"/.test(sync) && !/console\.error\([^)]*logErr\.message/.test(sync),
     'every run is recorded for the watcher (best effort; a failure logs only its code)');
+
+  // --- the account pick for every network (OPEN_REPAIRS 712): which accounts may be OFFERED; nothing links itself ---
+  {
+    const acct = (id, platform, name, extra) => m.safeAccount(raw(id, platform, 'u_' + id.slice(-4), Object.assign({ metadata: { display_name: name } }, extra || {})));
+    const fbA = acct('spc_FixtureFbA001', 'facebook', 'Ana Lima Studio');
+    const fbB = acct('spc_FixtureFbB001', 'facebook', 'ANA LIMA - Coaching');
+    const fbC = acct('spc_FixtureFbC001', 'facebook', 'Someone Else');
+    const fbD = acct('spc_FixtureFbD001', 'facebook', 'Ana Lima Fan Page');
+    const fbOff = acct('spc_FixtureFbE001', 'facebook', 'Ana Lima Old', { status: 'disconnected' });
+    const ig = acct('spc_FixtureIg0009', 'instagram', 'Ana Lima');
+    const liOrg = acct('spc_FixtureLiOrg01', 'linkedin', 'Lima Holdings Ltd', { external_id: 'ANA lima' });
+    const liSlug = acct('spc_FixtureLiPers1', 'linkedin', 'A. L.', { external_id: 'mine' });
+    const liOther = acct('spc_FixtureLiOther', 'linkedin', 'Another Co', { external_id: 'Somebody Else' });
+    const yt1 = acct('spc_FixtureYt0001', 'youtube', 'Ana Lima Channel');
+    const yt2 = acct('spc_FixtureYt0002', 'youtube', 'Ana Lima Español');
+    const tt = acct('spc_FixtureTt0009', 'tiktok_business', 'Aña Lima');
+    const mine = prof('mine', { display_name: 'Ana Lima', extra: { postforme_instagram_account_id: ig.id, postforme_facebook_account_id: fbA.id } });
+    const other = prof('other', { display_name: 'Other Client', extra: { postforme_facebook_account_id: fbD.id } });
+    const all = [fbA, fbB, fbC, fbD, fbOff, ig, yt1, yt2, tt, liOrg, liSlug, liOther];
+    const ids = r => r.accounts.map(x => x.id);
+    let r = m.accountChoices(all, [mine, other], 'mine', 'facebook');
+    ok(r.saved_id === fbA.id && r.accounts[0].id === fbA.id && r.accounts[0].saved === true && r.accounts[0].name === 'Ana Lima Studio', 'the saved account is listed first, by name');
+    ok(same(ids(r), [fbA.id, fbB.id]), 'offered: connected, on no client, name contains the client\'s name (case and punctuation ignored); not C (other name), D (another client has it), E (disconnected)');
+    r = m.accountChoices(all, [prof('mine', { display_name: 'Ana Lima', extra: { postforme_instagram_account_id: ig.id } }), other], 'mine', 'facebook');
+    ok(r.saved_id === '' && same(ids(r), [fbA.id, fbB.id]), 'none saved: the matching accounts are offered, none is chosen');
+    r = m.accountChoices(all, [mine, other], 'mine', 'youtube');
+    ok(same(ids(r), [yt1.id, yt2.id]), 'youtube: two channels whose names contain the client name are both offered, by channel name');
+    r = m.accountChoices(all, [mine, other], 'mine', 'tiktok');
+    ok(same(ids(r), [tt.id]), 'tiktok: accents are ignored, and tiktok_business counts as TikTok');
+    r = m.accountChoices(all, [mine, other], 'mine', 'instagram');
+    ok(same(ids(r), [ig.id]), 'instagram: only the saved account (nothing else matches)');
+    r = m.accountChoices(all, [mine, other], 'mine', 'linkedin');
+    ok(same(ids(r), [liOrg.id, liSlug.id]) && r.saved_id === '', 'linkedin: a company page is offered by external_id (client name or slug) though its own name differs; another client\'s external_id is not');
+    r = m.accountChoices([fbB], [prof('mine', { display_name: 'Ana Lima', extra: { postforme_facebook_account_id: fbA.id } })], 'mine', 'facebook');
+    ok(r.accounts[0].id === fbA.id && r.accounts[0].connected === false && r.accounts[0].name === '', 'a saved account missing from Post for Me is still listed, as not connected');
+    r = m.accountChoices(all, [prof('mine', { display_name: 'Li', extra: {} })], 'mine', 'facebook');
+    ok(r.accounts.length === 0, 'a very short client name matches nothing');
+    r = m.accountChoices(all, [prof('mine', { display_name: 'Ana Lima', archived_at: '2026-01-01T00:00:00Z', extra: {} })], 'mine', 'facebook');
+    ok(r.accounts.length === 0, 'an archived client is offered nothing');
+    ok(m.accountChoices(all, [mine], 'mine', 'twitter').accounts.length === 0, 'an unknown network offers nothing');
+    ok(m.externalIdIsClient('Ana-Lima', { slug: 'mine', display_name: 'Ana Lima' }) === true && m.externalIdIsClient('Ana', { slug: 'x', display_name: 'Ana Lima' }) === false && m.externalIdIsClient('', { slug: '', display_name: '' }) === false, 'external_id: equals the slug or full name, folded; a part of the name or an empty value does not');
+    ok(m.nameContainsClient('Ana-Lima | Coaching', 'ana  lima') === true && m.nameContainsClient('Ana', 'Ana Lima') === false, 'the name rule: whole name inside, punctuation and case ignored');
+  }
+  {
+    const fnSrc = require('fs').readFileSync(path.join(ROOT, 'supabase/functions/client-profile-write/index.ts'), 'utf8');
+    const pick = fnSrc.slice(fnSrc.indexOf('async function pfmAccountPick'), fnSrc.indexOf('Deno.serve('));
+    ok(/account_not_offered/.test(pick) && pick.indexOf('account_not_offered') < pick.indexOf('rpc("client_profile_admin_edit"') && /p\.connected === true/.test(pick), 'the pick refuses an account the list did not offer, before any save');
+    ok(/checkAccounts\(\{ \[field\]: accountId \}\)/.test(pick) && /p_changes: \{ \[field\]: accountId \}/.test(pick), 'the pick saves only that network\'s slot, after the network check');
+    ok(/"pfm_account_choices", "pfm_account_pick"\]/.test(fnSrc) && fnSrc.indexOf('adminMember(') < fnSrc.indexOf('return await pfmAccountPick('), 'both actions need an admin staff key and an active admin member');
+    ok(!/console\./.test(fnSrc.slice(fnSrc.indexOf('async function accountChoicesFor'), fnSrc.indexOf('async function pfmAccountPick'))), 'the account list is never logged');
+  }
 
   console.log(`postforme-accounts: ${passed} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

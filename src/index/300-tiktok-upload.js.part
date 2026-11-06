@@ -14,7 +14,7 @@ import { svPostNetworksAny } from './188-review-stage-switch.js';
 import {
   instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
   svCaptionFillHtml, svDropFoundLine, svDropNoteHtml, svDropPickHtml, svDropPicked, svDropSorted, svDropText, svDroppedFolder,
-  svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svPostSourceActive, svPostSourceBind,
+  svAcctBind, svAcctView, svPlatformLogo, svPostButtonLabel, svPostForMeLinkHtml, svPostSourceActive, svPostSourceBind,
   svPostSourceCaption, svPostSourceCardHtml, svPostSourceClear, svPostSourceFresh, svPostSourceModeHtml, svPostSourceNew,
   svPostSourceOffered, svPostSourceReady, svPostSourceYoung, teardownInstagramPanel
 } from './299-instagram-upload.js';
@@ -935,10 +935,11 @@ import {
 
         let profileLine = '';
         if (tkState.client) {
+            const av = svAcctView('tiktok', tkState.client, 'tkAcct', _tkRenderForm, tkState.submitting);
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">${av.line || `Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span>`}</div>${av.picker}`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> <span>No TikTok account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney.</span>${svPostForMeLinkHtml()}</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> <span>No TikTok account linked to this client yet. Connect it in Post for Me: it links itself here within the hour. If it still isn't here after that, ask Sidney.</span>${av.hasOthers ? '' : svPostForMeLinkHtml()}</div>${av.picker}`;
             }
         }
 
@@ -1286,6 +1287,7 @@ import {
         _tkWireClientSearch();
         svPostSourceBind('tk', _tkSrc(), { client: tkState.client, side: 'tiktok', rerender: () => { _tkRenderForm(); _tkRenderPreview(); }, onDone: _tkCardCopied });
 
+        if (tkState.client) svAcctBind('tiktok', tkState.client, 'tkAcct', _tkRenderForm);
         document.querySelectorAll('input[name=tkMediaType]').forEach(el => el.addEventListener('change', (e) => {
             tkState.mediaType = e.target.value;
             tkState.error = null;

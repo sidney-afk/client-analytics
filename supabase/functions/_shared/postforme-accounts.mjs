@@ -43,6 +43,7 @@ export function safeAccount(a) {
     user_id: str(a.user_id),
     display_name: str(meta.display_name),
     status: str(a.status).toLowerCase(),
+    external_id: str(a.external_id),
   };
 }
 
@@ -102,6 +103,62 @@ export function changesByClient(links) {
   const out = {};
   for (const l of links || []) (out[l.slug] = out[l.slug] || {})[l.field] = l.account_id;
   return out;
+}
+
+// The accounts the Post tab may OFFER for ONE client and ONE network (session Fbpage, OPEN_REPAIRS 712). Nothing here
+// links an account by itself: this only decides which accounts are plausibly the client's, and a person picks.
+// An account is offered when it is
+//   - the account already saved on the client in that network's slot (always listed first, even if it is
+//     disconnected or gone from Post for Me, so the page can say so), or
+//   - connected, of that network, saved on NO client in any slot (archived included), and EITHER its external_id
+//     equals the client's slug or full display name (the team sets it when sending a Post for Me connect link; this is
+//     how a LinkedIn company page, whose display name is the company's, reaches its client) OR its display name
+//     contains the client's full display name (case, accents and punctuation ignored in both).
+// Anything else is never offered. accounts: safeAccount() results; profiles: every client_profiles row (with
+// display_name). Never mutates.
+export const NETWORK_SLOTS = Object.freeze({
+  tiktok: { field: 'postforme_account_id', platforms: ['tiktok', 'tiktok_business'] },
+  instagram: { field: 'postforme_instagram_account_id', platforms: ['instagram'] },
+  facebook: { field: 'postforme_facebook_account_id', platforms: ['facebook'] },
+  youtube: { field: 'postforme_youtube_account_id', platforms: ['youtube'] },
+  linkedin: { field: 'postforme_linkedin_account_id', platforms: ['linkedin'] },
+});
+
+export function foldName(v) {
+  return str(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+// The account's own name contains the client's full display name. An empty client name matches nothing.
+export function nameContainsClient(accountName, clientName) {
+  const c = foldName(clientName);
+  return c.length >= 3 && foldName(accountName).includes(c);
+}
+
+// The account's external_id is the client's slug or full display name (equal after folding; at least 3 letters).
+export function externalIdIsClient(externalId, profile) {
+  const e = foldName(externalId);
+  return e.length >= 3 && !!profile && (e === foldName(profile.slug) || e === foldName(profile.display_name));
+}
+
+export function accountChoices(accounts, profiles, slug, network) {
+  const slot = NETWORK_SLOTS[network];
+  if (!slot) return { saved_id: '', accounts: [] };
+  const rows = Array.isArray(profiles) ? profiles : [];
+  const mine = rows.find(p => p && p.slug === slug) || null;
+  const list = (Array.isArray(accounts) ? accounts : []).filter(Boolean);
+  const byId = new Map(list.map(a => [a.id, a]));
+  const onSomeClient = new Set();
+  for (const p of rows) for (const f of SLOT_FIELDS) { const v = slotValue(p, f); if (v) onSomeClient.add(v); }
+  const savedId = mine ? slotValue(mine, slot.field) : '';
+  const nameOf = a => a.display_name || a.username || '';
+  const shape = (a, saved) => ({ id: a.id, name: nameOf(a), handle: a.username && a.username !== nameOf(a) ? a.username : '', connected: a.status === 'connected', saved });
+  const out = [];
+  if (savedId) { const a = byId.get(savedId); out.push(a ? shape(a, true) : { id: savedId, name: '', handle: '', connected: false, saved: true }); }
+  if (mine && !mine.archived_at) for (const a of list) {
+    if (!slot.platforms.includes(a.platform) || a.status !== 'connected' || onSomeClient.has(a.id)) continue;
+    // Match on the display name; the username only when Post for Me reports no display name.
+    if (externalIdIsClient(a.external_id, mine) || nameContainsClient(a.display_name || a.username, mine.display_name)) out.push(shape(a, false));
+  }
+  return { saved_id: savedId, accounts: out };
 }
 
 export const PAGE_SIZE = 50;

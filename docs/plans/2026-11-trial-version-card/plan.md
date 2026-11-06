@@ -540,7 +540,7 @@ An inherited part has **no approval of its own**. Version B's inherited caption 
 
 ### 16.7 End the trial without a winner (review L1)
 
-New work, defined: every On-trial version becomes `no clear winner`; `trial_closed_at` is set; the switch row stays enabled; the card's version stays the card's version (`card_letter`); **the client link hides the trial and shows only the card's version**; the Posted robot takes the card again. **Q-S (default, pending Sidney): a trial ended with no winner can run again** after a switch-off and switch-on (23.1 step 4), which replaces the earlier "a closed trial is not reopened". **Step 5 names the `readShape` change** (`logic.mjs:600`) that makes a closed or finished trial read as the card's version and, after a winner, gives the losers Version A's row for inherited fields.
+New work, defined: every On-trial version becomes `no clear winner`; `trial_closed_at` is set; the switch row stays enabled; the card's version stays the card's version (`card_letter`); **the client link hides the trial and shows only the card's version**; the Posted robot takes the card again. **Q-S (decided by Sidney 6 Nov): a trial ended with no winner can run again** after a switch-off and switch-on (23.1 step 4), which replaces the earlier "a closed trial is not reopened". **Step 5 names the `readShape` change** (`logic.mjs:600`) that makes a closed or finished trial read as the card's version and, after a winner, gives the losers Version A's row for inherited fields.
 
 ## 17. Third review (Trialreview3) and what changed in revision 11
 

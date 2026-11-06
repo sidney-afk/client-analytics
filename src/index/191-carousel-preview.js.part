@@ -1,0 +1,192 @@
+import { THUMBNAIL_FOLDER_RESOLVE_EF_URL } from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { svCarouselPreviewOn, svCarouselViewerHeaders } from './188-review-stage-switch.js';
+import { _calIsFolderLink, _calRenderBody, _calThumbFolderIconSvg } from './160-calendar-organize-ui.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+    /* CAROUSEL PREVIEW (session Carouselbuild, 2026-11-06, OPEN_REPAIRS 710; Sidney: "I need a real sample. I need to see
+       how it would look like"). A card whose thumbnail is a Google Drive FOLDER of images (a carousel) shows the
+       folder's first image by name, a "Carousel · N images" badge and "Open in Drive" instead of the dark "Open folder"
+       card; its thumbnail opens the card view on the client link; the card view says what the post is ("About this post").
+
+       Behind the runtime flag carousel_preview_v1 ({ "clients": [...] }, the test client only; 188). Flag off,
+       unreadable or wrongly shaped: every function below answers "nothing", and the page is exactly as it was.
+
+       The picture never needs a token: the server (thumbnail-folder-resolve, action folder_preview) lists the folder
+       with the Drive API key only, so a folder that is not shared "Anyone with the link" reads as not_shared, picks the
+       first IMAGE by name and answers its file id. The page draws Drive's public thumbnail address for that id.
+       Answers are cached on the server and, here, for a few minutes. */
+    const SV_CAR_DONE_TTL = { ok: 10 * 60000, empty: 60000, no_images: 5 * 60000, not_shared: 30000, error: 15000 };
+    const SV_CAR = new Map();          // Drive folder id -> { state, count, hasVideo, fileId, at } (state 'loading' while asked)
+    let _svCarRedrawTimer = 0;
+    const SV_CAR_ABOUT_OPEN = new Set();   // card ids whose caption is shown in full ("Show more")
+    const SV_CAR_SHARE_NOTE = 'Share as “Anyone with the link” to show a preview';
+
+    function svCarFolderId(url) {
+        const u = String(url || '').trim();
+        let m = u.match(/\/folders\/([A-Za-z0-9_-]{15,})/);
+        if (m) return m[1];
+        m = u.match(/[?&]id=([A-Za-z0-9_-]{15,})/);
+        return m ? m[1] : '';
+    }
+    // The Drive folder this card's images live in: the thumbnail field, else the video field (a carousel's folder can
+    // sit in either). Only Google Drive folders are read; a Dropbox folder keeps today's card.
+    function svCarouselFolderOf(p) {
+        if (!p) return '';
+        for (const k of ['thumbnail_url', 'asset_url']) {
+            const raw = String(p[k] || '').trim();
+            if (raw && _calIsFolderLink(raw) && svCarFolderId(raw) && /drive\.google\.com/i.test(raw)) return /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+        }
+        return '';
+    }
+    function _svCarClientOf(p) { return String((p && p.client) || (calState && calState.client) || ''); }
+    function svCarouselImageUrl(fileId, width) {
+        return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w' + (width || 640);
+    }
+    function _svCarSchedule() {
+        clearTimeout(_svCarRedrawTimer);
+        _svCarRedrawTimer = setTimeout(() => {
+            try { if (document.getElementById('calView')) _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            try { window.dispatchEvent(new Event('sv-carousel-preview')); } catch (e) {}
+        }, 60);
+    }
+    function _svCarAsk(folderId, folderUrl, client) {
+        const cur = SV_CAR.get(folderId);
+        SV_CAR.set(folderId, { state: 'loading', count: 0, hasVideo: false, fileId: '', at: Date.now(), prev: cur && cur.state !== 'loading' ? cur : null });
+        const slug = (() => { try { return calClientSlug(client); } catch (e) { return ''; } })();
+        const settle = (rec) => { SV_CAR.set(folderId, Object.assign({ at: Date.now() }, rec)); _svCarSchedule(); };
+        fetch(THUMBNAIL_FOLDER_RESOLVE_EF_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders(Object.assign({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, svCarouselViewerHeaders() || {}), THUMBNAIL_FOLDER_RESOLVE_EF_URL),
+            body: JSON.stringify({ action: 'folder_preview', client: slug || client, folder_url: folderUrl })
+        }).then(resp => resp.ok ? resp.json() : null).then(json => {
+            if (!json || !json.ok || json.enabled === false) { settle({ state: 'error', count: 0, hasVideo: false, fileId: '' }); return; }
+            const state = ['ok', 'empty', 'no_images', 'not_shared'].includes(json.state) ? json.state : 'error';
+            const fileId = state === 'ok' && /^[A-Za-z0-9_-]{10,200}$/.test(String(json.first_file_id || '')) ? String(json.first_file_id) : '';
+            settle({ state: fileId || state !== 'ok' ? state : 'error', count: Math.max(0, Number(json.count) || 0), hasVideo: !!json.has_video, fileId });
+        }).catch(() => settle({ state: 'error', count: 0, hasVideo: false, fileId: '' }));
+    }
+    /* What this card's carousel looks like right now, or null when the card gets no carousel treatment (flag off for
+       its client, or no Drive folder on it). Asking starts the read; the page draws again when it lands. */
+    function svCarouselLook(p) {
+        const folderUrl = svCarouselFolderOf(p);
+        if (!folderUrl || !svCarouselPreviewOn(_svCarClientOf(p))) return null;
+        const id = svCarFolderId(folderUrl);
+        let rec = SV_CAR.get(id);
+        if (!rec || (rec.state !== 'loading' && Date.now() - rec.at > (SV_CAR_DONE_TTL[rec.state] || 60000))) {
+            _svCarAsk(id, folderUrl, _svCarClientOf(p));
+            rec = SV_CAR.get(id);
+        }
+        // While a second look is on its way, the last answer keeps showing (no flicker back to the folder card).
+        const shown = rec.state === 'loading' && rec.prev ? rec.prev : rec;
+        return { folderUrl, state: shown.state, count: shown.count, hasVideo: shown.hasVideo, fileId: shown.fileId };
+    }
+    function svCarouselBadgeText(look) {
+        const n = look.count;
+        return 'Carousel · ' + n + (n === 1 ? ' image' : ' images') + (look.hasVideo ? ' + video' : '');
+    }
+    const SV_CAR_STACK_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/></svg>';
+    const SV_CAR_OPEN_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13 3L7.5 8.5"/></svg>';
+    // Small count chip on a Month or Week thumbnail.
+    function svCarouselMiniChipHtml(info) {
+        const c = info && info.carousel;
+        return c && c.state === 'ok' ? `<span class="sv-car-mini" title="${_calEscAttr(svCarouselBadgeText(c))}" aria-label="${_calEscAttr(svCarouselBadgeText(c))}">${SV_CAR_STACK_ICO}${c.count}</span>` : '';
+    }
+    // The badge row over a big first image: the count on the left, "Open in Drive" on the right.
+    function svCarouselBadgeHtml(look) {
+        return `<span class="sv-car-bdg"><span class="sv-car-pill">${SV_CAR_STACK_ICO}${_calEsc(svCarouselBadgeText(look))}</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${SV_CAR_OPEN_ICO}Open in Drive</a></span>`;
+    }
+    /* The small note beside the folder glyph of a folder that is not shared "Anyone with the link" (Sidney, 6 Nov: "folders
+       that aren't [shared] should have a small thing next to the folder icon saying it needs to be shared"). Staff only:
+       a client cannot share it, so their card stays the plain "Open folder" card. */
+    function svCarouselShareNoteHtml(info) {
+        const c = info && info.carousel;
+        if (!c || c.state !== 'not_shared' || _isClientLink) return '';
+        return `<span class="sv-car-share-note" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${_calEsc(SV_CAR_SHARE_NOTE)}</span>`;
+    }
+    // The folder glyph's hover text on a Month or Week thumbnail whose folder is not shared ('' when it is fine).
+    function svCarouselMiniNote(info) {
+        const c = info && info.carousel;
+        return c && c.state === 'not_shared' && !_isClientLink ? SV_CAR_SHARE_NOTE : '';
+    }
+    // The first image with its badge row: the card view's stage, and the client's expanded thumbnail.
+    function svCarouselBigHtml(look, width) {
+        return `<div class="sv-car-frame has-stack"><img src="${_calEscAttr(svCarouselImageUrl(look.fileId, width || 1000))}" alt="First image of the carousel" onerror="this.remove()">${svCarouselBadgeHtml(look)}</div>`;
+    }
+
+    /* THE CARD VIEW'S STAGE for a post with no playable video (187's door opens the card view for it, and 190 asks here
+       before it hides the stage): the carousel's first image, or the post's own picture. Returns true when it drew one. */
+    function svCarouselStageMount(host, post, poster) {
+        if (!host || !post) return false;
+        if (/https?:\/\/(?:f\.io\/|next\.frame\.io\/)/i.test(String(post.asset_url || ''))) return false;   // a Frame video: its own stage
+        const look = svCarouselLook(post);
+        if (!look && !(poster && svCarouselPreviewOn(_svCarClientOf(post)))) return false;
+        let inner;
+        if (!look) {
+            inner = `<div class="sv-car-frame"><img src="${_calEscAttr(poster)}" alt="" onerror="this.remove()"></div>`;
+        } else if (look.state === 'ok') {
+            inner = svCarouselBigHtml(look, 1000);
+        } else if (look.state === 'loading' || look.state === 'error') {
+            inner = `<div class="sv-car-frame is-loading" role="status" aria-busy="true"><span class="sv-car-skel"></span><span class="sv-car-bdg"><span class="sv-car-pill">${SV_CAR_STACK_ICO}Carousel · loading…</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer">${SV_CAR_OPEN_ICO}Open in Drive</a></span></div>`;
+        } else {
+            const msg = look.state === 'not_shared' ? (_isClientLink ? '' : SV_CAR_SHARE_NOTE) : look.state === 'empty' ? 'This folder is empty' : 'No images in this folder';
+            inner = `<div class="sv-car-frame is-folder"><a class="sv-car-folder" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer"><span class="sv-car-folder-ico">${_calThumbFolderIconSvg()}</span><span class="sv-car-folder-cta">Open folder</span>${msg ? `<span class="sv-car-share-note is-stage" role="note">${_calEsc(msg)}</span>` : ''}</a></div>`;
+        }
+        host.hidden = false;
+        host.setAttribute('data-orient', 'portrait');
+        host.setAttribute('data-car', look ? look.state : 'image');
+        host.innerHTML = inner;
+        return true;
+    }
+    function svCarouselStageUnmount(host) {
+        if (host && host.hasAttribute('data-car')) { host.removeAttribute('data-car'); host.removeAttribute('data-orient'); host.innerHTML = ''; }
+    }
+
+    /* "ABOUT THIS POST" at the top of the Notes column (Carouselpreview's design): the post's picture and its caption,
+       the caption cut at three lines with "Show more". Read only (the caption is edited on the Calendar card). Drawn
+       only where the carousel switch is on for the card's client. */
+    function svAboutThisPostHtml(post, thumbInfo) {
+        if (!post || !svCarouselPreviewOn(_svCarClientOf(post))) return '';
+        const caption = String(post.caption || '').trim();
+        const look = svCarouselLook(post);
+        const c = thumbInfo && thumbInfo.carousel;
+        let tile;
+        let label = 'Thumbnail';
+        let sub = '';
+        if (thumbInfo && thumbInfo.url) {
+            tile = `<img src="${_calEscAttr(thumbInfo.url)}" alt="" onerror="this.remove()">`;
+            if (c && c.state === 'ok') sub = 'First image of ' + c.count;
+        } else if (look && look.state === 'ok' && look.fileId) {
+            tile = `<img src="${_calEscAttr(svCarouselImageUrl(look.fileId, 240))}" alt="" onerror="this.remove()">`;
+            sub = 'First image of ' + look.count;
+        } else if (look) { tile = `<span class="sv-car-about-ico">${_calThumbFolderIconSvg()}</span>`; sub = 'Image folder'; }
+        else tile = '<span class="sv-car-about-ico is-empty"></span>';
+        const open = SV_CAR_ABOUT_OPEN.has(post.id);
+        const long = caption.length > 150 || caption.split('\n').length > 3;
+        const more = long ? `<button type="button" class="sv-car-more" onclick="svAboutToggle(${_calEscAttr(JSON.stringify(String(post.id)))})" aria-expanded="${open ? 'true' : 'false'}">${open ? 'Show less' : 'Show more'}</button>` : '';
+        return `<section class="sv-car-about" aria-label="About this post">
+            <div class="sv-car-about-head"><span>About this post</span></div>
+            <div class="sv-car-about-row">
+                <span class="sv-car-about-th">${tile}</span>
+                <span class="sv-car-about-txt">
+                    <span class="sv-car-about-lab">${label}</span>${sub ? `<span class="sv-car-about-sub">${_calEsc(sub)}</span>` : ''}
+                    <span class="sv-car-about-lab">Caption</span>
+                    <span class="sv-car-about-cap${open ? ' is-open' : ''}${caption ? '' : ' is-none'}">${caption ? _calEsc(caption) : 'No caption yet'}</span>${more}
+                </span>
+            </div>
+        </section>`;
+    }
+    function svAboutToggle(pid) {
+        if (SV_CAR_ABOUT_OPEN.has(pid)) SV_CAR_ABOUT_OPEN.delete(pid); else SV_CAR_ABOUT_OPEN.add(pid);
+        try { window.dispatchEvent(new Event('sv-carousel-preview')); } catch (e) {}
+    }
+    window.svAboutToggle = svAboutToggle;
+    // Test hook: forget every read answer (the page asks the server again).
+    window.svCarouselForget = () => { SV_CAR.clear(); };
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svAboutToggle
+    });
+export { svAboutThisPostHtml, svCarouselBadgeHtml, svCarouselImageUrl, svCarouselLook, svCarouselBigHtml, svCarouselMiniChipHtml, svCarouselMiniNote, svCarouselShareNoteHtml, svCarouselStageMount, svCarouselStageUnmount };

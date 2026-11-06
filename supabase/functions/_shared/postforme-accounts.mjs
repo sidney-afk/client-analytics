@@ -105,7 +105,7 @@ export function changesByClient(links) {
   return out;
 }
 
-// The accounts the Post tab may OFFER for ONE client and ONE network (session Fbpage, OPEN_REPAIRS 711). Nothing here
+// The accounts the Post tab may OFFER for ONE client and ONE network (session Fbpage, OPEN_REPAIRS 712). Nothing here
 // links an account by itself: this only decides which accounts are plausibly the client's, and a person picks.
 // An account is offered when it is
 //   - the account already saved on the client in that network's slot (always listed first, even if it is

@@ -132,7 +132,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igResolveAccount(client) { return _igProfileValue(client, IG_ACCOUNT_COLUMN); }
     function _igResolveFacebook(client) { return _igProfileValue(client, IG_FACEBOOK_COLUMN); }
 
-    /* WHICH ACCOUNT, ON EVERY NETWORK (post_account_pick_v1, OPEN_REPAIRS 711; staff listed on the switch only).
+    /* WHICH ACCOUNT, ON EVERY NETWORK (post_account_pick_v1, OPEN_REPAIRS 712; staff listed on the switch only).
        Next to each network's toggle the Post tab names the account the post goes to, as Post for Me reports it (the
        display name; for YouTube the channel name, since one Google login can hold several channels), not just an spc_ id.
        The names and the choice come from client-profile-write's pfm_account_choices: the account saved on the client,

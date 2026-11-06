@@ -450,7 +450,7 @@ async function history(supabase: SupabaseClient, body: JsonMap): Promise<Respons
   return json({ ok: true, edits: edits.data || [], manager_moves: moves.data || [] });
 }
 
-// The account pick for every network on the Post tab (OPEN_REPAIRS 711, behind the page's post_account_pick_v1 switch).
+// The account pick for every network on the Post tab (OPEN_REPAIRS 712, behind the page's post_account_pick_v1 switch).
 // pfm_account_choices { slug, network } answers { saved_id, accounts: [{ id, name, handle, connected, saved }], updated_at }:
 // safe fields only, never a token. pfm_account_pick { slug, network, account_id, expected_updated_at } saves ONE of those
 // accounts through the same client_profile_admin_edit path the Clients tab uses, and refuses any id the list did not

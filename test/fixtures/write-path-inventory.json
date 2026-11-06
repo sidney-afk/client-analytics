@@ -234,6 +234,10 @@
       ],
       "note": "Calendar drag order (calendar-reorder). Recorded as calendar_reorder."
     },
+    "191-carousel-preview.js.part|settle|THUMBNAIL_FOLDER_RESOLVE_EF_URL|POST": {
+      "status": "read",
+      "note": "Asks the server for the first image of a Drive folder (carousel preview, folder_preview). A read: it saves nothing."
+    },
     "200-intake-data-startup.js.part|_linearIntakeLogSubmissionRequest|LOG_SUBMISSION_WEBHOOK|POST": {
       "status": "telemetry",
       "note": "Same submission log."
@@ -553,7 +557,7 @@
       "within": [
         "_svAcctPost"
       ],
-      "note": "Post tab account pick (OPEN_REPAIRS 711, post_account_pick_v1): the account list is a read sent as a POST; saving the picked account as the client's default records a refusal as post_account_pick."
+      "note": "Post tab account pick (OPEN_REPAIRS 712, post_account_pick_v1): the account list is a read sent as a POST; saving the picked account as the client's default records a refusal as post_account_pick."
     }
   }
 }

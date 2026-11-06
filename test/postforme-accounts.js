@@ -187,7 +187,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/rpc\("pfm_account_link_run_record"/.test(sync) && /trigger: member \? "admin" : "timer"/.test(sync) && !/console\.error\([^)]*logErr\.message/.test(sync),
     'every run is recorded for the watcher (best effort; a failure logs only its code)');
 
-  // --- the account pick for every network (OPEN_REPAIRS 711): which accounts may be OFFERED; nothing links itself ---
+  // --- the account pick for every network (OPEN_REPAIRS 712): which accounts may be OFFERED; nothing links itself ---
   {
     const acct = (id, platform, name, extra) => m.safeAccount(raw(id, platform, 'u_' + id.slice(-4), Object.assign({ metadata: { display_name: name } }, extra || {})));
     const fbA = acct('spc_FixtureFbA001', 'facebook', 'Ana Lima Studio');

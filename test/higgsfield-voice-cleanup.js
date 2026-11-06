@@ -173,6 +173,37 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
     assert.strictEqual(who.outcomeOf('voice_cleanup', card).ok, true);
   }
 
+  // ---- Options: any Auphonic setting, laid over the strength (or over everything off) ----
+  {
+    const base = v.auphonicAlgorithms('gentle');
+    const over = v.auphonicAlgorithms('gentle', { denoiseamount: 24, leveler: true });
+    assert.strictEqual(over.denoiseamount, 24); assert.strictEqual(over.leveler, true); assert.strictEqual(over.denoise, base.denoise);
+    const plain = v.auphonicAlgorithms('', { normloudness: true, loudnesstarget: -16 });
+    assert.strictEqual(plain.denoise, false); assert.strictEqual(plain.leveler, false); assert.strictEqual(plain.loudnesstarget, -16);
+    const h = harness();
+    const card = await v.voiceCleanup({ file: FILE, strength: 'gentle', options: { denoiseamount: '24', leveler: true } }, h.d);
+    assert.ok(/Your settings: denoiseamount 24, leveler true/.test(card), card);
+    assert.strictEqual(h.calls.reserve.length, 0);
+    const only = await v.voiceCleanup({ file: FILE, options: { loudnesstarget: -16 } }, h.d);
+    assert.ok(/Strength: none, only the settings below/.test(only) && /normloudness true/.test(only), only);
+    const go = await v.voiceCleanup({ file: FILE, strength: 'gentle', options: { denoiseamount: 24, compressor: 'Soft' }, go: true }, h.d);
+    assert.ok(go.includes('job_id:'), go);
+    const post = h.calls.fetch.find((c) => c.url.endsWith('/productions.json'));
+    const sent = JSON.parse(post.init.body).algorithms;
+    assert.strictEqual(sent.denoiseamount, 24); assert.strictEqual(sent.compressor, 'soft'); assert.strictEqual(sent.leveler, true, 'compressor switches the leveler group on');
+    assert.deepStrictEqual(h.calls.reserve[0].params.options, { denoiseamount: 24, compressor: 'soft', denoise: true, leveler: true });
+    assert.ok(h.calls.reserve[0].idemKey.includes('compressor'), 'different options are not the same job');
+    // Refused with a sentence, nothing sent or reserved.
+    for (const bad of [{ nope: 1 }, { denoiseamount: 7 }, { leveler: 'yes' }, { input_file: 'https://evil.test/x' }, { webhook: 'https://evil.test/x' }, 'not json', [1]]) {
+      const g = harness();
+      const t = await v.voiceCleanup({ file: FILE, strength: 'gentle', options: bad, go: true }, g.d);
+      assert.ok(/not an Auphonic setting|must be/.test(t), JSON.stringify(bad) + ' -> ' + t);
+      assert.strictEqual(g.calls.reserve.length, 0); assert.ok(!g.calls.fetch.some((c) => c.url.includes('/productions')));
+    }
+    assert.ok((await v.voiceCleanup({ file: FILE }, harness().d)).startsWith('Give the strength'));
+    assert.ok(!('options' in (v.VOICE_TOOL.inputSchema.required || [])) && v.VOICE_TOOL.inputSchema.properties.options.type === 'object');
+  }
+
   // ---- Refusals before any spending ----
   {
     const h = harness({ file: wav({ seconds: 400 }) });

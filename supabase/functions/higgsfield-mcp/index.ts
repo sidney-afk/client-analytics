@@ -34,12 +34,14 @@ import { savedProfileText, studioProfile, studioProfileSave } from "./studioprof
 import { pipelinePass } from "./pipelinepass.ts";
 import { GEMINI_ROW_MODEL } from "./watchvideo.mjs";
 import { STT_MODEL, STT_TOOL, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
+import { elevenErrorText } from "./transcribe.mjs";
 import { transcribeStore } from "./transcribe.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS, withSavedLook } from "./profile.mjs";
 import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
+import { MUSIC_MODEL, musicCheck } from "./music.mjs";
 import { voiceStore } from "./voice.ts";
 import { isOAuthToken, makeOAuth } from "./oauth.mjs";
 
@@ -1127,6 +1129,23 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 // studio_transcribe (ElevenLabs): the logic is in transcribe.mjs, the
 // database and storage parts in transcribe.ts. The key is read from
 // ELEVENLABS_KEY, then ELEVENLABS_API_KEY.
+// studio_action "make_music" (music.mjs): voice storage and reserve, plus the counts behind its hard limits.
+function musicDeps(author: string) {
+  return {
+    ...voiceDeps(author),
+    errorText: (status: number, text: string) => { let body: unknown = null; try { body = JSON.parse(text); } catch (_e) { body = { raw: text }; } return elevenErrorText(status, body); },
+    timeout: (ms: number) => AbortSignal.timeout(ms),
+    reserveMusic: async (p: JsonMap) => {
+      if (CAP_USD === null) return null;
+      const { data, error } = await db().rpc("hf_music_reserve", {
+        p_member: p.member, p_prompt: p.prompt, p_params: p.params, p_cost: p.cost, p_cap: CAP_USD, p_idem_key: p.idemKey,
+        p_day_usd: p.day, p_month_usd: p.month,
+      });
+      return error || !data ? null : data as JsonMap;
+    },
+  };
+}
+
 function transcribeDeps(author: string) {
   return {
     ...transcribeStore(db()), env: (k: string) => Deno.env.get(k), fetch, publicHost, directLink, background, author, cap: CAP_USD,
@@ -1140,6 +1159,10 @@ async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
   if (row && row.model === VOICE_MODEL) return await voiceCheck(jobId, voiceDeps(""));
+  if (row && row.model === MUSIC_MODEL) {
+    const { data: full } = await db().from("hf_generations").select("id,status,video_url,error,est_cost_usd,updated_at").eq("request_id", jobId).maybeSingle();
+    return await musicCheck(full || row, voiceDeps(""));
+  }
   if (row && answeredFromLog(String(row.model))) {
     if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
     if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". The provider did not make an image, so it was not charged; try again or adjust the prompt.";
@@ -1442,7 +1465,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author), watch: () => watchDeps(author) }, args.action, args.args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author), watch: () => watchDeps(author), music: () => musicDeps(author) }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 

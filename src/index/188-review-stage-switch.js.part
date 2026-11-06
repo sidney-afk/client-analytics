@@ -1,6 +1,6 @@
 import { _syncviewApplyTheme, clientViewTab, svArea, svAreaApi, svFetchRetryOnce } from './040-shared-briefs.js';
 import { render } from './050-market-briefs.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad, _syncviewVerifyStaffIdentity } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-flags-write-repair.js';
 import { _calSetFocusRequest, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
@@ -78,12 +78,20 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     Instagram side, and Instagram untickable there (plan row P3, page half; 299). The
                                     server checks every account against the client's profile. Staff only. Missing,
                                     unreadable or the wrong shape: the Post tab exactly as it was.
-         post_account_pick_v1       { "staff": [...] } (session Fbpage, 2026-11-06, OPEN_REPAIRS 711; 299): every network on the Post tab
+         post_account_pick_v1       { "staff": [...] } (session Fbpage, 2026-11-06, OPEN_REPAIRS 712; 299): every network on the Post tab
                                     (Instagram, TikTok, Facebook, YouTube, LinkedIn) names WHICH account it posts to (as Post for Me
                                     reports it), and lets a person pick when more than one is plausibly the client's. "staff" lists staff
                                     members by id or full name (the same helper as every staff switch; { "all": true }
                                     would reach every signed-in staff member, never the client link). Missing,
                                     unreadable or the wrong shape: the step exactly as it was.
+         carousel_preview_v1   { "clients": [...], "viewers": [...] } (session Carouselbuild, 2026-11-06, OPEN_REPAIRS
+                                    710; 191). "clients" is the test client only. "viewers" lists staff members (roster
+                                    name or id): for a listed viewer EVERY client's Calendar shows the new behaviour, and so
+                                    does a client link opened in a browser that holds that member's signed-in staff session
+                                    (the server confirms it: the saved key is checked by key-verify, never a URL parameter).
+                                    A real client on their own device keeps today's page. A card whose thumbnail is a Google Drive folder of images shows the folder's
+                                    first image with a "Carousel · N images" badge, its thumbnail opens the card view on the
+                                    client link, and the card view starts with "About this post". No "all". Missing, unreadable or the wrong shape: every card exactly as it was.
          sheet_fit_v1               { "staff": [...], "clients": [...] } and/or { "all": true }: the Calendar Sheet fits
                                     the window (session Sheetzoom, 2026-10-31; 160 and 020 under html.sv-sheet-fit): the
                                     Sheet fills the window under the toolbar with no empty page scroll, tighter spacing,
@@ -97,14 +105,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1', 'post_account_pick_v1'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1', 'post_account_pick_v1', 'carousel_preview_v1'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
     // Nothing read yet, or the read failed: every switch off.
     function _rsFlagsOff() {
         const n = _rsStaffNone;
-        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), tvAll: false, tv: new Set(), psAll: false, ps: new Set(), pnAll: false, pn: new Set(), apk: n(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), tvAll: false, tv: new Set(), psAll: false, ps: new Set(), pnAll: false, pn: new Set(), apk: n(), cv: new Set(), cvViewers: new Set(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
     }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
@@ -132,6 +140,9 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const pnv = by.post_networks_v1;
         const pnMembers = okObj(pnv) ? (_calRuntimeFlagRawMembers(pnv) || []) : [];
         const apv = by.post_account_pick_v1;
+        const cvv = by.carousel_preview_v1;
+        const cvMembers = okObj(cvv) ? (_calRuntimeFlagRawMembers(cvv) || []) : [];
+        const cvViewers = okObj(cvv) && Array.isArray(cvv.viewers) ? cvv.viewers.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const fitv = by.sheet_fit_v1;
         const fitMembers = okObj(fitv) && Array.isArray(fitv.clients) ? fitv.clients.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*') : [];
         const h = by.review_help_video_url;
@@ -156,6 +167,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             pnAll: okObj(pnv) && pnv.all === true,
             pn: new Set(pnMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             apk: _rsStaffSwitch(apv),
+            cv: new Set(cvMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            cvViewers: new Set(cvViewers),
             fitAll: okObj(fitv) && fitv.all === true,
             fitStaff: _rsStaffSwitch(fitv),
             fit: new Set(fitMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
@@ -333,6 +346,54 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         let slug = '';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.ps.has(slug);
+    }
+    /* The carousel preview (carousel_preview_v1, 191): a listed client only, staff and the client link alike. Asking
+       starts the read; until it is in, and for an unreadable or wrongly shaped answer, off (every card exactly as it was). */
+    /* A listed staff VIEWER on a CLIENT LINK (Sidney checking a client's page with his own staff sign-in): the page holds a
+       saved staff identity only when someone signed in to the staff pages in this browser, and a saved identity is
+       writable by hand, so it counts for nothing until key-verify agrees (the same check the staff entry makes). It is
+       asked once, and only when the switch lists any viewer and a saved identity exists, so a real client's browser
+       makes no request at all. The verified key and name then ride on the folder read, which the server checks again. */
+    const _cvViewer = { state: 'idle', identity: null };
+    function _cvViewerCheck() {
+        if (_cvViewer.state !== 'idle' || !_rsFlags.loaded || !_rsFlags.cvViewers.size) return;
+        let saved = null;
+        try { saved = _syncviewStaffIdentityLoad(); } catch (e) { saved = null; }
+        if (!saved || !saved.key || !saved.member || !saved.member.id) { _cvViewer.state = 'no'; return; }
+        _cvViewer.state = 'checking';
+        _syncviewVerifyStaffIdentity(saved, 'carousel-viewer').then(id => {
+            _cvViewer.identity = id;
+            _cvViewer.state = _rsViewerIn(id.member) ? 'yes' : 'no';
+        }, () => { _cvViewer.state = 'no'; }).then(() => {
+            if (_cvViewer.state === 'yes') { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+        });
+    }
+    function _rsViewerIn(m) {
+        if (!m) return false;
+        const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
+        return (!!id && _rsFlags.cvViewers.has(id)) || (!!name && _rsFlags.cvViewers.has(name));
+    }
+    // The staff headers for a folder read made by a verified listed viewer on a client link; null otherwise (the staff
+    // pages' own calls already carry them through _syncviewEfHeaders).
+    function svCarouselViewerHeaders() {
+        if (!_isClientLink || _cvViewer.state !== 'yes' || !_cvViewer.identity) return null;
+        const id = _cvViewer.identity;
+        return { 'X-Syncview-Key': id.key, 'X-Syncview-Actor': id.member.name, 'X-Syncview-Role': id.role };
+    }
+    function svCarouselPreviewOn(client) {
+        _rsPrime();
+        if (!_rsFlags.loaded) return false;
+        let slug = '';
+        try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+        if (slug && _rsFlags.cv.has(slug)) return true;
+        if (!_rsFlags.cvViewers.size) return false;
+        if (!_isClientLink) {
+            let who = null;
+            try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+            return !!who && _rsViewerIn(who.member);
+        }
+        _cvViewerCheck();
+        return _cvViewer.state === 'yes';
     }
     /* YouTube and LinkedIn on the Post tab's Instagram side (post_networks_v1): a listed client, staff only. Off until
        the read is in, and for an unreadable or wrongly shaped answer (the tab exactly as it was). */
@@ -875,4 +936,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn, svPostNetworksAny, svPostAccountPickOn };
+export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn, svPostNetworksAny, svPostAccountPickOn, svCarouselPreviewOn, svCarouselViewerHeaders };

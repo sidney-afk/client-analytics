@@ -3,6 +3,7 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "ci-changes.js",
+    "carousel-folder-preview-resolver.js",
     "ci-runner-seats.js",
     "ci-lanes.js",
     "workflow-plain-scalars.js",
@@ -38,6 +39,7 @@
     "higgsfield-studio-profile.js",
     "higgsfield-voice-cleanup.js",
     "higgsfield-voice-isolate.js",
+    "higgsfield-make-music.js",
     "higgsfield-studio-transcribe.js",
     "higgsfield-client-questions.js",
     "higgsfield-client-brain.js",
@@ -2485,6 +2487,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the frameio-view answers are fixtures, no hosted credentials and no live data. Checks Frame.io comments in a Calendar card's Notes without the player, for every signed-in staff member whatever the old row says, at desktop and phone size, light and dark: lazy read after paint, five-minute keep, one-line failure, switch off unchanged.",
       "reproduce": "node test/frame-comments-in-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "carousel-preview-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the folder reader and Drive's picture address are fixtures), no hosted credentials and no live data. Checks the carousel preview behind carousel_preview_v1 on the client link at desktop and phone size (flag off unchanged, first image and count in Month, a no-video thumbnail opening the card view, About this post, a reel keeping its player) and on the staff Calendar (Month, Week, card thumbnail, the not-shared note).",
+      "reproduce": "node test/carousel-preview-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

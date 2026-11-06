@@ -1,4 +1,5 @@
 import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
+import { svCarouselMiniChipHtml } from './191-carousel-preview.js';
 import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify, showToast, svBusyText } from './040-shared-briefs.js';
 import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
@@ -3405,7 +3406,7 @@ import { svTrialClientTagHtml, svTrialMonthMarkHtml } from './189-trial-reels-ca
     }
     /* Phone client links: the few Month and Week thumbnails are fetched at once, so a Week opened from Month never shows empty grey squares while a lazy image waits for its turn. */
     function _calMiniThumbTag(info) {
-        const tag = _calThumbImgTag(info, '_calOnMiniThumbError');
+        const tag = _calThumbImgTag(info, '_calOnMiniThumbError') + svCarouselMiniChipHtml(info);
         return _calPhoneClient() ? tag.replace('loading="lazy"', 'loading="eager"') : tag;
     }
     function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
@@ -3420,7 +3421,7 @@ import { svTrialClientTagHtml, svTrialMonthMarkHtml } from './189-trial-reels-ca
         const thumb = info.url
             ? `<span class="cal-month-pill-thumb">${_calMiniThumbTag(info)}</span>`
             : info.frame
-                ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind)
+                ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind, info)
                 : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
         const id = _calEscAttr(p.id);
         const thumbDoor = _calClientThumbDoor(thumb, p);
@@ -3679,7 +3680,7 @@ import { svTrialClientTagHtml, svTrialMonthMarkHtml } from './189-trial-reels-ca
                                 const th = info.url
                                     ? `<span class="cal-week-card-thumb">${_calMiniThumbTag(info)}</span>`
                                     : info.frame
-                                        ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind)
+                                        ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind, info)
                                         : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 const id = _calEscAttr(p.id);
                                 const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';

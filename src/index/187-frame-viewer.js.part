@@ -2,6 +2,7 @@ import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity 
 import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { svCarouselPreviewOn } from './188-review-stage-switch.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* WATCH HERE: a card's Frame.io video, inside SyncView, behind the frame_viewer_clients switch.
 
@@ -247,13 +248,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!_isClientLink) return '';
         if (!cardId || !_fvLinkOf(rawLink)) {
             _fvPrimeFlag();
-            return ` data-fv-none data-fv-client="${_calEscAttr(_fvFlagSlugOf(client || (calState && calState.client) || ''))}" onclick="return svFrameThumbOpen(event,this)"`;
+            return ` data-fv-none data-fv-card="${_calEscAttr(cardId || '')}" data-fv-client="${_calEscAttr(_fvFlagSlugOf(client || (calState && calState.client) || ''))}" onclick="return svFrameThumbOpen(event,this)"`;
         }
         return svFrameTileAttrs(rawLink, client, cardId, '').replace('onclick="return svFrameTileOpen(event,this)"', 'onclick="return svFrameThumbOpen(event,this)"');
     }
     function svFrameThumbOpen(ev, el) {
         if (!el) return true;
         if (!el.hasAttribute('data-fv-tile')) {
+            // A client the carousel switch lists (191): a post with no video opens the card view, whose stage draws the
+            // carousel's first image (or the post's picture) instead of a player.
+            if (_fvCarouselDoor(ev, el)) return false;
             // No video: with the viewer on for this client the click opens nothing and does not fall through to the
             // small preview. With the switch off (or not read yet) the thumbnail behaves as before.
             if (!_fvFlagRead || !_fvEnabledFor(el.getAttribute('data-fv-client'))) return true;
@@ -267,7 +271,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svFrameKeyDoor(ev, post) {
         if (!_isClientLink || !ev || ev.detail !== 0 || !post || !post.querySelector) return false;
         const tile = post.querySelector('[data-fv-tile]');
-        return !!tile && svFrameTileOpen(ev, tile) === false;
+        if (!tile) { const none = post.querySelector('[data-fv-none]'); return !!none && _fvCarouselDoor(ev, none); }
+        return svFrameTileOpen(ev, tile) === false;
+    }
+    // The carousel switch's door (191): true when it opened the card view for this no-video thumbnail.
+    function _fvCarouselDoor(ev, el) {
+        const pid = el.getAttribute('data-fv-card') || '';
+        const who = el.getAttribute('data-fv-client') || '';
+        if (!pid || !svCarouselPreviewOn(who) || typeof window.svOpenCardNotes !== 'function') return false;
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        window.svOpenCardNotes(who, pid);
+        return true;
     }
     // The small link under the preview (hidden unless the switch is on for this card's client).
     function svFrameIoLinkHtml(rawLink, client) {

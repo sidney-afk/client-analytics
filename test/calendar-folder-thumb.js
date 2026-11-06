@@ -64,7 +64,9 @@ const REAL = [
   grabFunc('_calOpenCardMeta'),
 ].join('\n\n');
 
-const mod = new Function(REAL + `
+// The carousel preview (191) is behind a switch this harness never sets: its two helpers answer "off".
+const STUBS = 'const svCarouselLook = () => null; const svCarouselImageUrl = () => "";\n';
+const mod = new Function(STUBS + REAL + `
 ;return { _calIsFolderLink, _calIsFrameLink, _calDeriveThumb, _calDeriveThumbInfo, _calOpenCardMeta };`)();
 const { _calIsFolderLink, _calIsFrameLink, _calDeriveThumb, _calDeriveThumbInfo, _calOpenCardMeta } = mod;
 
@@ -170,9 +172,9 @@ const NOSCHEME_FOLDER  = 'drive.google.com/drive/folders/zzz999';
         /_calThumbFrameHtml\(info\.frame, info\.frameKind\)/.test(INDEX));
   // Compact surfaces: month pill, week card, collapsed review/Kasper strips.
   check('month pill mini badge is kind-aware',
-        /_calMiniLinkBadgeHtml\('cal-month-pill-thumb', info\.frameKind\)/.test(INDEX));
+        /_calMiniLinkBadgeHtml\('cal-month-pill-thumb', info\.frameKind(?:, info)?\)/.test(INDEX));
   check('week card mini badge is kind-aware',
-        /_calMiniLinkBadgeHtml\('cal-week-card-thumb', info\.frameKind\)/.test(INDEX));
+        /_calMiniLinkBadgeHtml\('cal-week-card-thumb', info\.frameKind(?:, info)?\)/.test(INDEX));
   check('review/Kasper strip mini badge is kind-aware',
         /_calMiniLinkBadgeHtml\('kcard-thumb-fallback', info\.frameKind\)/.test(INDEX) &&
         /_calMiniLinkBadgeHtml\('kcard-thumb-fallback', thumbInfo\.frameKind\)/.test(INDEX));

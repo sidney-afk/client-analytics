@@ -108,7 +108,8 @@ import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
         const t = e.target;
         if (!t || t.nodeType !== 1 || svThumbZoomIsOpen()) return;
         const img = t.closest && t.closest(TZ_DOC_SEL);
-        if (!img || img.closest('a') || !(img.getAttribute('src') || '')) return;
+        // A picture inside its own button or link keeps that control's job (the expanded preview's button opens the surface's own lightbox).
+        if (!img || img.closest('a, button') || !(img.getAttribute('src') || '')) return;
         if (_tzDocOpen(img)) { e.stopPropagation(); e.preventDefault(); }
     }, true);
     // Keyboard: Enter or Space on a focused strip thumbnail (the card lists mark it role=button, tabindex=0).

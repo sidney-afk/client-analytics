@@ -173,9 +173,15 @@ function entrypointFor(slug, inventory) {
 function buildExpectedClosure(sha, slug, inventory, cache) {
   const pending = [entrypointFor(slug, inventory)];
   const closure = new Map();
+  // closure is keyed by the path with 'supabase/' stripped, so the visited
+  // check must use its own set of the full paths we pop. Checking closure.has
+  // on the full path never matched, and an import cycle (A imports B, B
+  // imports A) looped forever (higgsfield-mcp, 2026-11-06).
+  const visited = new Set();
   while (pending.length) {
     const file = pending.pop();
-    if (closure.has(file)) continue;
+    if (visited.has(file)) continue;
+    visited.add(file);
     let source = cache.get(file);
     if (source === undefined) {
       source = Buffer.from(readGitFile(sha, file));
@@ -184,7 +190,7 @@ function buildExpectedClosure(sha, slug, inventory, cache) {
     closure.set(file.slice('supabase/'.length), source);
     for (const specifier of localSpecifiers(sourceText(source))) {
       const dependency = resolveLocalImport(file, specifier, inventory);
-      if (!closure.has(dependency)) pending.push(dependency);
+      if (!visited.has(dependency)) pending.push(dependency);
     }
   }
   return closure;

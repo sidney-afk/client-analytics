@@ -2626,6 +2626,14 @@
       "ci": "representative"
     },
     {
+      "file": "thumbzoom-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium (WebKit where installed); every backend call answered locally, no hosted credentials and no live data. Checks the thumbnail zoom on the client link, the SMM's Review tab and Kasper's Review Session: the picture is the zoom target and a keyboard button, a click opens a dark full-screen viewer that fits the screen and saves nothing, Esc, a click outside and the X close it, Tab stays inside it, a carousel opens its first image with Open in Drive, Approve still saves, and the client link on an iPhone profile.",
+      "reproduce": "node test/thumbzoom-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-review-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

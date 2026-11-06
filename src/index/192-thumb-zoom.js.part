@@ -122,4 +122,4 @@ import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 
     window.svThumbZoomOpen = svThumbZoomOpen;
     window.svThumbZoomClose = svThumbZoomClose;
-export { svThumbZoomOpen, svThumbZoomClose, svThumbZoomUrl, svThumbZoomIsOpen };
+export { svThumbZoomOpen };

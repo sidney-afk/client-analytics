@@ -154,8 +154,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             const resp = await fetch(SV_ACCT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': who.key },
                 body: JSON.stringify(Object.assign({ action, member_id: who.member && who.member.id }, body)) });
             let j = null; try { j = await resp.json(); } catch (e) { j = null; }
+            if (action === 'pfm_account_pick' && !(resp.status === 200 && j && j.ok)) _igRecordFailure('post_account_pick', resp.status || 0, !resp.status);
             return { status: resp.status, json: j || {} };
-        } catch (e) { return { status: 0, json: {} }; }
+        } catch (e) { if (action === 'pfm_account_pick') _igRecordFailure('post_account_pick', 0, true); return { status: 0, json: {} }; }
     }
     function _svAcctLoad(net, client, rerender, force) {
         const key = _svAcctKey(net, client);

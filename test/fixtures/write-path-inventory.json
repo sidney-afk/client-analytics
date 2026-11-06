@@ -547,6 +547,13 @@
         "_trlSetCardLink"
       ],
       "note": "Trial reels: the card's one link through today's Production attach (production-write attachment, unchanged). Recorded as trial_reels_card_link."
+    },
+    "299-instagram-upload.js.part|_svAcctPost|SV_ACCT_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_svAcctPost"
+      ],
+      "note": "Post tab account pick (OPEN_REPAIRS 711, post_account_pick_v1): the account list is a read sent as a POST; saving the picked account as the client's default records a refusal as post_account_pick."
     }
   }
 }

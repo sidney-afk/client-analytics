@@ -39,6 +39,7 @@
     "higgsfield-studio-profile.js",
     "higgsfield-voice-cleanup.js",
     "higgsfield-voice-isolate.js",
+    "higgsfield-make-music.js",
     "higgsfield-studio-transcribe.js",
     "higgsfield-client-questions.js",
     "higgsfield-client-brain.js",

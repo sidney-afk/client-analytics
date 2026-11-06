@@ -15,6 +15,7 @@
 // never shown: it only works with the account's key attached.
 
 import { isolateCleanup, isolateCheck } from "./isolate.mjs";
+import { parseOptions, optionsText } from "./auphonicoptions.mjs";
 
 export const VOICE_MODEL = "auphonic/voice-cleanup";
 export const VOICE_BUCKET = "voice";
@@ -55,8 +56,13 @@ const STRENGTH_TEXT = {
 //   default, 0, would remove it fully whenever denoisemethod is dynamic.)
 // - silence_cutter defaults to true inside the cutter group, so both are
 //   switched off by name rather than left to the defaults.
-export function auphonicAlgorithms(strength) {
-  if (!STRENGTHS.includes(strength)) throw new Error("unknown strength");
+export function auphonicAlgorithms(strength, extra) {
+  if (strength !== "" && strength !== undefined && !STRENGTHS.includes(strength)) throw new Error("unknown strength");
+  // No strength given (only "options"): everything off, then the person's settings on top.
+  const base = !strength ? { denoise: false, leveler: false, normloudness: false, filtering: false, cutter: false, silence_cutter: false } : presetAlgorithms(strength);
+  return { ...base, ...(extra || {}) };
+}
+function presetAlgorithms(strength) {
   return {
     denoise: true,
     denoisemethod: "dynamic",
@@ -73,13 +79,13 @@ export function auphonicAlgorithms(strength) {
 
 // The whole request to POST /api/productions.json. Output is 16-bit PCM WAV
 // ("wav"); Auphonic has no sample-rate setting, it keeps the input's rate.
-export function productionBody(strength, inputUrl, jobId) {
+export function productionBody(strength, inputUrl, jobId, extra) {
   return {
     input_file: inputUrl,
     metadata: { title: `voice clean-up ${String(jobId).slice(0, 8)}` },
     output_basename: `voice-${String(jobId).slice(0, 8)}`,
     output_files: [{ format: "wav" }],
-    algorithms: auphonicAlgorithms(strength),
+    algorithms: auphonicAlgorithms(strength, extra),
     action: "start",
   };
 }
@@ -257,28 +263,32 @@ function describeFile(f) {
   return `${mins} minutes, ${f.sampleRate} Hz, ${ch}, ${f.bits}-bit WAV`;
 }
 
-export function priceCard(strength, file, usd, rate) {
+export function priceCard(strength, file, usd, rate, extra) {
+  const custom = optionsText(extra);
   return [
     "Plan: voice clean-up (Auphonic)",
-    `- Strength: ${strength} (${STRENGTH_TEXT[strength]})`,
+    strength ? `- Strength: ${strength} (${STRENGTH_TEXT[strength]})` : "- Strength: none, only the settings below (everything else off)",
+    ...(custom ? [`- Your settings: ${custom}`] : []),
     `- File: ${describeFile(file)}`,
-    "- Kept as recorded: levels, loudness, room sound and every pause (nothing is cut)",
+    custom ? "- Changed only as the settings above say; anything not listed is off or as recorded (nothing is cut unless you asked)" : "- Kept as recorded: levels, loudness, room sound and every pause (nothing is cut)",
     "- Output: WAV at the same sample rate",
-    `- Other strengths: ${STRENGTHS.filter((s) => s !== strength).map((s) => `${s} (${STRENGTH_TEXT[s]})`).join("; ")}`,
+    ...(custom ? [] : [`- Other strengths: ${STRENGTHS.filter((s) => s !== strength).map((s) => `${s} (${STRENGTH_TEXT[s]})`).join("; ")}`]),
+    "- Any other Auphonic setting can be added with options (noise amount, hum, leveler, loudness target, compressor, cutters and more)",
     `- Price: about ${money(usd)} (Auphonic bills processing time, ${money(rate)} an hour, at least 3 minutes per file)`,
   ].join("\n");
 }
 
 export const VOICE_TOOL = {
   name: "voice_cleanup",
-  description: "Clean up a recorded voice with Auphonic: background noise removed and nothing else changed (no levelling, no loudness change, room sound kept, nothing cut, same sample rate). Takes a WAV of up to 5 minutes and about 200 MB. strength: gentle (noise down by up to 12 dB), strong (noise removed fully), studio (gentle plus Auphonic's Studio Voice filter). First call it WITHOUT go: it only shows the price card, which you show the person exactly as returned, ending with \"Say go, or tell me what to change.\" Only after they say go, call it again with the same file and strength and go: true. That returns a job_id: call wait_for_job with it until it is done; the result is a private WAV download link that works for 1 hour (check_job with the same job_id gives a fresh one).",
+  description: "Clean up a recorded voice with Auphonic: background noise removed and nothing else changed (no levelling, no loudness change, room sound kept, nothing cut, same sample rate). Takes a WAV of up to 5 minutes and about 200 MB. For more control pass options (any Auphonic setting: noise amount, hum, leveler, loudness target, compressor, cutters), alone or on top of a strength. strength: gentle (noise down by up to 12 dB), strong (noise removed fully), studio (gentle plus Auphonic's Studio Voice filter). First call it WITHOUT go: it only shows the price card, which you show the person exactly as returned, ending with \"Say go, or tell me what to change.\" Only after they say go, call it again with the same file and strength and go: true. That returns a job_id: call wait_for_job with it until it is done; the result is a private WAV download link that works for 1 hour (check_job with the same job_id gives a fresh one).",
   inputSchema: {
     type: "object",
     required: ["file"],
     additionalProperties: false,
     properties: {
       file: { type: "string", description: "Link to the WAV itself: the public_url from get_upload_link (content_type audio/wav) for a file on the computer, the link import_file returned, or a Drive or Dropbox link shared as anyone with the link." },
-      strength: { type: "string", enum: STRENGTHS, description: "gentle, strong or studio (Auphonic only; leave it out for engine elevenlabs)." },
+      strength: { type: "string", enum: STRENGTHS, description: "gentle, strong or studio (Auphonic only; leave it out for engine elevenlabs, or when you give options instead)." },
+      options: { type: "object", description: "Auphonic only: any Auphonic setting, exactly as if the person had their own Auphonic key. They are laid over the strength (or over everything-off when no strength is given). Names and values: denoise true/false; denoisemethod classic, dynamic or speech isolation; denoiseamount 0 (full), 3, 6, 9, 12, 15, 18, 24, 30, 36 dB; debreathamount; dehum 0/50/60 and dehumamount; filtering true/false and filtermethod hipfilter, autoeq, bwe or studiovoice; leveler true/false, levelerstrength, compressor auto/off/soft/medium/hard, maxlra, maxs, maxm; normloudness true/false, loudnesstarget (-13 to -31 LUFS), maxpeak, loudnessmethod program/dialog/rms, dualmono; gate; cutter true/false with silence_cutter, filler_cutter, cough_cutter, music_cutter, cut_mode. A wrong name or value is refused with the list of allowed ones. Each is shown on the price card." },
       engine: { type: "string", enum: ["auphonic", "elevenlabs"], description: "auphonic (default) or elevenlabs (ElevenLabs Voice Isolator: strips everything but the voice, flat price per minute). Use elevenlabs when Auphonic is out of hours or the person asks for the isolator." },
       go: { type: "boolean", description: "true only after the person said go to this file's price card." },
     },
@@ -372,7 +382,11 @@ export async function voiceCleanup(args, d) {
   const key = String(d.env("AUPHONIC_KEY") || "").trim();
   if (!key) return NO_KEY_TEXT;
   const strength = String(args.strength || "").trim().toLowerCase();
-  if (!STRENGTHS.includes(strength)) return "Give the strength: gentle, strong or studio.";
+  const opts = parseOptions(args.options);
+  if (opts.error) return opts.error;
+  const extra = opts.algorithms;
+  const hasExtra = Object.keys(extra).length > 0;
+  if (!STRENGTHS.includes(strength) && !(strength === "" && hasExtra)) return "Give the strength: gentle, strong or studio, or give options (Auphonic settings) instead.";
   const file = String(args.file || "").trim();
   if (!/^https:\/\//i.test(file)) return "The link must start with https://";
   const rate = usdPerHour(d.env("AUPHONIC_USD_PER_HOUR"));
@@ -385,20 +399,20 @@ export async function voiceCleanup(args, d) {
   const usd = priceFor(wav.seconds, rate);
 
   if (args.go !== true) {
-    return priceCard(strength, wav, usd, rate) + "\n" + await d.budget()
-      + "\n\nSay go, or tell me what to change. (After go, call voice_cleanup again with the same file and strength and go: true.)";
+    return priceCard(strength, wav, usd, rate, extra) + "\n" + await d.budget()
+      + "\n\nSay go, or tell me what to change. (After go, call voice_cleanup again with the same file, strength and options and go: true.)";
   }
   if (d.cap === null || d.cap === undefined) return BAD_CAP;
 
-  const params = { file: link, strength, seconds: Math.round(wav.seconds * 10) / 10, sample_rate: wav.sampleRate };
+  const params = { file: link, strength, ...(hasExtra ? { options: extra } : {}), seconds: Math.round(wav.seconds * 10) / 10, sample_rate: wav.sampleRate };
   const rsv = await d.reserve({
     member: d.author,
     model: VOICE_MODEL,
-    prompt: `Voice clean-up (${strength})`,
+    prompt: `Voice clean-up (${strength || "custom"})`,
     params,
     cost: usd,
     cap: d.cap,
-    idemKey: await d.idemKey(d.author, VOICE_MODEL, { file: link, strength }),
+    idemKey: await d.idemKey(d.author, VOICE_MODEL, hasExtra ? { file: link, strength, options: extra } : { file: link, strength }),
   });
   if (!rsv) return "Could not start: the log is unavailable, so nothing was spent.";
   if (rsv.outcome === "over_cap") return `Refused: this (${money(usd)}) would pass the team's monthly budget of ${money(d.cap)} (${money(Number(rsv.spent))} already used). Ask the account owner.`;
@@ -411,7 +425,7 @@ export async function voiceCleanup(args, d) {
   const jobId = d.uuid();
   let res;
   try {
-    res = await auphonic(d, key, "POST", "productions.json", productionBody(strength, link, jobId));
+    res = await auphonic(d, key, "POST", "productions.json", productionBody(strength, link, jobId, extra));
   } catch (e) {
     await d.update(rowId, { status: "submit_unknown", error: "no answer from Auphonic: " + String(e?.message || e).slice(0, 200), updated_at: nowIso(d) });
     return "Could not confirm the start with Auphonic (no answer). It may have started and may be charged, so do not send it again: ask for team_usage in a few minutes.";
@@ -432,7 +446,7 @@ export async function voiceCleanup(args, d) {
   } catch {
     return "Could not record the job: it started at Auphonic and may be charged, but its job_id was not saved. Tell the account owner before trying again.";
   }
-  return `Started: voice clean-up (${strength}), about ${money(usd)}.\njob_id: ${jobId}\nNow call wait_for_job with this job_id. It usually takes 1 to 3 minutes.`;
+  return `Started: voice clean-up (${strength || "custom settings"}), about ${money(usd)}.\njob_id: ${jobId}\nNow call wait_for_job with this job_id. It usually takes 1 to 3 minutes.`;
 }
 
 const STILL_SAVING = "Still working (saving the cleaned file). Check again in about 20 to 30 seconds.";

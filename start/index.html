@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/start/start.css">
 <script src="/start/start.js" defer></script>
 </head>
-<body>
+<body data-path="review">
 <a class="skip" href="#start">Skip to the videos</a>
 
 <header class="top">
@@ -26,7 +26,6 @@
     <span aria-hidden="true">or</span>
     <button type="button" data-who="upload" aria-pressed="false">videographer</button>
   </div>
-  <a class="top-link" href="#what">What SyncView does</a>
 </header>
 
 <main>
@@ -95,27 +94,28 @@
   <section class="what" id="what" aria-labelledby="what-h">
     <h2 id="what-h">What you can do in SyncView</h2>
     <p class="what-sub">One private page, opened from a link. Nothing to install, no password.</p>
-    <div class="gallery">
-      <div class="row">
-        <figure class="pic" style="--r:.717">
-          <img src="/start/assets/pic-watch.webp" width="536" height="748" alt="A post's video with its play bar, and Approve the video and Ask for a change under it." loading="lazy">
-          <figcaption><b>Watch it.</b> Each video plays right on the page. Slow it down, skip back, go full screen.</figcaption>
-        </figure>
-        <figure class="pic" style="--r:1.27">
-          <img src="/start/assets/pic-change.webp" width="705" height="555" alt="A thumbnail with a change request typed under it: could the title be a little bigger?" loading="lazy">
-          <figcaption><b>Approve it, or ask for a change.</b> One click to approve. Or write what you would like different, and your team edits it.</figcaption>
-        </figure>
-      </div>
-      <div class="row">
-        <figure class="pic" style="--r:1.376">
-          <img src="/start/assets/pic-talk.webp" width="560" height="407" alt="The conversation with your team, with a message sent: love this one, thank you!" loading="lazy">
-          <figcaption><b>Talk to your team.</b> Messages sit beside the post they are about, so nothing gets lost.</figcaption>
-        </figure>
-        <figure class="pic" style="--r:1.966">
-          <img src="/start/assets/pic-month.webp" width="1160" height="590" alt="Four upcoming posts side by side, each with its date, caption and status." loading="lazy">
-          <figcaption><b>See what is coming.</b> Every post with its date and where it stands: waiting for you, changes asked, approved.</figcaption>
-        </figure>
-      </div>
+    <div class="shots">
+      <figure class="shot">
+        <figcaption><span class="tag">Review</span><b>Go through what is waiting for you.</b> Watch each video, look at the thumbnail and read the caption. Approve it in one click, or ask for a change and message your team.</figcaption>
+        <picture>
+          <source media="(max-width:700px)" srcset="/start/assets/shot-review-phone.webp" width="780" height="1310">
+          <img src="/start/assets/shot-review.webp" width="2400" height="1500" alt="The Review page with handwritten notes: switch views at the top, the posts waiting for you, the video in the middle with Video, Thumbnail and Caption steps above it, Approve and Ask for a change under it, and the conversation with your team on the right." loading="lazy" decoding="async">
+        </picture>
+      </figure>
+      <figure class="shot">
+        <figcaption><span class="tag">Sheet</span><b>See every post side by side.</b> Each post is a card with its picture, date, caption and call to action, and where each part stands.</figcaption>
+        <picture>
+          <source media="(max-width:700px)" srcset="/start/assets/shot-sheet-phone.webp" width="780" height="1310">
+          <img src="/start/assets/shot-sheet.webp" width="2400" height="1500" alt="The Sheet with handwritten notes: every post as a card with its picture, date, caption and call to action, coloured labels showing where each part stands, and Organize and zoom at the top." loading="lazy" decoding="async">
+        </picture>
+      </figure>
+      <figure class="shot">
+        <figcaption><span class="tag">Month</span><b>See what is coming.</b> Every post on the day it goes out. Click one to open it.</figcaption>
+        <picture>
+          <source media="(max-width:700px)" srcset="/start/assets/shot-month-phone.webp" width="780" height="1310">
+          <img src="/start/assets/shot-month.webp" width="2400" height="1650" alt="The Month calendar with handwritten notes: every post on the day it goes out, today marked, green labels for approved posts, and arrows to move between months." loading="lazy" decoding="async">
+        </picture>
+      </figure>
     </div>
   </section>
 

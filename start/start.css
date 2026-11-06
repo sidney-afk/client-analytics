@@ -31,8 +31,6 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .top{position:absolute;inset:0 0 auto 0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px var(--gut)}
 .brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:800;font-size:1.12rem;letter-spacing:-.02em}
 .brand img{width:32px;height:32px;border-radius:9px}
-.top-link{text-decoration:none;font-size:.88rem;font-weight:600;color:var(--ink-2);padding:8px 14px;border-radius:99px;background:color-mix(in srgb,var(--white) 70%,transparent);box-shadow:0 0 0 1px var(--line)}
-.top-link:hover{background:var(--white);color:var(--ink)}
 /* "I'm a client or videographer": a quiet way in for people who think of who they are, not what they do. */
 .who{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:baseline;gap:7px;font-size:.88rem;color:var(--ink-2);white-space:nowrap}
 .who button{font-weight:700;color:var(--ink-2);padding:2px 1px;border-bottom:1.5px solid transparent;transition:color .2s,border-color .2s}
@@ -40,7 +38,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .who button[aria-pressed="true"]{color:var(--violet);border-bottom-color:currentColor}
 .cta{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:11px 20px;border-radius:99px;background:var(--violet);color:#fff;font-weight:700;font-size:.95rem;text-decoration:none;box-shadow:0 12px 28px -14px rgba(62,42,158,.6);transition:transform .2s var(--ease),box-shadow .2s}
 .cta:hover{transform:translateY(-1px);box-shadow:0 16px 32px -14px rgba(62,42,158,.7)}
-@media (max-width:640px){.who{position:static;transform:none}.top-link{display:none}}
+@media (max-width:640px){.who{position:static;transform:none}}
 
 /* Hero: the switch and the video are the first thing a visitor sees. */
 .hero{position:relative;padding:clamp(88px,12vh,128px) var(--gut) clamp(32px,6vh,72px);overflow-x:clip}
@@ -49,7 +47,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .haze i:nth-child(1){width:46vw;height:46vw;max-width:720px;max-height:720px;right:-6vw;top:-12vw;background:#D9CCFA}
 .haze i:nth-child(2){width:30vw;height:30vw;max-width:480px;max-height:480px;right:30vw;top:30%;background:#ECE4FF}
 .haze i:nth-child(3){width:26vw;height:26vw;max-width:420px;max-height:420px;left:-10vw;top:10%;background:#E8E0FC}
-.hero-in{position:relative;max-width:var(--max);margin:0 auto;display:grid;grid-template-columns:minmax(0,.72fr) minmax(0,1.6fr);gap:clamp(28px,4.5vw,72px);align-items:center}
+.hero-in{position:relative;max-width:var(--max);margin:0 auto;display:grid;grid-template-columns:minmax(0,.72fr) minmax(0,1.6fr);gap:clamp(28px,4.5vw,72px);align-items:start}
+/* Client or videographer: Start here, the switch and the video keep their place; only what is under them changes. */
+.hero-text{padding-top:clamp(8px,2vh,24px)}
 h1{font-weight:800;font-size:clamp(52px,7.4vw,112px);line-height:.9;letter-spacing:-.06em}
 .switch{margin-top:clamp(24px,4vh,36px);display:inline-flex;padding:4px;border-radius:99px;background:var(--white);box-shadow:0 0 0 1px var(--line),0 10px 30px -18px rgba(40,24,110,.35)}
 .switch button{padding:11px 18px;border-radius:99px;font-weight:700;font-size:.95rem;color:var(--ink-2);white-space:nowrap;transition:background .2s var(--ease),color .2s}
@@ -60,6 +60,8 @@ h1{font-weight:800;font-size:clamp(52px,7.4vw,112px);line-height:.9;letter-spaci
 .hero-copy .len{margin-top:10px;font-size:.85rem;font-weight:700;color:var(--violet)}
 .hero[data-path="review"] .only-upload,.hero[data-path="upload"] .only-review{display:none}
 .hero[data-path="review"] #panel-upload,.hero[data-path="upload"] #panel-review{display:none}
+/* Videographers upload; "What you can do in SyncView" is for clients. */
+body[data-path="upload"] .what{display:none}
 .panel{animation:show .25s var(--ease)}
 @keyframes show{from{opacity:0}to{opacity:1}}
 
@@ -127,16 +129,16 @@ h1{font-weight:800;font-size:clamp(52px,7.4vw,112px);line-height:.9;letter-spaci
 .tree.hl.k-name li.lv0,.tree.hl.k-name li.t-dir{opacity:1}
 
 
-/* What you can do: four pictures, cropped to what matters, in rows of equal height. */
+/* What you can do: full screenshots of Review, Sheet and Month with handwritten notes (a phone version under 700px). */
 .what{max-width:calc(var(--max) + 2 * var(--gut));margin:0 auto;padding:clamp(32px,6vh,72px) var(--gut) 0}
 .what h2,.ask h2{font-weight:800;font-size:clamp(30px,3.6vw,52px);line-height:1;letter-spacing:-.045em}
 .what-sub{margin-top:14px;color:var(--ink-2)}
-.gallery{margin-top:clamp(28px,4vh,44px);display:flex;flex-direction:column;gap:clamp(28px,4vh,44px)}
-.row{display:flex;gap:clamp(16px,2.4vw,32px);align-items:flex-start}
-.pic{margin:0;flex:var(--r) 1 0;min-width:0}
-.pic img{width:100%;border-radius:16px;background:var(--white);box-shadow:0 0 0 1px var(--line),0 24px 50px -36px rgba(40,24,110,.35)}
-.pic figcaption{margin-top:14px;color:var(--ink-2);max-width:34em}
-.pic figcaption b{color:var(--ink);font-weight:800;letter-spacing:-.01em}
+.shots{margin-top:clamp(28px,4vh,44px);display:flex;flex-direction:column;gap:clamp(44px,7vh,88px)}
+.shot{margin:0}
+.shot figcaption{color:var(--ink-2);max-width:40em;margin-bottom:18px}
+.shot figcaption b{color:var(--ink);font-weight:800;letter-spacing:-.01em}
+.shot .tag{display:inline-block;margin-right:10px;padding:3px 11px;border-radius:99px;background:var(--lilac);color:var(--violet-deep);font-size:.78rem;font-weight:800;letter-spacing:.02em;text-transform:uppercase;vertical-align:2px}
+.shot img{width:100%;border-radius:16px;background:var(--white);box-shadow:0 0 0 1px var(--line),0 30px 60px -40px rgba(40,24,110,.4)}
 
 /* Questions and footer */
 .ask{max-width:calc(var(--max) + 2 * var(--gut));margin:0 auto;padding:clamp(56px,10vh,112px) var(--gut) clamp(40px,7vh,80px)}
@@ -148,19 +150,21 @@ h1{font-weight:800;font-size:clamp(52px,7.4vw,112px);line-height:.9;letter-spaci
 @media (max-width:960px){
   .hero-in{grid-template-columns:1fr;gap:0}
   .hero-text{display:contents}
-  h1{order:1}.switch{order:2}.stage{order:3;margin-top:20px}.hero-copy{order:4;margin-top:18px}
+  /* The video, then the words, then (for videographers) the folder rules: the open panel's parts join the hero's column. */
+  .stage{display:contents}
+  .hero[data-path="review"] #panel-review,.hero[data-path="upload"] #panel-upload{display:contents}
+  h1{order:1}.switch{order:2}.player{order:3;margin-top:20px}.hero-copy{order:4;margin-top:18px}.folders{order:5;margin-top:28px}
+  #panel-upload.has-video .player{margin-bottom:0}
   .switch{justify-self:start}
-  .hero[data-path="upload"] .only-upload{order:3;margin-top:16px;margin-bottom:4px}.hero[data-path="upload"] .stage{order:4}
   .player{box-shadow:0 0 0 1px rgba(91,63,214,.18),0 30px 60px -36px rgba(62,42,158,.55),0 0 0 6px rgba(255,255,255,.55)}
 }
 @media (max-width:700px){
-  .hero{padding-top:84px}
+  .hero{padding-top:84px;padding-bottom:8px}
+  .what{padding-top:40px}
   .switch{width:100%;justify-self:stretch}.switch button{flex:1;padding:11px 8px}
   .folders{grid-template-columns:1fr}
-  .row{flex-direction:column;gap:clamp(28px,4vh,44px)}
-  .pic{flex:none;width:100%}
+  .shot img{border-radius:14px;max-width:440px;margin:0 auto}
 }
-@media (max-width:380px){.top-link{display:none}}
 
 @media (prefers-reduced-motion:reduce){
   .panel{animation:none}

@@ -70,6 +70,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       const tabs = await page.$$eval('.switch [role="tab"]', ts => ts.map(t => t.textContent.trim()));
       expect(tabs.join('|') === 'Review content|Upload content', 'the switch reads "Review content" and "Upload content" (' + tabs.join(', ') + ')');
       expect(!/I am a (client|videographer)/i.test(html), 'the old "I am a client / videographer" labels are gone');
+      expect(await page.locator('.top-link').count() === 0 && !/What SyncView does/.test(html), 'the "What SyncView does" link is gone (owner, 2026-11-06)');
 
       // The first screen: the switch and the review player, whole, without scrolling.
       const first = await page.evaluate(() => {
@@ -100,7 +101,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await player.locator('.pp').click();
       await sleep(150);
 
+      const place = () => page.evaluate(() => ['h1', '.switch', '.who', '.stage .player'].map(q => { const el = Array.from(document.querySelectorAll(q)).find(e => e.offsetParent); const r = el.getBoundingClientRect(); return [q, Math.round(r.left), Math.round(r.top + scrollY), Math.round(r.width)].join(' '); }).join(' | '));
+      const placeReview = await place();
       await page.locator('#tab-upload').click();
+      const placeUpload = await place();
+      expect(placeReview === placeUpload, 'switching to Upload content moves nothing above or at the video (' + placeReview + ' vs ' + placeUpload + ')');
+      expect(!(await page.locator('.what').isVisible()), 'Upload content hides "What you can do in SyncView" (owner, 2026-11-06)');
       expect(await page.$eval('video', v => v.paused), 'switching to Upload content pauses the review video');
       expect(!(await page.locator('[data-player]').first().isVisible()), 'Upload content hides the review player');
       expect(await page.locator('#panel-upload [data-player] video').count() === 1 && await page.locator('#panel-upload iframe').count() === 0, 'Upload content has its own player (the new upload tutorial)');
@@ -119,6 +125,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       expect(await page.locator('.tree li.t-skip.on').count() === 1, 'pointing at "skip that folder" lights the skipped folder');
       await page.locator('#tab-review').click();
       expect(await page.locator('[data-player]').first().isVisible(), 'Review content shows the player again');
+      expect(await page.locator('.what').isVisible() && await place() === placeReview, 'Review content shows the section again, with everything in the same place');
       for (const [h, want] of [['#upload', 'upload'], ['#videographer', 'upload'], ['#client', 'review']]) {
         await page.goto(origin + '/start/' + h, { waitUntil: 'load' });
         expect(await page.locator('.hero').getAttribute('data-path') === want, h + ' opens ' + want);
@@ -135,8 +142,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       for (let y = 0; y <= 4000; y += 500) { await page.evaluate(v => window.scrollTo(0, v), y); await sleep(40); }
       await sleep(300);
       expect(await snap() === before, 'scrolling the whole page changes no style (no scroll-driven animation)');
-      const pics = await page.$$eval('.pic img', ims => ims.map(i => Math.round(i.getBoundingClientRect().width)));
-      expect(pics.length === 4 && pics.every(w => w >= Math.min(300, innerWidthGuess(view.width))), 'the four pictures are large (' + pics.join(', ') + ' px wide)');
+      // Owner, 2026-11-06: three full screenshots (Review, Sheet, Month) with handwritten notes; a phone version on a phone.
+      const shots = await page.$$eval('.shot img', ims => ims.map(i => ({ w: Math.round(i.getBoundingClientRect().width), src: i.currentSrc.split('/').pop(), ok: i.complete && i.naturalWidth > 0 })));
+      expect(shots.length === 3 && shots.every(x => x.ok), 'three annotated screenshots load (' + shots.map(x => x.src).join(', ') + ')');
+      expect(shots.every(x => view.isMobile ? /-phone\.webp$/.test(x.src) : !/-phone/.test(x.src)), 'the ' + view.name + ' gets its own version of each screenshot');
+      expect(shots.every(x => x.w >= Math.min(300, innerWidthGuess(view.width))), 'the screenshots are large (' + shots.map(x => x.w).join(', ') + ' px wide)');
+      expect(await page.locator('.what h2').innerText() === 'What you can do in SyncView' && await page.locator('.shot .tag').allTextContents().then(t => t.join('|') === 'Review|Sheet|Month'), 'the section shows Review, Sheet and Month');
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow <= 0, 'no sideways scroll (' + overflow + ' px)');

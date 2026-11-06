@@ -1130,22 +1130,17 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 // ELEVENLABS_KEY, then ELEVENLABS_API_KEY.
 // studio_action "make_music" (music.mjs): voice storage and reserve, plus the counts behind its hard limits.
 function musicDeps(author: string) {
-  const live = (q: any) => q.not("status", "in", "(failed,nsfw,canceled,submit_failed)");
   return {
     ...voiceDeps(author),
     errorText: (status: number, text: string) => { let body: unknown = null; try { body = JSON.parse(text); } catch (_e) { body = { raw: text }; } return elevenErrorText(status, body); },
     timeout: (ms: number) => AbortSignal.timeout(ms),
-    count: async (q: { member?: string; since: string }) => {
-      let s = db().from("hf_generations").select("id", { count: "exact", head: true }).eq("model", MUSIC_MODEL).gte("created_at", q.since);
-      if (q.member) s = s.eq("member_name", q.member);
-      const { count, error } = await live(s);
-      if (error || count === null) throw new Error("count failed");
-      return count;
-    },
-    spent: async (q: { since: string }) => {
-      const { data, error } = await live(db().from("hf_generations").select("est_cost_usd").eq("model", MUSIC_MODEL).gte("created_at", q.since));
-      if (error) throw new Error("spend failed");
-      return (data || []).reduce((t: number, r: JsonMap) => t + Number(r.est_cost_usd || 0), 0);
+    reserveMusic: async (p: JsonMap) => {
+      if (CAP_USD === null) return null;
+      const { data, error } = await db().rpc("hf_music_reserve", {
+        p_member: p.member, p_prompt: p.prompt, p_params: p.params, p_cost: p.cost, p_cap: CAP_USD, p_idem_key: p.idemKey,
+        p_person_day: p.person, p_team_day: p.day, p_month_usd: p.month,
+      });
+      return error || !data ? null : data as JsonMap;
     },
   };
 }

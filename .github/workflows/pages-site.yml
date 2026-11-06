@@ -36,6 +36,7 @@ on:
       - 'onboarding-ai/**'
       - 'onboarding-audio/**'
       - 'onboarding-video/**'
+      - 'start/**'
       - 'scripts/pages-site.js'
       - 'scripts/build-route-stubs.js'
       # The page is built here from these (index.html and js/ are not
@@ -65,6 +66,7 @@ on:
       - 'onboarding-ai/**'
       - 'onboarding-audio/**'
       - 'onboarding-video/**'
+      - 'start/**'
       - 'scripts/pages-site.js'
       - 'scripts/build-route-stubs.js'
       # The page is built here from these (index.html and js/ are not

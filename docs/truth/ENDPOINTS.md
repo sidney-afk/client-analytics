@@ -1,8 +1,8 @@
 # Endpoint inventory — what `index.html` actually calls
 
-**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. **Corrected 2026-11-06:** the inbound webhook no longer remains. `linear-inbound` and `linear-outbound` are not in the live Edge Function list (deleted 2026-09-24; source kept only as a frozen reference, no deploy path) and Linear is being cancelled; STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-10-07 @ cbd443a3 (TikTok upload function `functions/v1/tiktok-upload` added behind the `tiktok_upload_source` switch, OPEN_REPAIRS 362; Cancel moved to `functions/v1/tiktok-upload-cancel`, OPEN_REPAIRS 361). Earlier on 2026-10-07 @ bce14f17 (endpoint inventory re-checked against index.html by test/truth-sync.js set equality; prose below not re-read in this pass). Prior stamp: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-11-06 @ 980b492 (re-verified this pass: the endpoint inventory against a full unsplit build of `index.html` (test/truth-sync.js set equality: 20 `webhook/` names and 45 literal + 4 composed `functions/v1/` names, 49 `functions/v1/` names in this file); the live Edge Function list read through the Supabase connector (72 deployed, read-only). Drift corrected in place: the section counts (webhooks 47 -> 20, Edge Functions 23 -> 45 literal) and the backend-only entries for `linear-inbound` / `linear-outbound`, which are NOT deployed (deleted 2026-09-24; source kept as frozen reference). Live vs source: 72 live; source-only are `linear-inbound`, `linear-outbound` and `analytics-market-research-collect`; live with no source folder are `doctors-partial-capture` and `fp-tab-test`; the only function the page calls that is not deployed is `workload-linear`, as the entry below says. Everything else in the prose was not re-read; earlier stamps below are historical.) Earlier stamp: 2026-10-07 @ cbd443a3 (TikTok upload function `functions/v1/tiktok-upload` added behind the `tiktok_upload_source` switch, OPEN_REPAIRS 362; Cancel moved to `functions/v1/tiktok-upload-cancel`, OPEN_REPAIRS 361). Earlier on 2026-10-07 @ bce14f17 (endpoint inventory re-checked against index.html by test/truth-sync.js set equality; prose below not re-read in this pass). Prior stamp: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
@@ -27,7 +27,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (47)
+## n8n webhooks (20)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
@@ -170,7 +170,7 @@ Other:
 - `webhook/filming-plan-tabs` — filming-plans tab data (Kasper > Filming's default source and its fallback for any Doc the function below cannot answer)
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (23 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (45 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -460,8 +460,8 @@ secret possession can still export the corpus; retire that fallback behind indiv
 
 ### Backend-only Edge Functions (not part of the machine-enforced `index.html` set)
 
-- `linear-inbound` — HMAC-verified Linear webhook target; the browser never calls it.
-- `linear-outbound` — service-triggered durable-outbox drainer, deployed from pinned `1738ad3`
+- `linear-inbound` — **not deployed (deleted 2026-09-24; verified against the live list 2026-11-06).** Source remains only as a frozen reference. Was the HMAC-verified Linear webhook target; the browser never called it.
+- `linear-outbound` — **not deployed (deleted 2026-09-24; verified against the live list 2026-11-06); the text below is historical.** Was the service-triggered durable-outbox drainer, deployed from pinned `1738ad3`
   (run `30129490033`, 2026-07-24) and invoked
   by scheduled/backend jobs rather than the SPA. Runtime mode must be read fresh before action.
   Part 2 provides a separately killed targeted `legacy_parity` allowance for server-derived

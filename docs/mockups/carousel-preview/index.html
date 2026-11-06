@@ -56,6 +56,32 @@
 .skel{position:absolute;inset:0;background:linear-gradient(100deg,#2a2622 30%,#3a342e 50%,#2a2622 70%);background-size:200% 100%;animation:sh 1.3s linear infinite}
 @keyframes sh{to{background-position:-200% 0}}@media(prefers-reduced-motion:reduce){.skel{animation:none}}
 .warn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center;background:var(--warn-bg);color:var(--warn);font-size:.7rem;font-weight:600}.warn strong{font-size:.78rem}.warn svg{width:24px;height:24px}
+
+/* card view (stage left, notes right) */
+.cv{display:flex;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);min-height:420px}
+.cv .stg{flex:1;min-width:0;background:#0f0d0b;display:flex;align-items:center;justify-content:center;padding:16px}
+.cv .stg .t{position:relative;height:340px;aspect-ratio:4/5;border-radius:10px;overflow:hidden;background:#16130f}
+.cv .stg .t.v{aspect-ratio:9/16;height:360px}
+.cv .nt{flex:0 0 300px;border-left:1px solid var(--line);display:flex;flex-direction:column;font-size:.8rem}
+.cv .nt h4{margin:0;padding:12px 14px;border-bottom:1px solid var(--line);font-size:.86rem}
+.cv .nt .empty{padding:14px;color:var(--mute);flex:1}
+.cv .nt .comp{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.7rem;color:var(--mute)}
+.cv .nt .comp b{border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--ink)}
+.det{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.det .hd{display:flex;justify-content:space-between;font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:700;margin-bottom:7px}
+.det .hd u{text-decoration:none;color:var(--accent)}
+.det .row{display:flex;gap:10px;align-items:flex-start}
+.det .th{position:relative;flex:none;width:54px;aspect-ratio:4/5;border-radius:7px;overflow:hidden;background:#16130f}
+.det .th .sl span{display:none}
+.det .cp{font-size:.76rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.det .lab{font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:block;margin-bottom:2px}
+.cvph{width:300px;margin:0 auto;border:8px solid #111;border-radius:30px;background:var(--card);overflow:hidden;display:flex;flex-direction:column}
+.cvph .stg{background:#0f0d0b;padding:10px;display:flex;justify-content:center}
+.cvph .stg .t{position:relative;height:200px;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#16130f}
+.cvph .nt{font-size:.78rem}.cvph h4{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);font-size:.84rem}.cvph .empty{padding:12px;color:var(--mute)}
+.dead{font-size:.72rem;color:#b91c1c;font-weight:700;margin-top:6px}.live{font-size:.72rem;color:#15803d;font-weight:700;margin-top:6px}
+.ba>*{min-width:0}.cv .nt{flex:0 0 250px}.cv .stg{padding:10px}.cv .stg .t.v{height:320px}
+code{font-size:.8em;background:var(--bg);padding:1px 5px;border-radius:4px}
 </style></head><body><div class="wrap">
 <span class="tag">Sample only · not wired to anything</span>
 <h1>Carousel card: first-slide preview + "Carousel" badge</h1>
@@ -91,6 +117,18 @@
 
 <h2>6 · Edge cases (all shown "after")</h2>
 <div class="edge" id="edge"></div>
+
+<h2>7 · A carousel opens the card (client link, Month and Week)</h2>
+<p class="lede">Why it does nothing today: on the client link every Month/Week thumbnail gets <code>svFrameThumbAttrs</code>. A post whose video is not a Frame.io link (a carousel) gets <code>data-fv-none</code>, and with the viewer switched on for the client <code>svFrameThumbOpen</code> swallows the click on purpose ("a post with no video opens nothing"). Reels have a Frame link, so they open the card.</p>
+<div class="ba"><div class="col"><h3>Before · click the thumbnail</h3><div class="month" style="grid-template-columns:1fr"><div class="day"><small>4 Nov</small><div class="pillc"><div class="t" id="deadthumb"></div><b>Carousel</b></div></div></div><p class="dead">Nothing happens. The click is swallowed.</p></div>
+<div class="col after"><h3>After · same click</h3><div class="cv" id="cv-car"></div><p class="live">Opens the same card view as a reel: stage on the left (first slide, badge, Open in Drive), Notes on the right. Phone: stage on top, Notes below.</p></div></div>
+
+<h2>8 · Thumbnail and caption in the card view</h2>
+<p class="lede">The card view (stage + Notes) shows neither today. The old "all the info in one place" view was the small preview (<code>openCalPreview</code>: thumbnail, asset link, thumbnail link, caption, CTA). Since the 18 Oct owner decision the client's thumbnail click goes straight to the Notes view, so those fields were no longer reachable from there. Proposal: an "About this post" block at the top of the Notes column (thumbnail tile + caption, 3 lines then "Show more"), read-only for clients.</p>
+<div class="ba"><div class="col"><h3>Before · reel, desktop</h3><div class="cv" id="cv-reel-b"></div></div>
+<div class="col after"><h3>After · reel, desktop</h3><div class="cv" id="cv-reel-a"></div></div></div>
+<div class="ba" style="margin-top:16px"><div class="col"><h3>Before · phone</h3><div class="cvph" id="ph-b"></div></div>
+<div class="col after"><h3>After · phone (carousel)</h3><div class="cvph" id="ph-a"></div></div></div>
 </div>
 <script>
 const I=n=>`<svg><use href="#ic-${n}"/></svg>`;
@@ -116,4 +154,16 @@ const edge=[
  ['Empty folder',foldCard().replace('Open folder','Folder is empty')+`<div class="bdg"><span class="pill open" style="margin-left:0">${I('o')}Open in Drive</span></div>`,'No images found: falls back to the existing card; staff badge reads "Folder is empty".'],
  ['Only video / PDF',foldCard()+`<div class="bdg"><span class="pill">${I('s')}Carousel · no images</span></div>`,'Nothing previewable: falls back to the existing "Open folder" card.']];
 document.getElementById('edge').innerHTML=edge.map(e=>`<figure><div class="t">${e[1]}</div><figcaption><b>${e[0]}</b>${e[2]}</figcaption></figure>`).join('');
+
+const CAP='Five tips for a calmer morning. Slow down, drink water, and write one thing you are grateful for. Save this for tomorrow and send it to a friend who needs it. #mornings #calm';
+const det=(carousel)=>`<div class="det"><div class="hd"><span>About this post</span><u>Show more</u></div><div class="row"><div class="th">${carousel?slide(1):'<div class="sl" style="background:linear-gradient(145deg,#0e7490,#134e4a)"></div>'}</div><div><span class="lab">Thumbnail</span><div class="cp" style="margin-bottom:6px;color:var(--mute)">${carousel?'First slide of 7':'Cover image'}</div><span class="lab">Caption</span><div class="cp">${CAP}</div></div></div></div>`;
+const notes=(d,carousel)=>`<div class="nt"><h4>Notes</h4>${d?det(carousel):''}<div class="empty">No notes yet</div><div class="comp">About the… <b>Video</b> <b>Thumbnail</b> <b>Caption</b></div></div>`;
+const reelStage=`<div class="stg"><div class="t v"><div class="sl" style="background:linear-gradient(160deg,#0e7490,#134e4a)"><span>Reel</span></div></div></div>`;
+const carStage=`<div class="stg"><div class="t">${afterBig(7)}</div></div>`;
+document.getElementById('deadthumb').innerHTML=miniBefore();
+document.getElementById('cv-car').innerHTML=carStage+notes(true,true);
+document.getElementById('cv-reel-b').innerHTML=reelStage+notes(false);
+document.getElementById('cv-reel-a').innerHTML=reelStage+notes(true,false);
+const phone=(d)=>`<div class="stg"><div class="t">${d?`${slide(1)}<div class="bdg"><span class="pill">${I('s')}7 images</span><span class="pill open">${I('o')}Open</span></div>`:`<div class="sl"><span>Reel</span></div>`}</div></div><div class="nt"><h4>Notes</h4>${d?det(true):''}<div class="empty">No notes yet</div></div>`;
+document.getElementById('ph-b').innerHTML=phone(false);document.getElementById('ph-a').innerHTML=phone(true);
 </script></body></html>

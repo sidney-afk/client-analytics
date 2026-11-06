@@ -1,8 +1,8 @@
 'use strict';
 /* carousel-preview-browser.js -- the carousel preview (session Carouselbuild, OPEN_REPAIRS 710), real generated app,
  * synthetic client, every backend answer local. Covers, on the CLIENT link (desktop and phone) and the STAFF calendar:
- *   - flag off: a folder card stays "Open folder", a no-video thumbnail opens nothing (today's behaviour, byte for byte);
- *   - flag on: the first image by name replaces the folder card in Month and Week, with a count chip;
+ *   - PERMANENT for every client (no switch, any staff member, any client link, a client the page has never heard of);
+ *   - the first image by name replaces the folder card in Month and Week, with a count chip;
  *   - a no-video (carousel) thumbnail on the client link opens the card view, whose stage shows the first image,
  *     "Carousel . N images" and "Open in Drive", with "About this post" (thumbnail + caption, Show more) in Notes;
  *   - a reel (Frame link) still opens its own stage, and the not-shared folder keeps the folder card (staff see the note);
@@ -52,16 +52,15 @@ const monthDay = d => `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad
 function rows(slug) {
   const base = { client: slug, status: 'In Progress', order_index: 1, updated_at: new Date().toISOString(), video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', caption: CAPTION, comments: [], graphic_comments: [], caption_comments: [], asset_url: '' };
   return [
-    Object.assign({}, base, { id: 'p_car_shared', name: 'Carousel shared', scheduled_date: monthDay(10), thumbnail_url: SHARED_URL, asset_url: 'https://example.invalid/video.mp4' }),
-    Object.assign({}, base, { id: 'p_car_private', name: 'Carousel private', scheduled_date: monthDay(11), thumbnail_url: PRIVATE_URL, asset_url: 'https://example.invalid/video.mp4' }),
+    Object.assign({}, base, { id: 'p_car_shared', name: 'Carousel shared', scheduled_date: monthDay(10), thumbnail_url: SHARED_URL }),
+    Object.assign({}, base, { id: 'p_car_private', name: 'Carousel private', scheduled_date: monthDay(11), thumbnail_url: PRIVATE_URL }),
     { id: 'p_cal_settings', client: slug, caption: JSON.stringify({ collab_mode: true }) },
+    Object.assign({}, base, { id: 'p_plain_pic', name: 'Plain picture no video', scheduled_date: monthDay(13), thumbnail_url: 'https://example.invalid/pic.png' }),
     Object.assign({}, base, { id: 'p_car_reel', name: 'Reel with video', scheduled_date: monthDay(12), asset_url: FRAME, thumbnail_url: '' }),
   ];
 }
 
-// flagOn: true = { clients: [SLUG] }; false = no row; an object = that flag value (e.g. { clients: [], viewers: [...] }).
-async function install(ctx, origin, flagOn, calls) {
-  const flagValue = flagOn === true ? { clients: [SLUG] } : (flagOn || null);
+async function install(ctx, origin, calls) {
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -80,12 +79,6 @@ async function install(ctx, origin, flagOn, calls) {
     if (u.pathname === '/functions/v1/thumbnail-folder-resolve') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       calls.preview.push({ body, headers: r.headers() });
-      if (!flagValue) return json({ ok: true, enabled: false });
-      // The server's rule, mirrored: a listed client, or a listed viewer's real staff key (test key = the seed's).
-      const h = r.headers();
-      const viaClient = (flagValue.clients || []).includes(SLUG);
-      const viaViewer = !!h['x-syncview-key'] && (flagValue.viewers || []).map(v => String(v).toLowerCase()).includes(String(h['x-syncview-actor'] || '').toLowerCase());
-      if (!viaClient && !viaViewer) return json({ ok: true, enabled: false });
       if (folderIdOf(String(body.folder_url || '')) === folderIdOf(SHARED_URL)) return json({ ok: true, enabled: true, state: 'ok', count: FILE_IDS.length, has_video: false, first_file_id: FILE_IDS[0] });
       return json({ ok: true, enabled: true, state: 'not_shared', count: 0, has_video: false, first_file_id: '' });
     }
@@ -96,7 +89,6 @@ async function install(ctx, origin, flagOn, calls) {
       const q = decodeURIComponent(u.search);
       const out = [];
       if (/prod_authority/.test(q)) out.push({ key: 'prod_authority', value: { video: 'linear', graphics: 'linear' } });
-      if (/carousel_preview_v1/.test(q) && flagValue) out.push({ key: 'carousel_preview_v1', value: flagValue });
       if (/frame_viewer_clients/.test(q)) out.push({ key: 'frame_viewer_clients', value: { clients: [SLUG] } });
       return json(out);
     }
@@ -111,10 +103,10 @@ let checks = 0;
 const ok = (v, m) => { assert(v, m); checks++; };
 const shot = async (page, name) => { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursive: true }); await page.evaluate(() => document.fonts.ready); await page.waitForTimeout(250); await page.screenshot({ path: path.join(SHOTS, name + '.png'), animations: 'disabled' }); };
 
-async function openClientMonth(browser, origin, { flagOn, width, height }) {
+async function openClientMonth(browser, origin, { width, height }) {
   const calls = { preview: [], images: [], writes: [] };
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: width < 600, hasTouch: width < 600, colorScheme: 'light', reducedMotion: 'reduce' });
-  await install(ctx, origin, flagOn, calls);
+  await install(ctx, origin, calls);
   await ctx.addInitScript(() => localStorage.setItem('syncview_theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
@@ -133,24 +125,9 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
   try { browser = await chromium.launch(); }
   catch (e) { if (!fs.existsSync('/opt/pw-browsers/chromium')) throw e; browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] }); }
   try {
-    // ---- 1. Flag OFF: today's page, nothing asked of the server ----
-    {
-      const { ctx, page, calls, errors } = await openClientMonth(browser, origin, { flagOn: false, width: 1280, height: 860 });
-      await page.waitForTimeout(800);
-      ok(calls.preview.length === 0, 'flag off: no folder_preview request');
-      ok(await page.locator('.cal-month-pill-thumb .sv-car-mini').count() === 0, 'flag off: no count chip');
-      const pill = page.locator('.cal-month-pill', { hasText: 'Carousel shared' });
-      ok(await pill.locator('.cal-month-pill-thumb.is-frame').count() === 1, 'flag off: the folder stays the folder glyph');
-      await pill.locator('.cal-month-pill-thumb').click();
-      await page.waitForTimeout(500);
-      ok(await page.locator('#calCommentsModal .cal-comments-head').count() === 0 || !(await page.locator('#calCommentsOverlay.open, #calCommentsOverlay.show').count()), 'flag off: a carousel thumbnail still opens no card view');
-      ok(await page.locator('.sv-car-about').count() === 0, 'flag off: no About this post');
-      ok(errors.length === 0, 'flag off: page errors ' + errors.join(' | '));
-      await ctx.close();
-    }
-    // ---- 2. Flag ON, desktop client link ----
+    // ---- 1. The client link (desktop and phone): the client is listed nowhere, and still gets the preview ----
     for (const [label, width, height] of [['desktop', 1280, 860], ['phone', 390, 844]]) {
-      const { ctx, page, calls, errors } = await openClientMonth(browser, origin, { flagOn: true, width, height });
+      const { ctx, page, calls, errors } = await openClientMonth(browser, origin, { width, height });
       await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
       ok(calls.preview.length >= 1 && calls.preview.every(c => c.body.action === 'folder_preview' && c.body.client === SLUG), label + ': the server was asked with the folder_preview action and the client slug');
       ok(!calls.preview.some(c => JSON.stringify(c.body).includes(TOKEN)), label + ': no token in the preview request body');
@@ -214,7 +191,7 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
     {
       const calls = { preview: [], images: [], writes: [] };
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: 'light', reducedMotion: 'reduce' });
-      await install(ctx, origin, true, calls);
+      await install(ctx, origin, calls);
       await seedStaffGate(ctx);
       await ctx.addInitScript(() => localStorage.setItem('syncview_theme', 'light'));
       const page = await ctx.newPage();
@@ -245,92 +222,17 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
       ok(/Carousel\s+·\s+3 images/.test(await page.locator('.cal-card-thumb .sv-car-pill').first().textContent()), 'staff: the card thumbnail carries the Carousel badge');
       await page.locator('.cal-card-thumb .sv-car-share-note').first().waitFor({ timeout: 10000 });
       ok((await page.locator('.cal-card-thumb .sv-car-share-note').first().textContent()).includes('Anyone with the link'), 'staff: the not-shared folder card says it needs sharing');
+      // A carousel has no video by design: no "No video linked" warning on it; a plain card with no video keeps its warning.
+      const warnOf = async pid => { ok(await page.locator(`.cal-card[data-pid="${pid}"]`).count() === 1, 'staff: the card ' + pid + ' is on the Sheet'); return (await page.locator(`.cal-card[data-pid="${pid}"] .cal-smm-warn-overlay`).allTextContents()).join(' '); };
+      ok(!/No (video|media) linked/.test(await warnOf('p_car_shared')), 'staff: a carousel card shows no "No video linked" warning');
+      ok(!/No (video|media) linked/.test(await warnOf('p_car_private')), 'staff: an unshared carousel card shows no "No video linked" warning either');
+      ok(/No (video|media) linked/.test(await warnOf('p_plain_pic')), 'staff: a plain card with no video keeps its warning');
       await shot(page, 'staff-card-dialog');
       ok(errors.length === 0, 'staff: page errors ' + errors.join(' | '));
       await ctx.close();
     }
 
-    // ---- 4. Staff VIEWERS: a listed staff member sees any client; a client's own browser never does ----
-    {
-      const viewerFlag = { clients: [], viewers: ['qa staff'] };
-      // 4a. staff app, listed viewer, a client the switch does not list
-      {
-        const calls = { preview: [], images: [], writes: [] };
-        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
-        await install(ctx, origin, viewerFlag, calls);
-        await seedStaffGate(ctx);
-        const page = await ctx.newPage();
-        const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
-        await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => typeof navTo === 'function');
-        await page.evaluate(() => navTo('calendar'));
-        await page.locator('#calView').waitFor();
-        await page.evaluate(({ posts, client }) => {
-          _calInvalidateActiveLoad(); calState.loading = false; calState.error = ''; calState.client = client; calState.posts = posts;
-          calState.view = 'month'; calState.monthFilter = 'all'; calState.statusFilter = 'all'; _calSavePins([client]); _calRenderShell(); _calRenderBody();
-        }, { posts: rows(SLUG).filter(r => r.name), client: CLIENT });
-        await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
-        ok(calls.preview.length >= 1 && calls.preview.every(c => c.headers['x-syncview-key'] && c.headers['x-syncview-actor'] === 'QA Staff'), 'viewer (staff app): the read carries the staff key and name');
-        ok(errors.length === 0, 'viewer (staff app): page errors ' + errors.join(' | '));
-        await ctx.close();
-      }
-      // 4b. staff app, signed in but NOT listed: today's page, no request
-      {
-        const calls = { preview: [], images: [], writes: [] };
-        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
-        await install(ctx, origin, { clients: [], viewers: ['someone else'] }, calls);
-        await seedStaffGate(ctx);
-        const page = await ctx.newPage();
-        await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => typeof navTo === 'function');
-        await page.evaluate(() => navTo('calendar'));
-        await page.locator('#calView').waitFor();
-        await page.evaluate(({ posts, client }) => {
-          _calInvalidateActiveLoad(); calState.loading = false; calState.error = ''; calState.client = client; calState.posts = posts;
-          calState.view = 'month'; calState.monthFilter = 'all'; calState.statusFilter = 'all'; _calSavePins([client]); _calRenderShell(); _calRenderBody();
-        }, { posts: rows(SLUG).filter(r => r.name), client: CLIENT });
-        await page.waitForSelector('.cal-month-pill', { timeout: 15000 });
-        await page.waitForTimeout(1200);
-        ok(calls.preview.length === 0 && await page.locator('.sv-car-mini').count() === 0, 'viewer: a signed-in staff member who is not listed sees today\'s page');
-        await ctx.close();
-      }
-      // 4c. client link in a browser that holds a listed staff session, key-verify agrees: new behaviour, staff headers ride
-      // 4d. the same, key-verify refuses: today's page. 4e. no saved staff session: today's page and no key-verify call at all.
-      for (const mode of ['agrees', 'refuses', 'none']) {
-        const calls = { preview: [], images: [], writes: [] };
-        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
-        await install(ctx, origin, viewerFlag, calls);
-        let verifyCalls = 0;
-        if (mode !== 'none') await seedStaffIdentity(ctx);
-        await ctx.route('**/functions/v1/key-verify', route => {
-          verifyCalls++;
-          if (mode === 'refuses') return route.fulfill({ status: 401, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
-          return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null } }) });
-        });
-        const page = await ctx.newPage();
-        const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
-        await page.goto(`${origin}/index.html?${new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' })}`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('[data-cal-view=month]', { timeout: 20000 });
-        await page.locator('[data-cal-view=month]').click();
-        await page.waitForSelector('.cal-month-pill', { timeout: 20000 });
-        if (mode === 'agrees') {
-          await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
-          ok(verifyCalls >= 1, 'viewer (client link): the saved staff session was verified by key-verify');
-          ok(calls.preview.length >= 1 && calls.preview.every(c => c.headers['x-syncview-key'] && c.headers['x-syncview-actor'] === 'QA Staff'), 'viewer (client link): the read carries the verified staff key and name');
-          await page.locator('.cal-month-pill', { hasText: 'Carousel shared' }).locator('.cal-month-pill-thumb').click();
-          await page.waitForSelector('#calNotesStage .sv-car-frame img', { timeout: 10000 });
-          ok(await page.locator('.sv-car-about').count() === 1, 'viewer (client link): the card view opens with About this post');
-        } else {
-          await page.waitForTimeout(1500);
-          ok(calls.preview.length === 0 && await page.locator('.sv-car-mini').count() === 0, 'viewer (client link, ' + mode + '): today\'s page, no folder read');
-          if (mode === 'none') ok(verifyCalls === 0, 'viewer (client link): a browser with no staff session makes no key-verify request');
-        }
-        ok(errors.length === 0, 'viewer (client link, ' + mode + '): page errors ' + errors.join(' | '));
-        await ctx.close();
-      }
-    }
-
-    // ---- 5. NARROW images (OPEN_REPAIRS 711): the badge and "Open in Drive" always sit inside the picture, never overlap ----
+    // ---- 4. NARROW images (OPEN_REPAIRS 711): the badge and "Open in Drive" always sit inside the picture, never overlap ----
     {
       const boxesOk = async (page, wrapSel, label) => {
         const r = await page.evaluate(sel => {
@@ -355,7 +257,7 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
       for (const theme of ['light', 'dark']) {
         const calls = { preview: [], images: [], writes: [] };
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce' });
-        await install(ctx, origin, true, calls);
+        await install(ctx, origin, calls);
         await seedStaffGate(ctx);
         await ctx.addInitScript(t => localStorage.setItem('syncview_theme', t), theme);
         const page = await ctx.newPage();
@@ -380,7 +282,7 @@ async function openClientMonth(browser, origin, { flagOn, width, height }) {
       }
       // client link: the card view's stage and the expanded thumbnail, at narrow widths, on a phone and on a desktop
       for (const [label, width, height] of [['desktop', 1280, 860], ['phone', 360, 780]]) {
-        const { ctx, page } = await openClientMonth(browser, origin, { flagOn: true, width, height });
+        const { ctx, page } = await openClientMonth(browser, origin, { width, height });
         await page.waitForSelector('.cal-month-pill .sv-car-mini', { timeout: 15000 });
         await page.locator('.cal-month-pill', { hasText: 'Carousel shared' }).locator('.cal-month-pill-thumb').click();
         await page.waitForSelector('#calNotesStage .sv-car-frame img', { timeout: 10000 });

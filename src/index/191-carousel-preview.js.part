@@ -2,7 +2,6 @@ import { THUMBNAIL_FOLDER_RESOLVE_EF_URL } from './100-onboarding-staff-controls
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { svCarouselPreviewOn, svCarouselViewerHeaders } from './188-review-stage-switch.js';
 import { _calIsFolderLink, _calRenderBody, _calThumbFolderIconSvg } from './160-calendar-organize-ui.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* CAROUSEL PREVIEW (session Carouselbuild, 2026-11-06, OPEN_REPAIRS 710; Sidney: "I need a real sample. I need to see
@@ -10,8 +9,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        folder's first image by name, a "Carousel · N images" badge and "Open in Drive" instead of the dark "Open folder"
        card; its thumbnail opens the card view on the client link; the card view says what the post is ("About this post").
 
-       Behind the runtime flag carousel_preview_v1 ({ "clients": [...] }, the test client only; 188). Flag off,
-       unreadable or wrongly shaped: every function below answers "nothing", and the page is exactly as it was.
+       PERMANENT for every client, staff member and client link (Sidney, 6 Nov 2026, "everyone gets the new carousel thing
+       and forever"; it first ran behind a switch). A card with no Google Drive folder on it is untouched.
 
        The picture never needs a token: the server (thumbnail-folder-resolve, action folder_preview) lists the folder
        with the Drive API key only, so a folder that is not shared "Anyone with the link" reads as not_shared, picks the
@@ -58,7 +57,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const settle = (rec) => { SV_CAR.set(folderId, Object.assign({ at: Date.now() }, rec)); _svCarSchedule(); };
         fetch(THUMBNAIL_FOLDER_RESOLVE_EF_URL, {
             method: 'POST',
-            headers: _syncviewEfHeaders(Object.assign({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, svCarouselViewerHeaders() || {}), THUMBNAIL_FOLDER_RESOLVE_EF_URL),
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, THUMBNAIL_FOLDER_RESOLVE_EF_URL),
             body: JSON.stringify({ action: 'folder_preview', client: slug || client, folder_url: folderUrl })
         }).then(resp => resp.ok ? resp.json() : null).then(json => {
             if (!json || !json.ok || json.enabled === false) { settle({ state: 'error', count: 0, hasVideo: false, fileId: '' }); return; }
@@ -71,7 +70,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        its client, or no Drive folder on it). Asking starts the read; the page draws again when it lands. */
     function svCarouselLook(p) {
         const folderUrl = svCarouselFolderOf(p);
-        if (!folderUrl || !svCarouselPreviewOn(_svCarClientOf(p))) return null;
+        if (!folderUrl) return null;
         const id = svCarFolderId(folderUrl);
         let rec = SV_CAR.get(id);
         if (!rec || (rec.state !== 'loading' && Date.now() - rec.at > (SV_CAR_DONE_TTL[rec.state] || 60000))) {
@@ -127,15 +126,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     /* THE CARD VIEW'S STAGE for a post with no playable video (187's door opens the card view for it, and 190 asks here
        before it hides the stage): the carousel's first image, or the post's own picture. Returns true when it drew one. */
-    function svCarouselStageMount(host, post, poster) {
+    function svCarouselStageMount(host, post) {
         if (!host || !post) return false;
         if (/https?:\/\/(?:f\.io\/|next\.frame\.io\/)/i.test(String(post.asset_url || ''))) return false;   // a Frame video: its own stage
         const look = svCarouselLook(post);
-        if (!look && !(poster && svCarouselPreviewOn(_svCarClientOf(post)))) return false;
+        // Only a carousel gets this stage; any other post without a video keeps the plain Notes view (a Drive link or
+        // other video link that cannot play here has no stage).
+        if (!look) return false;
         let inner;
-        if (!look) {
-            inner = `<div class="sv-car-frame"><img src="${_calEscAttr(poster)}" alt="" onerror="this.remove()"></div>`;
-        } else if (look.state === 'ok') {
+        if (look.state === 'ok') {
             inner = svCarouselBigHtml(look, 1000);
         } else if (look.state === 'loading' || look.state === 'error') {
             inner = `<div class="sv-car-frame is-loading" role="status" aria-busy="true"><span class="sv-car-skel"></span><span class="sv-car-bdg"><span class="sv-car-pill is-count">${SV_CAR_STACK_ICO}Carousel · loading…</span><a class="sv-car-pill is-open" href="${_calEscAttr(look.folderUrl)}" target="_blank" rel="noopener noreferrer" title="Open in Drive" aria-label="Open in Drive">${SV_CAR_OPEN_ICO}<span class="sv-car-lbl">Open in Drive</span></a></span></div>`;
@@ -157,7 +156,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        the caption cut at three lines with "Show more". Read only (the caption is edited on the Calendar card). Drawn
        only where the carousel switch is on for the card's client. */
     function svAboutThisPostHtml(post, thumbInfo) {
-        if (!post || !svCarouselPreviewOn(_svCarClientOf(post))) return '';
+        if (!post) return '';
         const caption = String(post.caption || '').trim();
         const look = svCarouselLook(post);
         const c = thumbInfo && thumbInfo.carousel;
@@ -199,4 +198,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     Object.assign(window, {
         svAboutToggle
     });
-export { svAboutThisPostHtml, svCarouselOverImageHtml, svCarouselImageUrl, svCarouselLook, svCarouselBigHtml, svCarouselMiniChipHtml, svCarouselMiniNote, svCarouselShareNoteHtml, svCarouselStageMount, svCarouselStageUnmount };
+export { svAboutThisPostHtml, svCarouselFolderOf, svCarouselOverImageHtml, svCarouselImageUrl, svCarouselLook, svCarouselBigHtml, svCarouselMiniChipHtml, svCarouselMiniNote, svCarouselShareNoteHtml, svCarouselStageMount, svCarouselStageUnmount };

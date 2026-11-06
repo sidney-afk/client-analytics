@@ -288,6 +288,14 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - **URGENT button:** appears when the Video is at Tweaks Needed (pings the editor), or when any part, including the title, is at Kasper Approval (pings Kasper). Once sent for that round it reads "Sent". The Kasper ping uses the `kasper_urgent_ping_enabled` switch (on).
 - **Save state:** "Save failed · Retry", or "Saved, syncing" with a click to retry. **Switch:** `calendar_card_write_clients` (all clients).
 
+#### Carousels (a Google Drive folder of images as the thumbnail)
+- **What it is (permanent for every client, staff member and client link since 6 Nov 2026; OPEN_REPAIRS 710, 711):** paste a Drive folder link as a card's thumbnail and the card shows the folder's **first image by name** with a small "Carousel · N images" badge and an **Open in Drive** button, in Month, Week, the Sheet card, the client's expanded thumbnail and the card view. The badge and button always sit inside the picture; on a narrow picture the words shorten and the button becomes an icon.
+- **Not shared:** a folder that is not shared "Anyone with the link" keeps the folder icon; staff see "Share as 'Anyone with the link' to show a preview" (a client cannot share it, so they see the plain "Open folder" card).
+- **Client link:** clicking a carousel's thumbnail opens the card view with the first image where a video would be. Any other post with no video still opens nothing.
+- **Card view:** "About this post" (the picture and the caption, three lines with Show more, read only) starts the Notes column; on a phone it sits between the picture and the notes.
+- **No video warning:** a carousel has no video by design, so the "No video linked" warning is not drawn on it.
+- **How it works:** the page asks `thumbnail-folder-resolve` (action `folder_preview`), which lists the folder with the Drive API key only, so an unshared folder reads as not shared, and caches the answer in `carousel_folder_preview_cache`. No token reaches the browser.
+
 #### Trial reels on the card
 - **What it is:** one video posted as several versions (Video A to G) that differ in the text hook. Each version goes out as an Instagram trial reel, and the winner is kept after 24 h.
 - **On the card:**
@@ -994,7 +1002,6 @@ Read-only from `syncview_runtime_flags` on 2026-10-28. "All staff" means every s
 | `trial_reels_pages` | Trial reels on the card, in Production, on review pages and the client link | Every client (`"all": true`) since 2 Nov 2026 |
 | `trial_versions_v2` | Trial versions as copies of the card: each version's status picker (V1), Import from Frame (V2) and its own thumbnail and caption (V3) on the staff card; on the review page (V4), each version's thumbnail and caption, one Approve covering its parts, and a change that picks its part | Off until set; the test client first, by its slug in `{"clients": [...]}` |
 | `post_sources_v1` | Post tab: "From Content Calendar" (the default) on every side (the card's video copied from Frame.io on the server; P1), and a dropped folder (P2) | Off until set; the test client first, by its slug in `{"clients": [...]}` |
-| `carousel_preview_v1` | Carousel preview: a Drive folder of images shows its first image with a "Carousel · N images" badge and "Open in Drive"; a no-video thumbnail on the client link opens the card view; "About this post" (picture and caption, read only) starts the Notes column; a folder not shared "Anyone with the link" keeps the folder icon with a share note for staff (OPEN_REPAIRS 710). `{"clients": [...], "viewers": [...]}`: `viewers` are staff (roster id and full name) who see it on every client, and on a client link opened in a browser holding their signed-in staff session | Off until set; the test client in `clients` and the owner in `viewers` |
 | `rename_propagation` | Card name and sub-issue names follow each other (and Samples) | On (all three parts) |
 | `description_image_upload_enabled` | Paste images into Production descriptions | On |
 | `sheet_fit_v1` | Calendar Sheet fits the window, tighter spacing, compact smallest size, the wheel follows the gesture (desktop; staff by id or name, clients by slug, or `all`) | All staff and all clients (`all: true`, since 2026-10-31) |

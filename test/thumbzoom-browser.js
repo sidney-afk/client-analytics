@@ -77,6 +77,7 @@ async function board(browser, origin, label, mode, extra) {
   ok(!(await zoomState(t.page)).open, label + ': the viewer is closed to begin with');
 
   await img.click();
+  await t.page.waitForFunction(() => { const i = document.querySelector('#svThumbZoom .sv-tz-img'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 15000 });
   let z = await zoomState(t.page);
   ok(z.open && /poster-[lp]\.png/.test(z.src), label + ': a click opens the viewer with the picture (' + z.src.slice(-14) + ')');
   ok(/rgba\(0, 0, 0, 0\.(8[5-9]|9)/.test(z.bg), label + ': dark backdrop (' + z.bg + ')');

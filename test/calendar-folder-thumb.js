@@ -64,7 +64,9 @@ const REAL = [
   grabFunc('_calOpenCardMeta'),
 ].join('\n\n');
 
-const mod = new Function(REAL + `
+// The carousel preview (191) is behind a switch this harness never sets: its two helpers answer "off".
+const STUBS = 'const svCarouselLook = () => null; const svCarouselImageUrl = () => "";\n';
+const mod = new Function(STUBS + REAL + `
 ;return { _calIsFolderLink, _calIsFrameLink, _calDeriveThumb, _calDeriveThumbInfo, _calOpenCardMeta };`)();
 const { _calIsFolderLink, _calIsFrameLink, _calDeriveThumb, _calDeriveThumbInfo, _calOpenCardMeta } = mod;
 

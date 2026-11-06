@@ -172,9 +172,9 @@ const NOSCHEME_FOLDER  = 'drive.google.com/drive/folders/zzz999';
         /_calThumbFrameHtml\(info\.frame, info\.frameKind\)/.test(INDEX));
   // Compact surfaces: month pill, week card, collapsed review/Kasper strips.
   check('month pill mini badge is kind-aware',
-        /_calMiniLinkBadgeHtml\('cal-month-pill-thumb', info\.frameKind\)/.test(INDEX));
+        /_calMiniLinkBadgeHtml\('cal-month-pill-thumb', info\.frameKind(?:, info)?\)/.test(INDEX));
   check('week card mini badge is kind-aware',
-        /_calMiniLinkBadgeHtml\('cal-week-card-thumb', info\.frameKind\)/.test(INDEX));
+        /_calMiniLinkBadgeHtml\('cal-week-card-thumb', info\.frameKind(?:, info)?\)/.test(INDEX));
   check('review/Kasper strip mini badge is kind-aware',
         /_calMiniLinkBadgeHtml\('kcard-thumb-fallback', info\.frameKind\)/.test(INDEX) &&
         /_calMiniLinkBadgeHtml\('kcard-thumb-fallback', thumbInfo\.frameKind\)/.test(INDEX));

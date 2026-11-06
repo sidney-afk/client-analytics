@@ -70,6 +70,7 @@ process.on('exit', code => { if (!finished && code === 0) { console.log('FAIL  t
   {
     const gap = new Function(`
       const _calNormStatus = s => String(s || '').trim() || 'In Progress';
+      const svCarouselLook = () => null;   // the carousel read (191) is not part of this unit: no carousel here
       ${lift('_calSmmMediaGap')}
       return _calSmmMediaGap;
     `)();

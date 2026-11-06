@@ -1692,7 +1692,10 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       const editor = document.querySelector('[data-prod-description="gra-description-child"] .prod-description-editor');
       return !!editor && editor.getBoundingClientRect().width > 0;
     }, null, { timeout: 5000 }).catch(() => {});
-    const compactDescription = await page.locator('[data-prod-description="gra-description-child"]').evaluate(panel => {
+    // One evaluate that finds the panel itself: a Production re-render (the runtime-switch read lands and Production draws
+    // again, 255) between a located panel and its measuring would leave a detached copy that measures 0 and ''.
+    const compactDescription = await page.evaluate(() => {
+      const panel = document.querySelector('[data-prod-description="gra-description-child"]');
       const editor = panel.querySelector('.prod-description-editor');
       const source = panel.querySelector('[data-prod-description-control="source"]');
       const action = panel.querySelector('.prod-description-action');

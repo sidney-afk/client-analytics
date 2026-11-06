@@ -163,6 +163,12 @@ Roles used below: **Admin** (Kasper and the owner), **SMM** (social media manage
 - Drafts are kept while typing so a submission is not lost.
 - Staff read submissions in the **Onboarding** inbox (account menu or Kasper › Onboarding): Standard, AI avatar and Old forms (the historical Notion forms, shown as-is), with search. Templates shows an **Onboarding ↗** button on a client that has a form. The form readers check for an Admin key on the server, so the inbox may not load for SMM or Creative (unconfirmed).
 
+#### Start here page (/start, sent to clients and videographers)
+
+- A public help page at syncview.synchrosocial.com/start, no login. **"I'm a client or videographer"** at the top and the **Review content / Upload content** switch pick a side; `/start/#review` and `/start/#upload` (or the older `#client` and `#videographer`) open one directly. Switching never moves "Start here", the switch or the video.
+- **Review content** (clients): the 1:19 review tutorial, then "What you can do in SyncView": three screenshots of the Review page, the Sheet and Month with handwritten notes (a phone version on a phone). Demo data only.
+- **Upload content** (videographers): the upload tutorial, the **Open the upload form** button (new tab), the five folder rules and the drawn folder tree. The "What you can do in SyncView" section is hidden on this side.
+
 #### Client Credentials
 
 - The vault for client social logins: account menu › Client Credentials, or the Calendar's ⋯ menu for one client. Admin and SMM.

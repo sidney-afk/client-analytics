@@ -618,6 +618,12 @@ Wistia script, never autoplays), with the five folder rules beside a drawn folde
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 
+Round 3 (2026-11-06, Sidney's feedback): the "What SyncView does" link is gone; Start here, the switch and the video
+keep their place when you switch client / videographer; the four small pictures are replaced by three full light
+screenshots (Review, Sheet, Month) with handwritten notes, and a phone version of each under 700px
+(`start/assets/shot-*.webp`). Demo data only: a made-up client ("Bright Days Studio") and made-up post pictures made
+with GPT Image. The videographer side hides "What you can do in SyncView".
+
 ## Client Month and Week bring back undated posts, read only (session Ledge, 2026-10-18): PR open
 
 Owner decision, 2026-10-18: on the client link's Month and Week, posts with no date show again under "Not scheduled yet (N)",

@@ -579,3 +579,9 @@ credential; wiring Clients Info Verified? (true) → Read Sales Intake → Build
 unchanged; Post Kickoff's text `{{ $json.kickoff_text }}`. The validator's two warnings (userIds on the two invite steps) were
 there before. Live proof: the next real client's kickoff.
 Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.
+
+## 2026-11-06 Log the 1:1 call with Kasper calendar in the CRM (owner go in the Ads thread)
+Why: a booking on the "1:1 Call with Kasper" iClosed calendar (slug `1-1-call-with-kasper`) was ignored by the booking router, so a real lead never reached the Leads CRM. Ads, Meta and Telegram are unchanged on purpose.
+- Sales, Call Booked (iClosed) (`xoPqojySDriQ8Mzh`): before `0fa7ae30-4fb8-4912-ab79-70f2fc4adbf8`, after `026224bf-3091-4f0f-8c45-985815a07861` (published). Two new nodes on the "not a normal funnel event" branch: "Is Kasper 1:1 Call?" (slug equals `1-1-call-with-kasper`) then "CRM: Log Booked (1:1)" (`booked`, source `kasper-1on1`, kind other, fire-and-forget like "CRM: Log Booked"). The existing "Ignore Other Event Types" branch is untouched.
+- Tested: not run end to end. The next booking on that calendar is the test; check the person appears in Leads at Call 1 booked.
+Undo: restore version `0fa7ae30` of the workflow.

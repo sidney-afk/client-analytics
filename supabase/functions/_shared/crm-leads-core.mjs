@@ -330,6 +330,47 @@ export function mergeForImport(existing, incoming) {
   return patch;
 }
 
+// ── Other emails one person uses ────────────────────────────────────────
+// A person holds one email, but the form and the booking calendar can carry
+// different spellings of it. When a booking matches by phone or handle and
+// brings an email nobody holds, that email is kept in external_ids.alt_emails
+// so a later email-only fact (a nurture send) finds the same person instead
+// of creating a second one. Normalised, newest last, at most ALT_EMAIL_MAX.
+export const ALT_EMAIL_MAX = 5;
+export function altEmails(externalIds) {
+  const a = externalIds && Array.isArray(externalIds.alt_emails) ? externalIds.alt_emails : [];
+  return a.filter((x) => typeof x === 'string').map(normalizeEmail).filter(Boolean);
+}
+/** The external_ids to save so `incomingEmail` finds this person next time, or
+ *  null when nothing needs saving. `emailOwnerId` is whoever already holds the
+ *  incoming email (by email or by alt email), `person` the one that matched. */
+export function altEmailPatch(person, externalIds, incomingEmail, emailOwnerId) {
+  const inc = normalizeEmail(incomingEmail);
+  if (!inc || !person || !person.email) return null;
+  if (normalizeEmail(person.email) === inc) return null;
+  if (emailOwnerId && emailOwnerId !== person.id) return null;
+  const have = altEmails(externalIds);
+  if (have.includes(inc)) return null;
+  const next = have.concat(inc).slice(-ALT_EMAIL_MAX);
+  return Object.assign({}, externalIds || {}, { alt_emails: next });
+}
+
+/** The external_ids to save on the kept person after a merge: every other
+ *  email either person used (their alternates and the dropped primary), minus
+ *  the kept person's own, newest last, capped. `keptExternalIds` is what the
+ *  kept person holds now; null when nothing needs saving. */
+export function mergeAltEmails(kept, keptExternalIds, dropped, droppedExternalIds) {
+  const own = normalizeEmail(kept && kept.email);
+  const want = [];
+  for (const e of [...altEmails(droppedExternalIds), normalizeEmail(dropped && dropped.email), ...altEmails(keptExternalIds)]) {
+    if (e && e !== own && !want.includes(e)) want.push(e);
+  }
+  const next = want.slice(-ALT_EMAIL_MAX);
+  const have = altEmails(keptExternalIds);
+  if (next.length === have.length && next.every((e, i) => e === have[i])) return null;
+  return Object.assign({}, keptExternalIds || {}, { alt_emails: next });
+}
+
 // ── Ingest (n8n, server key only; crm-leads `ingest`) ───────────────────
 // n8n logs what happened to a lead outside SyncView. One request = one fact.
 // No migration: each event maps onto a crm_events kind the table already

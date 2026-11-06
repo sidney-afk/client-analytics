@@ -447,7 +447,7 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
   assert.ok(/if \(row && row\.model === VOICE_MODEL\) return await voiceCheck\(jobId, voiceDeps\(""\)\);/.test(src), 'check_job and wait_for_job route voice jobs');
   assert.ok(src.indexOf('row.model === VOICE_MODEL') < src.indexOf('answeredFromLog(String(row.model))'));
   assert.strictEqual(v.VOICE_TOOL.name, 'voice_cleanup');
-  assert.deepStrictEqual(v.VOICE_TOOL.inputSchema.required, ['file', 'strength']);
+  assert.deepStrictEqual(v.VOICE_TOOL.inputSchema.required, ['file']);
   assert.ok(!/AUPHONIC_KEY/.test(read('voice.ts')), 'the key is read in one place');
   // The output bucket is private and created by a migration with an applied-when probe.
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20261017040000_hf_voice_bucket.sql'), 'utf8');

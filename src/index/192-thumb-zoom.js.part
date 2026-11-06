@@ -115,8 +115,8 @@ import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
     // Keyboard: Enter or Space on a focused strip thumbnail (the card lists mark it role=button, tabindex=0).
     document.addEventListener('keydown', e => {
         if ((e.key !== 'Enter' && e.key !== ' ') || svThumbZoomIsOpen()) return;
-        const h = e.target && e.target.closest ? e.target.closest('.kcard-thumb[data-tz]') : null;
-        if (!h || e.target !== h) return;
+        const h = e.target && e.target.matches && e.target.matches('.kcard-thumb[data-tz]') ? e.target : null;
+        if (!h) return;
         const img = h.querySelector('img');
         if (img && img.getAttribute('src') && _tzDocOpen(img)) { e.stopPropagation(); e.preventDefault(); }
     }, true);

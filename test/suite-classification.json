@@ -293,6 +293,7 @@
     "editors-week-native.js",
     "ef-cors-allow-headers.js",
     "ef-deploy-provenance.js",
+    "ef-fingerprint-import-cycle.js",
     "ef-pin-drift-report.js",
     "extract-function-integrity.js",
     "f200-attribution.js",

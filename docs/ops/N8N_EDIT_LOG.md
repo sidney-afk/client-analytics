@@ -579,3 +579,10 @@ credential; wiring Clients Info Verified? (true) → Read Sales Intake → Build
 unchanged; Post Kickoff's text `{{ $json.kickoff_text }}`. The validator's two warnings (userIds on the two invite steps) were
 there before. Live proof: the next real client's kickoff.
 Undo: restore version `49a29c76-1c2a-4292-b37b-1e1aec21dd38` in n8n (workflow history). Nothing else to turn back.
+
+## 2026-11-06 Hiring, Application Capture (iClosed): answers found by question text, not number (owner's go in chat, 16:16 UTC)
+- Hiring, Application Capture (iClosed) (`oi4BPg79dykdet6H`): before `8ccdaeaf-00c3-4b82-be65-c6e8df4732a0`, after `034f5540-d468-4d2c-8ad9-ebd2639ad0da` (published, read back).
+- Only the Code step **Normalize + hard gate** changed. It used to read email, name, location and start date from questions 1 to 4, the video link from question 11 and the answers from questions 3 to 12, so adding a question to the iClosed form would have moved the video link and silently ignored every application. It now finds email, name, location, start date and the video link by their question text, keeps every numbered question except email and name (10 to 20 answers, the range `hiring-automation` accepts), and keeps every other check (event, DISQUALIFIED status, all answers filled, https video and preview links, timestamp).
+Why: owner, 6 Nov 2026, adding content production and AI content questions to the Client Success & Content Manager application.
+Tested: offline, old and new code side by side on fictional payloads: the current CSM and video editor layouts give identical output; a 13-question CSM layout is captured with 11 answers; missing video, missing email, a blank answer, a non-hiring event and a non-disqualified status are still ignored; shuffled keys give the same result. Live proof: the owner's test application after the iClosed form change.
+Undo: restore version `8ccdaeaf-00c3-4b82-be65-c6e8df4732a0` in n8n (workflow history). Nothing else to turn back.

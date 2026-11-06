@@ -189,6 +189,29 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   const k = read('src/index/321-kasper-dashboard-replies.js.part');
   ok(/tab === 'leads'[\s\S]{0,200}navTo\('leads'\)/.test(k), 'Kasper More item opens the page');
 
+  // ── other emails one person uses ──
+  {
+    const per = { id: 'p1', email: 'a@x.test' };
+    ok(c.altEmailPatch(per, {}, 'A@x.test', null) === null, 'the same email in another case needs nothing saved');
+    ok(c.altEmailPatch({ id: 'p1', email: '' }, {}, 'b@x.test', null) === null, 'a person with no email just gets it filled, no alternate');
+    ok(c.altEmailPatch(per, {}, 'b@x.test', 'p2') === null, 'an email someone else holds is never taken');
+    let ext = c.altEmailPatch(per, { hubspot: '9' }, ' B@x.test ', null);
+    ok(ext && ext.alt_emails.length === 1 && ext.alt_emails[0] === 'b@x.test' && ext.hubspot === '9', 'a new spelling is kept, other ids stay');
+    ok(c.altEmailPatch(per, ext, 'b@x.test', 'p1') === null, 'a spelling already kept is not added twice');
+    for (const e of ['c', 'd', 'e', 'f', 'g']) ext = c.altEmailPatch(per, ext, e + '@x.test', null);
+    ok(ext.alt_emails.length === c.ALT_EMAIL_MAX && ext.alt_emails[c.ALT_EMAIL_MAX - 1] === 'g@x.test', 'at most five are kept, newest last');
+    ok(c.altEmails({ alt_emails: ['A@x.test', 3, ''] }).join() === 'a@x.test', 'readers tolerate odd stored values');
+  }
+
+  {
+    const m = c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['b@x.test'] }, { email: 'c@x.test' }, { alt_emails: ['d@x.test'] });
+    ok(m && m.alt_emails.join() === 'd@x.test,c@x.test,b@x.test', 'a merge keeps both people\'s alternates and the dropped primary');
+    ok(c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['b@x.test'] }, { email: 'b@x.test' }, {}) === null, 'nothing to save when it is already kept');
+    const own = c.mergeAltEmails({ email: 'a@x.test' }, {}, { email: 'A@x.test' }, { alt_emails: ['a@x.test'] });
+    ok(own === null, 'the kept person\'s own email is never listed as an alternate');
+    const cap = c.mergeAltEmails({ email: 'a@x.test' }, { alt_emails: ['1@x.test', '2@x.test', '3@x.test'] }, { email: 'c@x.test' }, { alt_emails: ['4@x.test', '5@x.test', '6@x.test'] });
+    ok(cap.alt_emails.length === c.ALT_EMAIL_MAX, 'a merge still caps at five');
+  }
   // ── ingest (n8n, server key) ──
   {
     const base = { event: 'booked', idempotency_key: 'k1', call_at: '2026-11-02T15:00:00Z',

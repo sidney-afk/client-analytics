@@ -38,7 +38,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, matchingRoleForKey, staffAuthFailureStatus, timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import {
-  cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowedAsync, LIST_MAX, mergeForImport,
+  altEmailPatch, altEmails, cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowedAsync, LIST_MAX, mergeAltEmails, mergeForImport,
   normalizeEmail, normalizeHandle, normalizePhone, parseListFilters, validateIngest, validateNote, validatePatch,
 } from "../_shared/crm-leads-core.mjs";
 import {
@@ -216,11 +216,20 @@ async function findPerson(db: SupabaseClient, p: Record<string, any>) {
   let first: any = null;
   for (const [col, val] of keys) {
     if (!val) continue;
-    const row = must(await db.from("crm_people").select(PERSON_COLUMNS).eq(col, val).maybeSingle());
+    let row = must(await db.from("crm_people").select(PERSON_COLUMNS).eq(col, val).maybeSingle());
+    if (!row && col === "email_norm") {   // another spelling this person used before
+      const alt = must(await db.from("crm_people").select(PERSON_COLUMNS).contains("external_ids", { alt_emails: [val] }).limit(1));
+      row = alt && alt.length ? alt[0] : null;
+    }
     found[col] = row ? row.id : null;
     if (row && !first) first = row;
   }
   return { person: first, owners: found };
+}
+
+async function readExternalIds(db: SupabaseClient, id: string): Promise<Record<string, unknown>> {
+  const row = must(await db.from("crm_people").select("external_ids").eq("id", id).maybeSingle());
+  return (row && row.external_ids) || {};
 }
 
 async function sourceId(db: SupabaseClient, src: { name: string; kind: string } | null): Promise<string | null> {
@@ -270,6 +279,11 @@ async function ingest(db: SupabaseClient, body: Record<string, unknown>) {
       if (fill.phone && owners.phone_norm && owners.phone_norm !== person.id) delete fill.phone;
       if (fill.instagram_handle && owners.handle_norm && owners.handle_norm !== person.id) delete fill.instagram_handle;
       if (!person.source_id && srcId) fill.source_id = srcId;
+      if (v.person.email) {
+        const ext = await readExternalIds(db, person.id);
+        const alt = altEmailPatch(person, ext, v.person.email, owners.email_norm);
+        if (alt) fill.external_ids = alt;
+      }
       if (Object.keys(fill).length) {
         // Contact fill, compare-and-swap like scripts/crm-import.js; crm_apply_change
         // does not take contact columns. The ingest row below goes through it.
@@ -546,7 +560,24 @@ async function duplicatesView(db: SupabaseClient) {
 async function mergePeople(db: SupabaseClient, body: Record<string, unknown>, actor: string) {
   const keep = String(body.keep || ""), drop = String(body.drop || "");
   if (!isUuid(keep) || !isUuid(drop) || keep === drop) return json({ ok: false, error: "bad_id" }, 400);
+  // The merge frees the duplicate's email and its alternates are overwritten by
+  // the kept person's; read both first, then save the union on the kept person.
+  const dropRow = must(await db.from("crm_people").select("email,external_ids").eq("id", drop).maybeSingle());
   const { data, error } = await db.rpc("crm_merge_people", { p_keep: keep, p_drop: drop, p_actor: actor });
+  if (!error && dropRow) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const kept = must(await db.from("crm_people").select("id,email,state_version,external_ids").eq("id", keep).maybeSingle());
+      if (!kept) break;
+      const alt = mergeAltEmails(kept, kept.external_ids || {}, dropRow, dropRow.external_ids || {});
+      if (!alt) break;
+      // Same contact-style compare-and-swap as the ingest fill; apply() does not take external_ids.
+      const res = await db.from("crm_people")
+        .update({ external_ids: alt, state_version: kept.state_version + 1, updated_at: new Date().toISOString() })
+        .eq("id", keep).eq("state_version", kept.state_version).select("id");
+      if (!res.error && res.data && res.data.length) break;
+      if (attempt === 3) console.log(JSON.stringify({ fn: "crm-leads", action: "merge", alt_emails: "not_saved" }));
+    }
+  }
   if (error) return json({ ok: false, error: /not found/i.test(error.message || "") ? "not_found" : "merge_failed" }, error.message && /not found/i.test(error.message) ? 404 : 500);
   const person = Array.isArray(data) ? data[0] : data;
   return json({ ok: true, person: person || null });

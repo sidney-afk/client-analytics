@@ -147,6 +147,14 @@ function store(files, opts = {}) {
     assert.ok(w.download_url && /Install Whisper\.bat/.test(w.notes), 'whisper gives a link and install notes without a latest.json');
     assert.strictEqual(wh.signed[0].name, 'whisper/SynchroWhisper-Windows.zip');
     assert.ok(/not uploaded yet/.test(await s.toolkitLatest(store({}), 'whisper', { member: 'Sidney', who: '' })), 'whisper missing file is said plainly');
+    const jz = 'jeremy-ai-1.2.zip';
+    const jr = store({ 'jeremy-ai/latest.json': '{"version":"1.2","notes":"x"}', ['jeremy-ai/' + jz]: 'zip' });
+    const j = JSON.parse(await s.toolkitLatest(jr, 'Jeremy-AI', { member: 'Sidney', who: '' }));
+    assert.strictEqual(j.version, '1.2', 'jeremy-ai reads its own latest.json');
+    assert.strictEqual(jr.signed[0].name, 'jeremy-ai/' + jz);
+    assert.ok(/not uploaded yet/.test(await s.toolkitLatest(store({}), 'jeremy-ai', { member: 'Sidney', who: '' })), 'jeremy-ai missing is said plainly');
+    const jbad = store({ 'jeremy-ai/latest.json': '{"version":"1.2","file":"../x.zip"}' });
+    assert.ok(/expected a jeremy-ai-/.test(await s.toolkitLatest(jbad, 'jeremy-ai', { member: 'Sidney', who: '' })), 'jeremy-ai refuses a strange file name');
   }
 
   console.log('higgsfield-studio-latest: version, signed link, notes, missing-version answer, failures, log, read-only wiring ✅');

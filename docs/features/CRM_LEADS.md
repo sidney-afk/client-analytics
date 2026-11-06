@@ -276,7 +276,7 @@ A `booked` row also stops sequences at the next `due` run (the stop rule
 reads `booked` and `reply` rows). Every stage or `call_at` change also writes
 its `stage_changed` / `call_at_set` row.
 
-The person is found by normalised email, then phone, then handle. A new one
+The person is found by normalised email (including other spellings kept in `external_ids.alt_emails`), then phone, then handle. When a booking matches by phone or handle but brings an email nobody holds, that email is kept as an alternate so a later email-only fact (a nurture send) lands on the same person instead of creating a duplicate; Merge keeps the dropped person's email the same way (max five). A new one
 is created as `ad_lead` at To contact with a `created` row; an existing one
 only has blanks filled (name, email, phone, handle, timezone, source), never
 with a value another person holds. The source is created if missing.

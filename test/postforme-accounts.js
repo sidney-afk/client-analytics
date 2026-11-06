@@ -24,7 +24,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   // --- safe fields: a whitelist, never a blacklist ---
   const s = m.safeAccount(raw('spc_FixtureIg0001', 'instagram', '@Fixture.One'));
-  ok(same(Object.keys(s).sort(), ['display_name', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
+  ok(same(Object.keys(s).sort(), ['display_name', 'external_id', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
   const walk = (v, out = []) => { if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { out.push(k); walk(x, out); } return out; };
   const tokenish = k => /token|secret|refresh|password|expires/i.test(k);
   ok(!walk(s).some(tokenish) && !JSON.stringify(s).includes('tok-') && !JSON.stringify(s).includes('nested-secret'), 'no token field or value at any depth');
@@ -186,6 +186,39 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/AUTO_LINK_ACTOR = "Post for Me auto-link"/.test(fn), 'the history names the automatic link');
   ok(/rpc\("pfm_account_link_run_record"/.test(sync) && /trigger: member \? "admin" : "timer"/.test(sync) && !/console\.error\([^)]*logErr\.message/.test(sync),
     'every run is recorded for the watcher (best effort; a failure logs only its code)');
+
+  // --- the Facebook Page pick (OPEN_REPAIRS 711): which Pages may be OFFERED for one client; nothing links itself ---
+  {
+    const fbA = m.safeAccount(raw('spc_FixtureFbA001', 'facebook', 'pageA', { external_id: 'conn-1', metadata: { display_name: 'Page A' } }));
+    const fbB = m.safeAccount(raw('spc_FixtureFbB001', 'facebook', 'pageB', { external_id: 'conn-1', metadata: { display_name: 'Page B' } }));
+    const fbC = m.safeAccount(raw('spc_FixtureFbC001', 'facebook', 'pageC', { external_id: 'conn-2', metadata: { display_name: 'Page C' } }));
+    const fbD = m.safeAccount(raw('spc_FixtureFbD001', 'facebook', 'pageD', { external_id: 'conn-1', metadata: { display_name: 'Page D' } }));
+    const fbOff = m.safeAccount(raw('spc_FixtureFbE001', 'facebook', 'pageE', { external_id: 'conn-1', status: 'disconnected', metadata: { display_name: 'Page E' } }));
+    const ig = m.safeAccount(raw('spc_FixtureIg0009', 'instagram', 'ig9', { external_id: 'conn-1' }));
+    const mine = prof('mine', { extra: { postforme_instagram_account_id: ig.id, postforme_facebook_account_id: fbA.id } });
+    const other = prof('other', { extra: { postforme_facebook_account_id: fbD.id } });
+    const all = [fbA, fbB, fbC, fbD, fbOff, ig];
+    const r = m.facebookPageChoices(all, [mine, other], 'mine');
+    ok(r.saved_id === fbA.id && r.pages[0].id === fbA.id && r.pages[0].saved === true && r.pages[0].name === 'Page A', 'the saved Page is listed first, by name');
+    ok(same(r.pages.map(x => x.id), [fbA.id, fbB.id]), 'only a connected Page on no client with the same connection id is offered (not C: other connection; not D: another client has it; not E: disconnected)');
+    ok(r.same_connection_known === true, 'the answer says the connection could be read');
+    const none = m.facebookPageChoices(all, [prof('mine', { extra: { postforme_instagram_account_id: ig.id } }), other], 'mine');
+    ok(same(none.pages.map(x => x.id), [fbA.id, fbB.id]) && none.saved_id === '', 'no Page saved: the same-connection Pages are offered to pick from, none is chosen');
+    const noExt = m.facebookPageChoices(all.map(a => Object.assign({}, a, { external_id: '' })), [mine, other], 'mine');
+    ok(same(noExt.pages.map(x => x.id), [fbA.id]) && noExt.same_connection_known === false, 'with no external id on the client\'s accounts nothing else is guessed');
+    const lone = m.facebookPageChoices([ig], [prof('mine', { extra: { postforme_instagram_account_id: ig.id } })], 'mine');
+    ok(lone.pages.length === 0, 'a client with no accounts that match gets no Pages');
+    const gone = m.facebookPageChoices([fbB], [prof('mine', { extra: { postforme_facebook_account_id: fbA.id } })], 'mine');
+    ok(gone.pages[0].id === fbA.id && gone.pages[0].connected === false, 'a saved Page missing from Post for Me is still listed, as not connected');
+  }
+  {
+    const fnSrc = require('fs').readFileSync(path.join(ROOT, 'supabase/functions/client-profile-write/index.ts'), 'utf8');
+    const pick = fnSrc.slice(fnSrc.indexOf('async function pfmFacebookPick'), fnSrc.indexOf('Deno.serve('));
+    ok(/page_not_offered/.test(pick) && pick.indexOf('page_not_offered') < pick.indexOf('rpc("client_profile_admin_edit"') && /p\.connected === true/.test(pick), 'the pick refuses a Page the list did not offer, before any save');
+    ok(/checkAccounts\(\{ postforme_facebook_account_id: accountId \}\)/.test(pick) && /p_changes: \{ postforme_facebook_account_id: accountId \}/.test(pick), 'the pick saves only the Facebook slot, after the network check');
+    ok(/"pfm_facebook_pages", "pfm_facebook_pick"\]/.test(fnSrc) && fnSrc.indexOf('adminMember(') < fnSrc.indexOf('return await pfmFacebookPick('), 'both actions need an admin staff key and an active admin member');
+    ok(!/console\./.test(fnSrc.slice(fnSrc.indexOf('async function facebookChoicesFor'), fnSrc.indexOf('async function pfmFacebookPick'))), 'the account list is never logged');
+  }
 
   console.log(`postforme-accounts: ${passed} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -43,6 +43,7 @@ export function safeAccount(a) {
     user_id: str(a.user_id),
     display_name: str(meta.display_name),
     status: str(a.status).toLowerCase(),
+    external_id: str(a.external_id),
   };
 }
 
@@ -102,6 +103,37 @@ export function changesByClient(links) {
   const out = {};
   for (const l of links || []) (out[l.slug] = out[l.slug] || {})[l.field] = l.account_id;
   return out;
+}
+
+// The Facebook Pages the Instagram posting step may offer for ONE client (session Fbpage, OPEN_REPAIRS 711).
+// A Page has no handle to match on, so nothing here links one by itself: this only decides which connected Pages
+// are plausibly the client's, and the person picks. A Page is offered when it is
+//   - the Page already saved on the client (always listed first, even if disconnected, so the card can say so), or
+//   - connected, on NO client in any slot (archived clients count), and carries the same non-empty external_id as
+//     one of the client's own linked accounts (Post for Me's own "same connection" label; set when the account
+//     was connected). With no such id on the client's side, no other Page is offered.
+// accounts: safeAccount() results (with external_id kept); profiles: every client_profiles row. Never mutates.
+export function facebookPageChoices(accounts, profiles, slug) {
+  const rows = Array.isArray(profiles) ? profiles : [];
+  const mine = rows.find(p => p && p.slug === slug) || null;
+  const list = (Array.isArray(accounts) ? accounts : []).filter(Boolean);
+  const byId = new Map(list.map(a => [a.id, a]));
+  const onSomeClient = new Set();
+  for (const p of rows) for (const f of SLOT_FIELDS) { const v = slotValue(p, f); if (v) onSomeClient.add(v); }
+  const savedId = mine ? slotValue(mine, 'postforme_facebook_account_id') : '';
+  const ownExternal = new Set();
+  if (mine) for (const f of SLOT_FIELDS) {
+    const a = byId.get(slotValue(mine, f));
+    if (a && a.external_id) ownExternal.add(a.external_id);
+  }
+  const shape = (a, saved) => ({ id: a.id, name: a.display_name || a.username || 'Facebook Page', connected: a.status === 'connected', saved });
+  const pages = [];
+  if (savedId) { const a = byId.get(savedId); pages.push(a ? shape(a, true) : { id: savedId, name: 'Saved Facebook Page', connected: false, saved: true }); }
+  for (const a of list) {
+    if (a.platform !== 'facebook' || a.status !== 'connected' || onSomeClient.has(a.id)) continue;
+    if (a.external_id && ownExternal.has(a.external_id)) pages.push(shape(a, false));
+  }
+  return { saved_id: savedId, pages, same_connection_known: ownExternal.size > 0 };
 }
 
 export const PAGE_SIZE = 50;

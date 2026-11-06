@@ -1677,6 +1677,14 @@
       "ci": "representative"
     },
     {
+      "file": "instagram-facebook-page-pick-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks which Facebook Page Also post to Facebook posts to, behind fb_page_pick_v1: the switch off or the person not listed, one Page named, a second Page picked and saved by the button only, none saved, none offered, an unreadable list.",
+      "reproduce": "node test/instagram-facebook-page-pick-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "post-networks-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

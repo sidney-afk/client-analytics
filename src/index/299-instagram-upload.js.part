@@ -1,12 +1,12 @@
 import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
-import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
-import { svPostNetworksOn, svPostSourcesOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
+import { svFbPagePickOn, svPostNetworksOn, svPostSourcesOn, svTrialVersionsV2On } from './188-review-stage-switch.js';
 import { svTrialListShared } from './189-trial-reels-card.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
@@ -132,12 +132,93 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igResolveAccount(client) { return _igProfileValue(client, IG_ACCOUNT_COLUMN); }
     function _igResolveFacebook(client) { return _igProfileValue(client, IG_FACEBOOK_COLUMN); }
 
+    /* WHICH FACEBOOK PAGE (fb_page_pick_v1, OPEN_REPAIRS 711; staff listed on the switch only). Next to "Also post to
+       Facebook" the card names the Page the post goes to. The list comes from client-profile-write's pfm_facebook_pages
+       (Post for Me's account list: the client's saved Page, plus connected Pages on no client that share the external id
+       of the client's own accounts). One Page: its name, nothing to click. More than one, or none saved: a picker and a
+       "Use this Page" button, and the saved Page changes only when that button is pressed (pfm_facebook_pick, the same
+       save path as the Clients tab). Nothing is ever attached on its own. Off, or unreadable: the card as it was. */
+    const IG_FBPICK_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
+    const _igFbPick = {};   // slug -> { status: 'loading'|'ready'|'error', pages, savedId, updatedAt, choice, saving, msg, err }
+    const _igFbPickOn = () => !!igState.client && svFbPagePickOn();
+    function _igFbPickSlug() { try { return calClientSlug(String(igState.client || '')); } catch (e) { return ''; } }
+    async function _igFbPickPost(action, body) {
+        const who = _syncviewStaffIdentityForHeaders();
+        if (!who || !who.key) return { status: 0, json: {} };
+        try {
+            const resp = await fetch(IG_FBPICK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': who.key },
+                body: JSON.stringify(Object.assign({ action, member_id: who.member && who.member.id }, body)) });
+            let j = null; try { j = await resp.json(); } catch (e) { j = null; }
+            return { status: resp.status, json: j || {} };
+        } catch (e) { return { status: 0, json: {} }; }
+    }
+    function _igFbPickLoad(force) {
+        const slug = _igFbPickSlug();
+        if (!_igFbPickOn() || !slug) return;
+        const cur = _igFbPick[slug];
+        if (cur && !force) return;
+        const keep = force && cur ? { msg: cur.msg, err: cur.err } : { msg: '', err: '' };
+        _igFbPick[slug] = { status: 'loading', pages: [], savedId: '', updatedAt: '', choice: '', saving: false, msg: keep.msg, err: keep.err };
+        _igFbPickPost('pfm_facebook_pages', { slug }).then(r => {
+            const st = _igFbPick[slug]; if (!st) return;
+            if (r.status === 200 && r.json.ok && Array.isArray(r.json.pages)) {
+                st.status = 'ready'; st.pages = r.json.pages; st.savedId = String(r.json.saved_id || ''); st.updatedAt = String(r.json.updated_at || '');
+                st.choice = ''; st.sameKnown = r.json.same_connection_known === true;
+            } else { st.status = 'error'; st.err = 'Could not read the Facebook Pages from Post for Me.'; st.msg = ''; }
+            if (_igFbPickSlug() === slug) _igRenderForm();
+        });
+    }
+    async function _igFbPickSave() {
+        const slug = _igFbPickSlug(), st = _igFbPick[slug];
+        if (!st || st.saving || !st.choice) return;
+        const page = st.pages.find(p => p.id === st.choice);
+        if (!page) return;
+        st.saving = true; st.msg = ''; st.err = ''; _igRenderForm();
+        const r = await _igFbPickPost('pfm_facebook_pick', { slug, account_id: page.id, expected_updated_at: st.updatedAt });
+        st.saving = false;
+        if (r.status === 200 && r.json.ok) {
+            const row = clientMap[igState.client];
+            if (row) { if (row.extra && typeof row.extra === 'object') row.extra[IG_FACEBOOK_COLUMN] = page.id; if (String(row[IG_FACEBOOK_COLUMN] || '').trim()) row[IG_FACEBOOK_COLUMN] = page.id; if (!(row.extra && typeof row.extra === 'object')) row.extra = { [IG_FACEBOOK_COLUMN]: page.id }; }
+            st.msg = 'Saved. Facebook posts for this client now go to ' + page.name + '.';
+            _igFbPickLoad(true);
+        } else {
+            const e = r.json && r.json.error;
+            st.err = e === 'client_profile_version_conflict' ? 'The client changed while you were choosing. Nothing was saved; the list has been read again.'
+                : e === 'postforme_account_taken' ? 'That Page is already saved on another client. Nothing was saved.'
+                : e === 'page_not_offered' ? 'That Page is no longer on the list. Nothing was saved.'
+                : 'Could not save the Page. Nothing was changed.';
+            if (e === 'client_profile_version_conflict' || e === 'page_not_offered') _igFbPickLoad(true);
+        }
+        _igRenderForm();
+    }
+    // The picker's own lines under the card's note: the Page's name, or the choice with a "Use this Page" button.
+    function _igFbPickHtml(st) {
+        const slug = _igFbPickSlug(), p = _igFbPick[slug];
+        if (!p) return '';
+        const off = igState.submitting || p.saving;
+        if (p.status === 'loading') return '<div class="tk-step-note" id="igFbPickNote">Checking which Facebook Page this goes to…</div>';
+        if (p.status === 'error') return `<div class="tk-step-note" id="igFbPickNote">${_igEsc(p.err)} <button type="button" class="tk-mini-btn" id="igFbPickRetry">Try again</button></div>`;
+        const saved = p.pages.find(x => x.saved && x.id === p.savedId);
+        const others = p.pages.filter(x => !(x.saved && x.id === p.savedId));
+        const done = p.err ? `<div class="tk-step-note" id="igFbPickErr" role="alert">${_igEsc(p.err)}</div>` : p.msg ? `<div class="tk-step-note" id="igFbPickMsg" role="status">${_igEsc(p.msg)}</div>` : '';
+        if (saved && !others.length) {
+            return `<div class="tk-step-note" id="igFbPickNote">Posts to the Facebook Page <strong>${_igEsc(saved.name)}</strong>${saved.connected ? '' : ' (not connected in Post for Me right now)'}.</div>${done}`;
+        }
+        if (!others.length) {
+            return `<div class="tk-step-note" id="igFbPickNote">No Facebook Page is saved for this client, and Post for Me shows none connected with this client's other accounts. Connect it in Post for Me, then ask Sidney to link it. ${svPostForMeLinkHtml()}</div>${done}`;
+        }
+        const items = others.map(x => ({ value: x.id, label: x.name }));
+        const head = saved ? `Posts to the Facebook Page <strong>${_igEsc(saved.name)}</strong>. Another Page connected with this client's accounts is available:` : 'No Facebook Page is saved for this client. These Pages are connected with this client\'s other accounts in Post for Me. Nothing is attached until you pick one:';
+        return `<div class="tk-step-note" id="igFbPickNote">${head}</div>
+            <div class="tk-sched-row" style="margin-top:8px">${_svSelectHtml('igFbPage', items, p.choice || '', 'Pick a Facebook Page…', { disabled: off })}
+            <button type="button" class="tk-mini-btn" id="igFbPageUse" ${off || !p.choice ? 'disabled' : ''}>${p.saving ? 'Saving…' : 'Use this Page'}</button></div>${done}`;
+    }
     // "Also post to Facebook": { enabled, checked, reason }. Ticked by default when the client's Facebook Page
     // is on file; off, with the reason in plain words, when it cannot go to Facebook.
     function _igFacebookState() {
         if (!igState.client) return { enabled: false, checked: false, reason: '' };
         const fb = _igResolveFacebook(igState.client);
-        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
+        if (!IG_ACCOUNT_RE.test(fb)) return { enabled: false, checked: false, noAccount: true, reason: _igFbPickOn() ? 'No Facebook Page is saved for this client yet.' : 'No Facebook Page linked to this client yet. Connect it in Post for Me, then ask Sidney to link it to the client\'s profile: a Page does not link itself.' };
         if (igState.kind === 'reel' && igState.trial) return { enabled: false, checked: false, reason: 'Trial reels are an Instagram feature, so this one posts to Instagram only.' };
         if (igState.kind === 'carousel' && igState.items.some(it => it.isVideo)) return { enabled: false, checked: false, reason: 'Facebook takes a carousel of photos only. This one has a video, so it posts to Instagram only.' };
         return { enabled: true, checked: !igState.facebookOff, reason: '' };
@@ -145,6 +226,8 @@ import { svTrialListShared } from './189-trial-reels-card.js';
     function _igFacebookCardHtml() {
         if (!igState.client) return '';
         const st = _igFacebookState();
+        const pickOn = _igFbPickOn();
+        if (pickOn) _igFbPickLoad(false);
         const dis = !st.enabled || igState.submitting;
         const what = igState.kind === 'carousel' ? 'The photos also go to the client\'s Facebook Page as one post.' : 'The Reel also goes to the client\'s Facebook Page as a Facebook Reel.';
         return `<div class="tk-card" id="igFacebookCard">
@@ -155,7 +238,7 @@ import { svTrialListShared } from './189-trial-reels-card.js';
                         Also post to Facebook
                     </label>
                 </div>
-                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount ? svPostForMeLinkHtml() : ''}</div>
+                <div class="tk-step-note" id="igFacebookNote">${_igEsc(st.enabled ? (st.checked ? what + ' Each network\'s result shows on its own in the queue.' : 'Instagram only.') : st.reason)}${st.noAccount && !pickOn ? svPostForMeLinkHtml() : ''}</div>${pickOn ? _igFbPickHtml(st) : ''}
             </div>`;
     }
 
@@ -1228,6 +1311,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
             _igRenderForm();
         }));
         $('igFacebook')?.addEventListener('change', (e) => { igState.facebookOff = !e.target.checked; _igRenderForm(); });
+        $('igFbPage')?.addEventListener('change', (e) => { const p = _igFbPick[_igFbPickSlug()]; if (p) { p.choice = e.target.value; p.msg = ''; p.err = ''; _igRenderForm(); } });
+        $('igFbPageUse')?.addEventListener('click', () => { _igFbPickSave(); });
+        $('igFbPickRetry')?.addEventListener('click', () => { _igFbPickLoad(true); _igRenderForm(); });
         document.querySelectorAll('input[name="igYtFormat"]').forEach(r => r.addEventListener('change', (e) => { igState.yt.format = e.target.value === 'regular' ? 'regular' : 'short'; _igRenderForm(); }));
         $('igYtTitle')?.addEventListener('input', (e) => {
             igState.yt.title = e.target.value; igState.yt.edited = true;

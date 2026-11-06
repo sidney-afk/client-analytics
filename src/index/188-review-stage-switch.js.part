@@ -78,6 +78,12 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     Instagram side, and Instagram untickable there (plan row P3, page half; 299). The
                                     server checks every account against the client's profile. Staff only. Missing,
                                     unreadable or the wrong shape: the Post tab exactly as it was.
+         fb_page_pick_v1       { "staff": [...] } (session Fbpage, 2026-11-06, OPEN_REPAIRS 711; 299): the Instagram posting
+                                    step's "Also post to Facebook" names WHICH Facebook Page it posts to, and lets a
+                                    person pick when more than one Page is plausibly the client's. "staff" lists staff
+                                    members by id or full name (the same helper as every staff switch; { "all": true }
+                                    would reach every signed-in staff member, never the client link). Missing,
+                                    unreadable or the wrong shape: the step exactly as it was.
          sheet_fit_v1               { "staff": [...], "clients": [...] } and/or { "all": true }: the Calendar Sheet fits
                                     the window (session Sheetzoom, 2026-10-31; 160 and 020 under html.sv-sheet-fit): the
                                     Sheet fills the window under the toolbar with no empty page scroll, tighter spacing,
@@ -91,14 +97,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1', 'fb_page_pick_v1'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
     // Nothing read yet, or the read failed: every switch off.
     function _rsFlagsOff() {
         const n = _rsStaffNone;
-        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), tvAll: false, tv: new Set(), psAll: false, ps: new Set(), pnAll: false, pn: new Set(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
+        return { loaded: false, all: false, clients: new Set(), staff: n(), calm: n(), layout2: n(), fast: n(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), tvAll: false, tv: new Set(), psAll: false, ps: new Set(), pnAll: false, pn: new Set(), fbp: n(), fitAll: false, fitStaff: n(), fit: new Set(), help: '', analytics: false };
     }
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
@@ -125,6 +131,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const psMembers = okObj(psv) ? (_calRuntimeFlagRawMembers(psv) || []) : [];
         const pnv = by.post_networks_v1;
         const pnMembers = okObj(pnv) ? (_calRuntimeFlagRawMembers(pnv) || []) : [];
+        const fbpv = by.fb_page_pick_v1;
         const fitv = by.sheet_fit_v1;
         const fitMembers = okObj(fitv) && Array.isArray(fitv.clients) ? fitv.clients.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*') : [];
         const h = by.review_help_video_url;
@@ -148,6 +155,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             ps: new Set(psMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             pnAll: okObj(pnv) && pnv.all === true,
             pn: new Set(pnMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            fbp: _rsStaffSwitch(fbpv),
             fitAll: okObj(fitv) && fitv.all === true,
             fitStaff: _rsStaffSwitch(fitv),
             fit: new Set(fitMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
@@ -337,6 +345,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.pn.has(slug);
     }
+    /* The Facebook Page pick (fb_page_pick_v1): a listed staff member only, never the client link. Off until the read is in. */
+    function svFbPagePickOn() { return _rsStaffOn(_rsFlags.fbp); }
     // Does post_networks_v1 list anyone? The Post tab's YouTube and LinkedIn buttons sit above the client picker, so they
     // show when the switch lists any client (OPEN_REPAIRS 687); each side then checks the picked client itself. null
     // until the read is in, so a caller can tell "not yet known" from "no" (Codex on PR 2580).
@@ -865,4 +875,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn, svPostNetworksAny };
+export { svSheetFitSync, svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn, svTrialVersionsV2On, svPostSourcesOn, svPostNetworksOn, svPostNetworksAny, svFbPagePickOn };

@@ -1677,11 +1677,11 @@
       "ci": "representative"
     },
     {
-      "file": "instagram-facebook-page-pick-browser.js",
+      "file": "post-account-pick-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks which Facebook Page Also post to Facebook posts to, behind fb_page_pick_v1: the switch off or the person not listed, one Page named, a second Page picked and saved by the button only, none saved, none offered, an unreadable list.",
-      "reproduce": "node test/instagram-facebook-page-pick-browser.js (after repository Playwright/Chromium setup)",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks which account each Post tab network (Instagram, TikTok, Facebook, YouTube channel, LinkedIn) posts to, behind post_account_pick_v1: the switch off or the person not listed, the account's name beside the toggle, a second account picked and saved by the button only, none saved, none offered, an unreadable list.",
+      "reproduce": "node test/post-account-pick-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

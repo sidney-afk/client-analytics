@@ -78,7 +78,18 @@ import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
     function svThumbZoomIsOpen() { const o = document.getElementById(TZ_ID); return !!(o && o.classList.contains('open')); }
     // Esc closes it before anything under it sees the key (the review page and the notes box also listen for Esc).
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && svThumbZoomIsOpen()) { e.stopPropagation(); e.preventDefault(); svThumbZoomClose(); }
+        if (!svThumbZoomIsOpen()) return;
+        if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); svThumbZoomClose(); return; }
+        // Tab stays inside the viewer (its X and, for a carousel, "Open in Drive") until it closes.
+        if (e.key === 'Tab') {
+            const o = document.getElementById(TZ_ID);
+            const set = Array.from(o.querySelectorAll('.sv-tz-x, .sv-tz-open')).filter(n => !n.hidden);
+            if (!set.length) return;
+            const i = set.indexOf(document.activeElement);
+            const next = e.shiftKey ? (i <= 0 ? set.length - 1 : i - 1) : (i < 0 || i === set.length - 1 ? 0 : i + 1);
+            e.preventDefault();
+            set[next].focus({ preventScroll: true });
+        }
     }, true);
 
     /* The older card lists (Calendar's Review tab, Kasper's list, a Samples card): the small picture in a card's strip, the

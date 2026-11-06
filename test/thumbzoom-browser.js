@@ -87,6 +87,9 @@ async function board(browser, origin, label, mode, extra) {
   ok(approveStatus(t) === before && t.state.upserts.length === 0, label + ': the click saved nothing');
   await shot(t.page, label.replace(/\W+/g, '-').toLowerCase() + '-open');
 
+  // Tab never leaves the viewer (it holds only the X here).
+  for (let i = 0; i < 3; i++) await t.page.keyboard.press(i === 2 ? 'Shift+Tab' : 'Tab');
+  ok(await t.page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('#svThumbZoom')), label + ': Tab and Shift+Tab keep focus inside the viewer');
   await t.page.keyboard.press('Escape');
   ok(!(await zoomState(t.page)).open, label + ': Esc closes it');
   ok(await t.page.evaluate(() => { const h = document.getElementById('svReviewStage').shadowRoot; return h.activeElement && h.activeElement.id === 'bigthumbImg'; }), label + ': focus goes back to the picture');

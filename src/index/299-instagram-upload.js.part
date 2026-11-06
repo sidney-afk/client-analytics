@@ -136,10 +136,9 @@ import { svTrialListShared } from './189-trial-reels-card.js';
        Next to each network's toggle the Post tab names the account the post goes to, as Post for Me reports it (the
        display name; for YouTube the channel name, since one Google login can hold several channels), not just an spc_ id.
        The names and the choice come from client-profile-write's pfm_account_choices: the account saved on the client,
-       plus unlinked connected accounts of that network whose display name contains the client's full display name.
-       When more than one is offered there is a picker and a "Use this ..." button; the saved account changes only when
-       that button is pressed (pfm_account_pick, the same save path as the Clients tab). Nothing is ever attached on its
-       own. Off, or unreadable: every line exactly as it was. Shared by the Instagram, YouTube, LinkedIn, Facebook (this
+       plus unlinked connected accounts of that network whose external_id is the client's slug or full name or whose display name contains the client's full display name.
+       When more than one belongs to the client there is a picker; choosing one saves it as the client's default, which is the account this post and the next ones go to (pfm_account_pick, the same save path as the Clients tab). Nothing is ever attached
+       without a pick. Off, or unreadable: every line exactly as it was. Shared by the Instagram, YouTube, LinkedIn, Facebook (this
        file) and TikTok (300) sides, which hand in their own redraw. */
     const SV_ACCT_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
     const SV_ACCT_LABEL = { tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn' };
@@ -212,23 +211,20 @@ import { svTrialListShared } from './189-trial-reels-card.js';
         if (st.status === 'error') return { line: null, hasOthers: false, picker: `<div class="tk-step-note" id="${prefix}Note">${_igEsc(st.err)} <button type="button" class="tk-mini-btn" id="${prefix}Retry">Try again</button></div>` };
         const label = SV_ACCT_LABEL[net], noun = SV_ACCT_NOUN[net], off = busy || st.saving;
         const saved = st.accounts.find(x => x.saved && x.id === st.savedId);
-        const others = st.accounts.filter(x => !(x.saved && x.id === st.savedId));
         const done = st.err ? `<div class="tk-step-note" id="${prefix}Err" role="alert">${_igEsc(st.err)}</div>` : st.msg ? `<div class="tk-step-note" id="${prefix}Msg" role="status">${_igEsc(st.msg)}</div>` : '';
         const line = saved && _svAcctLabel(saved)
             ? `Posts to ${label} ${noun} <span class="tk-profile-chip">${_igEsc(_svAcctLabel(saved))}</span>${saved.connected ? '' : ' (not connected in Post for Me right now)'}` : null;
         let picker = '';
-        if (others.length) {
-            const head = saved ? `More than one ${label} ${noun} carries this client's name in Post for Me. Pick the one to post to:` : `No ${label} ${noun} is saved for this client. These ${noun}s in Post for Me carry the client's name. Nothing is attached until you pick one:`;
+        if (st.accounts.length > 1 || (!saved && st.accounts.length)) {
+            const head = saved ? `More than one ${label} ${noun} belongs to this client. Choose the one this post goes to; it becomes the default for next time:` : `No ${label} ${noun} is saved for this client. These ${noun}s in Post for Me belong to this client. Nothing is attached until you pick one:`;
             picker = `<div class="tk-step-note" id="${prefix}Note">${head}</div>
-                <div class="tk-sched-row" style="margin-top:8px">${_svSelectHtml(prefix + 'Page', others.map(x => ({ value: x.id, label: _svAcctLabel(x) || 'Unnamed ' + noun })), st.choice || '', 'Pick a ' + label + ' ' + noun + '…', { disabled: off })}
-                <button type="button" class="tk-mini-btn" id="${prefix}Use" ${off || !st.choice ? 'disabled' : ''}>${st.saving ? 'Saving…' : 'Use this ' + noun}</button></div>`;
+                <div class="tk-sched-row" style="margin-top:8px">${_svSelectHtml(prefix + 'Page', st.accounts.map(x => ({ value: x.id, label: _svAcctLabel(x) || 'Unnamed ' + noun })), st.savedId || '', 'Pick a ' + label + ' ' + noun + '…', { disabled: off })}</div>`;
         }
-        return { line, picker: picker + done, hasOthers: others.length > 0 };
+        return { line, picker: picker + done, hasOthers: st.accounts.some(x => !(x.saved && x.id === st.savedId)) };
     }
     function svAcctBind(net, client, prefix, rerender) {
         const key = _svAcctKey(net, client);
-        document.getElementById(prefix + 'Page')?.addEventListener('change', (e) => { const p = _svAcct[key]; if (p) { p.choice = e.target.value; p.msg = ''; p.err = ''; rerender(); } });
-        document.getElementById(prefix + 'Use')?.addEventListener('click', () => { _svAcctSave(net, client, rerender); });
+        document.getElementById(prefix + 'Page')?.addEventListener('change', (e) => { const p = _svAcct[key]; if (p && e.target.value && e.target.value !== p.savedId) { p.choice = e.target.value; _svAcctSave(net, client, rerender); } });
         document.getElementById(prefix + 'Retry')?.addEventListener('click', () => { _svAcctLoad(net, client, rerender, true); rerender(); });
     }
     // "Also post to Facebook": { enabled, checked, reason }. Ticked by default when the client's Facebook Page

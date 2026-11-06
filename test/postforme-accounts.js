@@ -24,7 +24,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   // --- safe fields: a whitelist, never a blacklist ---
   const s = m.safeAccount(raw('spc_FixtureIg0001', 'instagram', '@Fixture.One'));
-  ok(same(Object.keys(s).sort(), ['display_name', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
+  ok(same(Object.keys(s).sort(), ['display_name', 'external_id', 'id', 'platform', 'status', 'user_id', 'username']), 'only the whitelisted fields are kept');
   const walk = (v, out = []) => { if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { out.push(k); walk(x, out); } return out; };
   const tokenish = k => /token|secret|refresh|password|expires/i.test(k);
   ok(!walk(s).some(tokenish) && !JSON.stringify(s).includes('tok-') && !JSON.stringify(s).includes('nested-secret'), 'no token field or value at any depth');
@@ -196,12 +196,15 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     const fbD = acct('spc_FixtureFbD001', 'facebook', 'Ana Lima Fan Page');
     const fbOff = acct('spc_FixtureFbE001', 'facebook', 'Ana Lima Old', { status: 'disconnected' });
     const ig = acct('spc_FixtureIg0009', 'instagram', 'Ana Lima');
+    const liOrg = acct('spc_FixtureLiOrg01', 'linkedin', 'Lima Holdings Ltd', { external_id: 'ANA lima' });
+    const liSlug = acct('spc_FixtureLiPers1', 'linkedin', 'A. L.', { external_id: 'mine' });
+    const liOther = acct('spc_FixtureLiOther', 'linkedin', 'Another Co', { external_id: 'Somebody Else' });
     const yt1 = acct('spc_FixtureYt0001', 'youtube', 'Ana Lima Channel');
     const yt2 = acct('spc_FixtureYt0002', 'youtube', 'Ana Lima Español');
     const tt = acct('spc_FixtureTt0009', 'tiktok_business', 'Aña Lima');
     const mine = prof('mine', { display_name: 'Ana Lima', extra: { postforme_instagram_account_id: ig.id, postforme_facebook_account_id: fbA.id } });
     const other = prof('other', { display_name: 'Other Client', extra: { postforme_facebook_account_id: fbD.id } });
-    const all = [fbA, fbB, fbC, fbD, fbOff, ig, yt1, yt2, tt];
+    const all = [fbA, fbB, fbC, fbD, fbOff, ig, yt1, yt2, tt, liOrg, liSlug, liOther];
     const ids = r => r.accounts.map(x => x.id);
     let r = m.accountChoices(all, [mine, other], 'mine', 'facebook');
     ok(r.saved_id === fbA.id && r.accounts[0].id === fbA.id && r.accounts[0].saved === true && r.accounts[0].name === 'Ana Lima Studio', 'the saved account is listed first, by name');
@@ -215,7 +218,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     r = m.accountChoices(all, [mine, other], 'mine', 'instagram');
     ok(same(ids(r), [ig.id]), 'instagram: only the saved account (nothing else matches)');
     r = m.accountChoices(all, [mine, other], 'mine', 'linkedin');
-    ok(r.accounts.length === 0 && r.saved_id === '', 'linkedin: none saved, none offered');
+    ok(same(ids(r), [liOrg.id, liSlug.id]) && r.saved_id === '', 'linkedin: a company page is offered by external_id (client name or slug) though its own name differs; another client\'s external_id is not');
     r = m.accountChoices([fbB], [prof('mine', { display_name: 'Ana Lima', extra: { postforme_facebook_account_id: fbA.id } })], 'mine', 'facebook');
     ok(r.accounts[0].id === fbA.id && r.accounts[0].connected === false && r.accounts[0].name === '', 'a saved account missing from Post for Me is still listed, as not connected');
     r = m.accountChoices(all, [prof('mine', { display_name: 'Li', extra: {} })], 'mine', 'facebook');
@@ -223,6 +226,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     r = m.accountChoices(all, [prof('mine', { display_name: 'Ana Lima', archived_at: '2026-01-01T00:00:00Z', extra: {} })], 'mine', 'facebook');
     ok(r.accounts.length === 0, 'an archived client is offered nothing');
     ok(m.accountChoices(all, [mine], 'mine', 'twitter').accounts.length === 0, 'an unknown network offers nothing');
+    ok(m.externalIdIsClient('Ana-Lima', { slug: 'mine', display_name: 'Ana Lima' }) === true && m.externalIdIsClient('Ana', { slug: 'x', display_name: 'Ana Lima' }) === false && m.externalIdIsClient('', { slug: '', display_name: '' }) === false, 'external_id: equals the slug or full name, folded; a part of the name or an empty value does not');
     ok(m.nameContainsClient('Ana-Lima | Coaching', 'ana  lima') === true && m.nameContainsClient('Ana', 'Ana Lima') === false, 'the name rule: whole name inside, punctuation and case ignored');
   }
   {

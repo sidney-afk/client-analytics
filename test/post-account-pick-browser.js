@@ -4,8 +4,8 @@
 // Proves, for Instagram, TikTok, Facebook, YouTube (channel name) and LinkedIn:
 //   1. switch off, or the signed-in person not listed: every line as before (the id chip), client-profile-write never called;
 //   2. one account, nothing else offered: its name beside the toggle, no picker, nothing to click;
-//   3. a second account offered: a picker and a "Use this ..." button; the saved account changes only when pressed,
-//      through pfm_account_pick, and the next post carries the new account;
+//   3. a second account that belongs to the client: a picker listing every one; choosing one saves it as the client's
+//      default (pfm_account_pick) and the post carries it; with one account there is no picker;
 //   4. none saved: the Facebook toggle is off and says so, offered accounts are listed, nothing is attached on its own;
 //   5. an unreadable list: a plain message with Try again, and posting is as before.
 // Set POSTPICK_SHOTS=<dir> to write screenshots.
@@ -103,6 +103,10 @@ async function client(page, net) {
 const lineOf = (page, net) => page.locator(net === 'tiktok' ? '#tkFormCol .tk-profile-line' : '#igFormCol .tk-profile-line').first().innerText();
 async function shot(page, name, sel, below) {
   if (!SHOTS) return;
+  for (let i = 0; i < 4; i++) { try { await shotOnce(page, name, sel, below); return; } catch (e) { if (i === 3) throw e; await page.waitForTimeout(400); } }
+}
+async function shotOnce(page, name, sel, below) {
+  if (process.env.POSTPICK_TRACE) console.log('shot', name);
   fs.mkdirSync(SHOTS, { recursive: true });
   const el = page.locator(sel).first();
   await el.scrollIntoViewIfNeeded();
@@ -140,7 +144,7 @@ const L = (net, id, name, extra) => Object.assign({ id, name }, extra || {});
     await side(r.page, 'tiktok'); await client(r.page, 'tiktok');
     await r.page.waitForFunction(() => /Posts to TikTok account/.test(document.querySelector('#tkFormCol .tk-profile-line')?.innerText || ''));
     assert.match(await lineOf(r.page, 'tiktok'), /Posts to TikTok account\s+Fixture TikTok/); checks++;
-    ok(await r.page.locator('#tkAcctPage').count() === 0 && await r.page.locator('#tkAcctUse').count() === 0, 'tiktok: one account, no picker');
+    ok(await r.page.locator('#tkAcctPage').count() === 0 && await r.page.locator('#tkAcctPageBtn').count() === 0, 'tiktok: one account, no picker');
     await shot(r.page, '1-tiktok-name', '#tkFormCol .tk-profile-line');
     await side(r.page, 'instagram'); await client(r.page, 'instagram');
     await r.page.waitForFunction(() => /Posts to Instagram account/.test(document.querySelector('#igFormCol .tk-profile-line')?.innerText || ''));
@@ -166,27 +170,32 @@ const L = (net, id, name, extra) => Object.assign({ id, name }, extra || {});
     // 3. two YouTube channels (one Google login, several channels) and two TikTok accounts: pick, save, post carries it
     const two = oneEach();
     two.youtube = [L('youtube', IDS.youtube, 'Fixture Channel', { handle: 'fixture_handle' }), L('youtube', ALT.youtube, 'Fixture Channel Español')];
+    two.linkedin = [L('linkedin', IDS.linkedin, 'Fixture Person'), L('linkedin', ALT.linkedin, 'Fixture Company Ltd')];
     two.tiktok = [L('tiktok', IDS.tiktok, 'Fixture TikTok'), L('tiktok', ALT.tiktok, 'Fixture TikTok Two')];
     r = await open(browser, server, { flag: { staff: ['qa_admin'] }, saved: IDS, lists: two });
     await side(r.page, 'youtube'); await client(r.page, 'youtube');
-    await r.page.waitForSelector('#igAcctUse');
-    assert.match(await r.page.innerText('#igAcctNote'), /More than one YouTube channel carries this client's name/); checks++;
-    ok(await r.page.isDisabled('#igAcctUse'), 'the button waits for a choice');
-    await shot(r.page, '4-youtube-two-channels', '#igFormCol .tk-profile-line', '#igAcctUse');
+    await r.page.waitForSelector('#igAcctPageBtn');
+    assert.match(await r.page.innerText('#igAcctNote'), /More than one YouTube channel belongs to this client/); checks++;
+    ok(r.calls.picks.length === 0, 'opening the picker saves nothing');
+    await shot(r.page, '4-youtube-two-channels', '#igFormCol .tk-profile-line:visible', '#igAcctPageBtn');
     await pickSv(r.page, 'igAcctPage', ALT.youtube);
-    ok(!(await r.page.isDisabled('#igAcctUse')) && r.calls.picks.length === 0, 'a choice enables the button and saves nothing');
-    await r.page.click('#igAcctUse');
     await r.page.waitForSelector('#igAcctMsg');
     assert.deepEqual([r.calls.picks[0].network, r.calls.picks[0].slug, r.calls.picks[0].account_id, r.calls.picks[0].member_id], ['youtube', 'sidneylaruel', ALT.youtube, 'qa_admin']); checks++;
     assert.match(await r.page.innerText('#igAcctMsg'), /Saved\. YouTube posts for this client now go to Fixture Channel Español\./); checks++;
     await r.page.waitForFunction(() => /Posts to YouTube channel\s+Fixture Channel Español/.test(document.querySelector('#igFormCol .tk-profile-line')?.innerText || ''));
     await shot(r.page, '5-youtube-saved', '#igFormCol .tk-profile-line', '#igAcctMsg');
     await side(r.page, 'tiktok'); await client(r.page, 'tiktok');
-    await r.page.waitForSelector('#tkAcctUse');
-    await pickSv(r.page, 'tkAcctPage', ALT.tiktok); await r.page.click('#tkAcctUse');
+    await r.page.waitForSelector('#tkAcctPageBtn');
+    await pickSv(r.page, 'tkAcctPage', ALT.tiktok); await r.page.click('#tkAcctPageBtn');
     await r.page.waitForSelector('#tkAcctMsg');
     assert.deepEqual([r.calls.picks[1].network, r.calls.picks[1].account_id], ['tiktok', ALT.tiktok]); checks++;
     await shot(r.page, '6-tiktok-saved', '#tkFormCol .tk-profile-line', '#tkAcctMsg');
+    await side(r.page, 'linkedin'); await client(r.page, 'linkedin');
+    await r.page.waitForSelector('#igAcctPageBtn');
+    await shot(r.page, '6b-linkedin-person-or-company', '#igFormCol .tk-profile-line:visible', '#igAcctPageBtn');
+    await pickSv(r.page, 'igAcctPage', ALT.linkedin); await r.page.waitForSelector('#igAcctMsg');
+    assert.deepEqual([r.calls.picks[2].network, r.calls.picks[2].account_id], ['linkedin', ALT.linkedin]); checks++;
+    assert.match(await r.page.innerText('#igAcctMsg'), /LinkedIn posts for this client now go to Fixture Company Ltd/); checks++;
     assert.deepEqual(r.errors, []); checks++;
     await r.context.close();
 
@@ -194,11 +203,10 @@ const L = (net, id, name, extra) => Object.assign({ id, name }, extra || {});
     const fb2 = oneEach(); fb2.facebook = [L('facebook', IDS.facebook, 'Fixture Page One'), L('facebook', ALT.facebook, 'Fixture Page Two')];
     r = await open(browser, server, { flag: { staff: ['QA Admin'] }, saved: IDS, lists: fb2 });
     await side(r.page, 'instagram'); await client(r.page, 'instagram');
-    await r.page.waitForSelector('#igFbUse');
+    await r.page.waitForSelector('#igFbPageBtn');
     await pickSv(r.page, 'igFbPage', ALT.facebook);
-    ok(r.calls.picks.length === 0, 'choosing a Page alone saves nothing');
     await shot(r.page, '7-facebook-two-pages', '#igFacebookCard');
-    await r.page.click('#igFbUse'); await r.page.waitForSelector('#igFbMsg');
+    await r.page.waitForSelector('#igFbMsg');
     await r.page.setInputFiles('#igFile', vid('two.mp4')); await r.page.fill('#igTitle', 'Two page caption'); await r.page.click('#igSubmit');
     await r.page.waitForFunction(() => /Sent to Instagram/.test(document.querySelector('#igFormCol')?.innerText || '') && !igState.submitting, null, { timeout: 15000 });
     assert.equal(r.calls.creates[0].facebookAccountId, ALT.facebook, 'the next post carries the picked Page'); checks++;
@@ -208,7 +216,7 @@ const L = (net, id, name, extra) => Object.assign({ id, name }, extra || {});
     const fb3 = oneEach(); fb3.facebook = [L('facebook', IDS.facebook, 'Fixture Page One')];
     r = await open(browser, server, { flag: { staff: ['QA Admin'] }, saved: Object.assign({}, IDS, { facebook: '' }), lists: fb3 });
     await side(r.page, 'instagram'); await client(r.page, 'instagram');
-    await r.page.waitForSelector('#igFbUse');
+    await r.page.waitForSelector('#igFbPageBtn');
     ok(await r.page.isDisabled('#igFacebook') && !(await r.page.isChecked('#igFacebook')), 'none saved: the toggle is off');
     assert.match(await r.page.innerText('#igFacebookNote'), /No Facebook Page is saved for this client yet\./); checks++;
     assert.match(await r.page.innerText('#igFbNote'), /Nothing is attached until you pick one/); checks++;

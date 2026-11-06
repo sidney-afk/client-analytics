@@ -11,14 +11,14 @@
 -- in the Drive link, not a secret; no file name, no image bytes and no token is stored: the first image's file id,
 -- the image count, whether a video is also inside, and the state ok / empty / no_images / not_shared).
 --
--- The switch itself is NOT created here. It is the runtime flag carousel_preview_clients: "clients" holds ONLY the
+-- The switch itself is NOT created here. It is the runtime flag carousel_preview_v1: "clients" holds ONLY the
 -- test client; "viewers" lists staff members (roster NAME and id, as in public.team_members) who see the new behaviour
 -- on EVERY client, including a client link opened in a browser that holds their signed-in staff session (key-verify
 -- confirms it; the server needs a real staff role key and the listed name). Real clients on their own devices keep
 -- today's page. Lighthouse sets it, as the owner, with the owner's own name and id (never written in this repo):
 --   select id, name, role from public.team_members where name ilike '%<first name>%';   -- read them here
 --   insert into public.syncview_runtime_flags (key, value)
---   values ('carousel_preview_clients', jsonb_build_object('clients', jsonb_build_array('sidneylaruel'),
+--   values ('carousel_preview_v1', jsonb_build_object('clients', jsonb_build_array('sidneylaruel'),
 --           'viewers', jsonb_build_array('<member id>', '<member full name>')))
 --   on conflict (key) do update set value = excluded.value;
 -- Put BOTH the id and the full name: the page matches either, the server matches the name.
@@ -36,7 +36,7 @@
 --
 -- Rollback: drop table if exists public.carousel_folder_preview_cache; (it is only a cache; every look reads Drive
 -- again.) The flag row, if it was set, is deleted separately: delete from public.syncview_runtime_flags
--- where key = 'carousel_preview_clients';
+-- where key = 'carousel_preview_v1';
 begin;
 
 create table if not exists public.carousel_folder_preview_cache (

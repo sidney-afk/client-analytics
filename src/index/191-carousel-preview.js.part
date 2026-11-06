@@ -10,7 +10,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        folder's first image by name, a "Carousel · N images" badge and "Open in Drive" instead of the dark "Open folder"
        card; its thumbnail opens the card view on the client link; the card view says what the post is ("About this post").
 
-       Behind the runtime flag carousel_preview_clients ({ "clients": [...] }, the test client only; 188). Flag off,
+       Behind the runtime flag carousel_preview_v1 ({ "clients": [...] }, the test client only; 188). Flag off,
        unreadable or wrongly shaped: every function below answers "nothing", and the page is exactly as it was.
 
        The picture never needs a token: the server (thumbnail-folder-resolve, action folder_preview) lists the folder

@@ -177,7 +177,7 @@ async function installRoutes(ctx, origin, state) {
         if (state.flagFail) return json({ message: 'fixture failure' }, 500);
         return json(state.frameFlag ? [{ key: 'frame_viewer_clients', value: state.frameFlag }] : []);
       }
-      return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) && k !== 'carousel_preview_clients' ? { clients: [SLUG] } : { enabled: false }) })));
+      return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false }) })));
     }
     if (p === '/rest/v1/calendar_posts') {
       const one = String(sp.get('id') || '').replace(/^eq\./, '');

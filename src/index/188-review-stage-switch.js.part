@@ -78,7 +78,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     Instagram side, and Instagram untickable there (plan row P3, page half; 299). The
                                     server checks every account against the client's profile. Staff only. Missing,
                                     unreadable or the wrong shape: the Post tab exactly as it was.
-         carousel_preview_clients   { "clients": [...], "viewers": [...] } (session Carouselbuild, 2026-11-06, OPEN_REPAIRS
+         carousel_preview_v1   { "clients": [...], "viewers": [...] } (session Carouselbuild, 2026-11-06, OPEN_REPAIRS
                                     710; 191). "clients" is the test client only. "viewers" lists staff members (roster
                                     name or id): for a listed viewer EVERY client's Calendar shows the new behaviour, and so
                                     does a client link opened in a browser that holds that member's signed-in staff session
@@ -99,7 +99,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1', 'carousel_preview_clients'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'review_client_polish', 'trial_reels_pages', 'sheet_fit_v1', 'trial_versions_v2', 'post_sources_v1', 'post_networks_v1', 'carousel_preview_v1'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
     let _rsFlags = _rsFlagsOff();
@@ -133,7 +133,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const psMembers = okObj(psv) ? (_calRuntimeFlagRawMembers(psv) || []) : [];
         const pnv = by.post_networks_v1;
         const pnMembers = okObj(pnv) ? (_calRuntimeFlagRawMembers(pnv) || []) : [];
-        const cvv = by.carousel_preview_clients;
+        const cvv = by.carousel_preview_v1;
         const cvMembers = okObj(cvv) ? (_calRuntimeFlagRawMembers(cvv) || []) : [];
         const cvViewers = okObj(cvv) && Array.isArray(cvv.viewers) ? cvv.viewers.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const fitv = by.sheet_fit_v1;
@@ -339,7 +339,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.ps.has(slug);
     }
-    /* The carousel preview (carousel_preview_clients, 191): a listed client only, staff and the client link alike. Asking
+    /* The carousel preview (carousel_preview_v1, 191): a listed client only, staff and the client link alike. Asking
        starts the read; until it is in, and for an unreadable or wrongly shaped answer, off (every card exactly as it was). */
     /* A listed staff VIEWER on a CLIENT LINK (Sidney checking a client's page with his own staff sign-in): the page holds a
        saved staff identity only when someone signed in to the staff pages in this browser, and a saved identity is

@@ -96,7 +96,7 @@ async function install(ctx, origin, flagOn, calls) {
       const q = decodeURIComponent(u.search);
       const out = [];
       if (/prod_authority/.test(q)) out.push({ key: 'prod_authority', value: { video: 'linear', graphics: 'linear' } });
-      if (/carousel_preview_clients/.test(q) && flagValue) out.push({ key: 'carousel_preview_clients', value: flagValue });
+      if (/carousel_preview_v1/.test(q) && flagValue) out.push({ key: 'carousel_preview_v1', value: flagValue });
       if (/frame_viewer_clients/.test(q)) out.push({ key: 'frame_viewer_clients', value: { clients: [SLUG] } });
       return json(out);
     }

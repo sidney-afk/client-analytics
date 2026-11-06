@@ -9416,7 +9416,7 @@ html.sv-phone-polish.sv-staff-phone body .cal-sk-phone-bar { padding-block:4px; 
 
 /* no-hardcoded-colors: allow-start (badges, the dark folder card and the skeleton are drawn over a picture, so their colours never follow the theme) */
 /* ── Carousel preview (session Carouselbuild, 2026-11-06, OPEN_REPAIRS 710; script fragment 191) ──
-   Behind the runtime flag carousel_preview_clients: nothing below is drawn unless the page asks for it. */
+   Behind the runtime flag carousel_preview_v1: nothing below is drawn unless the page asks for it. */
 .sv-car-mini { position: absolute; right: 3px; bottom: 3px; min-width: 16px; height: 15px; padding: 0 4px; border-radius: 8px; background: rgba(18,15,12,.82); color: #fff; font: 800 .6rem/1 'Plus Jakarta Sans', sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 2px; pointer-events: none; }
 .sv-car-mini svg { width: 9px; height: 9px; }
 .cal-month-pill-thumb:has(.sv-car-mini), .cal-week-card-thumb:has(.sv-car-mini) { position: relative; }

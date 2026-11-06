@@ -6,7 +6,7 @@
 // row first and refuses stale writes when the stored thumbnail_url differs.
 //
 // A second action, folder_preview (carousel preview, OPEN_REPAIRS 710): given a Drive FOLDER link on a card
-// of a client listed in the runtime flag carousel_preview_clients (or any client, for a listed staff "viewers" member
+// of a client listed in the runtime flag carousel_preview_v1 (or any client, for a listed staff "viewers" member
 // holding a real staff role key), it lists the folder with the API key only (so a
 // folder that is not shared "Anyone with the link" reads as not_shared, never through the service account), picks
 // the first IMAGE by name, and answers { state, count, has_video, first_file_id }. Cached in
@@ -233,7 +233,7 @@ async function writePatch(
 }
 
 /* ---- folder_preview (carousel preview) ---------------------------------------------------------------------- */
-const PREVIEW_FLAG_KEY = "carousel_preview_clients";
+const PREVIEW_FLAG_KEY = "carousel_preview_v1";
 const PREVIEW_TTL_MS: Record<string, number> = { ok: 15 * 60_000, empty: 60_000, no_images: 5 * 60_000, not_shared: 30_000, error: 15_000 };
 const IMAGE_NAME_RE = /\.(png|jpe?g|webp|gif|heic|avif)$/i;
 

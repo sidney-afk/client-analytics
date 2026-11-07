@@ -162,7 +162,7 @@ export function profileFactId(folder) {
 // Said after every profile read and every review_notes answer, so SyncMate saves
 // what the person approves without being asked (Sidney, 2026-11-02: saves had
 // stopped happening during tweak jobs).
-export const SAVE_REMINDER = "SAVE AS YOU GO: whenever the person approves a look, a fix or a rule for this client (captions, fonts, colours, cuts, hook, music, framing, \"always\" or \"never\"), call studio_profile_save at once with just those fields (it merges), without asking, and say it in one line. Save once more with a one-line recap when each video is finished.";
+export const SAVE_REMINDER = "SAVE AS YOU GO: whenever the person approves a look, a fix or a rule for this client (captions, fonts, colours, cuts, hook, music, framing, \"always\" or \"never\"), call studio_profile_save at once with just those fields (it merges), without asking, and say it in one line. Save once more with a one-line recap when each video is finished. LAST STEP BEFORE YOU HAND BACK THE FINISHED VIDEO: if you have not called studio_profile_save for this client in this chat, call it now with what this job taught you (even one line: the fix and why), then say so in one line.";
 
 // client_brain's answer with the client's saved video look added, so every
 // new session sees how this client's videos are edited without being asked
